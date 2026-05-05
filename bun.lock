@@ -37,6 +37,19 @@
         "drizzle-orm": "^0.36.0",
       },
     },
+    "packages/adapters/dataforseo": {
+      "name": "@marketing-auto/adapter-dataforseo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/cost-tracker": "workspace:*",
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "dataforseo-client": "^2.0.24",
+      },
+      "devDependencies": {
+        "drizzle-orm": "^0.36.0",
+      },
+    },
     "packages/adapters/replicate": {
       "name": "@marketing-auto/adapter-replicate",
       "version": "0.1.0",
@@ -192,6 +205,8 @@
 
     "@marketing-auto/adapter-anthropic": ["@marketing-auto/adapter-anthropic@workspace:packages/adapters/anthropic"],
 
+    "@marketing-auto/adapter-dataforseo": ["@marketing-auto/adapter-dataforseo@workspace:packages/adapters/dataforseo"],
+
     "@marketing-auto/adapter-replicate": ["@marketing-auto/adapter-replicate@workspace:packages/adapters/replicate"],
 
     "@marketing-auto/adapter-storage": ["@marketing-auto/adapter-storage@workspace:packages/adapters/storage"],
@@ -247,6 +262,8 @@
     "colorette": ["colorette@2.0.20", "", {}, "sha512-IfEDxwoWIjkeXL1eXcDiow4UbKjhLdq6/EuSVR9GMN7KVH3r9gQ83e73hsz1Nd1T3ijd5xv1wcWRYO+D6kCI2w=="],
 
     "cron-parser": ["cron-parser@4.9.0", "", { "dependencies": { "luxon": "^3.2.1" } }, "sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q=="],
+
+    "dataforseo-client": ["dataforseo-client@2.0.24", "", {}, "sha512-xUms9IL5Yu5kN6Aj8ihs7Z6kctUwr/u5tVvApu1ZtFOvzsy2YHvMLF4F5awrm+q0ZfsKJ58IUv4XYCbx39FuOA=="],
 
     "dateformat": ["dateformat@4.6.3", "", {}, "sha512-2P0p0pFGzHS5EMnhdxQi7aJN+iMheud0UhG4dlE1DLAlvL8JHjJJTX/CSm4JXwV0Ka5nGk3zC5mcb5bUQUxxMA=="],
 

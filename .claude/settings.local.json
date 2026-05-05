@@ -65,7 +65,8 @@
       "Bash(bun --filter @marketing-auto/adapter-anthropic typecheck)",
       "Bash(bun --filter '*' typecheck)",
       "Bash(bun --filter @marketing-auto/adapter-storage typecheck)",
-      "Bash(bun --filter @marketing-auto/adapter-replicate typecheck)"
+      "Bash(bun --filter @marketing-auto/adapter-replicate typecheck)",
+      "Bash(bun --filter @marketing-auto/adapter-dataforseo typecheck)"
     ]
   }
 }

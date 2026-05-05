@@ -27,6 +27,7 @@ Designed to evolve into SaaS.
 - **LLM calls**: always via `@marketing-auto/adapter-anthropic` (`anthropic.messages()`), never `@anthropic-ai/sdk` directly
 - **Image generation**: always via `@marketing-auto/adapter-replicate` (`replicate.generateImage()`), never the `replicate` npm package directly
 - **Object storage**: always via `@marketing-auto/adapter-storage` (`r2.put()` etc.), never `Bun.S3Client` directly
+- **SEO data**: always via `@marketing-auto/adapter-dataforseo` (`dataforseo.serp()` etc.), never `dataforseo-client` directly
 
 ## Vue/Quasar Conventions (from Marcel's existing standards)
 - Options API only (NOT Composition API, NOT script setup)
@@ -52,6 +53,8 @@ Designed to evolve into SaaS.
 - DO NOT add a new adapter under `packages/adapters/<name>/` without also adding `"packages/adapters/*"` to `workspaces` in root `package.json` — Bun's `packages/*` glob only resolves direct children, not nested packages
 - DO NOT add `"types": ["bun"]` or `"typeRoots"` to adapter-level `tsconfig.json` files — it produces `Cannot find type definition file for 'bun'`. Bun types resolve correctly through the workspace root without explicit declaration (verified in adapters/anthropic, adapters/replicate, adapters/storage)
 - DO NOT name a constructor parameter property `cause` when subclassing `Error` — `Error.cause` is a reserved built-in in ESNext lib and TypeScript requires `override`. Rename to `originalCause` or similar instead
+- DO NOT use `RequestInfo` as a type in adapter code — it is not in scope under Bun's TypeScript config. Use `string | URL | Request` instead (the same union `RequestInfo` aliases in lib.dom.d.ts)
+- DO NOT hardcode `0.92` as a USD→EUR conversion constant in adapters — import `EUR_PER_USD` from `@marketing-auto/cost-tracker` so all FX conversions stay in sync
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
@@ -71,6 +74,7 @@ Implemented specs (do not re-implement):
 - /specs/10-project-marketing-context-skill-integration.md
 - /specs/11-anthropic-adapter.md
 - /specs/12-replicate-adapter.md
+- /specs/13-dataforseo-adapter.md
 
 ## Project Marketing Contexts
 

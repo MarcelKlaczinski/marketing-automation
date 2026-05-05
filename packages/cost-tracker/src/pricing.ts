@@ -55,6 +55,15 @@ export const DATAFORSEO_PRICING_USD = {
   serpPriority:       0.0012,
   serpLive:           0.002,
   keywordSuggestions: 0.001,
+
+  // Labs API — pre-computed database
+  keywordOverviewLive:    0.0201,
+  relatedKeywordsLive:    0.012,
+  keywordSuggestionsLive: 0.012,
+  rankedKeywordsLive:     0.012,
+
+  // Keywords Data API
+  searchVolumeLive: 0.025,
 } as const;
 
 export function dataforseoCostEur(input: {
