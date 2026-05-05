@@ -1295,6 +1295,13 @@ See "Implementation Order" — six sessions. Total: 16-22 hours of compute time 
 
 - `dataforseo.relatedKeywords()` does NOT return `keywordDifficulty`. The `RelatedKeywordItem` type only has `keyword`, `depth`, `searchVolume`, `cpcUsd`, `competition`. Satellite keyword `difficulty` is always `null` unless you make a separate `keywordOverview()` call per satellite — not worth the cost for cold-start.
 - DataForSEO `operation` keys must not contain special characters (umlauts, spaces, slashes). Sanitize cornerstone keywords before using as operation identifiers: `.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "")`.
+- Phase 4 (cornerstone list) was completed in this session alongside Phase 3, so Session 5 moved directly to Phase 5 (go-live checklist). The 6-session plan completed in 5.
+
+**Session 5:**
+
+- When reading back a Marcel-edited DATA block where the generator schema used `z.literal("proposed")`, widen the status field via `.extend({ status: z.enum(["proposed", "approved"]) })` before parsing. This is the standard pattern for any step that reads cornerstones or clusters after Marcel's review pass.
+- Steps with no external API calls still follow the full `BaseStep` contract. `estimatedCostEur()` returns `0.00` and `execute()` does DB queries + filesystem reads. The pipeline runner handles cost tracking (nothing to log at €0.00) without special-casing.
+- Dead accumulator variables (`let approvedCount = 0`) in inspection-only steps are a lint trap — if the count is only used in a template label via a `let approved = ...` inside a block, the outer `let` is never needed. Compute directly in the `checks.push()` call.
 
 ## Deviations
 

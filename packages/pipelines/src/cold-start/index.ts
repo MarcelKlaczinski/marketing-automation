@@ -14,3 +14,8 @@ export {
   ApprovedClusterSchema,
   CornerstoneSpecSchema,
 } from "./04-cornerstone-list/pipeline.ts";
+export {
+  GoLiveChecklistPipeline,
+  GoLiveChecklistOutputSchema,
+} from "./05-go-live-checklist/pipeline.ts";
+export type { GoLiveChecklistOutput } from "./05-go-live-checklist/pipeline.ts";
