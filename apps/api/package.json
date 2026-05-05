@@ -8,11 +8,14 @@
     "build": "bun build src/server.ts --target=bun --outdir=./dist",
     "typecheck": "tsc --noEmit",
     "test": "cd ../.. && bun test apps/api/test",
-    "add-user": "bun --env-file ../../.env src/scripts/add-user.ts"
+    "add-user": "bun --env-file ../../.env src/scripts/add-user.ts",
+    "worker": "bun --env-file ../../.env src/workers/index.ts",
+    "worker:dev": "bun --env-file ../../.env --hot src/workers/index.ts"
   },
   "dependencies": {
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/pipelines": "workspace:*",
     "drizzle-orm": "^0.36.0",
     "hono": "^4.6.0",
     "@hono/zod-validator": "^0.4.0",

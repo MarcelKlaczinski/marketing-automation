@@ -1,0 +1,50 @@
+# Pipelines Package
+
+The execution engine for all marketing pipelines. This is INFRASTRUCTURE — Phase 2+
+specs build actual pipelines (article-generation, social-repurpose, identity-workshop)
+on top of this.
+
+## Key Concepts
+
+**Step**: One unit of pipeline work. Has typed input/output, idempotency key, cost estimate.
+**Pipeline**: Ordered list of steps. The output of step N becomes input of step N+1.
+**Runner**: Executes a pipeline synchronously, persisting pipeline_runs rows.
+**Queue**: BullMQ wrapper. Enqueue pipelines for async execution.
+**Registry**: Pipelines must be registered at worker startup so BullMQ workers can find them.
+**Scheduler**: Cron-style scheduled jobs (auth cleanup, daily briefings).
+
+## Hard Rules
+
+- Steps MUST be idempotent
+- Steps MUST validate input/output via Zod
+- Steps MUST use `@marketing-auto/cost-tracker` for any external API call
+- Pipelines MUST be registered before workers start
+
+## Adding a New Pipeline
+
+1. Create `packages/pipelines/src/templates/<pipeline-name>/`
+2. Create one file per step
+3. Create the pipeline class composing steps
+4. Register in `apps/api/src/workers/index.ts`
+5. Trigger via `enqueuePipeline({ pipelineName: "...", projectId, input })`
+
+## Test Script Caveat
+
+DO NOT run `bun run test` from inside `packages/pipelines/` — Bun's CLI resolves
+the same-named script before the `test` built-in, which triggers workspace broadcasting
+and recurses across other packages. Always invoke via:
+
+```
+bun --filter @marketing-auto/pipelines test
+```
+
+The test script itself does `cd ../.. && bun test packages/pipelines/test` to ensure
+the root `.env` is auto-loaded by Bun.
+
+## Common Mistakes
+
+- DO NOT do business logic outside of `execute()` — it won't be tracked
+- DO NOT skip cost-tracker for "small" calls — they accumulate
+- DO NOT make a step do two things — split into two steps
+- DO NOT mutate `ctx` — it's read-only from your perspective
+- DO NOT call other steps directly — use `getStepOutput` or pipeline.bridge
