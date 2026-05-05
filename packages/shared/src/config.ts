@@ -43,6 +43,9 @@ const envSchema = z.object({
   VAPID_PRIVATE_KEY: optionalStr(z.string()),
   VAPID_SUBJECT: optionalStr(z.string().regex(/^(mailto:|https:\/\/)/)),
 
+  // Article pipeline scheduler (Spec 20) — disabled by default
+  ARTICLE_SCHEDULER_ENABLED: z.coerce.boolean().default(false),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

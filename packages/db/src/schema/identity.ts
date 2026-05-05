@@ -25,13 +25,26 @@ export const contentPillars = pgTable("content_pillars", {
   projectIdx: index("content_pillars_project_idx").on(t.projectId),
 }));
 
+// SatelliteKeywordEntry: maps one cornerstone keyword to its satellite keywords.
+// Stored in clusters.satelliteKeywords as an array (one entry per cornerstone in the cluster).
+export type SatelliteKeywordEntry = {
+  cornerstoneKeyword: string;
+  keywords: Array<{ keyword: string; searchVolume?: number | null; difficulty?: number | null }>;
+};
+
 export const clusters = pgTable("clusters", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   pillarId: uuid("pillar_id").notNull().references(() => contentPillars.id, { onDelete: "restrict" }),
   name: text("name").notNull(),
+  // Denormalized pillar name — allows TopicIntakeStep to read cluster context without a join
+  pillar: text("pillar"),
   primaryKeyword: text("primary_keyword"),
-  status: text("status").notNull().default("planned"),
+  // Cornerstone keywords belonging to this cluster (from cold-start cluster-plan output)
+  cornerstoneKeywords: jsonb("cornerstone_keywords").$type<string[]>().notNull().default([]),
+  // Satellite keywords keyed by cornerstone — used by ResearchStep and OutlineStep
+  satelliteKeywords: jsonb("satellite_keywords").$type<SatelliteKeywordEntry[]>().notNull().default([]),
+  status: text("status").notNull().default("proposed"),
   pillarArticleId: uuid("pillar_article_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

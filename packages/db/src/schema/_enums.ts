@@ -24,15 +24,16 @@ export const industryEnum = pgEnum("industry", [
 ]);
 
 export const articleStatusEnum = pgEnum("article_status", [
-  "planned",
-  "researching",
-  "drafting",
-  "in_review",
+  "proposed",
   "approved",
+  "generating",
+  "outline_review",
+  "drafting",
+  "final_review",
+  "ready_to_publish",
   "published",
-  "needs_refresh",
-  "rejected",
   "failed",
+  "rejected",
 ]);
 
 export const socialPlatformEnum = pgEnum("social_platform", [

@@ -22,6 +22,13 @@
       "when": 1778005920740,
       "tag": "0002_simple_boomerang",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778099240000,
+      "tag": "0003_article_pipeline_schema",
+      "breakpoints": true
     }
   ]
 }

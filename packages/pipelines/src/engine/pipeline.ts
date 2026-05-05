@@ -38,4 +38,11 @@ export abstract class Pipeline<TInput = unknown, TOutput = unknown> {
   ): unknown {
     return output;
   }
+
+  /**
+   * Called by the runner after all steps complete successfully.
+   * Use to trigger side-effects that must happen outside the step chain
+   * (e.g., auto-enqueuing a follow-up pipeline).
+   */
+  afterComplete?(output: TOutput, pipelineInput: TInput): Promise<void>;
 }

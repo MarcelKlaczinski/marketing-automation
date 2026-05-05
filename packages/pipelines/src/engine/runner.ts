@@ -129,6 +129,18 @@ export async function runPipeline<TInput, TOutput>(
       .where(eq(pipelineRuns.id, runId));
 
     await reportJobProgress?.(100);
+
+    if (pipeline.afterComplete) {
+      // Separate try-catch: afterComplete errors must not re-trigger BullMQ retries that
+      // would re-run expensive LLM steps. A warning log leaves the pipeline as "completed"
+      // so Marcel can still manually continue via article:continue if needed.
+      try {
+        await pipeline.afterComplete(finalOutput as TOutput, validatedInput as TInput);
+      } catch (afterErr) {
+        pipelineLog.warn({ err: afterErr }, "afterComplete hook failed — pipeline output is saved, hook side-effects may be incomplete");
+      }
+    }
+
     pipelineLog.info("Pipeline completed");
 
     return { ok: true, runId, output: finalOutput as TOutput, stepOutputs };
