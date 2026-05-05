@@ -13,4 +13,4 @@ Foundational utilities imported by every package. Keep this lean — no business
 
 **Extending env schema:** add to `envSchema` in `src/config.ts`, then add the var to `.env.example` with an empty value or comment.
 
-**tsconfig:** each package that extends `tsconfig.base.json` must set its own `"types": ["bun"]` and `"typeRoots": ["../../node_modules/@types"]` — the base does not set these.
+**tsconfig:** each package that extends `tsconfig.base.json` must set its own `"types": ["bun"]`, `"typeRoots": ["../../node_modules/@types"]`, `"allowImportingTsExtensions": true`, and `"noEmit": true`. The base intentionally leaves these unset; without `allowImportingTsExtensions`, every `.ts` import path errors as TS5097.

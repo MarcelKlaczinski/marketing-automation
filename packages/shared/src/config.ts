@@ -17,8 +17,8 @@ const envSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   API_HOST: z.string().default("0.0.0.0"),
 
-  // Encryption (for credential vault later)
-  ENCRYPTION_KEY: optionalStr(z.string().length(64)),
+  // Encryption (for credential vault, Spec 02). Generate with: openssl rand -hex 32
+  ENCRYPTION_KEY: z.string().length(64).regex(/^[0-9a-f]+$/i),
 
   // Anthropic (for adapters later)
   ANTHROPIC_API_KEY: optionalStr(z.string().startsWith("sk-ant-")),

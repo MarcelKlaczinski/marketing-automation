@@ -19,6 +19,9 @@
 - Always wrap external calls in cost-tracker decorator
 - Always log structured (pino, JSON output)
 
+## Tests
+- Run with `bun --filter @marketing-auto/api test`. The script `cd`s to repo root before invoking `bun test` so `.env` auto-loads — `server.ts` calls `getEnv()` at import, which would fail without it. Same recursion gotcha as `packages/db` / `packages/core`: don't run `bun run test` from inside the package.
+
 ## Common Mistakes to Avoid
 - DO NOT do business logic in route handlers — that goes in /packages/core
 - DO NOT call adapters directly from routes — always via core services

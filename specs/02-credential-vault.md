@@ -554,8 +554,15 @@ Single session, ~½ day. No splitting needed.
 
 ## Discovered During Implementation
 
-(empty)
+- `packages/core/` already existed as a `.gitkeep` placeholder — replaced rather than created from scratch.
+- The `project_credentials` table and `credential_service` enum were already in `packages/db/src/schema/projects.ts` from Spec 00, so no DB migration was needed for this spec.
+- `tsconfig.base.json` sets `allowImportingTsExtensions: false`; `packages/db/tsconfig.json` overrides with `true` and `noEmit: true`. `packages/core` follows the db pattern.
+- Making `ENCRYPTION_KEY` required broke the existing `apps/api` health test, which ran `bun test` from the package cwd and so didn't auto-load the repo-root `.env`. Fixed in passing by changing `apps/api`'s `test` script to `cd ../.. && bun test apps/api/test`, matching the db pattern documented in `packages/db/CLAUDE.md`.
 
 ## Deviations
 
-(empty)
+- `crypto.ts`: removed the `+ 1` from the spec's length check (`buffer.length < IV_LENGTH + AUTH_TAG_LENGTH + 1`). An empty-string plaintext encrypts to a 0-byte ciphertext (total 28 bytes), which the spec's check would have falsely rejected — the acceptance criteria explicitly require empty strings to round-trip. Test `encrypts and decrypts the empty string` covers this.
+- `vault.ts`: with `exactOptionalPropertyTypes` on, passing `expiresAt: input.expiresAt` directly leaks `undefined` into Drizzle's insert/update objects. Normalised to `expiresAt: input.expiresAt ?? null` instead. Functionally equivalent; the spec's snippet would have been a TS error.
+- `vault.ts`: typed `listServices` return as `service: CredentialService` (not `string`) — drizzle returns the enum type and propagating it costs nothing.
+- `crypto.ts`: tightened `getMasterKey` so the `cachedKey` is only assigned after the length check passes (avoids caching an invalid key on the first call).
+- `index.ts`: also exported `_resetKeyCache` from the credentials barrel so tests in other packages can reset the key cache when overriding `ENCRYPTION_KEY` at runtime.

@@ -1,0 +1,19 @@
+{
+  "name": "@marketing-auto/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./credentials": "./src/credentials/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../.. && bun test packages/core/test"
+  },
+  "dependencies": {
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "drizzle-orm": "^0.36.0"
+  }
+}

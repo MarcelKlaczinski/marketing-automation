@@ -20,6 +20,15 @@
         "zod": "^3.23.8",
       },
     },
+    "packages/core": {
+      "name": "@marketing-auto/core",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "drizzle-orm": "^0.36.0",
+      },
+    },
     "packages/db": {
       "name": "@marketing-auto/db",
       "version": "0.1.0",
@@ -116,6 +125,8 @@
     "@hono/zod-validator": ["@hono/zod-validator@0.4.3", "", { "peerDependencies": { "hono": ">=3.9.0", "zod": "^3.19.1" } }, "sha512-xIgMYXDyJ4Hj6ekm9T9Y27s080Nl9NXHcJkOvkXPhubOLj8hZkOL8pDnnXfvCf5xEE8Q4oMFenQUZZREUY2gqQ=="],
 
     "@marketing-auto/api": ["@marketing-auto/api@workspace:apps/api"],
+
+    "@marketing-auto/core": ["@marketing-auto/core@workspace:packages/core"],
 
     "@marketing-auto/db": ["@marketing-auto/db@workspace:packages/db"],
 

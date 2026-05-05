@@ -34,7 +34,14 @@
       "Bash(~/.bun/bin/bun test *)",
       "Bash(~/.bun/bin/bun --env-file ../../.env test test)",
       "Bash(~/.bun/bin/bun --env-file ../../.env test test/schema.test.ts)",
-      "Bash(~/.bun/bin/bun --env-file ../../.env test ./test)"
+      "Bash(~/.bun/bin/bun --env-file ../../.env test ./test)",
+      "Bash(openssl rand *)",
+      "Bash(bun --filter @marketing-auto/core typecheck)",
+      "Bash(bun --filter @marketing-auto/shared typecheck)",
+      "Bash(bun --filter @marketing-auto/db typecheck)",
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"SELECT COUNT\\(*\\) FROM project_credentials;\")",
+      "Bash(bun --filter @marketing-auto/core test)",
+      "Bash(bun run *)"
     ]
   }
 }
