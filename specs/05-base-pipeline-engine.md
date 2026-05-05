@@ -1108,8 +1108,9 @@ Run `/clear` between sessions to keep context fresh.
 
 ## Discovered During Implementation
 
-(empty)
+- **BullMQ job data is a Zod boundary.** `job.data` arrives as untyped `unknown` from Redis. The spec treated it as a TypeScript cast, but it must be Zod-parsed — same as HTTP request bodies. A `jobDataSchema` was added to `queue.ts` so corrupt or mismatched jobs fail immediately with a clear parse error instead of blowing up inside `runPipeline`.
+- **`test` script in package.json must use `cd ../..` pattern.** The spec's example used `"test": "bun test"`, which triggers Bun's workspace recursion bug (same-name script takes precedence over built-in). Correct pattern: `"test": "cd ../.. && bun test packages/pipelines/test"`. This also ensures the root `.env` is auto-loaded by Bun.
 
 ## Deviations
 
-(empty)
+- **`test` script changed from `"bun test"` to `"cd ../.. && bun test packages/pipelines/test"`** — spec snippet was inconsistent with the workspace-recursion rule documented in root CLAUDE.md. Applied the established pattern (same as `packages/db` and `packages/cost-tracker`).

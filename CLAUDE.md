@@ -37,7 +37,7 @@ Designed to evolve into SaaS.
 - DO NOT install Express, Fastify, or Prisma packages
 - DO NOT use synchronous file IO in pipeline workers
 - DO NOT make raw fetch() calls — always use typed adapter clients
-- DO NOT skip Zod validation on tool boundaries
+- DO NOT skip Zod validation on tool boundaries — this includes HTTP request bodies, BullMQ job.data (arrives as unknown from Redis), and any external API response you trust
 - DO NOT commit secrets — use .env, encrypted in db for tenant credentials
 - DO NOT touch /packages/skills directly (it's a git submodule, fork it if you need changes)
 - DO NOT add new pipeline steps without writing them to follow the BaseStep contract
