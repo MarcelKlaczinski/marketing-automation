@@ -25,6 +25,7 @@
 - Migrations go in `packages/db/drizzle/` (committed)
 - NEVER edit applied migration files — create a new migration to fix
 - For dev iteration, `drizzle-kit push` is fine (no migration file); use `generate` once schema is stable
+- Both `generate` and `migrate` scripts require `--env-file ../../.env` — `drizzle-kit` calls `getEnv()` at startup and `bun --filter` runs from the package directory, not the repo root
 
 ## Tests
 - Run with `bun --filter @marketing-auto/db test` — DO NOT use `bun run test` from inside `packages/db/`. The script has to `cd ../..` to load `.env` from repo root, which then hits Bun's `test` script in the root `package.json` and broadcasts/recurses across workspaces. `--filter` invokes the script in a workspace-aware mode that avoids this.

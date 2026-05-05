@@ -41,6 +41,18 @@ bun --filter @marketing-auto/pipelines test
 The test script itself does `cd ../.. && bun test packages/pipelines/test` to ensure
 the root `.env` is auto-loaded by Bun.
 
+## Prompt Composition
+
+All generative pipeline steps must use `buildSystemPrompt()` from
+`@marketing-auto/pipelines` to assemble system prompts. The function
+returns a stable `cacheablePrefix` (skill + project context) and a variable
+`variableSuffix` (step instructions). Adapter implementations should pass
+`cacheablePrefix` with `cache_control: { type: "ephemeral" }` to claim the
+90% prompt-caching discount on Anthropic.
+
+Never inline-concat skill content with step instructions yourself. The
+caching boundary matters for cost and consistency.
+
 ## Common Mistakes
 
 - DO NOT do business logic outside of `execute()` — it won't be tracked

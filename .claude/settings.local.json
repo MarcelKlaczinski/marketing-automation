@@ -54,7 +54,12 @@
       "Skill(update-docs:*)",
       "Bash(bun --filter @marketing-auto/pipelines test)",
       "Bash(bun --filter @marketing-auto/pipelines typecheck)",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add CLAUDE.md specs/05-base-pipeline-engine.md)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add CLAUDE.md specs/05-base-pipeline-engine.md)",
+      "Bash(bun --filter @marketing-auto/db generate)",
+      "Bash(bun --env-file ../../.env /Users/marcelklaczinski/WebstormProjects/marketing-automation/node_modules/.bin/drizzle-kit generate)",
+      "Bash(bun --env-file ../../.env node_modules/.bin/drizzle-kit generate)",
+      "Bash(bun --env-file ../../.env node_modules/.bin/drizzle-kit check)",
+      "Bash(bun add *)"
     ]
   }
 }

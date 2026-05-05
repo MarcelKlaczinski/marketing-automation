@@ -63,6 +63,22 @@ Current active specs:
 - /specs/03-cost-tracker.md
 - /specs/04-magic-link-auth.md
 
+## Project Marketing Contexts
+
+Each tenant project has a marketing context that defines its voice, audience,
+pillars, and quality floors. Lives in `project-contexts/<slug>/marketing-context.md`.
+After editing the file, run:
+
+  bun --filter @marketing-auto/api sync-context <slug>
+
+This syncs the markdown body and structured frontmatter fields to the DB,
+where pipeline steps load it via `loadProjectContext()`.
+
+To add a new project:
+  bun --filter @marketing-auto/api add-project <slug> "Name" <industry> <pipelineTemplate>
+  # then create project-contexts/<slug>/marketing-context.md
+  # then run sync-context
+
 ## Key Project Context
 - Marcel is solo dev + small team (1-3 people)
 - Mobile-first because Marcel approves content on the go

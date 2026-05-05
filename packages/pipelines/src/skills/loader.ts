@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { eq } from "drizzle-orm";
+import { db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("skills");
@@ -43,23 +45,39 @@ export async function loadSkills(names: string[]): Promise<string> {
     .join("\n\n---\n\n");
 }
 
-/**
- * Loads project marketing context document.
- * Path: project-contexts/<project-slug>/.agents/product-marketing-context.md
- */
-const projectContextsRoot = resolve(import.meta.dir, "../../../../project-contexts");
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CONTEXT_CACHE_TTL_MS = 60_000;
 
-export async function loadProjectContext(projectSlug: string): Promise<string | null> {
-  const path = join(projectContextsRoot, projectSlug, ".agents/product-marketing-context.md");
-  try {
-    return await readFile(path, "utf-8");
-  } catch {
-    log.warn({ projectSlug }, "No project marketing context found");
+type ContextCacheEntry = { md: string; cachedAt: number };
+const projectContextCache = new Map<string, ContextCacheEntry>();
+
+export async function loadProjectContext(projectIdOrSlug: string): Promise<string | null> {
+  const cached = projectContextCache.get(projectIdOrSlug);
+  if (cached && Date.now() - cached.cachedAt < CONTEXT_CACHE_TTL_MS) {
+    return cached.md;
+  }
+
+  const isUuid = UUID_RE.test(projectIdOrSlug);
+  const rows = await db
+    .select({ md: projects.marketingContextMd, updatedAt: projects.marketingContextUpdatedAt })
+    .from(projects)
+    .where(isUuid ? eq(projects.id, projectIdOrSlug) : eq(projects.slug, projectIdOrSlug))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row?.md) {
     return null;
   }
+
+  projectContextCache.set(projectIdOrSlug, { md: row.md, cachedAt: Date.now() });
+  return row.md;
 }
 
-/** For tests: clear the in-memory cache */
+/** For tests: clear the in-memory caches */
 export function _resetSkillCache(): void {
   skillCache.clear();
+}
+
+export function _resetProjectContextCache(): void {
+  projectContextCache.clear();
 }

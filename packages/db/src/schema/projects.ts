@@ -17,6 +17,9 @@ export const projects = pgTable("projects", {
   pipelineConfig: jsonb("pipeline_config").$type<PipelineConfig>().notNull().default({}),
   costLimits: jsonb("cost_limits").$type<CostLimits>().notNull().default({}),
 
+  marketingContextMd: text("marketing_context_md"),
+  marketingContextUpdatedAt: timestamp("marketing_context_updated_at", { withTimezone: true }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
