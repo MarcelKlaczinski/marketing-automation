@@ -1900,6 +1900,14 @@ See "Implementation Order" — five sessions with `/clear` between each.
 
 2. **`SelfReviewIssue` cast must use the DB package's type, not the pipelines type.** `PersistArticleStep` needs to cast `unknown[]` to `SelfReviewIssue[]` for the Drizzle `$type<SelfReviewIssue[]>` column. Using `SelfReviewIssue` imported from `../types.ts` (Zod-inferred) fails under `exactOptionalPropertyTypes` because Zod's `suggestion?: string | undefined` is structurally incompatible with the DB type's `suggestion?: string`. Fix: import `SelfReviewIssue` from `@marketing-auto/db`. See "Common Mistakes" in root CLAUDE.md.
 
+**Session 4:**
+
+1. **`as T` casts on `.$type<T>()` jsonb columns are redundant.** `cornerstoneKeywords` is defined as `.$type<string[]>()` in the clusters schema — Drizzle already types it as `string[]`. The `as string[]` casts added by the spec snippets were unnecessary and were removed. See "Common Mistakes" in root CLAUDE.md.
+
+2. **`as const` tuples fail with Drizzle `inArray()`.** The spec's `inArray(articles.status, [...] as const)` pattern causes a TypeScript error because `inArray` requires a mutable array, not a `readonly` tuple. Use `Array<EnumValue>` with an explicit type annotation.
+
+3. **`POST /articles/:id/continue` body is optional — `zValidator` can't handle it.** The spec didn't address what happens when a client sends no body. `zValidator("json", ...)` calls `c.req.json()` which throws if no body is present, returning a raw parse error instead of `{ ok: false }`. Fixed with `c.req.json().catch(() => ({}))` + `safeParse`. See apps/api CLAUDE.md "Optional-Body POST Endpoints".
+
 ## Deviations
 
 **Session 1:**
@@ -1923,3 +1931,7 @@ See "Implementation Order" — five sessions with `/clear` between each.
 **Session 3:**
 
 1. **`r2KeyHint` → `storagePrefix` in `HeroImageStep`.** Spec had a typo. Actual replicate adapter param is `storagePrefix`. Also prefixed with `${projectSlug}/` for tenant isolation in R2 (e.g. `ki-wissensraum/articles/hero`), not just `articles/${slug}/hero` as shown in spec.
+
+**Session 4:**
+
+1. **Scheduler integrated into existing worker process, not standalone.** The spec showed `article-scheduler.ts` as a self-contained file with its own `new Queue(...)` + `new Worker(...)` setup. Implementation instead exports a single `runArticleSchedulerTick()` function and registers it via `registerScheduledJob()` in `workers/index.ts` — the same pattern as `auth-cleanup`. Reason: no second long-running process, consistent with the existing scheduler infrastructure, and the tick function is independently testable.

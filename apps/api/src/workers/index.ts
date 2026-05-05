@@ -8,9 +8,11 @@ import {
   ArticleDraftPipeline,
 } from "@marketing-auto/pipelines";
 import { runAuthCleanup } from "../lib/cleanup.ts";
-import { createLogger } from "@marketing-auto/shared";
+import { runArticleSchedulerTick } from "./article-scheduler.ts";
+import { createLogger, getEnv } from "@marketing-auto/shared";
 
 const log = createLogger("worker");
+const env = getEnv();
 
 async function main() {
   log.info("Starting workers");
@@ -28,6 +30,20 @@ async function main() {
       log.info({ tokensDeleted, sessionsDeleted }, "Auth cleanup result");
     },
   });
+
+  if (env.ARTICLE_SCHEDULER_ENABLED) {
+    registerScheduledJob({
+      name: "article-scheduler",
+      cron: "0 3 * * *", // 03:00 daily
+      handler: async () => {
+        const results = await runArticleSchedulerTick();
+        log.info(results, "Article scheduler tick complete");
+      },
+    });
+    log.info("Article scheduler enabled (runs daily at 03:00)");
+  } else {
+    log.info("Article scheduler disabled (ARTICLE_SCHEDULER_ENABLED not set)");
+  }
 
   const pipelineWorker = startPipelineWorker({ concurrency: 5 });
   const schedulerWorker = await startScheduler();

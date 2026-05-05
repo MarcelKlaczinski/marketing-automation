@@ -28,6 +28,16 @@
 - Tokens: always hash with SHA-256 before DB storage (`hashToken()`); raw token only in email/cookie, never in logs
 - Add users manually: `bun --filter @marketing-auto/api add-user <email> [name] [owner|editor]`
 
+## Scheduler Pattern
+Scheduled jobs live as `registerScheduledJob()` calls in `src/workers/index.ts`, not as standalone processes. The handler function can be extracted to its own file (see `src/workers/article-scheduler.ts`) that exports a single tick function for testability. Gate optional schedulers behind an env flag checked at registration time so they never fire in envs where the flag is absent.
+
+## Optional-Body POST Endpoints
+When a POST endpoint has all-optional body fields, `zValidator("json", ...)` will hard-fail (400 with raw parse error) if the client sends no body or no `Content-Type: application/json`. Instead, parse manually:
+```typescript
+const rawBody = await c.req.json().catch(() => ({}));
+const body = MySchema.safeParse(rawBody).data ?? {};
+```
+
 ## Common Mistakes to Avoid
 - DO NOT do business logic in route handlers — that goes in /packages/core
 - DO NOT call adapters directly from routes — always via core services
