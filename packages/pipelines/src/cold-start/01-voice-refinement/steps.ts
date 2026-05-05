@@ -93,10 +93,6 @@ const VoiceSynthesisInputSchema = z.object({
   answeredQuestionsMd: z.string(),
 });
 
-/**
- * Re-synthesizes marketing-context.md from Marcel's answered questions.
- * Run after Marcel fills in answers in 01-voice-refinement.md.
- */
 export class SynthesizeVoiceContextStep extends BaseStep<
   z.infer<typeof VoiceSynthesisInputSchema>,
   VoiceSynthesisOutput

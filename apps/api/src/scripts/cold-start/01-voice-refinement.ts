@@ -43,7 +43,6 @@ if (!project.marketingContextMd) {
   process.exit(1);
 }
 
-// TypeScript narrows marketingContextMd to string from this point on
 const contextMd: string = project.marketingContextMd;
 
 if (mode === "questions") {
