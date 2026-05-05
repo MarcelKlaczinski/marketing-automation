@@ -43,3 +43,4 @@
 - DO NOT cross-reference tenants in queries
 - DO NOT use `pgEnum` without importing from `_enums.ts`
 - DO NOT modify already-applied migrations
+- DO NOT use `string` for enum-typed Drizzle columns in query filters — import the enum (`costServiceEnum`, etc.) and derive the type with `(typeof fooEnum.enumValues)[number]`. Using `string` forces an `as never` cast to satisfy Drizzle's types, which silently bypasses type safety.

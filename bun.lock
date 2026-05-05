@@ -29,6 +29,15 @@
         "drizzle-orm": "^0.36.0",
       },
     },
+    "packages/cost-tracker": {
+      "name": "@marketing-auto/cost-tracker",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "drizzle-orm": "^0.36.0",
+      },
+    },
     "packages/db": {
       "name": "@marketing-auto/db",
       "version": "0.1.0",
@@ -127,6 +136,8 @@
     "@marketing-auto/api": ["@marketing-auto/api@workspace:apps/api"],
 
     "@marketing-auto/core": ["@marketing-auto/core@workspace:packages/core"],
+
+    "@marketing-auto/cost-tracker": ["@marketing-auto/cost-tracker@workspace:packages/cost-tracker"],
 
     "@marketing-auto/db": ["@marketing-auto/db@workspace:packages/db"],
 

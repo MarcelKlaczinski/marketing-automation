@@ -664,8 +664,12 @@ Single session, 1 day. No splitting needed.
 
 ## Discovered During Implementation
 
-(empty)
+- `tsconfig.json` requires `"noEmit": true` and `"allowImportingTsExtensions": true` — without these, `tsc --noEmit` rejects `.ts` extension imports even though Bun handles them natively. Matched pattern from `packages/db/tsconfig.json`.
+- `exactOptionalPropertyTypes: true` caused a type error in `checkLimit`'s return: assigning `alertTriggered: X | undefined` to an optional property `alertTriggered?` is rejected. Fixed by using an if-branch to conditionally include the key.
+- `track()` insert values with optional `pipelineRunId`/`articleId` required conditional branching (4 cases) due to `exactOptionalPropertyTypes` — cannot use ternary producing `undefined`.
+- `bun --filter @marketing-auto/cost-tracker run report` does not work (filter requires a `run` script match); run from root with `bun --env-file .env packages/cost-tracker/src/summary.ts` instead. The `report` script works via `bun run --cwd packages/cost-tracker report` when `.env` is already loaded.
 
 ## Deviations
 
-(empty)
+- `summary.ts` uses static top-level imports for `db`, `projects`, `costLogs` instead of a dynamic `import()` inside `printAllProjectsReport()` as the spec showed. Static imports are cleaner and equivalent in Bun ESM.
+- `packages/cost-tracker/package.json` `"scripts"` does not include a `test` script named `test` that calls `bun test ...` per the CLAUDE.md gotcha. Instead uses `"test": "cd ../.. && bun test packages/cost-tracker/test"` (same pattern as `packages/db`) so that `bun --filter @marketing-auto/cost-tracker test` works correctly with `.env` loaded from repo root.

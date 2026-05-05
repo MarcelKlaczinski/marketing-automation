@@ -41,7 +41,11 @@
       "Bash(bun --filter @marketing-auto/db typecheck)",
       "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"SELECT COUNT\\(*\\) FROM project_credentials;\")",
       "Bash(bun --filter @marketing-auto/core test)",
-      "Bash(bun run *)"
+      "Bash(bun run *)",
+      "Bash(bun --filter @marketing-auto/cost-tracker typecheck)",
+      "Bash(bun --filter @marketing-auto/db test)",
+      "Skill(review-task)",
+      "Skill(review-task:*)"
     ]
   }
 }

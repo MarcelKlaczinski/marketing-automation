@@ -59,7 +59,7 @@ All specs live in /specs/. Reference format: `/specs/<phase>-<feature>.md`
 Current active specs:
 - /specs/00-foundation.md
 - /specs/01-cold-start-pipeline.md
-- (more added as we progress)
+- /specs/03-cost-tracker.md
 
 ## Key Project Context
 - Marcel is solo dev + small team (1-3 people)
