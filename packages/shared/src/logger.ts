@@ -1,4 +1,5 @@
 import pino from "pino";
+import pretty from "pino-pretty";
 import { getEnv } from "./config.js";
 
 export function createLogger(name: string) {
@@ -12,10 +13,7 @@ export function createLogger(name: string) {
   };
 
   if (env.NODE_ENV === "development") {
-    return pino({
-      ...base,
-      transport: { target: "pino-pretty", options: { colorize: true } },
-    });
+    return pino(base, pretty({ colorize: true }));
   }
   return pino(base);
 }
