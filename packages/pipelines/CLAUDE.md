@@ -22,11 +22,12 @@ on top of this.
 
 ## Adding a New Pipeline
 
-1. Create `packages/pipelines/src/templates/<pipeline-name>/`
-2. Create one file per step
-3. Create the pipeline class composing steps
-4. Register in `apps/api/src/workers/index.ts`
-5. Trigger via `enqueuePipeline({ pipelineName: "...", projectId, input })`
+1. Create `packages/pipelines/src/article/<pipeline-name>/` (or a peer directory under `src/`)
+2. Create one file per step under `steps/`
+3. Create `pipeline.ts` composing steps + bridges
+4. Export from the directory's `index.ts`; re-export from `packages/pipelines/src/index.ts`
+5. Register in `apps/api/src/workers/index.ts`
+6. Trigger via `enqueuePipeline({ pipelineName: "...", projectId, input })`
 
 ## Cold-Start CLI Pipelines
 
@@ -83,6 +84,26 @@ returns a stable `cacheablePrefix` (skill + project context) and a variable
 Never inline-concat skill content with step instructions yourself. The
 caching boundary matters for cost and consistency.
 
+## afterComplete Hook
+
+`Pipeline` has an optional `afterComplete?(output, input): Promise<void>` hook called by the runner after all steps succeed. Use it for post-pipeline side-effects that must happen outside the step chain (e.g., auto-enqueuing a follow-up pipeline). The runner wraps it in its own `try-catch` — failures log a `warn` but do NOT mark the pipeline as failed or trigger BullMQ retries. If `afterComplete` fails silently, manual recovery is needed (e.g., `article:continue`).
+
+## Zod `.default()` in Step Schemas
+
+Zod's `.default(value)` makes the field's `_input` type `T | undefined` while `_output` stays `T`. Under `strictFunctionTypes`, TypeScript rejects this schema as `ZodType<TOutput>` in `BaseStep` because `_input` doesn't extend `TOutput`.
+
+Fix: export a cast alias from the types file and use it for `inputSchema`/`outputSchema` assignments:
+
+```typescript
+// In types.ts — safe: .parse() always returns T; cast only affects the _input variance check
+export const ArticleOutlineSchemaOutput = ArticleOutlineSchema as z.ZodType<ArticleOutline>;
+
+// In the step file
+readonly outputSchema = ArticleOutlineSchemaOutput;
+```
+
+The `.default()` behavior is preserved at runtime — use this pattern whenever a schema needs a default for LLM-output resilience.
+
 ## Common Mistakes
 
 - DO NOT do business logic outside of `execute()` — it won't be tracked
@@ -90,3 +111,4 @@ caching boundary matters for cost and consistency.
 - DO NOT make a step do two things — split into two steps
 - DO NOT mutate `ctx` — it's read-only from your perspective
 - DO NOT call other steps directly — use `getStepOutput` or pipeline.bridge
+- DO NOT put post-pipeline side-effects (like enqueuing a follow-up job) inside a step — use `afterComplete` instead so failures don't retry the entire pipeline

@@ -1886,11 +1886,27 @@ See "Implementation Order" — five sessions with `/clear` between each.
 
 5. **`afterComplete` errors must not re-trigger BullMQ retries.** If `afterComplete` throws inside the runner's main try-catch, BullMQ retries the whole job and re-runs expensive LLM steps. The runner wraps `afterComplete` in its own try-catch that logs a warning without failing the job.
 
+**Session 2:**
+
+1. **Zod `.default([])` causes `ZodType<T>` variance error under `strictFunctionTypes`.** When a schema field uses `.default([])`, Zod's `_input` type becomes `T | undefined` while `_output` remains `T`. TypeScript then rejects the schema as assignable to `ZodType<TOutput>` in `BaseStep` because `_input` doesn't extend `TOutput`. Fix: export a cast alias `ArticleOutlineSchemaOutput = ArticleOutlineSchema as z.ZodType<ArticleOutline>` from `types.ts` and use it in step `inputSchema`/`outputSchema` assignments. The `.default([])` behavior is preserved at runtime. See `packages/pipelines/CLAUDE.md` for the general pattern.
+
+2. **`approvalMode` carried via `TopicIntakeStep` output instead of async bridge DB fetch.** The spec's `getStepOutputOrFetchArticle()` inside `bridge()` would require an async DB call, but `bridge()` is synchronous. `TopicIntakeStep` loads the article row anyway, so `approvalMode` is added to its output and picked up by the `outline → persist-outline` bridge via `getStepOutput("topic-intake")`. No extra DB round-trip.
+
+3. **`PersistOutlineStep` output simplified — no `outline` field.** The spec's `OutputSchema` included `outline` in the step output and in `OutlineOutputSchema`. Since outline is already written to DB and `afterComplete` only needs `nextAction`, the outline was dropped from both. Eliminates a second cascade of nested schema casts.
+
 ## Deviations
 
 **Session 1:**
 
-1. **`enqueuePipeline` signature.** Spec shows `enqueuePipeline(PipelineClass, input, opts)`. Actual engine API is `enqueuePipeline({ pipelineName, projectId, input, jobOptions? })`. `trigger.ts` uses the actual API with literal pipeline names `"article:outline"` / `"article:draft"`.
+1. **`enqueuePipeline` signature.**
+
+**Session 2:**
+
+1. **`targetKeywords` schema restored to `.default([])`** (spec was correct; initial implementation removed it to work around a TypeScript error). See Discovery #1 for the cast pattern used to fix the type error.
+
+2. **`PersistOutlineStep` output simplified.** See Discovery #3 above.
+
+3. **`approvalMode` in `TopicIntakeStep` output.** See Discovery #2 above. Spec shows `enqueuePipeline(PipelineClass, input, opts)`. Actual engine API is `enqueuePipeline({ pipelineName, projectId, input, jobOptions? })`. `trigger.ts` uses the actual API with literal pipeline names `"article:outline"` / `"article:draft"`.
 
 2. **`slugify` umlaut order.** Spec calls NFD normalize before umlaut expansion — this silently collapses `ä→a` instead of `ä→ae`. Correct order in implementation: umlaut expansion first, then NFD strip.
 

@@ -16,6 +16,7 @@ export const ArticleOutlineSchema = z.object({
     intent: z.string().min(20).max(500),
     keyPoints: z.array(z.string().min(10)).min(2).max(10),
     estimatedWords: z.number().int().min(100).max(800),
+    // .default([]) makes _input optional; LLM may omit when no satellites apply.
     targetKeywords: z.array(z.string()).default([]),
   })).min(4).max(12),
 
@@ -28,6 +29,12 @@ export const ArticleOutlineSchema = z.object({
 });
 
 export type ArticleOutline = z.infer<typeof ArticleOutlineSchema>;
+
+// Safe cast: .default([]) on targetKeywords makes _input optional (string[] | undefined)
+// while _output is string[]. ZodType<ArticleOutline> checks _input against _output, which
+// causes a variance error under strictFunctionTypes. The cast is safe because .parse()
+// always produces ArticleOutline (the default fills in any missing field at parse time).
+export const ArticleOutlineSchemaOutput = ArticleOutlineSchema as z.ZodType<ArticleOutline>;
 
 // ───── Self-Review ────────────────────────────────────────────────────────────
 

@@ -80,7 +80,9 @@
       "Bash(grep -E \"^\\(copywriting|content-strategy|ai-seo\\)$\")",
       "Bash(bunx tsc *)",
       "Bash(bun --filter @marketing-auto/db push)",
-      "Bash(kill %1)"
+      "Bash(kill %1)",
+      "Bash(grep -rn \"\\\\.\\\\.\\\\..*{.*:.*|\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/packages/pipelines/src/article/)",
+      "Bash(bun typecheck *)"
     ]
   }
 }
