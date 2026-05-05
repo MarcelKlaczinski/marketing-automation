@@ -51,7 +51,10 @@
       "Bash(bun --filter @marketing-auto/api add-user test@example.com Test owner)",
       "Bash(bun test *)",
       "Skill(update-docs)",
-      "Skill(update-docs:*)"
+      "Skill(update-docs:*)",
+      "Bash(bun --filter @marketing-auto/pipelines test)",
+      "Bash(bun --filter @marketing-auto/pipelines typecheck)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add CLAUDE.md specs/05-base-pipeline-engine.md)"
     ]
   }
 }
