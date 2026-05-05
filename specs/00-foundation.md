@@ -760,8 +760,21 @@ This spec is small enough for one session. **No splitting needed.**
 
 ## Discovered During Implementation
 
-(empty – fill during/after implementation)
+- **Bun not pre-installed** — had to install via `curl -fsSL https://bun.sh/install | bash` before any `bun` commands worked. Add Bun installation to machine-setup docs when written.
+- **`@types/bun` package name vs. tsconfig `types` key** — the npm package is `@types/bun`, but the tsconfig `types` entry must be `"bun"` (folder name under `@types/`). Specifying `"bun-types"` fails silently in some editors but errors in tsc.
+- **Zod optional + format validators reject empty strings** — `z.string().startsWith("sk-ant-").optional()` still validates the value when the env var is set to `""` (or inherited from the shell with an unexpected format). Requires an `optionalStr()` helper using `z.preprocess` to coerce empty strings to `undefined`.
+- **`console.error` in `getEnv()` is unavoidable** — `createLogger` calls `getEnv()`, so pino cannot be used to log env validation errors. `console.error` with a justification comment is the correct pattern here.
 
 ## Deviations
 
-(empty – fill during/after implementation)
+**D1: `tsconfig.base.json` — `types` removed from base, added per-package**
+Spec specified `"types": ["bun-types"]` in base. The correct key is `"bun"` (not `"bun-types"`), and it must live in each package's tsconfig alongside a `"typeRoots": ["../../node_modules/@types"]` so tsc resolves it from the workspace root. The base tsconfig no longer sets `types` at all.
+
+**D2: `config.ts` — `optionalStr()` preprocess helper**
+Spec showed plain `.optional()` on constrained fields. In practice, env vars set to `""` (or leaking from the shell) bypass `.optional()` and trigger format validators. All optional fields with format constraints now use `optionalStr(schema)` which wraps in `z.preprocess`.
+
+**D3: `logger.ts` — if/return instead of ternary for `transport`**
+`exactOptionalPropertyTypes: true` rejects `transport: X | undefined` inline in an object literal passed to pino. The fix is two separate `pino()` call paths (one with transport, one without) rather than a ternary. Same runtime behavior.
+
+**D4: `apps/api/tsconfig.json` — `rootDir` removed**
+Spec included `rootDir: "./src"` but test files live in `test/`. Setting `rootDir` while including `test/**/*` causes TS6059. Removing `rootDir` from the api tsconfig resolves this without any functional impact (Bun handles compilation; tsc is typecheck-only here).
