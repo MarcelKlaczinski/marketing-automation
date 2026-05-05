@@ -1894,6 +1894,12 @@ See "Implementation Order" — five sessions with `/clear` between each.
 
 3. **`PersistOutlineStep` output simplified — no `outline` field.** The spec's `OutputSchema` included `outline` in the step output and in `OutlineOutputSchema`. Since outline is already written to DB and `afterComplete` only needs `nextAction`, the outline was dropped from both. Eliminates a second cascade of nested schema casts.
 
+**Session 3:**
+
+1. **`r2KeyHint` is not a real adapter param — it's `storagePrefix`.** The spec's `HeroImageStep` snippet uses `r2KeyHint: \`articles/${article.slug}/hero\`` but the replicate adapter's `GenerateImageInput` type only has `storagePrefix`. Implemented as `storagePrefix: \`${input.projectSlug}/articles/hero\`` (tenant-prefixed for R2 browsability, per adapter CLAUDE.md convention).
+
+2. **`SelfReviewIssue` cast must use the DB package's type, not the pipelines type.** `PersistArticleStep` needs to cast `unknown[]` to `SelfReviewIssue[]` for the Drizzle `$type<SelfReviewIssue[]>` column. Using `SelfReviewIssue` imported from `../types.ts` (Zod-inferred) fails under `exactOptionalPropertyTypes` because Zod's `suggestion?: string | undefined` is structurally incompatible with the DB type's `suggestion?: string`. Fix: import `SelfReviewIssue` from `@marketing-auto/db`. See "Common Mistakes" in root CLAUDE.md.
+
 ## Deviations
 
 **Session 1:**
@@ -1913,3 +1919,7 @@ See "Implementation Order" — five sessions with `/clear` between each.
 3. **`outlinePipelineRunId`/`draftPipelineRunId` are plain UUIDs, not FK columns.** See discovery #4 above.
 
 4. **`afterComplete` wrapped in separate try-catch.** Spec doesn't address failure handling for the auto-continue hook. Implementation wraps it so failures are logged without re-triggering pipeline retries.
+
+**Session 3:**
+
+1. **`r2KeyHint` → `storagePrefix` in `HeroImageStep`.** Spec had a typo. Actual replicate adapter param is `storagePrefix`. Also prefixed with `${projectSlug}/` for tenant isolation in R2 (e.g. `ki-wissensraum/articles/hero`), not just `articles/${slug}/hero` as shown in spec.

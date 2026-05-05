@@ -122,6 +122,7 @@
       "dependencies": {
         "@marketing-auto/adapter-anthropic": "workspace:*",
         "@marketing-auto/adapter-dataforseo": "workspace:*",
+        "@marketing-auto/adapter-replicate": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",

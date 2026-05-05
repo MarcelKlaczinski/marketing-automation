@@ -4,6 +4,11 @@ import { TopicIntakeStep } from "./steps/topic-intake.ts";
 import { ResearchStep } from "./steps/research.ts";
 import { OutlineStep } from "./steps/outline.ts";
 import { PersistOutlineStep } from "./steps/persist-outline.ts";
+import { DraftStep } from "./steps/draft.ts";
+import { SelfReviewStep } from "./steps/self-review.ts";
+import { HeroImageStep } from "./steps/hero-image.ts";
+import { AssemblyStep } from "./steps/assembly.ts";
+import { PersistArticleStep } from "./steps/persist-article.ts";
 import { continueArticleGeneration } from "./trigger.ts";
 
 // ───── Job 1: Outline Pipeline ────────────────────────────────────────────────
@@ -106,5 +111,140 @@ export class ArticleOutlinePipeline extends Pipeline<
       }
       await continueArticleGeneration(continueInput);
     }
+  }
+}
+
+// ───── Job 2: Draft Pipeline ──────────────────────────────────────────────────
+
+const DraftInputSchema = z.object({
+  articleId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  modelOverride: z.string().optional(),
+});
+
+const DraftOutputSchema = z.object({
+  articleId: z.string().uuid(),
+  wordCount: z.number(),
+  selfReviewScore: z.number(),
+});
+
+type DraftTopicIntakeOutput = {
+  cornerstoneKeyword: string;
+  clusterName: string;
+  clusterPillar: string;
+  satelliteKeywords: string[];
+  projectSlug: string;
+  approvalMode: "manual" | "auto";
+};
+
+type DraftStepOutput = {
+  bodyMd: string;
+  wordCount: number;
+};
+
+type SelfReviewOutput = {
+  score: number;
+  issues: unknown[];
+  shouldBlock: boolean;
+  summary: string;
+};
+
+type HeroImageOutput = {
+  r2Key: string;
+  publicUrl: string;
+  altText: string;
+};
+
+type AssemblyOutput = {
+  schemaJsonLd: Record<string, unknown>;
+};
+
+export class ArticleDraftPipeline extends Pipeline<
+  z.infer<typeof DraftInputSchema>,
+  z.infer<typeof DraftOutputSchema>
+> {
+  readonly name = "article:draft";
+  readonly inputSchema = DraftInputSchema;
+  readonly outputSchema = DraftOutputSchema;
+  readonly steps = [
+    new TopicIntakeStep(),
+    new DraftStep(),
+    new SelfReviewStep(),
+    new HeroImageStep(),
+    new AssemblyStep(),
+    new PersistArticleStep(),
+  ] as const;
+
+  override bridge(
+    fromStep: { name: string },
+    toStep: { name: string },
+    output: unknown,
+    pipelineInput: z.infer<typeof DraftInputSchema>,
+    getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+  ): unknown {
+    // topic-intake → draft: pass articleId, projectId, projectSlug + optional modelOverride
+    if (fromStep.name === "topic-intake" && toStep.name === "draft") {
+      const t = output as DraftTopicIntakeOutput;
+      const base = {
+        articleId: pipelineInput.articleId,
+        projectId: pipelineInput.projectId,
+        projectSlug: t.projectSlug,
+      };
+      if (pipelineInput.modelOverride === "claude-opus-4-7" || pipelineInput.modelOverride === "claude-sonnet-4-6") {
+        return { ...base, modelOverride: pipelineInput.modelOverride };
+      }
+      return base;
+    }
+
+    // draft → self-review: body + word count + cornerstone keyword + projectSlug
+    if (fromStep.name === "draft" && toStep.name === "self-review") {
+      const d = output as DraftStepOutput;
+      const t = getStepOutput<DraftTopicIntakeOutput>("topic-intake")!;
+      return {
+        bodyMd: d.bodyMd,
+        wordCount: d.wordCount,
+        cornerstoneKeyword: t.cornerstoneKeyword,
+        projectSlug: t.projectSlug,
+      };
+    }
+
+    // self-review → hero-image: just articleId + projectId + projectSlug
+    if (fromStep.name === "self-review" && toStep.name === "hero-image") {
+      const t = getStepOutput<DraftTopicIntakeOutput>("topic-intake")!;
+      return {
+        articleId: pipelineInput.articleId,
+        projectId: pipelineInput.projectId,
+        projectSlug: t.projectSlug,
+      };
+    }
+
+    // hero-image → assembly: just articleId + projectId
+    if (fromStep.name === "hero-image" && toStep.name === "assembly") {
+      return {
+        articleId: pipelineInput.articleId,
+        projectId: pipelineInput.projectId,
+      };
+    }
+
+    // assembly → persist-article: collect all outputs
+    if (fromStep.name === "assembly" && toStep.name === "persist-article") {
+      const d = getStepOutput<DraftStepOutput>("draft")!;
+      const sr = getStepOutput<SelfReviewOutput>("self-review")!;
+      const hero = getStepOutput<HeroImageOutput>("hero-image")!;
+      const asm = output as AssemblyOutput;
+      return {
+        articleId: pipelineInput.articleId,
+        bodyMd: d.bodyMd,
+        wordCount: d.wordCount,
+        heroR2Key: hero.r2Key,
+        heroPublicUrl: hero.publicUrl,
+        heroAltText: hero.altText,
+        selfReviewScore: sr.score,
+        selfReviewIssues: sr.issues,
+        schemaJsonLd: asm.schemaJsonLd,
+      };
+    }
+
+    return output;
   }
 }

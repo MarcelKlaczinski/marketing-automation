@@ -5,6 +5,7 @@ import {
   pipelineRegistry,
   closePipelineInfrastructure,
   ArticleOutlinePipeline,
+  ArticleDraftPipeline,
 } from "@marketing-auto/pipelines";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { createLogger } from "@marketing-auto/shared";
@@ -15,6 +16,7 @@ async function main() {
   log.info("Starting workers");
 
   pipelineRegistry.register(new ArticleOutlinePipeline());
+  pipelineRegistry.register(new ArticleDraftPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
   // Register scheduled jobs

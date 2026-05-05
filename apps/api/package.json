@@ -18,7 +18,8 @@
     "cold-start:cluster-plan": "bun --env-file ../../.env src/scripts/cold-start/03-cluster-plan.ts",
     "cold-start:cornerstone-list": "bun --env-file ../../.env src/scripts/cold-start/04-cornerstone-list.ts",
     "cold-start:go-live-checklist": "bun --env-file ../../.env src/scripts/cold-start/05-go-live-checklist.ts",
-    "article:generate": "bun --env-file ../../.env src/scripts/article/generate.ts"
+    "article:generate": "bun --env-file ../../.env src/scripts/article/generate.ts",
+    "article:continue": "bun --env-file ../../.env src/scripts/article/continue.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.0",
