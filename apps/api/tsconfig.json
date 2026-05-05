@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "types": ["bun"],
+    "typeRoots": ["../../node_modules/@types"],
+    "paths": {
+      "@marketing-auto/shared": ["../../packages/shared/src/index.ts"],
+      "@marketing-auto/shared/*": ["../../packages/shared/src/*.ts"]
+    }
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

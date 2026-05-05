@@ -1,0 +1,20 @@
+{
+  "name": "@marketing-auto/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./result": "./src/result.ts",
+    "./logger": "./src/logger.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8",
+    "pino": "^9.5.0",
+    "pino-pretty": "^11.3.0"
+  }
+}
