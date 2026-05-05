@@ -77,9 +77,10 @@ Web Push Layer (used in Spec 41):
   },
   "scripts": {
     "generate": "drizzle-kit generate",
-    "migrate": "bun src/migrate.ts",
+    "migrate": "bun --env-file ../../.env src/migrate.ts",
     "studio": "drizzle-kit studio",
     "push": "drizzle-kit push",
+    "test": "cd ../.. && bun test packages/db/test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -931,8 +932,15 @@ Run `/clear` between if splitting.
 
 ## Discovered During Implementation
 
-(empty – fill during/after implementation)
+- **drizzle-orm v0.36.4 installed** (spec asked for `^0.36.0`). `vector` is re-exported from `drizzle-orm/pg-core` via `pg-core/columns/vector_extension/vector` — no separate import path needed.
+- **HNSW index generated correctly** by drizzle-kit v0.28 without manual SQL. `USING hnsw ("embedding" vector_cosine_ops)` is in the migration as expected.
+- **Migration and smoke test require Docker up** (`docker compose up -d`) before they can run.
+- **Bun's built-in `test` subcommand collides with a script named `test` in `package.json`** — when `bun run test` is invoked from `packages/db/` directly, Bun's workspace test broadcasting kicks in and runs other workspaces too. Always invoke as `bun --filter @marketing-auto/db test`. Documented in `packages/db/CLAUDE.md`.
 
 ## Deviations
 
-(empty – fill during/after implementation)
+- **`tsconfig.json` has no `rootDir`/`outDir`**: The spec included `rootDir: ./src` and `outDir: ./dist`, but `drizzle.config.ts` lives outside `src/`, causing a `tsc` error. Since we set `noEmit: true`, both fields are meaningless and were removed.
+- **`allowImportingTsExtensions: true` added to tsconfig**: Required to use `.ts` extensions in import statements (Marcel's explicit preference for TypeScript imports over `.js`). Also requires `noEmit: true` (already set).
+- **`migrate` script needs `--env-file ../../.env`**: When run via `bun --filter @marketing-auto/db migrate`, the workspace cwd is `packages/db/` where there is no `.env`. The script was changed to `bun --env-file ../../.env src/migrate.ts` so it can find `DATABASE_URL` from the repo-root `.env`.
+- **`test` script uses `cd ../.. && bun test packages/db/test`**: Same env-loading problem as `migrate`, but `bun --env-file` triggers workspace broadcasting for the `test` subcommand. Working around by `cd`ing to repo root (where `.env` is auto-loaded by Bun) before invoking `bun test`. Must be run via `bun --filter @marketing-auto/db test` — see `packages/db/CLAUDE.md`.
+- **Two FK indexes added during /review-task**: `approvals_project_idx` and `social_posts_article_idx` were missing in the spec's schema snippets. Added to `operations.ts` and `content.ts`. The spec snippets above still don't include them — keep this deviation if regenerating from the spec.

@@ -15,7 +15,26 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline -3)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/shared/src/result.ts packages/shared/src/config.ts)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation commit -m ' *)",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/00-foundation.md CLAUDE.md packages/shared/CLAUDE.md)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/00-foundation.md CLAUDE.md packages/shared/CLAUDE.md)",
+      "Bash(~/.bun/bin/bun --filter @marketing-auto/db typecheck)",
+      "Bash(~/.bun/bin/bun run *)",
+      "Bash(DATABASE_URL=postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto REDIS_URL=redis://localhost:6379 ~/.bun/bin/bun run generate)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(~/.bun/bin/bunx docker *)",
+      "Bash(docker start *)",
+      "Bash(docker compose *)",
+      "Bash(bun -e ' *)",
+      "Bash(~/.bun/bin/bun --filter @marketing-auto/shared typecheck)",
+      "Bash(NODE_ENV=production ~/.bun/bin/bun --env-file ../../.env src/migrate.ts)",
+      "Bash(NODE_ENV=production ~/.bun/bin/bun --env-file .env test packages/db/test)",
+      "Bash(NODE_ENV=production ~/.bun/bin/bun --env-file ../../.env test test/schema.test.ts)",
+      "Bash(NODE_ENV=production ~/.bun/bin/bun --filter @marketing-auto/db migrate)",
+      "Bash(~/.bun/bin/bun --filter @marketing-auto/db migrate)",
+      "Bash(~/.bun/bin/bun --filter @marketing-auto/db test)",
+      "Bash(~/.bun/bin/bun test *)",
+      "Bash(~/.bun/bin/bun --env-file ../../.env test test)",
+      "Bash(~/.bun/bin/bun --env-file ../../.env test test/schema.test.ts)",
+      "Bash(~/.bun/bin/bun --env-file ../../.env test ./test)"
     ]
   }
 }

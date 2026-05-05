@@ -37,7 +37,7 @@ const envSchema = z.object({
   // Web Push VAPID keys (for Spec 41)
   VAPID_PUBLIC_KEY: optionalStr(z.string()),
   VAPID_PRIVATE_KEY: optionalStr(z.string()),
-  VAPID_SUBJECT: optionalStr(z.string().email()),
+  VAPID_SUBJECT: optionalStr(z.string().regex(/^(mailto:|https:\/\/)/)),
 });
 
 export type Env = z.infer<typeof envSchema>;
