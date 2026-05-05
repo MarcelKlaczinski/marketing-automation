@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun install *)",
+      "Read(//Users/marcelklaczinski/.bun/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//usr/**)",
+      "Bash(curl -fsSL https://bun.sh/install)",
+      "Bash(bash)",
+      "Bash(~/.bun/bin/bunx @biomejs/biome check .)",
+      "Bash(~/.bun/bin/bun --filter '*' typecheck)",
+      "Bash(DATABASE_URL=postgresql://x:x@localhost:5432/x REDIS_URL=redis://localhost:6379 ~/.bun/bin/bun test)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation status)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline -3)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/shared/src/result.ts packages/shared/src/config.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation commit -m ' *)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/00-foundation.md CLAUDE.md packages/shared/CLAUDE.md)"
+    ]
+  }
+}
