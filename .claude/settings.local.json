@@ -59,7 +59,11 @@
       "Bash(bun --env-file ../../.env /Users/marcelklaczinski/WebstormProjects/marketing-automation/node_modules/.bin/drizzle-kit generate)",
       "Bash(bun --env-file ../../.env node_modules/.bin/drizzle-kit generate)",
       "Bash(bun --env-file ../../.env node_modules/.bin/drizzle-kit check)",
-      "Bash(bun add *)"
+      "Bash(bun add *)",
+      "Bash(bun pm *)",
+      "Bash(npm view *)",
+      "Bash(bun --filter @marketing-auto/adapter-anthropic typecheck)",
+      "Bash(bun --filter '*' typecheck)"
     ]
   }
 }

@@ -771,8 +771,14 @@ Single session, ~1 day. No splitting needed. If pressure shows up, the natural s
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- `@anthropic-ai/sdk` latest is `0.94.0` (spec said `^0.42.0` which didn't exist). Updated to `^0.94.0`.
+- `CacheControlEphemeral.ttl` (`"5m" | "1h"`) IS supported in SDK 0.94 — no workaround needed.
+- `packages/adapters/*` needed to be added to root `workspaces` since Bun only resolved `packages/*` (direct children), not nested adapter packages.
+- `exactOptionalPropertyTypes` required building the `track()` call conditionally for `pipelineRunId`/`articleId` — same pattern already in `tracker.ts`. Used a `trackBase` object spread with four conditional branches.
+- `computeCostEur` and `metadata` callbacks needed explicit `Anthropic.Messages.Message` type annotation because TypeScript couldn't infer the generic `T` from the detached `trackBase` object literal.
+- Added `drizzle-orm: ^0.36.0` as a `devDependency` (test file imports `eq` from it directly).
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- `@anthropic-ai/sdk` version bumped from `^0.42.0` → `^0.94.0` (latest stable).
+- Root `package.json` workspaces extended with `"packages/adapters/*"` to resolve the nested package.
