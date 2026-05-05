@@ -9,3 +9,8 @@ export {
   FinalClusterSchema,
   SatelliteKeywordSchema,
 } from "./03-cluster-plan/pipeline.ts";
+export {
+  CornerstoneListPipeline,
+  ApprovedClusterSchema,
+  CornerstoneSpecSchema,
+} from "./04-cornerstone-list/pipeline.ts";
