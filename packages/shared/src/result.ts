@@ -11,6 +11,7 @@ export async function tryAsync<T, E = Error>(
     const value = await fn();
     return ok(value);
   } catch (e) {
+    // cast is safe: caller's errorMapper handles typing; fallback trusts E matches thrown value
     const error = errorMapper ? errorMapper(e) : (e as E);
     return err(error);
   }
@@ -20,6 +21,7 @@ export function trySync<T, E = Error>(fn: () => T, errorMapper?: (e: unknown) =>
   try {
     return ok(fn());
   } catch (e) {
+    // cast is safe: same rationale as tryAsync above
     const error = errorMapper ? errorMapper(e) : (e as E);
     return err(error);
   }

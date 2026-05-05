@@ -49,6 +49,7 @@ export function getEnv(): Env {
 
   const parsed = envSchema.safeParse(process.env);
   if (!parsed.success) {
+    // console.error intentional: pino createLogger() calls getEnv(), so we can't use it here
     console.error("❌ Invalid environment variables:");
     console.error(parsed.error.flatten().fieldErrors);
     throw new Error("Invalid environment configuration");
