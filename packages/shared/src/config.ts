@@ -39,6 +39,13 @@ const envSchema = z.object({
   VAPID_PUBLIC_KEY: optionalStr(z.string()),
   VAPID_PRIVATE_KEY: optionalStr(z.string()),
   VAPID_SUBJECT: optionalStr(z.string().regex(/^(mailto:|https:\/\/)/)),
+
+  // Cloudflare R2 (Spec 12)
+  R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
+  R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),
+  R2_SECRET_ACCESS_KEY: optionalStr(z.string().min(1)),
+  R2_BUCKET: optionalStr(z.string().min(1)),
+  R2_PUBLIC_BASE_URL: optionalStr(z.string().url()),
 });
 
 export type Env = z.infer<typeof envSchema>;

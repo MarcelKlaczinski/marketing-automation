@@ -37,6 +37,27 @@
         "drizzle-orm": "^0.36.0",
       },
     },
+    "packages/adapters/replicate": {
+      "name": "@marketing-auto/adapter-replicate",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/adapter-storage": "workspace:*",
+        "@marketing-auto/cost-tracker": "workspace:*",
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "replicate": "^1.0.0",
+      },
+      "devDependencies": {
+        "drizzle-orm": "^0.36.0",
+      },
+    },
+    "packages/adapters/storage": {
+      "name": "@marketing-auto/adapter-storage",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/shared": "workspace:*",
+      },
+    },
     "packages/core": {
       "name": "@marketing-auto/core",
       "version": "0.1.0",
@@ -170,6 +191,10 @@
     "@ioredis/commands": ["@ioredis/commands@1.5.1", "", {}, "sha512-JH8ZL/ywcJyR9MmJ5BNqZllXNZQqQbnVZOqpPQqE1vHiFgAw4NHbvE0FOduNU8IX9babitBT46571OnPTT0Zcw=="],
 
     "@marketing-auto/adapter-anthropic": ["@marketing-auto/adapter-anthropic@workspace:packages/adapters/anthropic"],
+
+    "@marketing-auto/adapter-replicate": ["@marketing-auto/adapter-replicate@workspace:packages/adapters/replicate"],
+
+    "@marketing-auto/adapter-storage": ["@marketing-auto/adapter-storage@workspace:packages/adapters/storage"],
 
     "@marketing-auto/api": ["@marketing-auto/api@workspace:apps/api"],
 
@@ -322,6 +347,8 @@
     "redis-errors": ["redis-errors@1.2.0", "", {}, "sha512-1qny3OExCf0UvUV/5wpYKf2YwPcOqXzkwKKSmKHiE6ZMQs5heeE/c8eXK+PNllPvmjgAbfnsbpkGZWy8cBpn9w=="],
 
     "redis-parser": ["redis-parser@3.0.0", "", { "dependencies": { "redis-errors": "^1.0.0" } }, "sha512-DJnGAeenTdpMEH6uAJRK/uiyEIH9WVsUmoLwzudwGJUwZPp80PDBWPHXSAGNPwNvIXAbe7MSUB1zQFugFml66A=="],
+
+    "replicate": ["replicate@1.4.0", "", { "optionalDependencies": { "readable-stream": ">=4.0.0" } }, "sha512-1ufKejfUVz/azy+5TnzQP7U1+MHVWZ6psnQ06az8byUUnRhT+DZ/MvewzB1NQYBVMgNKR7xPDtTwlcP5nv/5+w=="],
 
     "resolve-pkg-maps": ["resolve-pkg-maps@1.0.0", "", {}, "sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw=="],
 

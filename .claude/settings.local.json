@@ -63,7 +63,9 @@
       "Bash(bun pm *)",
       "Bash(npm view *)",
       "Bash(bun --filter @marketing-auto/adapter-anthropic typecheck)",
-      "Bash(bun --filter '*' typecheck)"
+      "Bash(bun --filter '*' typecheck)",
+      "Bash(bun --filter @marketing-auto/adapter-storage typecheck)",
+      "Bash(bun --filter @marketing-auto/adapter-replicate typecheck)"
     ]
   }
 }

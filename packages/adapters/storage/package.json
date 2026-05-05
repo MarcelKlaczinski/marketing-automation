@@ -1,0 +1,16 @@
+{
+  "name": "@marketing-auto/adapter-storage",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/storage/test"
+  },
+  "dependencies": {
+    "@marketing-auto/shared": "workspace:*"
+  }
+}
