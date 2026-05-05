@@ -14,7 +14,8 @@
     "worker": "bun --env-file ../../.env src/workers/index.ts",
     "worker:dev": "bun --env-file ../../.env --hot src/workers/index.ts",
     "cold-start:voice-refinement": "bun --env-file ../../.env src/scripts/cold-start/01-voice-refinement.ts",
-    "cold-start:competitor-analysis": "bun --env-file ../../.env src/scripts/cold-start/02-competitor-analysis.ts"
+    "cold-start:competitor-analysis": "bun --env-file ../../.env src/scripts/cold-start/02-competitor-analysis.ts",
+    "cold-start:cluster-plan": "bun --env-file ../../.env src/scripts/cold-start/03-cluster-plan.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.0",

@@ -39,6 +39,10 @@ expect total ~€0.15.
   for marginal accuracy improvement on common keywords. Reserve for niche/long-tail keywords.
 - DO NOT call `rankedKeywords()` on every article generation — it's a periodic competitor
   research task, not a per-article need (run weekly or monthly via scheduled job)
+- DO NOT expect `relatedKeywords()` to return keyword difficulty — `RelatedKeywordItem` has
+  only `searchVolume`, `cpcUsd`, `competition`. Use `keywordOverview()` if you need difficulty
+- DO NOT use keyword strings directly as DataForSEO `operation` identifiers — sanitize first
+  (e.g. `.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "")`) to avoid special chars
 - DO NOT forget that the `cost` field in DataForSEO responses is in USD — adapter converts
 - DO NOT use `device: "mobile"` unless the project's audience is mobile-first;
   results differ significantly from desktop

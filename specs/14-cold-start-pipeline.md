@@ -1291,6 +1291,11 @@ See "Implementation Order" — six sessions. Total: 16-22 hours of compute time 
 - The `competitor-analysis` skill named in the spec does not exist in `packages/skills/skills/`. Used `competitor-profiling` instead. (Same "always verify skill names" rule as Session 2.)
 - `@marketing-auto/adapter-dataforseo` added to `packages/pipelines/package.json` — required before typechecking passes. Run `bun install` after adding workspace deps.
 
+**Session 4:**
+
+- `dataforseo.relatedKeywords()` does NOT return `keywordDifficulty`. The `RelatedKeywordItem` type only has `keyword`, `depth`, `searchVolume`, `cpcUsd`, `competition`. Satellite keyword `difficulty` is always `null` unless you make a separate `keywordOverview()` call per satellite — not worth the cost for cold-start.
+- DataForSEO `operation` keys must not contain special characters (umlauts, spaces, slashes). Sanitize cornerstone keywords before using as operation identifiers: `.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "")`.
+
 ## Deviations
 
 **`writeMarkdownAtomic` implementation (Session 1):**
@@ -1302,3 +1307,10 @@ The spec described a single CLI command that runs all three steps end-to-end. In
 - `analyze` mode: reads Marcel's confirmed competitor list from the DATA block, runs `FetchCompetitorKeywordsStep` + `SynthesizeCompetitorReportStep`
 
 As a result, `CompetitorAnalysisPipeline` takes `competitors` as direct input (2 steps) and `CompetitorQuestionsPipeline` is a separate 1-step pipeline — not the 3-step single pipeline the spec described.
+
+**Phase 3 split into two modes: `propose` + `expand` (Session 4):**
+The spec described a single 4-step pipeline running end-to-end. In practice, steps 1+2 (candidate generation + volume validation) should be reviewed by Marcel before steps 3+4 (satellite expansion + synthesis) spend ~€0.011 × N clusters on DataForSEO. Implemented two-mode pattern matching Phase 2:
+- `propose` mode: runs `GenerateClusterCandidatesStep` + `ValidateKeywordsStep` via `ClusterProposePipeline`, writes `03-cluster-plan.md` with a `<!-- DATA:cluster-candidates BEGIN/END -->` block Marcel can edit (delete unwanted rows)
+- `expand` mode: reads Marcel's trimmed list from the DATA block, runs `ExpandWithSatellitesStep` + `SynthesizeClusterPlanStep` via `ClusterExpandPipeline`, overwrites the file with the full plan and `<!-- DATA:clusters BEGIN/END -->` block
+
+As a result, `ClusterProposePipeline` (2 steps) and `ClusterExpandPipeline` (2 steps) replace the single 4-step pipeline the spec described.
