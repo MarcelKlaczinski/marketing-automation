@@ -45,7 +45,13 @@
       "Bash(bun --filter @marketing-auto/cost-tracker typecheck)",
       "Bash(bun --filter @marketing-auto/db test)",
       "Skill(review-task)",
-      "Skill(review-task:*)"
+      "Skill(review-task:*)",
+      "Bash(bun --filter @marketing-auto/api typecheck)",
+      "Bash(bun --env-file ../../.env -e \"import { getEnv } from '@marketing-auto/shared'; console.log\\(getEnv\\(\\).DATABASE_URL\\)\")",
+      "Bash(bun --filter @marketing-auto/api add-user test@example.com Test owner)",
+      "Bash(bun test *)",
+      "Skill(update-docs)",
+      "Skill(update-docs:*)"
     ]
   }
 }

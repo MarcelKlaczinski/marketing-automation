@@ -45,6 +45,7 @@ Designed to evolve into SaaS.
 - DO NOT use `z.string().startsWith(…).optional()` for env vars — shell leakage causes format validation to fire on empty strings; use `optionalStr()` from `packages/shared/src/config.ts` instead
 - DO NOT pass `prop: value | undefined` to third-party libs when `exactOptionalPropertyTypes` is on — build the object conditionally (if/return) instead of using a ternary that produces `undefined`
 - DO NOT name a workspace script `test` whose body itself runs `bun test …` — Bun's CLI resolves the same-name script before the `test` built-in and recurses. If a package needs custom test setup (env loading, paths), invoke via `bun --filter <pkg> test` only; document the caveat in its CLAUDE.md so contributors don't run `bun run test` from the package cwd
+- DO NOT omit `--env-file ../../.env` from package.json scripts in workspace packages — `bun --filter` runs scripts from the package directory, so the root `.env` is not auto-discovered. Add `--env-file ../../.env` to every script that triggers `getEnv()` at startup (dev, start, add-user, etc.)
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
@@ -60,6 +61,7 @@ Current active specs:
 - /specs/00-foundation.md
 - /specs/01-cold-start-pipeline.md
 - /specs/03-cost-tracker.md
+- /specs/04-magic-link-auth.md
 
 ## Key Project Context
 - Marcel is solo dev + small team (1-3 people)

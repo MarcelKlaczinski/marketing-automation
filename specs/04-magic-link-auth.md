@@ -726,8 +726,10 @@ Single session, ½ day. No splitting needed.
 
 ## Discovered During Implementation
 
-(empty)
+- `apps/api/tsconfig.json` was missing `allowImportingTsExtensions: true`, `noEmit: true`, and the `@marketing-auto/db` path alias — added all three.
+- `drizzle-orm` needed to be added directly to `apps/api/package.json` (the operator imports `eq`, `lt`, etc. are direct, not re-exported through `@marketing-auto/db`).
+- `server.ts` had a `.js` extension import for `health.ts` — corrected to `.ts` for consistency.
 
 ## Deviations
 
-(empty)
+- `email.ts` uses raw `fetch()` to call the Resend API, which technically violates the "no raw fetch" rule in CLAUDE.md. Accepted as-is for MVP since there is no Resend adapter package yet; a typed `ResendAdapter` can be extracted to `packages/core` when Spec 05 adds the adapter layer.

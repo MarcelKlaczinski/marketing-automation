@@ -15,7 +15,9 @@
       "version": "0.1.0",
       "dependencies": {
         "@hono/zod-validator": "^0.4.0",
+        "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
+        "drizzle-orm": "^0.36.0",
         "hono": "^4.6.0",
         "zod": "^3.23.8",
       },

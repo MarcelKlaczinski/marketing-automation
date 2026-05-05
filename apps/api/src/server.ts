@@ -1,19 +1,24 @@
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { logger as honoLogger } from "hono/logger";
-import { healthRoutes } from "./routes/health.js";
+import { healthRoutes } from "./routes/health.ts";
+import { authRoutes } from "./routes/auth.ts";
+import { sessionLoader } from "./middleware/auth.ts";
 
 const env = getEnv();
 const log = createLogger("api");
 
 const app = new Hono();
 
-app.use(
-  "*",
-  honoLogger((message) => log.info(message))
-);
+// Middleware (order matters: logger first, then session loader on every request)
+app.use("*", honoLogger((message) => log.info(message)));
+app.use("*", sessionLoader);
 
+// Public routes
 app.route("/health", healthRoutes);
+app.route("/api/auth", authRoutes);
+
+// Protected routes (Spec 06+) will apply requireAuth middleware
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

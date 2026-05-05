@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/server.ts",
-    "start": "bun src/server.ts",
+    "dev": "bun --env-file ../../.env --hot src/server.ts",
+    "start": "bun --env-file ../../.env src/server.ts",
     "build": "bun build src/server.ts --target=bun --outdir=./dist",
     "typecheck": "tsc --noEmit",
-    "test": "cd ../.. && bun test apps/api/test"
+    "test": "cd ../.. && bun test apps/api/test",
+    "add-user": "bun --env-file ../../.env src/scripts/add-user.ts"
   },
   "dependencies": {
+    "@marketing-auto/db": "workspace:*",
     "@marketing-auto/shared": "workspace:*",
+    "drizzle-orm": "^0.36.0",
     "hono": "^4.6.0",
     "@hono/zod-validator": "^0.4.0",
     "zod": "^3.23.8"
