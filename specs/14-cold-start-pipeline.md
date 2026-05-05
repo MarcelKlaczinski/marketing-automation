@@ -1286,7 +1286,19 @@ See "Implementation Order" — six sessions. Total: 16-22 hours of compute time 
 - `exactOptionalPropertyTypes: true` (workspace tsconfig) rejects `this.blockName = blockName` when `blockName?: string` is declared as an optional class property. Pattern: declare as `readonly blockName: string | undefined` and guard the assignment with `if (blockName !== undefined)`.
 - Cold-start CLI scripts use `console.log/console.error` for user-facing terminal output (consistent with `add-project.ts`) and `log.info()` (pino) only for structured progress events. This is not a violation of the no-console-log rule — that rule applies to server/worker code.
 
+**Session 3:**
+
+- The `competitor-analysis` skill named in the spec does not exist in `packages/skills/skills/`. Used `competitor-profiling` instead. (Same "always verify skill names" rule as Session 2.)
+- `@marketing-auto/adapter-dataforseo` added to `packages/pipelines/package.json` — required before typechecking passes. Run `bun install` after adding workspace deps.
+
 ## Deviations
 
 **`writeMarkdownAtomic` implementation (Session 1):**
 The spec's implementation wrote to `.tmp` via `writeFile` then re-wrote the final path via `Bun.write` — two separate writes, not atomic. Changed to `writeFile(tmpPath) + rename(tmpPath, path)` which is the standard atomic-write pattern (rename is atomic on the same filesystem). Behaviour is identical from Marcel's perspective.
+
+**Phase 2 split into two modes: `questions` + `analyze` (Session 3):**
+The spec described a single CLI command that runs all three steps end-to-end. In practice, the `IdentifyCompetitorsStep` (Anthropic) produces a competitor list that Marcel should review before spending DataForSEO budget on potentially wrong domains. Implemented two-mode pattern matching Phase 1:
+- `questions` mode: runs only `IdentifyCompetitorsStep`, writes `02-competitor-analysis.md` with a `<!-- DATA:competitors BEGIN/END -->` block Marcel can edit plus AI-generated review questions
+- `analyze` mode: reads Marcel's confirmed competitor list from the DATA block, runs `FetchCompetitorKeywordsStep` + `SynthesizeCompetitorReportStep`
+
+As a result, `CompetitorAnalysisPipeline` takes `competitors` as direct input (2 steps) and `CompetitorQuestionsPipeline` is a separate 1-step pipeline — not the 3-step single pipeline the spec described.

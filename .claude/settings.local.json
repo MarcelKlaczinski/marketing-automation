@@ -69,7 +69,13 @@
       "Bash(bun --filter @marketing-auto/adapter-dataforseo typecheck)",
       "Bash(bun --filter @marketing-auto/db migrate)",
       "Bash(bun --filter @marketing-auto/adapter-email typecheck)",
-      "Bash(bun --filter @marketing-auto/adapter-email test)"
+      "Bash(bun --filter @marketing-auto/adapter-email test)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff --stat HEAD)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/pipelines/package.json bun.lock packages/pipelines/src/cold-start/ packages/pipelines/test/cold-start/ specs/14-cold-start-pipeline.md)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff HEAD~1 HEAD --name-only)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/pipelines/package.json packages/pipelines/src/cold-start/index.ts packages/pipelines/src/cold-start/01-voice-refinement/ apps/api/src/scripts/cold-start/ apps/api/package.json bun.lock)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/pipelines/src/cold-start/01-voice-refinement/steps.ts apps/api/src/scripts/cold-start/01-voice-refinement.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/14-cold-start-pipeline.md packages/pipelines/CLAUDE.md CLAUDE.md)"
     ]
   }
 }

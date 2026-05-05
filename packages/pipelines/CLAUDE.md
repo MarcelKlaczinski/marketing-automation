@@ -55,8 +55,8 @@ only the DATA sections; Marcel can freely edit prose outside them.
 ## Adapter Dependencies in Steps
 
 Steps that call external adapters must list those adapters in `packages/pipelines/package.json`
-dependencies. They are NOT inherited from `apps/api`. Currently added: `adapter-anthropic`.
-Add `adapter-dataforseo` when implementing phases that call DataForSEO.
+dependencies. They are NOT inherited from `apps/api`. Currently added: `adapter-anthropic`,
+`adapter-dataforseo`. Run `bun install` after adding a new workspace dep or typecheck will fail.
 
 ## Test Script Caveat
 
