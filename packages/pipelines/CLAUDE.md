@@ -28,6 +28,36 @@ on top of this.
 4. Register in `apps/api/src/workers/index.ts`
 5. Trigger via `enqueuePipeline({ pipelineName: "...", projectId, input })`
 
+## Cold-Start CLI Pipelines
+
+Cold-start phases run synchronously via `runPipeline()` — no BullMQ, no worker registration.
+Pattern: load project from DB → call `runPipeline()` → write output markdown to disk.
+
+Steps live in `packages/pipelines/src/cold-start/<phase>/`, CLI scripts in
+`apps/api/src/scripts/cold-start/`. Add the script as a `cold-start:<phase>` entry in
+`apps/api/package.json` with `--env-file ../../.env`.
+
+## DATA Blocks (cold-start inter-phase protocol)
+
+Phases communicate via structured YAML embedded in markdown files using named DATA blocks:
+
+```markdown
+<!-- DATA:clusters BEGIN -->
+- name: "Claude Marketing"
+  status: proposed
+<!-- DATA:clusters END -->
+```
+
+Use `parseDataBlock(md, "clusters", ZodSchema)` to read and `renderDataBlock("clusters", data)`
+to write. Both live in `@marketing-auto/pipelines/cold-start/shared`. The next phase reads
+only the DATA sections; Marcel can freely edit prose outside them.
+
+## Adapter Dependencies in Steps
+
+Steps that call external adapters must list those adapters in `packages/pipelines/package.json`
+dependencies. They are NOT inherited from `apps/api`. Currently added: `adapter-anthropic`.
+Add `adapter-dataforseo` when implementing phases that call DataForSEO.
+
 ## Test Script Caveat
 
 DO NOT run `bun run test` from inside `packages/pipelines/` — Bun's CLI resolves

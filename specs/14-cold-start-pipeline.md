@@ -1279,8 +1279,14 @@ See "Implementation Order" — six sessions. Total: 16-22 hours of compute time 
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+**Sessions 1–2:**
+
+- `@marketing-auto/adapter-anthropic` is not in `packages/pipelines/package.json` by default — must add it (and `adapter-dataforseo` for phases 2–3) explicitly. Spec omitted this step.
+- The `brand-positioning` skill named in the spec does not exist in `packages/skills/skills/`. Used `content-strategy` instead. Always verify skill names against the actual directory before writing step code.
+- `exactOptionalPropertyTypes: true` (workspace tsconfig) rejects `this.blockName = blockName` when `blockName?: string` is declared as an optional class property. Pattern: declare as `readonly blockName: string | undefined` and guard the assignment with `if (blockName !== undefined)`.
+- Cold-start CLI scripts use `console.log/console.error` for user-facing terminal output (consistent with `add-project.ts`) and `log.info()` (pino) only for structured progress events. This is not a violation of the no-console-log rule — that rule applies to server/worker code.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+**`writeMarkdownAtomic` implementation (Session 1):**
+The spec's implementation wrote to `.tmp` via `writeFile` then re-wrote the final path via `Bun.write` — two separate writes, not atomic. Changed to `writeFile(tmpPath) + rename(tmpPath, path)` which is the standard atomic-write pattern (rename is atomic on the same filesystem). Behaviour is identical from Marcel's perspective.

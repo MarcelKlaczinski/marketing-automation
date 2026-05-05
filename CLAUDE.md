@@ -56,6 +56,7 @@ Designed to evolve into SaaS.
 - DO NOT name a constructor parameter property `cause` when subclassing `Error` — `Error.cause` is a reserved built-in in ESNext lib and TypeScript requires `override`. Rename to `originalCause` or similar instead
 - DO NOT use `RequestInfo` as a type in adapter code — it is not in scope under Bun's TypeScript config. Use `string | URL | Request` instead (the same union `RequestInfo` aliases in lib.dom.d.ts)
 - DO NOT hardcode `0.92` as a USD→EUR conversion constant in adapters — import `EUR_PER_USD` from `@marketing-auto/cost-tracker` so all FX conversions stay in sync
+- DO NOT reference a skill by name in `buildSystemPrompt()` without first verifying it exists in `packages/skills/skills/` — the loader silently falls back to an error log and empty string, so a typo produces a degraded prompt with no compile-time warning. Check the directory before writing step code
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
