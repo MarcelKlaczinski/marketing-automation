@@ -1,0 +1,23 @@
+{
+  "name": "@marketing-auto/adapter-email",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/email/test"
+  },
+  "dependencies": {
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/cost-tracker": "workspace:*",
+    "nodemailer": "^6.9.16"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
+    "drizzle-orm": "^0.36.0"
+  }
+}

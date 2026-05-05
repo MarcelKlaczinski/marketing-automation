@@ -15,6 +15,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@hono/zod-validator": "^0.4.0",
+        "@marketing-auto/adapter-email": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/pipelines": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
@@ -47,6 +48,20 @@
         "dataforseo-client": "^2.0.24",
       },
       "devDependencies": {
+        "drizzle-orm": "^0.36.0",
+      },
+    },
+    "packages/adapters/email": {
+      "name": "@marketing-auto/adapter-email",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/cost-tracker": "workspace:*",
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "nodemailer": "^6.9.16",
+      },
+      "devDependencies": {
+        "@types/nodemailer": "^6.4.17",
         "drizzle-orm": "^0.36.0",
       },
     },
@@ -207,6 +222,8 @@
 
     "@marketing-auto/adapter-dataforseo": ["@marketing-auto/adapter-dataforseo@workspace:packages/adapters/dataforseo"],
 
+    "@marketing-auto/adapter-email": ["@marketing-auto/adapter-email@workspace:packages/adapters/email"],
+
     "@marketing-auto/adapter-replicate": ["@marketing-auto/adapter-replicate@workspace:packages/adapters/replicate"],
 
     "@marketing-auto/adapter-storage": ["@marketing-auto/adapter-storage@workspace:packages/adapters/storage"],
@@ -240,6 +257,8 @@
     "@types/bun": ["@types/bun@1.3.13", "", { "dependencies": { "bun-types": "1.3.13" } }, "sha512-9fqXWk5YIHGGnUau9TEi+qdlTYDAnOj+xLCmSTwXfAIqXr2x4tytJb43E9uCvt09zJURKXwAtkoH4nLQfzeTXw=="],
 
     "@types/node": ["@types/node@25.6.0", "", { "dependencies": { "undici-types": "~7.19.0" } }, "sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ=="],
+
+    "@types/nodemailer": ["@types/nodemailer@6.4.23", "", { "dependencies": { "@types/node": "*" } }, "sha512-aFV3/NsYFLSx9mbb5gtirBSXJnAlrusoKNuPbxsASWc7vrKLmIrTQRpdcxNcSFL3VW2A2XpeLEavwb2qMi6nlQ=="],
 
     "abort-controller": ["abort-controller@3.0.0", "", { "dependencies": { "event-target-shim": "^5.0.0" } }, "sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg=="],
 
@@ -334,6 +353,8 @@
     "node-abort-controller": ["node-abort-controller@3.1.1", "", {}, "sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ=="],
 
     "node-gyp-build-optional-packages": ["node-gyp-build-optional-packages@5.2.2", "", { "dependencies": { "detect-libc": "^2.0.1" }, "bin": { "node-gyp-build-optional-packages": "bin.js", "node-gyp-build-optional-packages-optional": "optional.js", "node-gyp-build-optional-packages-test": "build-test.js" } }, "sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw=="],
+
+    "nodemailer": ["nodemailer@6.10.1", "", {}, "sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA=="],
 
     "on-exit-leak-free": ["on-exit-leak-free@2.1.2", "", {}, "sha512-0eJJY6hXLGf1udHwfNftBqH+g73EU4B504nZeKpz1sYRKafAghwxEJunB2O7rDZkL4PGfsMVnTXZ2EjibbqcsA=="],
 

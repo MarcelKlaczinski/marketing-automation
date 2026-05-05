@@ -31,9 +31,12 @@ const envSchema = z.object({
   DATAFORSEO_LOGIN: optionalStr(z.string()),
   DATAFORSEO_PASSWORD: optionalStr(z.string()),
 
-  // Resend (for magic link auth, Spec 04)
-  RESEND_API_KEY: optionalStr(z.string().startsWith("re_")),
-  RESEND_FROM_EMAIL: optionalStr(z.string().email()),
+  // Email / SMTP (Spec 11.5)
+  SMTP_USER: optionalStr(z.string().email()),
+  SMTP_APP_PASSWORD: optionalStr(z.string().min(8)),
+  SMTP_FROM_NAME: z.string().default("Marketing Automation"),
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(465),
 
   // Web Push VAPID keys (for Spec 41)
   VAPID_PUBLIC_KEY: optionalStr(z.string()),

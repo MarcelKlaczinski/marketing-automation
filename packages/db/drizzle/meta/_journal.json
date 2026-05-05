@@ -15,6 +15,13 @@
       "when": 1778000118512,
       "tag": "0001_peaceful_marvel_apes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778005920740,
+      "tag": "0002_simple_boomerang",
+      "breakpoints": true
     }
   ]
 }

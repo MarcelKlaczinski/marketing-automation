@@ -28,6 +28,7 @@ Designed to evolve into SaaS.
 - **Image generation**: always via `@marketing-auto/adapter-replicate` (`replicate.generateImage()`), never the `replicate` npm package directly
 - **Object storage**: always via `@marketing-auto/adapter-storage` (`r2.put()` etc.), never `Bun.S3Client` directly
 - **SEO data**: always via `@marketing-auto/adapter-dataforseo` (`dataforseo.serp()` etc.), never `dataforseo-client` directly
+- **Transactional email**: always via `@marketing-auto/adapter-email` (`email.sendEmail()` / `email.sendMagicLinkEmail()`), never `nodemailer` directly
 
 ## Vue/Quasar Conventions (from Marcel's existing standards)
 - Options API only (NOT Composition API, NOT script setup)
@@ -75,6 +76,7 @@ Implemented specs (do not re-implement):
 - /specs/11-anthropic-adapter.md
 - /specs/12-replicate-adapter.md
 - /specs/13-dataforseo-adapter.md
+- /specs/11.5-email-adapter.md
 
 ## Project Marketing Contexts
 

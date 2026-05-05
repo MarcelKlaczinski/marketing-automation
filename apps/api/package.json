@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.0",
+    "@marketing-auto/adapter-email": "workspace:*",
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/pipelines": "workspace:*",
     "@marketing-auto/shared": "workspace:*",

@@ -72,7 +72,7 @@ export const costServiceEnum = pgEnum("cost_service", [
   "replicate",
   "dataforseo",
   "elevenlabs",
-  "resend",
+  "smtp",
 ]);
 
 export const pipelineRunStatusEnum = pgEnum("pipeline_run_status", [

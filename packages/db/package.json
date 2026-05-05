@@ -14,7 +14,8 @@
     "studio": "drizzle-kit studio",
     "push": "drizzle-kit push",
     "test": "cd ../.. && bun test packages/db/test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed-platform": "bun --env-file ../../.env src/scripts/seed-platform.ts"
   },
   "dependencies": {
     "@marketing-auto/shared": "workspace:*",
