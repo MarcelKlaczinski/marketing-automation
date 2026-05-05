@@ -120,6 +120,7 @@
       "name": "@marketing-auto/pipelines",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/adapter-anthropic": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
