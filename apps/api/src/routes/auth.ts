@@ -19,39 +19,47 @@ export const authRoutes = new Hono();
 const emailSchema = z.object({ email: z.string().email().toLowerCase() });
 
 /**
- * POST /api/auth/login
- * Legacy endpoint name — kept for backward compatibility.
+ * Issues a magic-link for the given email address.
+ * Anti-enumeration: runs silently regardless of whether the address is registered.
+ * Shared by /login (legacy) and /magic-link/request.
  */
-authRoutes.post("/login", zValidator("json", emailSchema), async (c) => {
+async function issueMagicLink(emailAddress: string): Promise<void> {
   const env = getEnv();
-  const { email } = c.req.valid("json");
 
   const user = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, email))
+    .where(eq(users.email, emailAddress))
     .limit(1)
     .then((rows) => rows[0]);
 
   if (!user) {
-    log.info({ email }, "Magic link requested for non-existent email");
-    return c.json({ ok: true }, 202);
+    log.info({ email: emailAddress }, "Magic link requested for non-existent email");
+    return;
   }
 
   const rawToken = generateToken(32);
   const tokenHash = hashToken(rawToken);
   const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MIN * 60_000);
-  await db.insert(magicLinkTokens).values({ email, tokenHash, expiresAt });
+  await db.insert(magicLinkTokens).values({ email: emailAddress, tokenHash, expiresAt });
 
   const verifyUrl = `${env.APP_BASE_URL}/auth/verify?token=${rawToken}`;
-  const result = await sendMagicLinkEmail({ to: email, verifyUrl, expiresInMinutes: MAGIC_LINK_TTL_MIN });
+  const result = await sendMagicLinkEmail({ to: emailAddress, verifyUrl, expiresInMinutes: MAGIC_LINK_TTL_MIN });
 
   if (!result.delivered) {
-    log.info({ email, verifyUrl }, "Magic link generated (SMTP not configured — link in this log)");
+    log.info({ email: emailAddress, verifyUrl }, "Magic link generated (SMTP not configured — link in this log)");
   } else {
-    log.info({ email }, "Magic link sent");
+    log.info({ email: emailAddress }, "Magic link sent");
   }
+}
 
+/**
+ * POST /api/auth/login
+ * Legacy endpoint name — kept for backward compatibility.
+ */
+authRoutes.post("/login", zValidator("json", emailSchema), async (c) => {
+  const { email } = c.req.valid("json");
+  await issueMagicLink(email);
   return c.json({ ok: true }, 202);
 });
 
@@ -61,35 +69,8 @@ authRoutes.post("/login", zValidator("json", emailSchema), async (c) => {
  * Always returns 202 — anti-enumeration: same response whether email exists or not.
  */
 authRoutes.post("/magic-link/request", zValidator("json", emailSchema), async (c) => {
-  const env = getEnv();
   const { email } = c.req.valid("json");
-
-  const user = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1)
-    .then((rows) => rows[0]);
-
-  if (!user) {
-    log.info({ email }, "Magic link requested for non-existent email");
-    return c.json({ ok: true }, 202);
-  }
-
-  const rawToken = generateToken(32);
-  const tokenHash = hashToken(rawToken);
-  const expiresAt = new Date(Date.now() + MAGIC_LINK_TTL_MIN * 60_000);
-  await db.insert(magicLinkTokens).values({ email, tokenHash, expiresAt });
-
-  const verifyUrl = `${env.APP_BASE_URL}/auth/verify?token=${rawToken}`;
-  const result = await sendMagicLinkEmail({ to: email, verifyUrl, expiresInMinutes: MAGIC_LINK_TTL_MIN });
-
-  if (!result.delivered) {
-    log.info({ email, verifyUrl }, "Magic link generated (SMTP not configured — link in this log)");
-  } else {
-    log.info({ email }, "Magic link sent");
-  }
-
+  await issueMagicLink(email);
   return c.json({ ok: true }, 202);
 });
 
@@ -101,7 +82,7 @@ authRoutes.post("/magic-link/request", zValidator("json", emailSchema), async (c
  */
 authRoutes.post(
   "/magic-link/verify",
-  zValidator("json", z.object({ token: z.string().min(1) })),
+  zValidator("json", z.object({ token: z.string().min(1).max(512) })),
   async (c) => {
     const env = getEnv();
     const { token } = c.req.valid("json");
