@@ -152,6 +152,14 @@ export async function runPipeline<TInput, TOutput>(
       .set({ status: "failed", errorMessage: errMsg, completedAt: new Date() })
       .where(eq(pipelineRuns.id, runId));
 
+    if (pipeline.afterError) {
+      try {
+        await pipeline.afterError(err, validatedInput as TInput);
+      } catch (afterErr) {
+        pipelineLog.warn({ err: afterErr }, "afterError hook failed — cleanup may be incomplete");
+      }
+    }
+
     return { ok: false, runId, error: errMsg, failedAtStep: lastStepName, stepOutputs };
   }
 }

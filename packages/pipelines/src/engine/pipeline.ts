@@ -45,4 +45,12 @@ export abstract class Pipeline<TInput = unknown, TOutput = unknown> {
    * (e.g., auto-enqueuing a follow-up pipeline).
    */
   afterComplete?(output: TOutput, pipelineInput: TInput): Promise<void>;
+
+  /**
+   * Called by the runner when any step fails (throws).
+   * Use for guaranteed cleanup that must happen even on failure
+   * (e.g., killing a spawned preview server process).
+   * Runner wraps this in try-catch — failures log a warn, do not affect retry behavior.
+   */
+  afterError?(error: unknown, pipelineInput: TInput): Promise<void>;
 }

@@ -1,2 +1,3 @@
-// Pipeline and trigger exports added in Session 2 (Spec 22 pipeline steps)
+// Trigger + CLI exports added in Session 3 (Spec 22 trigger + CLI)
+export { PageSpeedValidationPipeline } from "./pipeline.ts";
 export { PagespeedError, type PagespeedScores, type CoreWebVitals, type PagespeedOutcome } from "./types.ts";
