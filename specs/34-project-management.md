@@ -1970,7 +1970,9 @@ See "Implementation Order" — 3 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-- **`marked` v18 API**: `marked.parse()` is synchronous by default and returns `string` — no `{ async: false }` option or `as string` cast needed. Noted in `apps/web/CLAUDE.md`.
+- **`marked` v18 TypeScript types**: `marked.parse()` is synchronous at runtime but its TypeScript overload returns `string | Promise<string>`. Use type narrowing (`typeof r === 'string' ? r : ''`) rather than `as string` or `{ async: false }`. Corrected in `apps/web/CLAUDE.md`.
+- **`@codemirror/view` / `@codemirror/state` must be direct deps**: Installing `codemirror` does not make these available for direct import. Add them explicitly: `bun add @codemirror/view @codemirror/state`. Added to root CLAUDE.md Tech Stack.
+- **Session 2 Settings tab is a stub**: `ProjectDetailPage.vue` renders a stub banner for the Settings tab; `ProjectSettingsPanel.vue` is created in Session 3.
 - **Industry/pipeline enums differ from spec**: The spec used generic SaaS-style values (`saas`, `ecommerce`, `educational`, `commercial`). The actual DB enums in `packages/db/src/schema/_enums.ts` are domain-specific (`ai_education`, `automotive_dealer`, `renewable_affiliate`, `music_school`, `other` for industry; `educational`, `affiliate_review`, `local_business`, `programmatic_seo` for pipeline). Always derive enum options from the DB schema, not the spec.
 - **`publishDomain` does not exist as a column**: The spec refers to `publishDomain` throughout, but the DB column is `domain` (plain). The update schema and frontend store use `domain`.
 - **Article status `outlining` does not exist**: The spec's `articleStatus` i18n included `outlining` but the DB enum has `generating` instead. Used the DB value.

@@ -31,6 +31,7 @@ export default {
     coldStartStub: 'Cold-Start UI wird in Spec 35 implementiert.',
     articlesStub: 'Article Pipeline UI wird in Spec 36 implementiert.',
     clustersStub: 'Cluster Management UI wird in Spec 37 implementiert.',
+    settingsStub: 'Projekt-Einstellungen werden in Spec 34 Session 3 implementiert.',
     tabs: {
       overview: 'Übersicht',
       coldStart: 'Cold-Start',

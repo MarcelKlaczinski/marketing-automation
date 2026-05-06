@@ -91,7 +91,8 @@ export default defineComponent({
 
   computed: {
     rendered(): string {
-      return marked.parse(this.localValue);
+      const result = marked.parse(this.localValue);
+      return typeof result === 'string' ? result : '';
     },
   },
 
