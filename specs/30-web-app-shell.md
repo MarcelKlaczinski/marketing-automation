@@ -1619,6 +1619,13 @@ See "Implementation Order" — 2 sessions with `/clear` between.
 
 - Stub page titles for parametric routes (`Projekt: {{ slug }}`, `Artikel: {{ slug }}`, etc.) and "Diese Seite wird in Spec X implementiert." banners were deliberately left as hardcoded German — they are pure scaffolding markers, not production UI, and will be entirely replaced by Spec 31–39.
 
+- **Session 2 (smoke tests)** surfaced three additional issues:
+  - `MainLayout` returned `$q` from `setup()`, triggering a Vue reserved-prefix warning. Fixed by removing `useQuasar()` from `setup()` — `this.$q` is already injected by Quasar's plugin in Options API components.
+  - `ErrorNotFound.vue` used `<q-page>` but the catch-all route has no `QLayout` parent, causing a runtime error. Fixed by replacing `<q-page>` with a plain `<div style="min-height: 100vh;">`.
+  - The API had no CORS middleware, so the browser blocked all `fetch` calls from `localhost:3051` to `localhost:3050`. Added `hono/cors` with a `CORS_ORIGIN` env var (default `http://localhost:3051`) and `credentials: true`.
+  - `apps/web/.env.example` had the wrong API port (`3000` instead of `3050`). Corrected.
+
 ## Deviations
 
 - **`home` i18n namespace added** (not in spec's original key list): `src/i18n/de/home.ts` and `src/i18n/en/home.ts` introduced. The spec listed the `de/` keys inline but omitted `home` from the module structure. The deviation is additive and improves type-safety (avoids runtime fallback strings).
+- **CORS middleware added to API** (not mentioned in spec): Spec 30 assumed the backend and frontend run on the same origin. In practice they use different ports (3050/3051), requiring explicit CORS configuration. `CORS_ORIGIN` env var added to `packages/shared/src/config.ts`.
