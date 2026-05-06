@@ -163,6 +163,18 @@ Run with: `RUN_LIVE_ARTICLE_PIPELINE=1 bun --filter @marketing-auto/pipelines te
 **Integration tests** use `runPipeline()` (the synchronous runner) — no BullMQ worker needed.
 Set `approvalMode: "manual"` to prevent `afterComplete` from calling `enqueuePipeline`.
 
+**Three more gotchas to avoid:**
+
+3. **Spreading two detection fixtures silently zeroes out array fields.** If you have `FAQ_DETECTION` (with questions) and `HOWTO_DETECTION` (with `faqQuestions: []`), then `{ ...FAQ_DETECTION, ...HOWTO_DETECTION, hasFaq: true }` produces `faqQuestions: []` — the spread overwrites. Always build merged inputs field-by-field:
+   ```typescript
+   // ✗ Wrong — faqQuestions becomes []
+   { ...FAQ_DETECTION, ...HOWTO_DETECTION, hasFaq: true, hasHowTo: true }
+   // ✓ Right
+   { hasFaq: true, hasHowTo: true, faqQuestions: FAQ_DETECTION.faqQuestions, howToSteps: HOWTO_DETECTION.howToSteps, ... }
+   ```
+
+4. **Pipelines with `afterComplete` auto-triggers break status assertions in integration tests.** If `afterComplete` transitions the article (e.g., `final_review` → `schema_extending`), a test that asserts `status === "final_review"` immediately after `runPipeline` will fail. Assert both statuses: `expect(["final_review", "schema_extending"]).toContain(saved!.status)` with a comment explaining why.
+
 ## Common Mistakes
 
 - DO NOT do business logic outside of `execute()` — it won't be tracked

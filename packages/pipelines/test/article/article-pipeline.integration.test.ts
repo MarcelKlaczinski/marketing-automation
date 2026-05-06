@@ -122,7 +122,9 @@ describe.skipIf(!LIVE)("Article Pipeline — full integration (Job 1 + Job 2)", 
     if (!result.ok) throw new Error(`Job 2 failed at ${result.failedAtStep}: ${result.error}`);
 
     const [saved] = await db.select().from(articles).where(eq(articles.id, articleId)).limit(1);
-    expect(saved!.status).toBe("final_review");
+    // afterComplete auto-enqueues schema extension, which transitions to schema_extending.
+    // Both statuses are valid here depending on whether the enqueue succeeded.
+    expect(["final_review", "schema_extending"]).toContain(saved!.status);
     expect(saved!.bodyMd).toBeTruthy();
     expect(saved!.wordCount).toBeGreaterThan(500);
     expect(saved!.selfReviewScore).toBeGreaterThanOrEqual(0);

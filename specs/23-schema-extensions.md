@@ -999,6 +999,14 @@ See "Implementation Order" — 2 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
+- **Migration must be applied before tests run**: `0006_schema_extension.sql` adds the `schema_extending` enum value. Tests that insert articles with that status fail with `invalid input value for enum article_status` until `bun --filter @marketing-auto/db migrate` has been run. Always run the migration before running pipeline tests after a schema change.
+
+- **`afterComplete` auto-trigger breaks integration test status assertions**: `ArticleDraftPipeline.afterComplete` calls `enqueueSchemaExtension`, which immediately transitions the article to `schema_extending`. Any integration test that ran Job 2 and then asserted `status === "final_review"` started failing. Fix: assert `expect(["final_review", "schema_extending"]).toContain(saved!.status)` and add a comment explaining both are valid depending on whether the enqueue succeeded.
+
+- **Spreading two detection fixtures silently zeroes out fields**: `{ ...FAQ_DETECTION, ...HOWTO_DETECTION, hasFaq: true, hasHowTo: true }` looks correct but `HOWTO_DETECTION.faqQuestions = []` overwrites `FAQ_DETECTION.faqQuestions`, so `BuildJsonLdStep` sees 0 questions and skips FAQPage. Always build merged detection objects field-by-field when combining two partial fixtures — never spread and rely on explicit overrides to compensate.
+
+- **Graceful degradation test pattern**: To test `afterError` status reversion without calling the LLM, create an article in `schema_extending` status with `bodyMd = null` and `heroImagePublicUrl = null`. `LoadArticleStep`'s Zod output schema (`z.string()`, `z.string().url()`) rejects null, the runner catches the ZodError, calls `afterError`, which reverts to `final_review`. No LLM mock needed.
+
 - **Adapter ripple when column type changes**: Changing `articles.schemaJsonLd` from `Record<string,unknown>` to `Array<Record<string,unknown>>` required updating `inputSchema`/`outputSchema` in two astro-sync adapter steps (`load-article.ts`, `render-mdx.ts`) and one integration test fixture. When changing a JSONB column's TypeScript type, grep for every step that declares the column in its own local Zod schema — they're invisible to the DB package typecheck until the adapter is type-checked too.
 
 - **`afterComplete` has no `StepContext`**: Unlike step `execute()`, the `afterComplete` hook receives only `(output, pipelineInput)` — no logger from context. A module-level `createLogger()` is required in `pipeline.ts` to get structured logging in that hook.
