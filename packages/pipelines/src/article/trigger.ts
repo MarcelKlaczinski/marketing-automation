@@ -1,5 +1,5 @@
 import { eq, and } from "drizzle-orm";
-import { db, articles, clusters } from "@marketing-auto/db";
+import { db, articles, clusters, astroSyncRuns, pagespeedRuns } from "@marketing-auto/db";
 import { enqueuePipeline } from "../engine/queue.ts";
 import { createLogger } from "@marketing-auto/shared";
 
@@ -164,4 +164,92 @@ export function slugify(input: string): string {
     .normalize("NFD").replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+}
+
+// ─── preRunId-aware wrappers (Spec 36) ───────────────────────────────────────
+// These are thin wrappers used by HTTP trigger endpoints. The route handler
+// creates the pipelineRuns row first (preRunId pattern), then calls one of
+// these to enqueue the BullMQ job with the preRunId so the worker updates
+// the existing row instead of inserting a new one.
+
+export type PreRunInput = { preRunId: string; articleId: string; projectId: string };
+
+export async function enqueueArticleOutlinePipeline(
+  input: PreRunInput,
+): Promise<{ jobId: string }> {
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:outline",
+    projectId: input.projectId,
+    input: { articleId: input.articleId, projectId: input.projectId },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
+export async function enqueueArticleDraftPipeline(
+  input: PreRunInput,
+): Promise<{ jobId: string }> {
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:draft",
+    projectId: input.projectId,
+    input: { articleId: input.articleId, projectId: input.projectId },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
+export async function enqueueArticleSyncPipeline(
+  input: PreRunInput,
+): Promise<{ jobId: string }> {
+  // Pre-create the astroSyncRuns row so the pipeline's afterError hook can
+  // find and settle it even if the worker crashes before UpdateDbStatusStep.
+  await db.insert(astroSyncRuns).values({
+    projectId: input.projectId,
+    articleId: input.articleId,
+    pipelineRunId: input.preRunId,
+    status: "pending",
+  });
+
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:astro-sync",
+    projectId: input.projectId,
+    input: { articleId: input.articleId, projectId: input.projectId },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
+export async function enqueuePagespeedValidationPipeline(
+  input: PreRunInput,
+): Promise<{ jobId: string }> {
+  await db.insert(pagespeedRuns).values({
+    projectId: input.projectId,
+    articleId: input.articleId,
+    pipelineRunId: input.preRunId,
+    status: "pending",
+  });
+
+  await db.update(articles)
+    .set({ status: "validating", updatedAt: new Date() })
+    .where(eq(articles.id, input.articleId));
+
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:pagespeed-validation",
+    projectId: input.projectId,
+    input: { articleId: input.articleId, projectId: input.projectId },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
+export async function enqueueSchemaExtensionPipeline(
+  input: PreRunInput,
+): Promise<{ jobId: string }> {
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:schema-extension",
+    projectId: input.projectId,
+    input: { articleId: input.articleId, projectId: input.projectId },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
 }
