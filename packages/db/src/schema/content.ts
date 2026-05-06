@@ -84,6 +84,23 @@ export const articles = pgTable("articles", {
   astroAssetPaths: jsonb("astro_asset_paths").$type<{ heroImage?: string }>(),
   astroFrontmatter: jsonb("astro_frontmatter").$type<Record<string, unknown>>(),
 
+  // PageSpeed validation results (Spec 22)
+  pagespeedValidatedAt: timestamp("pagespeed_validated_at", { withTimezone: true }),
+  pagespeedScores: jsonb("pagespeed_scores").$type<{
+    performance: number;
+    accessibility: number;
+    bestPractices: number;
+    seo: number;
+  } | null>().default(null),
+  pagespeedCoreWebVitals: jsonb("pagespeed_core_web_vitals").$type<{
+    lcp: number;
+    inp: number | null;
+    cls: number;
+  } | null>().default(null),
+  pagespeedFailedThresholds: jsonb("pagespeed_failed_thresholds").$type<string[] | null>().default(null),
+  pagespeedReportUrl: text("pagespeed_report_url"),
+  pagespeedAstroCommitSha: text("pagespeed_astro_commit_sha"),
+
   publishedUrl: text("published_url"),
   publishedAt: timestamp("published_at", { withTimezone: true }),
 

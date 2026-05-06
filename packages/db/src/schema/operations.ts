@@ -84,6 +84,35 @@ export const astroSyncRuns = pgTable("astro_sync_runs", {
   projectStatusIdx: index("astro_sync_runs_project_status_idx").on(t.projectId, t.status),
 }));
 
+export const pagespeedRuns = pgTable("pagespeed_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  // Plain UUID — no DB FK to articles (same circular-dep pattern as pipelineRuns/astroSyncRuns)
+  articleId: uuid("article_id").notNull(),
+  pipelineRunId: uuid("pipeline_run_id"),
+
+  status: text("status").$type<"pending" | "succeeded" | "failed" | "errored">().notNull(),
+  outcome: text("outcome").$type<"pass" | "fail" | "error" | null>().default(null),
+
+  scores: jsonb("scores").$type<Record<string, number> | null>().default(null),
+  coreWebVitals: jsonb("core_web_vitals").$type<Record<string, number> | null>().default(null),
+  thresholdsUsed: jsonb("thresholds_used").$type<Record<string, number> | null>().default(null),
+  failedCategories: jsonb("failed_categories").$type<string[] | null>().default(null),
+
+  errorMessage: text("error_message"),
+  errorStage: text("error_stage").$type<"clone" | "build" | "preview" | "lighthouse" | "evaluate" | null>(),
+
+  reportPath: text("report_path"),
+  astroCommitSha: text("astro_commit_sha"),
+  testedUrl: text("tested_url"),
+
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => ({
+  articleIdx: index("pagespeed_runs_article_idx").on(t.articleId),
+  projectStatusIdx: index("pagespeed_runs_project_status_idx").on(t.projectId, t.status),
+}));
+
 export const approvals = pgTable("approvals", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),

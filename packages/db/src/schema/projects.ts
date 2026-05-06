@@ -23,6 +23,14 @@ export const projects = pgTable("projects", {
   // Astro repo config for Spec 21 sync adapter (null = not wired up yet)
   astroRepo: jsonb("astro_repo").$type<AstroRepoConfig>(),
 
+  // PageSpeed thresholds (Spec 22) — all scores 0-100; defaults match local-build expectations
+  pagespeedThresholds: jsonb("pagespeed_thresholds").$type<PagespeedThresholds>().notNull().default({
+    performance: 85,
+    accessibility: 90,
+    bestPractices: 90,
+    seo: 95,
+  }),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -86,6 +94,13 @@ export type AstroRepoConfig = {
   defaultBranch: string;
   contentRoot: string;
   assetsRoot: string;
+};
+
+export type PagespeedThresholds = {
+  performance: number;
+  accessibility: number;
+  bestPractices: number;
+  seo: number;
 };
 
 export const projectCredentials = pgTable("project_credentials", {

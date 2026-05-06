@@ -31,7 +31,9 @@ export const articleStatusEnum = pgEnum("article_status", [
   "drafting",
   "final_review",
   "ready_to_publish",
+  "validating",
   "published",
+  "blocked_by_pagespeed",
   "failed",
   "rejected",
 ]);

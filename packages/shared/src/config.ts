@@ -50,6 +50,11 @@ const envSchema = z.object({
   GITHUB_APP_ID: optionalStr(z.string().regex(/^\d+$/)),
   GITHUB_APP_PRIVATE_KEY_PATH: optionalStr(z.string().min(1)),
 
+  // PageSpeed validation (Spec 22)
+  PAGESPEED_WORK_DIR: z.string().default("/tmp/marketing-auto/pagespeed"),
+  PAGESPEED_BUILD_TIMEOUT_MS: z.coerce.number().int().min(60_000).default(300_000),
+  PAGESPEED_LIGHTHOUSE_TIMEOUT_MS: z.coerce.number().int().min(30_000).default(120_000),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

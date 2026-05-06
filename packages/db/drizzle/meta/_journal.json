@@ -36,6 +36,13 @@
       "when": 1778200000000,
       "tag": "0004_astro_sync_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1778300000000,
+      "tag": "0005_pagespeed_schema",
+      "breakpoints": true
     }
   ]
 }

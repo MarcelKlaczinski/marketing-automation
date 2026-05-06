@@ -1,0 +1,27 @@
+{
+  "name": "@marketing-auto/adapter-pagespeed",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/pagespeed/test",
+    "install-chrome": "bun --env-file ../../../.env src/scripts/install-chrome.ts"
+  },
+  "dependencies": {
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/pipelines": "workspace:*",
+    "@marketing-auto/adapter-astro-sync": "workspace:*",
+    "lighthouse": "^12.0.0",
+    "puppeteer-core": "^23.0.0",
+    "@puppeteer/browsers": "^2.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.36.0"
+  }
+}

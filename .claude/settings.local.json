@@ -91,7 +91,18 @@
       "Bash(bun --cwd packages/db --env-file ../../.env -e ' *)",
       "Bash(xargs cat *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(bun --filter @marketing-auto/api --env-file ../../.env run -e ' *)",
+      "Bash(bun --env-file .env -e ' *)",
+      "Bash(bun --env-file .env --filter \"@marketing-auto/api\" run dev)",
+      "Bash(bun --env-file .env --filter \"@marketing-auto/api\" run article:sync ki-assistent-grundlagen-test)",
+      "Bash(bun --env-file .env check-db-state.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff specs/21-astro-sync-adapter.md)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/21-astro-sync-adapter.md packages/adapters/astro-sync/test/integration.test.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/src/steps/commit-to-github.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/CLAUDE.md)",
+      "Bash(bun --env-file .env cleanup-test-data.ts)",
+      "Bash(bun --filter @marketing-auto/adapter-pagespeed typecheck)"
     ]
   }
 }
