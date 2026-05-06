@@ -11,6 +11,8 @@ export type PipelineRunOptions = {
   parentRunId?: string;
   /** BullMQ job ID for correlation */
   jobId?: string;
+  /** Pre-created pipeline_runs row ID. Runner will UPDATE it instead of INSERT a new row. */
+  preRunId?: string;
 };
 
 export type PipelineRunResult<TOutput> =
@@ -32,18 +34,26 @@ export async function runPipeline<TInput, TOutput>(
 ): Promise<PipelineRunResult<TOutput>> {
   const validatedInput = pipeline.inputSchema.parse(input);
 
-  const [parentRun] = await db.insert(pipelineRuns).values({
-    projectId: options.projectId,
-    pipelineName: pipeline.name,
-    stepName: null,
-    status: "running",
-    jobId: options.jobId ?? null,
-    parentRunId: options.parentRunId ?? null,
-    input: validatedInput as Record<string, unknown>,
-    startedAt: new Date(),
-  }).returning({ id: pipelineRuns.id });
-
-  const runId = parentRun!.id;
+  let runId: string;
+  if (options.preRunId) {
+    // Settle the pre-created "queued" row to "running" instead of inserting a new one.
+    await db.update(pipelineRuns)
+      .set({ status: "running", jobId: options.jobId ?? null, startedAt: new Date() })
+      .where(eq(pipelineRuns.id, options.preRunId));
+    runId = options.preRunId;
+  } else {
+    const [parentRun] = await db.insert(pipelineRuns).values({
+      projectId: options.projectId,
+      pipelineName: pipeline.name,
+      stepName: null,
+      status: "running",
+      jobId: options.jobId ?? null,
+      parentRunId: options.parentRunId ?? null,
+      input: validatedInput as Record<string, unknown>,
+      startedAt: new Date(),
+    }).returning({ id: pipelineRuns.id });
+    runId = parentRun!.id;
+  }
   const pipelineLog = log.child({ runId, pipeline: pipeline.name, projectId: options.projectId });
   pipelineLog.info({ stepCount: pipeline.steps.length }, "Pipeline started");
 

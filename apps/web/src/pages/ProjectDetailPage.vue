@@ -46,10 +46,7 @@
         </q-tab-panel>
 
         <q-tab-panel name="cold-start" class="q-px-none">
-          <q-banner class="bg-info text-white">
-            <template #avatar><q-icon name="construction" /></template>
-            {{ $t('projects.detail.coldStartStub') }}
-          </q-banner>
+          <ColdStartPanel :slug="slug" />
         </q-tab-panel>
 
         <q-tab-panel name="articles" class="q-px-none">
@@ -79,6 +76,7 @@ import { defineComponent } from 'vue';
 import { useProjectsStore } from 'src/stores/projects';
 import ProjectOverviewPanel from 'src/components/projects/ProjectOverviewPanel.vue';
 import ProjectSettingsPanel from 'src/components/projects/ProjectSettingsPanel.vue';
+import ColdStartPanel from 'src/components/projects/ColdStartPanel.vue';
 
 type TabName = 'overview' | 'cold-start' | 'articles' | 'clusters' | 'settings';
 const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles', 'clusters', 'settings'];
@@ -86,7 +84,7 @@ const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles'
 export default defineComponent({
   name: 'ProjectDetailPage',
 
-  components: { ProjectOverviewPanel, ProjectSettingsPanel },
+  components: { ProjectOverviewPanel, ProjectSettingsPanel, ColdStartPanel },
 
   props: {
     slug: { type: String, required: true },

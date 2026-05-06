@@ -1451,8 +1451,26 @@ See "Implementation Order" — 4 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+**`enqueuePipeline()` returns only `{ jobId }`, not `{ runId }`.**
+The spec assumed trigger helpers return `{ runId, jobId }`. In reality, `enqueuePipeline()` only returns `{ jobId }` because no `pipeline_runs` row exists yet when the job is enqueued. Solution: the **preRunId pattern** — insert a `pipeline_runs` row with `status='queued'` before enqueuing, pass its ID as `preRunId` through job data; the worker then UPDATEs that row to `status='running'` instead of INSERTing a new one. Canonicalized in `packages/pipelines/src/cold-start/triggers.ts`.
+
+**No `competitors` table in the DB schema.**
+Spec referenced a `competitors` table for Phase 2 completion detection. No such table exists. Phase 2 completion is derived from pipeline run history: latest `cold-start:competitor-analysis` run with `status='completed'`.
+
+**No `projects.brandVoice` or `projects.coldStartCompletedAt` columns.**
+Spec referenced these for Phase 1/5 completion signals. Actual columns: `projects.marketingContextMd` (non-empty = Phase 1 complete); go-live-checklist pipeline run `completed` = Phase 5 complete. The `afterComplete` hook on `VoiceSynthesisPipeline` writes the markdown to `projects.marketingContextMd`.
+
+**Phase 2 requires two sequential sub-pipelines, not one.**
+`cold-start:competitor-questions` identifies competitors (LLM), then `cold-start:competitor-analysis` runs the DataForSEO analysis. Auto-chaining is handled entirely in the frontend: `Phase2CompetitorAnalysis.vue` watches the questions polling terminal and triggers the analysis pipeline when it completes with competitor data.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+**Phase 1 completion signal:** spec said `projects.brandVoice` → used `projects.marketingContextMd` (the actual column).
+
+**Phase 5 completion signal:** spec said `projects.coldStartCompletedAt` → derived from `pipeline_runs` (latest `cold-start:go-live-checklist` run with `status='completed'`).
+
+**Phase 2 competitor source:** spec said `competitors` table → derived from `pipeline_runs` output (no competitors table exists).
+
+**Trigger helpers use preRunId pattern:** spec assumed trigger helpers already existed returning `{ runId, jobId }`. They were created from scratch using the preRunId pattern to give the UI a stable runId immediately without a second DB round-trip after enqueue.
+
+**Status endpoint uses `stepName = NULL` filter:** spec draft showed `stepName: null` in Drizzle queries. Drizzle requires `sql\`NULL\`` for IS NULL comparisons, not the JS `null` value — updated accordingly.

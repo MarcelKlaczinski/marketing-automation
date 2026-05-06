@@ -38,6 +38,21 @@ Steps live in `packages/pipelines/src/cold-start/<phase>/`, CLI scripts in
 `apps/api/src/scripts/cold-start/`. Add the script as a `cold-start:<phase>` entry in
 `apps/api/package.json` with `--env-file ../../.env`.
 
+## Cold-Start UI Trigger Helpers (preRunId pattern)
+
+When a UI needs a stable `runId` to poll immediately after enqueue (Spec 35+), use the **preRunId pattern** via the helpers in `packages/pipelines/src/cold-start/triggers.ts`:
+
+```typescript
+// canonical trigger helper shape
+async function enqueueColdStartXxx(input: { projectId: string; ... }): Promise<{ runId: string; jobId: string }> {
+  const runId = await createQueuedRun(projectId, 'cold-start:xxx', pipelineInput);  // INSERT pipeline_runs status='queued'
+  const { jobId } = await enqueuePipeline({ ..., preRunId: runId });                 // worker UPDATEs that row to 'running'
+  return { runId, jobId };
+}
+```
+
+The `preRunId` flows through job data → `runPipeline()` UPDATEs the queued row instead of INSERTing. This avoids a second DB round-trip and gives the UI a runId before the worker picks up the job.
+
 ## DATA Blocks (cold-start inter-phase protocol)
 
 Phases communicate via structured YAML embedded in markdown files using named DATA blocks:

@@ -66,6 +66,8 @@ Designed to evolve into SaaS.
 - DO NOT add a subpath export (e.g. `"./verify"`) to an adapter `package.json` without also adding a matching `paths` entry in every consumer's `tsconfig.json` — `moduleResolution: "bundler"` honours the exports map at runtime but TypeScript still needs explicit `paths` for type resolution. Pattern: `"@marketing-auto/adapter-foo/verify": ["../../packages/adapters/foo/src/verify.ts"]`
 - DO NOT call `r2.file()`, `r2.presign()`, or `r2.delete()` from `@marketing-auto/adapter-storage` without `await` — these are now async (since Spec 32 vault-first refactor). TypeScript strict mode catches the mistake at compile time, but the silent `Promise` return is easy to miss in non-strict contexts
 - DO NOT make an adapter client factory synchronous if credential resolution must hit the DB (vault) — make the factory `async` and cache the resolved client in a module-level singleton. All callers inside the file must `await` the factory. The double-await pattern `(await getApi()).method()` is the correct idiom for immediate chained calls
+- DO NOT assume `enqueuePipeline()` returns a `runId` — it only returns `{ jobId }`. When a UI needs a stable runId to poll immediately, use the **preRunId pattern**: INSERT a `pipeline_runs` row (`status='queued'`) before enqueuing, pass its ID as `preRunId` through job data; the runner UPDATEs it to `status='running'` instead of INSERTing. See `packages/pipelines/src/cold-start/triggers.ts` for the canonical implementation
+- DO NOT derive Cold-Start phase completion from DB columns that don't exist (`projects.brandVoice`, `projects.coldStartCompletedAt`, `competitors` table) — Phase 1 = `projects.marketingContextMd` non-empty; Phase 2 = latest `cold-start:competitor-analysis` run `completed`; Phase 5 = latest `cold-start:go-live-checklist` run `completed`
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
@@ -89,6 +91,7 @@ Implemented specs (do not re-implement):
 - /specs/11.5-email-adapter.md
 - /specs/31-web-app-auth.md
 - /specs/32-web-app-installer.md (all sessions done)
+- /specs/35-coldstart-ui.md
 
 ## Project Marketing Contexts
 

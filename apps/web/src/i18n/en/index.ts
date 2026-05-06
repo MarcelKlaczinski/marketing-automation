@@ -12,6 +12,7 @@ import industries from './industries';
 import pipelineTemplates from './pipelineTemplates';
 import markdownEditor from './markdownEditor';
 import articleStatus from './articleStatus';
+import coldStart from './coldStart';
 
 export default {
   app,
@@ -28,4 +29,5 @@ export default {
   pipelineTemplates,
   markdownEditor,
   articleStatus,
+  coldStart,
 };

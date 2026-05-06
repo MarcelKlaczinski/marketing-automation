@@ -10,6 +10,7 @@ const jobDataSchema = z.object({
   pipelineName: z.string(),
   projectId: z.string(),
   input: z.unknown(),
+  preRunId: z.string().uuid().optional(),
 });
 
 const log = createLogger("pipeline-queue");
@@ -46,6 +47,8 @@ export type EnqueuePipelineInput = {
   projectId: string;
   input: unknown;
   jobOptions?: JobsOptions;
+  /** Pre-created pipeline_runs row ID. Runner will UPDATE it instead of INSERT. */
+  preRunId?: string;
 };
 
 /**
@@ -59,6 +62,7 @@ export async function enqueuePipeline(input: EnqueuePipelineInput): Promise<{ jo
       pipelineName: input.pipelineName,
       projectId: input.projectId,
       input: input.input,
+      preRunId: input.preRunId,
     },
     input.jobOptions,
   );
@@ -77,7 +81,7 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
   const worker = new Worker(
     QUEUE_NAME,
     async (job) => {
-      const { pipelineName, projectId, input } = jobDataSchema.parse(job.data);
+      const { pipelineName, projectId, input, preRunId } = jobDataSchema.parse(job.data);
 
       const pipeline = pipelineRegistry.get(pipelineName);
       if (!pipeline) {
@@ -87,7 +91,7 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
       const result = await runPipeline(
         pipeline as Pipeline<unknown, unknown>,
         input,
-        { projectId, jobId: String(job.id) },
+        { projectId, jobId: String(job.id), preRunId },
         async (percent) => {
           await job.updateProgress(percent);
         },

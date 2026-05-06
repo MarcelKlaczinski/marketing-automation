@@ -7,6 +7,8 @@ import { authRoutes } from "./routes/auth.ts";
 import { articleRoutes } from "./routes/articles.ts";
 import { projectRoutes } from "./routes/projects.ts";
 import { systemRoutes } from "./routes/system.ts";
+import { pipelineRunsRoutes } from "./routes/pipeline-runs.ts";
+import { coldStartRoutes } from "./routes/cold-start.ts";
 import { sessionLoader } from "./middleware/auth.ts";
 
 const env = getEnv();
@@ -30,8 +32,8 @@ app.route("/api/auth", authRoutes);
 app.route("/api/system", systemRoutes);
 app.route("/api", articleRoutes);
 app.route("/api/projects", projectRoutes);
-
-// Protected routes (Spec 06+) will apply requireAuth middleware
+app.route("/api/projects", coldStartRoutes);
+app.route("/api/pipeline-runs", pipelineRunsRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

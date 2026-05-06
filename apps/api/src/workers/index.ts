@@ -8,6 +8,13 @@ import {
   ArticleDraftPipeline,
   SchemaExtensionPipeline,
   ClusterLinkRebuildPipeline,
+  VoiceRefinementQuestionsPipeline,
+  VoiceSynthesisPipeline,
+  CompetitorQuestionsPipeline,
+  CompetitorAnalysisPipeline,
+  ClusterProposePipeline,
+  CornerstoneListPipeline,
+  GoLiveChecklistPipeline,
 } from "@marketing-auto/pipelines";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
 import { PageSpeedValidationPipeline } from "@marketing-auto/adapter-pagespeed";
@@ -27,6 +34,14 @@ async function main() {
   pipelineRegistry.register(new SchemaExtensionPipeline());
   pipelineRegistry.register(new ClusterLinkRebuildPipeline());
   pipelineRegistry.register(new PageSpeedValidationPipeline());
+  // Cold-start pipelines (Spec 35)
+  pipelineRegistry.register(new VoiceRefinementQuestionsPipeline());
+  pipelineRegistry.register(new VoiceSynthesisPipeline());
+  pipelineRegistry.register(new CompetitorQuestionsPipeline());
+  pipelineRegistry.register(new CompetitorAnalysisPipeline());
+  pipelineRegistry.register(new ClusterProposePipeline());
+  pipelineRegistry.register(new CornerstoneListPipeline());
+  pipelineRegistry.register(new GoLiveChecklistPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
   // Register scheduled jobs
