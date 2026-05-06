@@ -16,6 +16,7 @@
     "@marketing-auto/shared": "workspace:*",
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
+    "@marketing-auto/pipelines": "workspace:*",
     "octokit": "^4.0.0",
     "yaml": "^2.6.0",
     "zod": "^3.23.0"
