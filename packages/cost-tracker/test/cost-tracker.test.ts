@@ -7,7 +7,7 @@ import {
   anthropicCostEur,
   replicateImageCostEur,
   dataforseoCostEur,
-  resendCostEur,
+  smtpCostEur,
   getCurrentSpend,
   getProjectCostSummary,
   EUR_PER_USD,
@@ -64,8 +64,8 @@ describe("other pricing helpers", () => {
     expect(eur).toBeCloseTo(0.0006 * 100 * EUR_PER_USD, 5);
   });
 
-  it("resendCostEur: 100 emails", () => {
-    const eur = resendCostEur({ count: 100 });
+  it("smtpCostEur: 100 emails", () => {
+    const eur = smtpCostEur({ count: 100 });
     expect(eur).toBeCloseTo(0.0001 * 100 * EUR_PER_USD, 6);
   });
 });

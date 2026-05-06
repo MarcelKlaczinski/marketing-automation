@@ -73,8 +73,8 @@ export function dataforseoCostEur(input: {
   return usdToEur(DATAFORSEO_PRICING_USD[input.operation] * input.count);
 }
 
-export const RESEND_PRICING_USD_PER_EMAIL = 0.0001;
+export const SMTP_PRICING_USD_PER_EMAIL = 0.0001;
 
-export function resendCostEur(input: { count: number }): number {
-  return usdToEur(RESEND_PRICING_USD_PER_EMAIL * input.count);
+export function smtpCostEur(input: { count: number }): number {
+  return usdToEur(SMTP_PRICING_USD_PER_EMAIL * input.count);
 }
