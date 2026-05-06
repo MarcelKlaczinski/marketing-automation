@@ -1,5 +1,9 @@
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { Pipeline } from "@marketing-auto/pipelines/engine";
+import { enqueueClusterLinkRebuild } from "@marketing-auto/pipelines";
+import { db, articles } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
 import { LoadArticleStep } from "./steps/load-article.ts";
 import { ResolveSchemaStep } from "./steps/resolve-schema.ts";
 import { DownloadHeroStep } from "./steps/download-hero.ts";
@@ -7,6 +11,8 @@ import { RenderMdxStep } from "./steps/render-mdx.ts";
 import { CommitToGitHubStep } from "./steps/commit-to-github.ts";
 import { UpdateDbStatusStep } from "./steps/update-db-status.ts";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
+
+const log = createLogger("astro-sync:pipeline");
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),
@@ -108,5 +114,32 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
     }
 
     return output;
+  }
+
+  override async afterComplete(
+    _output: z.infer<typeof OutputSchema>,
+    pipelineInput: PipelineInput,
+  ): Promise<void> {
+    try {
+      const [article] = await db
+        .select({ clusterId: articles.clusterId })
+        .from(articles)
+        .where(eq(articles.id, pipelineInput.articleId))
+        .limit(1);
+      if (article?.clusterId) {
+        await enqueueClusterLinkRebuild({
+          clusterId: article.clusterId,
+          projectId: pipelineInput.projectId,
+          triggerType: "auto_after_sync",
+          triggeringArticleId: pipelineInput.articleId,
+        });
+        log.info(
+          { articleId: pipelineInput.articleId, clusterId: article.clusterId },
+          "Cluster link rebuild enqueued after article sync",
+        );
+      }
+    } catch (e) {
+      log.warn({ articleId: pipelineInput.articleId, err: e }, "Failed to enqueue link rebuild after sync");
+    }
   }
 }

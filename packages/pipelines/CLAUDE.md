@@ -163,6 +163,16 @@ Run with: `RUN_LIVE_ARTICLE_PIPELINE=1 bun --filter @marketing-auto/pipelines te
 **Integration tests** use `runPipeline()` (the synchronous runner) — no BullMQ worker needed.
 Set `approvalMode: "manual"` to prevent `afterComplete` from calling `enqueuePipeline`.
 
+**Testing `afterComplete` in isolation**: if you only need to verify hook behaviour (e.g. a follow-up enqueue) without running the full pipeline, call the method directly on a pipeline instance:
+
+```typescript
+const pipeline = new MyPipeline();
+await pipeline.afterComplete(fakeOutput, fakeInput);
+// assert DB side-effects here
+```
+
+This works whenever the hook's side-effect (DB insert, queue enqueue) precedes any Redis/BullMQ call. If BullMQ is unavailable the DB write still happens and the error is swallowed by `afterComplete`'s internal try-catch. See `ArticleSyncPipeline` / `enqueueClusterLinkRebuild` for the canonical example.
+
 **Three more gotchas to avoid:**
 
 3. **Spreading two detection fixtures silently zeroes out array fields.** If you have `FAQ_DETECTION` (with questions) and `HOWTO_DETECTION` (with `faqQuestions: []`), then `{ ...FAQ_DETECTION, ...HOWTO_DETECTION, hasFaq: true }` produces `faqQuestions: []` — the spread overwrites. Always build merged inputs field-by-field:

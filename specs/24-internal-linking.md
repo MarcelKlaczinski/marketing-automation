@@ -1221,6 +1221,22 @@ See "Implementation Order" — 3 sessions with `/clear` between.
   it as `string | null`. `parseFloat(proj.cap)` fails TypeScript strict checks; use
   `parseFloat(proj.cap ?? "30.00")` as a safe fallback.
 
+**Session 3 (Spec 21 integration + tests):**
+
+- `afterComplete` on `ArticleSyncPipeline` is in `packages/adapters/astro-sync/src/pipeline.ts`,
+  not in a pipelines package file. The adapter already depends on `@marketing-auto/pipelines`
+  (for `enqueuePipeline`), so importing `enqueueClusterLinkRebuild` from the same package adds
+  no new dependency.
+
+- Testing `afterComplete` without a running Redis: `enqueueClusterLinkRebuild` inserts the
+  `link_rebuild_runs` DB row BEFORE calling `enqueuePipeline`. If BullMQ throws (no Redis),
+  the error propagates to `afterComplete`'s try-catch and is swallowed. The DB row is still
+  written. This makes Section A (always-run) tests possible: call `pipeline.afterComplete()`
+  directly and assert the DB row, even in CI without Redis.
+
+- Live idempotency tests use `triggerResync: false` on `ArticleLinkUpdatePipeline` to avoid a
+  BullMQ dependency. The resync trigger itself is tested via the DB-only Section A tests.
+
 ## Deviations
 
 - `ClusterRebuildInputSchema` has an additional optional field `linkRebuildRunId` not in the
