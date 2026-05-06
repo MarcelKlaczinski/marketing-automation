@@ -1,19 +1,18 @@
 <template>
   <q-page padding>
-    <h1 class="text-h4 q-mb-md">Artikel: {{ slug }}</h1>
-    <q-banner class="bg-info text-white">
-      <template #avatar>
-        <q-icon name="construction" />
-      </template>
-      Diese Seite wird in Spec 36 implementiert.
-    </q-banner>
+    <ArticlesPanel :slug="slug" />
   </q-page>
 </template>
 
 <script lang="ts">
 import { defineComponent } from 'vue';
+import ArticlesPanel from 'src/components/projects/ArticlesPanel.vue';
+
 export default defineComponent({
   name: 'ArticlesPage',
+
+  components: { ArticlesPanel },
+
   props: {
     slug: { type: String, required: true },
   },

@@ -13,6 +13,7 @@ import pipelineTemplates from './pipelineTemplates';
 import markdownEditor from './markdownEditor';
 import articleStatus from './articleStatus';
 import coldStart from './coldStart';
+import articles from './articles';
 
 export default {
   app,
@@ -30,4 +31,5 @@ export default {
   markdownEditor,
   articleStatus,
   coldStart,
+  articles,
 };
