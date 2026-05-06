@@ -4,6 +4,7 @@ import { logger as honoLogger } from "hono/logger";
 import { healthRoutes } from "./routes/health.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { articleRoutes } from "./routes/articles.ts";
+import { systemRoutes } from "./routes/system.ts";
 import { sessionLoader } from "./middleware/auth.ts";
 
 const env = getEnv();
@@ -18,6 +19,7 @@ app.use("*", sessionLoader);
 // Public routes
 app.route("/health", healthRoutes);
 app.route("/api/auth", authRoutes);
+app.route("/api/system", systemRoutes);
 app.route("/api", articleRoutes);
 
 // Protected routes (Spec 06+) will apply requireAuth middleware

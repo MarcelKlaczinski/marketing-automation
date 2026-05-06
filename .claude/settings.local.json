@@ -114,7 +114,8 @@
       "Bash(git commit *)",
       "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c \"SELECT column_default FROM information_schema.columns WHERE table_name='cost_logs' AND column_name='service';\")",
       "Bash(bun --filter @marketing-auto/adapter-pagespeed test)",
-      "Bash(bun --filter @marketing-auto/db seed-platform)"
+      "Bash(bun --filter @marketing-auto/db seed-platform)",
+      "Bash(bun exec *)"
     ]
   }
 }

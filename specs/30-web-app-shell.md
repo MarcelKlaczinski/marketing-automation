@@ -1609,8 +1609,16 @@ See "Implementation Order" — 2 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- The spec's i18n key inventory was incomplete. Three keys were missing and caught during `/review-task`:
+  - `app.menuToggle` — needed for the hamburger button's `:aria-label`
+  - `app.backToHome` — needed for the 404 page's back button
+  - `home` namespace (`home.intro`) — needed for the IndexPage body text
+  All three were added to both `de/` and `en/` locale bundles.
+
+- The spec example for `IndexPage` used `$t('home.intro', "...")` with a fallback default string but never defined the `home` namespace in the locale index files. The implementation adds a proper `home/` module wired into both locale indexes — cleaner than relying on fallback defaults.
+
+- Stub page titles for parametric routes (`Projekt: {{ slug }}`, `Artikel: {{ slug }}`, etc.) and "Diese Seite wird in Spec X implementiert." banners were deliberately left as hardcoded German — they are pure scaffolding markers, not production UI, and will be entirely replaced by Spec 31–39.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- **`home` i18n namespace added** (not in spec's original key list): `src/i18n/de/home.ts` and `src/i18n/en/home.ts` introduced. The spec listed the `de/` keys inline but omitted `home` from the module structure. The deviation is additive and improves type-safety (avoids runtime fallback strings).

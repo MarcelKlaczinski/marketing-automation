@@ -6,6 +6,8 @@
   "workspaces": ["apps/*", "packages/*", "packages/adapters/*"],
   "scripts": {
     "dev:api": "bun --filter @marketing-auto/api dev",
+    "dev:web": "bun --filter @marketing-auto/web dev",
+    "dev": "concurrently \"npm:dev:api\" \"npm:dev:web\"",
     "build": "bun --filter '*' build",
     "typecheck": "bun --filter '*' typecheck",
     "test": "bun --filter '*' test",
@@ -13,6 +15,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "concurrently": "^9.0.0",
     "typescript": "^5.7.0",
     "@types/bun": "latest"
   }
