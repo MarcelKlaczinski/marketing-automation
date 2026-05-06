@@ -62,6 +62,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.94.0",
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
@@ -74,6 +75,7 @@
       "name": "@marketing-auto/adapter-astro-sync",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/pipelines": "workspace:*",
@@ -90,6 +92,7 @@
       "name": "@marketing-auto/adapter-dataforseo",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
@@ -103,6 +106,7 @@
       "name": "@marketing-auto/adapter-email",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
@@ -135,6 +139,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@marketing-auto/adapter-storage": "workspace:*",
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
@@ -148,6 +153,7 @@
       "name": "@marketing-auto/adapter-storage",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
       },
     },

@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { getEnv, createLogger } from "@marketing-auto/shared";
+import { getGlobal } from "@marketing-auto/core/credentials";
 import { track } from "@marketing-auto/cost-tracker";
 import {
   type SendEmailInput,
@@ -14,24 +15,50 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-let _transporter: Transporter | null = null;
+interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  password: string;
+  fromAddress: string;
+}
 
-function getTransporter(): Transporter | null {
-  if (_transporter) return _transporter;
+let _transporter: Transporter | null = null;
+let _smtpConfig: SmtpConfig | null = null;
+
+async function resolveSmtpConfig(): Promise<SmtpConfig | null> {
   const env = getEnv();
-  if (!env.SMTP_USER || !env.SMTP_APP_PASSWORD) {
-    return null;
-  }
+
+  const user = (await getGlobal("smtp", "user")) ?? env.SMTP_USER;
+  const password = (await getGlobal("smtp", "password")) ?? env.SMTP_APP_PASSWORD;
+
+  if (!user || !password) return null;
+
+  const host = (await getGlobal("smtp", "host")) ?? env.SMTP_HOST;
+  const portStr = await getGlobal("smtp", "port");
+  const port = portStr ? parseInt(portStr, 10) : env.SMTP_PORT;
+  const fromAddress = (await getGlobal("smtp", "from_address")) ?? env.SMTP_USER ?? user;
+
+  return { host, port, user, password, fromAddress };
+}
+
+async function getTransporter(): Promise<{ transporter: Transporter; config: SmtpConfig } | null> {
+  if (_transporter && _smtpConfig) return { transporter: _transporter, config: _smtpConfig };
+
+  const config = await resolveSmtpConfig();
+  if (!config) return null;
+
+  _smtpConfig = config;
   _transporter = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_PORT === 465,
+    host: config.host,
+    port: config.port,
+    secure: config.port === 465,
     auth: {
-      user: env.SMTP_USER,
-      pass: env.SMTP_APP_PASSWORD,
+      user: config.user,
+      pass: config.password,
     },
   });
-  return _transporter;
+  return { transporter: _transporter, config };
 }
 
 /** Synthetic project ID for platform-wide emails (auth, system alerts). */
@@ -45,9 +72,9 @@ export const PLATFORM_PROJECT_ID = "00000000-0000-0000-0000-000000000001";
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
   const env = getEnv();
-  const transporter = getTransporter();
+  const smtp = await getTransporter();
 
-  if (!transporter) {
+  if (!smtp) {
     log.warn(
       { to: input.to, subject: input.subject, operation: input.operation },
       "SMTP not configured — email logged to console (dev fallback)",
@@ -60,8 +87,9 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     return { messageId: "dev-fallback", delivered: false };
   }
 
+  const { transporter, config } = smtp;
   const projectId = input.projectId ?? PLATFORM_PROJECT_ID;
-  const fromAddress = `"${env.SMTP_FROM_NAME}" <${env.SMTP_USER}>`;
+  const fromAddress = `"${env.SMTP_FROM_NAME}" <${config.fromAddress}>`;
 
   log.debug({
     projectId,

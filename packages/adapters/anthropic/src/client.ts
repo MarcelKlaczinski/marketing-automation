@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getEnv, createLogger } from "@marketing-auto/shared";
+import { getGlobal } from "@marketing-auto/core/credentials";
 import { track, anthropicCostEur } from "@marketing-auto/cost-tracker";
 import {
   ANTHROPIC_MODELS,
@@ -14,14 +15,19 @@ import {
 const log = createLogger("anthropic");
 
 let _client: Anthropic | null = null;
-function getClient(): Anthropic {
+
+async function getApiKey(): Promise<string> {
+  const fromVault = await getGlobal("anthropic", "api_key");
+  if (fromVault) return fromVault;
+  const fromEnv = getEnv().ANTHROPIC_API_KEY;
+  if (fromEnv) return fromEnv;
+  throw new Error("Anthropic API key not configured (set via installer or ANTHROPIC_API_KEY env)");
+}
+
+async function getClient(): Promise<Anthropic> {
   if (_client) return _client;
-  const env = getEnv();
-  if (!env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is not set");
-  }
   _client = new Anthropic({
-    apiKey: env.ANTHROPIC_API_KEY,
+    apiKey: await getApiKey(),
     maxRetries: 3,
   });
   return _client;
@@ -119,7 +125,7 @@ function isRetryableError(e: unknown): boolean {
 }
 
 export async function messages(input: MessagesInput): Promise<MessagesResult> {
-  const client = getClient();
+  const client = await getClient();
   const modelId = ANTHROPIC_MODELS[input.model];
   const maxTokens = Math.min(
     input.maxTokens ?? 4096,

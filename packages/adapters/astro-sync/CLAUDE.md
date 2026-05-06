@@ -3,6 +3,16 @@
 Pushes a `final_review` article from the DB to its project's Astro repository as an `.mdx` file
 plus a hero image asset. Commits directly to main via the GitHub App API.
 
+## Credential Loading (Spec 32)
+
+GitHub App credentials are resolved from the global vault first:
+- `github_app.app_id` → falls back to `GITHUB_APP_ID` env var
+- `github_app.private_key_content` (inline PEM, self-hosted mode) — checked first
+- `github_app.private_key_path` (file path, lokal mode) → falls back to `GITHUB_APP_PRIVATE_KEY_PATH` env var
+
+If `private_key_content` is set in vault (self-hosted), the key is used directly (no file read).
+Otherwise the adapter reads the PEM from the path. Set credentials via installer or env vars.
+
 ## Hard Rules
 
 - This adapter is the ONLY writer to Astro repos for blog content. Manual edits to generated

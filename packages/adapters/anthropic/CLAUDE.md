@@ -2,6 +2,13 @@
 
 The single, typed entry point for all Claude API calls in the platform.
 
+## Credential Loading (Spec 32)
+
+The client prefers credentials from the global vault (`getGlobal("anthropic", "api_key")`),
+falling back to `ANTHROPIC_API_KEY` env var. Set credentials via the installer (`/installer`)
+or env var for local dev. Changing vault credentials requires an API server restart for the
+cached client singleton to pick them up.
+
 ## Hard Rules
 
 - ALL pipeline steps that need an LLM call use this adapter — never `@anthropic-ai/sdk` directly

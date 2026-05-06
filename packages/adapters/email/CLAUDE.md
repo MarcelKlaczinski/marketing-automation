@@ -3,6 +3,13 @@
 Transactional email via Gmail SMTP. Replaces the raw fetch() implementation that lived in
 apps/api/src/lib/email.ts during Phase 1. Used for magic-link auth and (later) cost alerts.
 
+## Credential Loading (Spec 32)
+
+SMTP config is resolved from the global vault first (keys: `smtp.host`, `smtp.port`,
+`smtp.user`, `smtp.password`, `smtp.from_address`), falling back to `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_APP_PASSWORD` env vars. `SMTP_FROM_NAME` (display name) still comes from env only.
+Set credentials via installer or env vars. Dev fallback (no creds at all) logs to console.
+
 ## Hard Rules
 
 - ALL email sending goes through this adapter — never `nodemailer` directly

@@ -16,6 +16,7 @@
   "dependencies": {
     "@marketing-auto/shared": "workspace:*",
     "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/pipelines": "workspace:*",
     "octokit": "^4.0.0",

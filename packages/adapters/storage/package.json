@@ -12,6 +12,7 @@
     "test": "cd ../../.. && bun test packages/adapters/storage/test"
   },
   "dependencies": {
-    "@marketing-auto/shared": "workspace:*"
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/core": "workspace:*"
   }
 }
