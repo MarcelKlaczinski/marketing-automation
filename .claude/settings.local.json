@@ -178,7 +178,9 @@
       "Bash(bun --filter @marketing-auto/api tsc --noEmit)",
       "Bash(bun --filter \"@marketing-auto/api\" run tsc --noEmit)",
       "Bash(node -e \"const {marked} = require\\('marked'\\); console.log\\(typeof marked.parse\\('# test', {async:false}\\)\\); console.log\\(Object.keys\\(marked\\)\\)\")",
-      "Bash(node -e \"const {marked} = require\\('marked'\\); try { const r = marked.parse\\('# test', {async: false}\\); console.log\\('ok:', typeof r, r.length > 0\\); } catch\\(e\\) { console.log\\('error:', e.message\\); }\")"
+      "Bash(node -e \"const {marked} = require\\('marked'\\); try { const r = marked.parse\\('# test', {async: false}\\); console.log\\('ok:', typeof r, r.length > 0\\); } catch\\(e\\) { console.log\\('error:', e.message\\); }\")",
+      "Bash(bun --filter @marketing-auto/api --env-file .env tsx -e ' *)",
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"SELECT id, slug, name, created_at FROM projects ORDER BY created_at;\")"
     ]
   }
 }

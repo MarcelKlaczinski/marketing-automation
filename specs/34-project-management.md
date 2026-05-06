@@ -1976,6 +1976,9 @@ See "Implementation Order" — 3 sessions with `/clear` between.
 - **Industry/pipeline enums differ from spec**: The spec used generic SaaS-style values (`saas`, `ecommerce`, `educational`, `commercial`). The actual DB enums in `packages/db/src/schema/_enums.ts` are domain-specific (`ai_education`, `automotive_dealer`, `renewable_affiliate`, `music_school`, `other` for industry; `educational`, `affiliate_review`, `local_business`, `programmatic_seo` for pipeline). Always derive enum options from the DB schema, not the spec.
 - **`publishDomain` does not exist as a column**: The spec refers to `publishDomain` throughout, but the DB column is `domain` (plain). The update schema and frontend store use `domain`.
 - **Article status `outlining` does not exist**: The spec's `articleStatus` i18n included `outlining` but the DB enum has `generating` instead. Used the DB value.
+- **Spec code samples had hardcoded user-visible strings**: `ProjectSettingsPanel` samples used `suffix="EUR/Monat"`, `suffix="/ 100"`, and `placeholder="kiwissenraum.de"` as bare attributes. These violate the i18n rule. All three became `:suffix`/`:placeholder` bound to new keys: `projects.settings.linkRebuild.suffix`, `projects.settings.pagespeed.scoreSuffix`, `projects.settings.publishDomain.placeholder`.
+- **`data()` method form required for prop-dependent initialization**: The spec's `ProjectSettingsPanel` sample uses `data()` method form (not arrow shorthand) to read `this.project` during initialization. Arrow functions don't bind `this`, making the arrow shorthand impossible here. Confirmed pattern in `ProjectOverviewPanel.vue`. See web app CLAUDE.md for the documented exception.
+- **`as Partial<Project>` cast in `onSave()` is unnecessary**: The spec included a `as Partial<Project>` cast on the `update()` call payload. Removed — TypeScript infers the type correctly and the cast only masks future errors.
 
 ## Deviations
 

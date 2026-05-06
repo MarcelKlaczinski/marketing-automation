@@ -13,7 +13,7 @@ Use Quasar's `q-page-container` with responsive padding. Sidebar collapses to ha
 ## Component Patterns
 - **Options API** in all `.vue` components (`<script lang="ts">` + `defineComponent`). NO `<script setup>`, NO Composition API in components.
 - **Composition API only in composables** (`src/composables/useXxx.ts`).
-- `data: () => ({...})` arrow shorthand — NOT `data() { return {...} }`.
+- `data: () => ({...})` arrow shorthand — NOT `data() { return {...} }`. **Exception**: when `data()` must read `this` to initialize from props (e.g. `this.project.domain`), use the method form `data() { return {...} }` — arrow functions don't bind `this`.
 - Composables in `src/composables/` for shared reactive logic.
 - Components in `src/components/` — PascalCase noun naming (`AdapterStatusCard.vue`).
 

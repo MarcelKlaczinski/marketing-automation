@@ -67,10 +67,7 @@
         </q-tab-panel>
 
         <q-tab-panel name="settings" class="q-px-none">
-          <q-banner class="bg-info text-white">
-            <template #avatar><q-icon name="construction" /></template>
-            {{ $t('projects.detail.settingsStub') }}
-          </q-banner>
+          <ProjectSettingsPanel :project="project" @updated="onProjectUpdated" />
         </q-tab-panel>
       </q-tab-panels>
     </template>
@@ -81,6 +78,7 @@
 import { defineComponent } from 'vue';
 import { useProjectsStore } from 'src/stores/projects';
 import ProjectOverviewPanel from 'src/components/projects/ProjectOverviewPanel.vue';
+import ProjectSettingsPanel from 'src/components/projects/ProjectSettingsPanel.vue';
 
 type TabName = 'overview' | 'cold-start' | 'articles' | 'clusters' | 'settings';
 const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles', 'clusters', 'settings'];
@@ -88,7 +86,7 @@ const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles'
 export default defineComponent({
   name: 'ProjectDetailPage',
 
-  components: { ProjectOverviewPanel },
+  components: { ProjectOverviewPanel, ProjectSettingsPanel },
 
   props: {
     slug: { type: String, required: true },

@@ -70,6 +70,7 @@ export default {
       title: 'Publish Domain',
       description: 'Domain auf der die Astro-Site deployed ist (ohne Protokoll).',
       field: 'Domain',
+      placeholder: 'z.B. kiwissenraum.de',
     },
     pagespeed: {
       title: 'PageSpeed Schwellenwerte',
@@ -78,11 +79,13 @@ export default {
       accessibility: 'Accessibility',
       bestPractices: 'Best Practices',
       seo: 'SEO',
+      scoreSuffix: '/ 100',
     },
     linkRebuild: {
       title: 'Internal-Linking-Budget',
       description: 'Maximales Budget pro Monat für Cluster-weite Internal-Linking-Rebuilds.',
       field: 'Budget',
+      suffix: 'EUR/Monat',
       invalid: 'Ungültiger Betrag (z.B. 30 oder 30.00)',
     },
   },
