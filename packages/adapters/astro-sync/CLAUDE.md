@@ -59,6 +59,14 @@ The installation ID comes from `bun --filter @marketing-auto/adapter-astro-sync 
 - DO NOT assign `outputSchema = SomeSchema` in a step class when the schema has `.default()`
   fields — Zod's `_input` variance (`string | undefined`) conflicts with `BaseStep`'s
   `ZodType<TOutput>` generic. Cast with `as z.ZodType<OutputType>` (same pattern as pipelines)
+- DO NOT sync to an Astro repo that has no commits yet — an empty repo has no `main` branch,
+  so every GitHub API path lookup returns 404. The adapter will fail at `resolve-schema` with
+  "Could not find Astro content config". Bootstrap the repo first (create at least one commit
+  with a `src/content/config.ts`). The bootstrap script pattern: blobs → tree → commit →
+  `POST /git/refs` with no `parents` array.
+- DO NOT access `.content` directly after narrowing `GET /repos/{owner}/{repo}/contents/{path}`
+  with `!Array.isArray()` — the union type still includes symlink (which has no `.content`).
+  Cast to `{ type: string; content?: string; size: number }` before reading the field.
 
 ## Performance / Cost
 
