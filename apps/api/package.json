@@ -22,7 +22,8 @@
     "article:continue": "bun --env-file ../../.env src/scripts/article/continue.ts",
     "article:sync": "bun --env-file ../../.env src/scripts/article/sync.ts",
     "article:validate-pagespeed": "bun --env-file ../../.env src/scripts/article/validate-pagespeed.ts",
-    "article:extend-schema": "bun --env-file ../../.env src/scripts/article/extend-schema.ts"
+    "article:extend-schema": "bun --env-file ../../.env src/scripts/article/extend-schema.ts",
+    "cluster:rebuild-links": "bun --env-file ../../.env src/scripts/cluster/rebuild-links.ts"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.0",

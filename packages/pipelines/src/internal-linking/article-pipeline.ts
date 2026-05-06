@@ -13,6 +13,17 @@ const InputSchema = z.object({
   triggerResync: z.boolean().default(true),
 });
 
+type ArticleLinkInput = {
+  articleId: string;
+  clusterId: string;
+  projectId: string;
+  triggerResync: boolean;
+};
+
+// Cast needed: .default() makes _input `boolean | undefined` but _output is `boolean`.
+// Under strictFunctionTypes this fails the ZodType<ArticleLinkInput> assignability check.
+const InputSchemaCast = InputSchema as z.ZodType<ArticleLinkInput>;
+
 const OutputSchema = z.object({
   articleId: z.string().uuid(),
   linksAdded: z.number(),
@@ -20,11 +31,11 @@ const OutputSchema = z.object({
 });
 
 export class ArticleLinkUpdatePipeline extends Pipeline<
-  z.infer<typeof InputSchema>,
+  ArticleLinkInput,
   z.infer<typeof OutputSchema>
 > {
   readonly name = "article:link-update";
-  readonly inputSchema = InputSchema;
+  readonly inputSchema = InputSchemaCast;
   readonly outputSchema = OutputSchema;
   readonly steps = [
     new LoadCandidatesStep(),
@@ -37,7 +48,7 @@ export class ArticleLinkUpdatePipeline extends Pipeline<
     fromStep: { name: string },
     toStep: { name: string },
     output: unknown,
-    pipelineInput: z.infer<typeof InputSchema>,
+    pipelineInput: ArticleLinkInput,
     getStepOutput: <T = unknown>(name: string) => T | undefined,
   ): unknown {
     if (fromStep.name === "load-candidates" && toStep.name === "analyze-links") {

@@ -1208,6 +1208,21 @@ See "Implementation Order" — 3 sessions with `/clear` between.
   dependencies so `PersistAndQueueResyncStep` can call `enqueueArticleSync`. Previously
   pipelines only depended on adapter-anthropic, adapter-dataforseo, adapter-replicate.
 
+**Session 2 (outer pipeline + CLI):**
+
+- The spec's `ClusterRebuildInputSchema` didn't include the `link_rebuild_runs` row ID,
+  so the audit row would stay `"pending"` forever. Fixed by adding `linkRebuildRunId?: string`
+  to the input schema and passing it from `trigger.ts`. The pipeline's `afterComplete` writes
+  `status: "succeeded"` + metric columns; `afterError` writes `status: "failed"` or
+  `"budget_exceeded"` + `errorMessage`/`errorStage`. This pattern applies to any pipeline
+  that creates an external audit row in a trigger function.
+
+- `projects.linkRebuildBudgetMonthly` is `numeric()` without `.notNull()`, so Drizzle types
+  it as `string | null`. `parseFloat(proj.cap)` fails TypeScript strict checks; use
+  `parseFloat(proj.cap ?? "30.00")` as a safe fallback.
+
 ## Deviations
 
-(empty — fill during/after implementation)
+- `ClusterRebuildInputSchema` has an additional optional field `linkRebuildRunId` not in the
+  original spec. Required so `afterComplete`/`afterError` can settle the audit row. The field
+  is optional (not breaking) — jobs enqueued without it simply skip the settlement.

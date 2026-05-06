@@ -184,3 +184,4 @@ Set `approvalMode: "manual"` to prevent `afterComplete` from calling `enqueuePip
 - DO NOT call other steps directly — use `getStepOutput` or pipeline.bridge
 - DO NOT put post-pipeline side-effects (like enqueuing a follow-up job) inside a step — use `afterComplete` instead so failures don't retry the entire pipeline
 - DO NOT use `console.log`/`console.error` in `afterComplete` or `afterError` — these hooks have no `StepContext`, so declare a module-level `const log = createLogger("pipelines:my-pipeline")` at the top of `pipeline.ts` and use it there
+- DO NOT create an external audit row in a trigger function without also wiring `afterComplete`/`afterError` on the pipeline to settle its `status`, metric columns, and `finishedAt`. Thread the row ID through the pipeline input schema as an optional field so the pipeline can find and update the row. See `ClusterLinkRebuildPipeline` + `enqueueClusterLinkRebuild` in `internal-linking/` for the pattern.
