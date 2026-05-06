@@ -58,7 +58,11 @@ export const useSystemStatusStore = defineStore('systemStatus', {
     },
 
     requiredCoreReady: (state): boolean => {
-      return state.postgres.configured && state.redis.configured;
+      // verified=null means "not checked yet" (pre-Spec-32 stub). Treat as ready.
+      // Only redirect to installer when Spec-32 has explicitly verified and found them down.
+      const postgresReady = state.postgres.configured || state.postgres.verified === null;
+      const redisReady = state.redis.configured || state.redis.verified === null;
+      return postgresReady && redisReady;
     },
   },
 

@@ -64,12 +64,12 @@ export default defineComponent({
     }
 
     try {
-      const res = await api.post<{ user: { id: string; email: string } }>(
+      const res = await api.post<{ ok: boolean; data: { user: { id: string; email: string } } }>(
         '/auth/magic-link/verify',
         { token },
       );
 
-      this.authStore.user = res.data.user;
+      this.authStore.user = res.data.data.user;
       this.state = 'success';
 
       setTimeout(() => {
