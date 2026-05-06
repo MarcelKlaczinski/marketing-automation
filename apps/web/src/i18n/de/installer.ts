@@ -43,6 +43,10 @@ export default {
     notConfigured: 'Nicht konfiguriert',
   },
 
+  validation: {
+    required: 'Pflichtfeld',
+  },
+
   steps: {
     intro: {
       title: 'Willkommen',

@@ -1285,3 +1285,7 @@ The spec noted these endpoints "should require auth" but left it as a comment. D
 - `q-banner` was replaced throughout with hand-rolled CSS alert boxes (left-border accent, tinted background). `q-banner` forces the Material Design balloon shape and icon placement that contributes to the Google look.
 - Quasar `hint` prop on `q-input` is user-visible and requires `:hint="$t('...')"`. Bare `hint="text"` looks like an HTML attribute but renders below the field. Added hardcoded hint strings in `StepGithubApp` were caught in review and moved to i18n.
 - `toLocaleString()` must derive locale from `this.$i18n.locale`, not hardcode `'de-DE'`. Hardcoding was caught in review.
+
+**Session 4 (Polish)**
+
+- `installer.validation.required` was used in validator rule functions inside step components (StepAnthropic, StepSmtp, StepReplicate) during Session 3 but never added to the i18n bundles. The key resolved silently to `undefined` at runtime (Quasar validator receives the string `"undefined"`, which is truthy, so validation never fires). Fixed in Session 4 by adding the key to both `de/installer.ts` and `en/installer.ts`. Lesson: when writing `$t('...')` inside Quasar rule functions, immediately add the key to the bundle — the TypeScript augmentation does not catch missing keys inside inline lambdas.

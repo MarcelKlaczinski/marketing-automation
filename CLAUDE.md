@@ -87,7 +87,7 @@ Implemented specs (do not re-implement):
 - /specs/13-dataforseo-adapter.md
 - /specs/11.5-email-adapter.md
 - /specs/31-web-app-auth.md
-- /specs/32-web-app-installer.md (Sessions 1 + 2 done; Sessions 3 + 4 frontend pending)
+- /specs/32-web-app-installer.md (all sessions done)
 
 ## Project Marketing Contexts
 

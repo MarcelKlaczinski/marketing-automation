@@ -43,6 +43,10 @@ export default {
     notConfigured: '[EN] Not configured',
   },
 
+  validation: {
+    required: '[EN] Required',
+  },
+
   steps: {
     intro: {
       title: '[EN] Welcome',
