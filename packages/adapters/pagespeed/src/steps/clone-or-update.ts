@@ -68,6 +68,19 @@ async function fileExists(p: string): Promise<boolean> {
 
 export type RunCmdStage = "clone" | "build" | "preview" | "lighthouse" | "evaluate" | "config";
 
+/**
+ * Structural type describing the subset of Node.js ChildProcess used by runCmd.
+ * Necessary because Bun's node:child_process types don't model ChildProcess as
+ * an EventEmitter, omitting .on() from the inferred return type of spawn().
+ */
+interface SpawnResult {
+  readonly stdout: { on(event: 'data', cb: (d: Buffer) => void): void };
+  readonly stderr: { on(event: 'data', cb: (d: Buffer) => void): void };
+  on(event: 'close', cb: (code: number | null) => void): void;
+  on(event: 'error', cb: (err: Error) => void): void;
+  kill(signal?: string): boolean;
+}
+
 export function runCmd(
   cmd: string,
   args: string[],
@@ -75,7 +88,10 @@ export function runCmd(
 ): Promise<{ stdout: string; stderr: string }> {
   const stage = opts.stage ?? "clone";
   return new Promise((resolve, reject) => {
-    const proc = spawn(cmd, args, { cwd: opts.cwd });
+    // Bun's node:child_process types don't model ChildProcess as an EventEmitter,
+    // so .on() is absent from the inferred type. SpawnResult below is the accurate
+    // structural description of what spawn() actually returns at runtime.
+    const proc = spawn(cmd, args, { cwd: opts.cwd }) as unknown as SpawnResult;
     let stdout = "";
     let stderr = "";
 

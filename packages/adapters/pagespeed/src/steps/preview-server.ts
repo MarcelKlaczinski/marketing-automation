@@ -1,5 +1,18 @@
 import { z } from "zod";
 import { spawn } from "node:child_process";
+
+/**
+ * Structural type describing the subset of Node.js ChildProcess used here.
+ * Necessary because Bun's node:child_process types don't model ChildProcess as
+ * an EventEmitter, omitting .on() from the inferred return type of spawn().
+ */
+interface SpawnResult {
+  readonly stdout: { on(event: 'data', cb: (d: Buffer) => void): void };
+  readonly stderr: { on(event: 'data', cb: (d: Buffer) => void): void };
+  on(event: 'error', cb: (err: Error) => void): void;
+  kill(signal?: string): boolean;
+  readonly pid?: number;
+}
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { PagespeedError } from "../types.ts";
@@ -35,10 +48,13 @@ export class AstroPreviewServerStep extends BaseStep<
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
     const port = 14321;
 
+    // Bun's node:child_process types don't model ChildProcess as an EventEmitter,
+    // so .on() is absent from the inferred type. SpawnResult above is the accurate
+    // structural description of what spawn() actually returns at runtime.
     const proc = spawn("npx", ["astro", "preview", "--port", String(port)], {
       cwd: input.repoPath,
       detached: false,
-    });
+    }) as unknown as SpawnResult;
 
     let serverUrl: string | null = null;
     let stderr = "";
