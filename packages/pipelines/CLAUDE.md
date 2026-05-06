@@ -171,3 +171,4 @@ Set `approvalMode: "manual"` to prevent `afterComplete` from calling `enqueuePip
 - DO NOT mutate `ctx` — it's read-only from your perspective
 - DO NOT call other steps directly — use `getStepOutput` or pipeline.bridge
 - DO NOT put post-pipeline side-effects (like enqueuing a follow-up job) inside a step — use `afterComplete` instead so failures don't retry the entire pipeline
+- DO NOT use `console.log`/`console.error` in `afterComplete` or `afterError` — these hooks have no `StepContext`, so declare a module-level `const log = createLogger("pipelines:my-pipeline")` at the top of `pipeline.ts` and use it there

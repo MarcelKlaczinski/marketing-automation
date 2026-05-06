@@ -43,7 +43,8 @@ export class PersistArticleStep extends BaseStep<
       // without re-validating. DB column uses its own SelfReviewIssue type which differs
       // structurally from Zod's inferred type under exactOptionalPropertyTypes (suggestion?: string).
       selfReviewIssues: input.selfReviewIssues as unknown as SelfReviewIssue[],
-      schemaJsonLd: input.schemaJsonLd,
+      // Spec 23: column is now Array — wrap the Article JSON-LD from AssemblyStep
+      schemaJsonLd: [input.schemaJsonLd],
       status: "final_review",
       draftPipelineRunId: ctx.pipelineRunId,
       updatedAt: new Date(),

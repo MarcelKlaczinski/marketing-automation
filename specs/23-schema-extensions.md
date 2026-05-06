@@ -999,8 +999,12 @@ See "Implementation Order" — 2 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- **Adapter ripple when column type changes**: Changing `articles.schemaJsonLd` from `Record<string,unknown>` to `Array<Record<string,unknown>>` required updating `inputSchema`/`outputSchema` in two astro-sync adapter steps (`load-article.ts`, `render-mdx.ts`) and one integration test fixture. When changing a JSONB column's TypeScript type, grep for every step that declares the column in its own local Zod schema — they're invisible to the DB package typecheck until the adapter is type-checked too.
+
+- **`afterComplete` has no `StepContext`**: Unlike step `execute()`, the `afterComplete` hook receives only `(output, pipelineInput)` — no logger from context. A module-level `createLogger()` is required in `pipeline.ts` to get structured logging in that hook.
+
+- **`PersistArticleStep` wraps Assembly output in array**: `AssemblyStep` still produces a single `Record<string,unknown>` Article JSON-LD. `PersistArticleStep` wraps it as `[input.schemaJsonLd]` when writing to the now-array column. `SchemaExtensionPipeline` then reads the array and appends BreadcrumbList/FAQPage/HowTo entries. This is the intended handoff pattern.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- **`project.publishDomain` → `project.domain`**: The spec described adding a `publishDomain` column to projects, but `projects.domain` already existed from the foundation schema. `LoadArticleStep` uses `project.domain` directly with a `<slug>.example.com` fallback. No new column was added.

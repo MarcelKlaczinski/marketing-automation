@@ -14,7 +14,7 @@ const InputSchema = z.object({
     bodyMd: z.string(),
     cornerstoneKeyword: z.string(),
     heroImageAltText: z.string(),
-    schemaJsonLd: z.record(z.unknown()),
+    schemaJsonLd: z.array(z.record(z.unknown())),
     wordCount: z.number(),
   }),
   cluster: z.object({

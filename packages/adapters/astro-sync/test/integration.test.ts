@@ -67,7 +67,7 @@ describe("ArticleSyncPipeline — live integration", () => {
         bodyMd,
         heroImagePublicUrl: "https://picsum.photos/seed/astro-sync-test/1200/630",
         heroImageAltText: "Integration test placeholder image",
-        schemaJsonLd: { "@context": "https://schema.org", "@type": "Article", headline: "Test" },
+        schemaJsonLd: [{ "@context": "https://schema.org", "@type": "Article", headline: "Test" }],
         status: "final_review",
         wordCount: bodyMd.split(/\s+/).length,
         collectionType: "blog",

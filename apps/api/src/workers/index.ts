@@ -6,6 +6,7 @@ import {
   closePipelineInfrastructure,
   ArticleOutlinePipeline,
   ArticleDraftPipeline,
+  SchemaExtensionPipeline,
 } from "@marketing-auto/pipelines";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
 import { runAuthCleanup } from "../lib/cleanup.ts";
@@ -21,6 +22,7 @@ async function main() {
   pipelineRegistry.register(new ArticleOutlinePipeline());
   pipelineRegistry.register(new ArticleDraftPipeline());
   pipelineRegistry.register(new ArticleSyncPipeline());
+  pipelineRegistry.register(new SchemaExtensionPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
   // Register scheduled jobs

@@ -11,6 +11,9 @@ import { AssemblyStep } from "./steps/assembly.ts";
 import { PersistArticleStep } from "./steps/persist-article.ts";
 import { continueArticleGeneration } from "./trigger.ts";
 import { enqueueSchemaExtension } from "../schema-extension/trigger.ts";
+import { createLogger } from "@marketing-auto/shared";
+
+const log = createLogger("pipelines:article-draft");
 
 // ───── Job 1: Outline Pipeline ────────────────────────────────────────────────
 
@@ -260,8 +263,7 @@ export class ArticleDraftPipeline extends Pipeline<
       });
     } catch (e) {
       // Schema extension failure must not retry the whole article pipeline (Spec 20 lesson #6)
-      const msg = e instanceof Error ? e.message : String(e);
-      console.error(`[article:draft] schema extension enqueue failed for ${pipelineInput.articleId}: ${msg}`);
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "Schema extension enqueue failed");
     }
   }
 }
