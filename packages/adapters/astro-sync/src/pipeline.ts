@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { Pipeline } from "@marketing-auto/pipelines/engine";
 import { enqueueClusterLinkRebuild } from "@marketing-auto/pipelines";
-import { db, articles } from "@marketing-auto/db";
+import { db, articles, astroSyncRuns } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { LoadArticleStep } from "./steps/load-article.ts";
 import { ResolveSchemaStep } from "./steps/resolve-schema.ts";
@@ -114,6 +114,33 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
     }
 
     return output;
+  }
+
+  override async afterError(error: unknown, pipelineInput: PipelineInput): Promise<void> {
+    try {
+      const [pendingRun] = await db
+        .select({ id: astroSyncRuns.id })
+        .from(astroSyncRuns)
+        .where(
+          and(
+            eq(astroSyncRuns.articleId, pipelineInput.articleId),
+            eq(astroSyncRuns.status, "pending"),
+          ),
+        )
+        .orderBy(desc(astroSyncRuns.startedAt))
+        .limit(1);
+
+      if (pendingRun) {
+        const message = error instanceof Error ? error.message : String(error);
+        await db.update(astroSyncRuns).set({
+          status: "failed",
+          errorMessage: message,
+          finishedAt: new Date(),
+        }).where(eq(astroSyncRuns.id, pendingRun.id));
+      }
+    } catch {
+      // Cleanup failure must not affect BullMQ retry behavior
+    }
   }
 
   override async afterComplete(

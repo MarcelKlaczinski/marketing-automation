@@ -10,6 +10,7 @@ import {
   ClusterLinkRebuildPipeline,
 } from "@marketing-auto/pipelines";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
+import { PageSpeedValidationPipeline } from "@marketing-auto/adapter-pagespeed";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
 import { createLogger, getEnv } from "@marketing-auto/shared";
@@ -25,6 +26,7 @@ async function main() {
   pipelineRegistry.register(new ArticleSyncPipeline());
   pipelineRegistry.register(new SchemaExtensionPipeline());
   pipelineRegistry.register(new ClusterLinkRebuildPipeline());
+  pipelineRegistry.register(new PageSpeedValidationPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
   // Register scheduled jobs
