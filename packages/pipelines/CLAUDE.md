@@ -88,6 +88,16 @@ caching boundary matters for cost and consistency.
 
 `Pipeline` has an optional `afterComplete?(output, input): Promise<void>` hook called by the runner after all steps succeed. Use it for post-pipeline side-effects that must happen outside the step chain (e.g., auto-enqueuing a follow-up pipeline). The runner wraps it in its own `try-catch` — failures log a `warn` but do NOT mark the pipeline as failed or trigger BullMQ retries. If `afterComplete` fails silently, manual recovery is needed (e.g., `article:continue`).
 
+## afterError Hook
+
+`Pipeline` has an optional `afterError?(error, input): Promise<void>` hook called by the runner when any step throws. Use it for **guaranteed cleanup** — killing spawned processes, releasing locks, closing connections — that must happen even if the pipeline fails mid-run. Same try-catch semantics as `afterComplete`: cleanup failures log a `warn` and do not affect BullMQ retry counts.
+
+```typescript
+override async afterError(_error: unknown, _input: PipelineInput): Promise<void> {
+  await this.killPreviewServer();  // example: PageSpeedValidationPipeline
+}
+```
+
 ## Zod `.default()` in Step Schemas
 
 Zod's `.default(value)` makes the field's `_input` type `T | undefined` while `_output` stays `T`. Under `strictFunctionTypes`, TypeScript rejects this schema as `ZodType<TOutput>` in `BaseStep` because `_input` doesn't extend `TOutput`.

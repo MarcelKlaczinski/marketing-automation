@@ -28,6 +28,13 @@ Marcel-machine prerequisites: Node.js 18+, git, ~150MB free space for Chrome.
 - Warm run (repo already cloned): ~1-2 min (git fetch + maybe partial install + build + lighthouse)
 - Disk: ~200MB per project per run (cleared between runs is optional)
 
+## Preview Server Port
+
+`AstroPreviewServerStep` uses fixed port **14321** (not `--port 0`). Astro CLI does not
+support dynamic port-zero binding — it will ignore the flag and default to 4321, causing
+collisions if you run multiple validations. 14321 is our stable sentinel; ensure no other
+process occupies it before running validation.
+
 ## Common Mistakes
 
 - DO NOT skip the chrome install step on a fresh machine
@@ -37,3 +44,5 @@ Marcel-machine prerequisites: Node.js 18+, git, ~150MB free space for Chrome.
 - DO NOT manually kill the preview server during a run — the pipeline expects to own its lifecycle.
 - DO NOT name this package's constructor error field `cause` — use `originalCause` per project convention
 - DO NOT add `"types": ["bun"]` to tsconfig.json — it breaks under the workspace root config
+- DO NOT add new pipeline steps that need `runCmd` without passing `stage` — the helper accepts
+  `stage: RunCmdStage` so error messages correctly identify which phase failed

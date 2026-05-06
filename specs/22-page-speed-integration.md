@@ -1371,7 +1371,35 @@ See "Implementation Order" — three sessions with `/clear` between.
   threshold column would let a bad UPDATE silently break `LoadArticleStep`'s `PagespeedScoresSchema.parse()`
   at runtime. `NOT NULL DEFAULT '{"performance":85,...}'::jsonb` is safe for existing rows.
 
+**Session 2 (Pipeline Steps)**
+
+- `Pipeline` base class had no `afterError` hook — only `afterComplete`. Added
+  `afterError?(error, input): Promise<void>` to the base class and runner (same try-catch semantics
+  as `afterComplete`) so pipelines with cleanup concerns don't have to invent workarounds.
+
+- `AstroRepoConfigSchema` was not exported from `@marketing-auto/adapter-astro-sync`. Added it to
+  that package's `index.ts` so `LoadArticleStep` can import it without reaching into internals.
+
+- `--port 0` is NOT supported by Astro CLI for dynamic port binding. The spec proposed it to avoid
+  port conflicts; in practice Astro ignores the flag and defaults to 4321. Used fixed port **14321**
+  instead. Parallel validation runs against the same project would still collide — the BullMQ
+  jobId dedup (`pagespeed-<articleId>`) prevents same-article simultaneous runs; true parallel
+  multi-article validation is a known limitation deferred to Phase 4.
+
+- `runCmd` helper in `clone-or-update.ts` takes a `stage: RunCmdStage` parameter (not in spec).
+  The spec hardcoded `"clone"` as the error stage inside `runCmd`, which would misreport errors
+  from `AstroBuildStep`. Making it configurable keeps error messages accurate without breaking
+  the exported contract.
+
 ## Deviations
 
 **`pagespeedThresholds` is `notNull()`** (spec had no `.notNull()`)
 Added during code review. Migration is safe: existing rows receive the default automatically.
+
+**Preview server uses fixed port 14321** (spec proposed `--port 0`)
+Astro CLI does not support `--port 0` for dynamic OS-assigned ports. Fixed port avoids the
+silent default-to-4321 behaviour. Documented in `packages/adapters/pagespeed/CLAUDE.md`.
+
+**`runCmd` takes `stage` parameter** (spec hardcoded `"clone"`)
+Avoids misleading `stage: "clone"` on build-phase errors. Purely additive — callers that
+previously didn't need it just pass `stage: "build"` / `"clone"` etc.
