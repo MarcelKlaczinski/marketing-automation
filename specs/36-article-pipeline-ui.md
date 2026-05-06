@@ -2032,8 +2032,18 @@ See "Implementation Order" — 5 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+**Session 1 (Backend)**
+
+- `enqueueArticleSyncPipeline` must pre-create an `astroSyncRuns` row with `status='pending'` before calling `enqueuePipeline`, because the astro-sync pipeline's `afterError` hook finds and settles the pending row on failure. If we only created the `pipelineRuns` row (via `triggerWithPreRunId`), error recovery would leave no `astroSyncRuns` trace. Same pattern applies to pagespeed.
+
+- The old adapter enqueue helpers (`enqueueArticleSync` from `@marketing-auto/adapter-astro-sync`, `enqueueArticleValidation` from `@marketing-auto/adapter-pagespeed`) are **no longer called from HTTP routes**. All 5 trigger endpoints now go through thin wrappers in `packages/pipelines/src/article/trigger.ts`. The adapter helpers may still be useful for programmatic (non-HTTP) callers.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+**Session 1 (Backend)**
+
+1. **`triggerWithPreRunId` uses DB-generated UUID instead of `randomUUID()` pre-generation.** The spec shows `const preRunId = randomUUID(); await db.insert(pipelineRuns).values({ id: preRunId, ... })`. The implementation uses `.returning({ id: pipelineRuns.id })` to let the DB generate the UUID, then reads it back. Functionally identical. Side effect: `pipelineRuns.input` stores only `{ articleId }` (not `{ articleId, preRunId }` as spec shows), since `preRunId` equals the row's own `id`.
+
+2. **`sync` and `validate-pagespeed` trigger routes no longer call adapter-package enqueue helpers.** The spec's `triggerWithPreRunId` takes an `enqueue` function. We implemented new `enqueueArticleSyncPipeline` / `enqueuePagespeedValidationPipeline` wrappers in `packages/pipelines/src/article/trigger.ts` rather than routing through `@marketing-auto/adapter-astro-sync` / `@marketing-auto/adapter-pagespeed`. Both wrappers replicate the relevant side effects (astroSyncRuns insert, article status update).
+
+3. **Server-side status guards removed from all 5 trigger endpoints.** The old adapter enqueue helpers rejected requests unless the article was in a specific status. The new wrappers don't check article status — per spec Decision 9, the UI controls what actions appear enabled; the server trusts the pipeline workers to handle state gracefully.

@@ -53,6 +53,8 @@ async function enqueueColdStartXxx(input: { projectId: string; ... }): Promise<{
 
 The `preRunId` flows through job data → `runPipeline()` UPDATEs the queued row instead of INSERTing. This avoids a second DB round-trip and gives the UI a runId before the worker picks up the job.
 
+**Article pipeline variant (Spec 36+):** HTTP routes use a shared `triggerWithPreRunId` helper that does the `pipelineRuns` INSERT inline, then calls a thin enqueue wrapper from `packages/pipelines/src/article/trigger.ts`. The wrappers export `PreRunInput = { preRunId, articleId, projectId }` and call `enqueuePipeline` directly. Wrappers for pipelines that also write adapter-specific run tables (`enqueueArticleSyncPipeline`, `enqueuePagespeedValidationPipeline`) pre-create those rows **inside the wrapper** so the pipeline's `afterError` hook can find and settle them on failure.
+
 ## DATA Blocks (cold-start inter-phase protocol)
 
 Phases communicate via structured YAML embedded in markdown files using named DATA blocks:
