@@ -104,6 +104,11 @@ export const articles = pgTable("articles", {
   publishedUrl: text("published_url"),
   publishedAt: timestamp("published_at", { withTimezone: true }),
 
+  // Internal linking (Spec 24)
+  internalLinksUpdatedAt: timestamp("internal_links_updated_at", { withTimezone: true }),
+  internalLinksAdded: integer("internal_links_added").default(0),
+  internalLinkTargets: jsonb("internal_link_targets").$type<string[]>().default([]),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({

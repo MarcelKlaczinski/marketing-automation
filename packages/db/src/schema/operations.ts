@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, decimal, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, decimal, numeric, integer, index } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
 import { articles, socialPosts } from "./content.ts";
 import { costServiceEnum, pipelineRunStatusEnum, approvalActionEnum } from "./_enums.ts";
@@ -138,6 +138,33 @@ export const schemaExtensionRuns = pgTable("schema_extension_runs", {
 }, (t) => ({
   articleIdx: index("schema_extension_runs_article_idx").on(t.articleId),
   projectStatusIdx: index("schema_extension_runs_project_status_idx").on(t.projectId, t.status),
+}));
+
+export const linkRebuildRuns = pgTable("link_rebuild_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  clusterId: uuid("cluster_id"),
+  pipelineRunId: uuid("pipeline_run_id"),
+
+  status: text("status").$type<"pending" | "succeeded" | "failed" | "budget_exceeded">().notNull(),
+  triggerType: text("trigger_type").$type<"auto_after_sync" | "manual_cli" | "manual_http">().notNull(),
+
+  articlesProcessed: integer("articles_processed").default(0),
+  articlesModified: integer("articles_modified").default(0),
+  totalLinksAdded: integer("total_links_added").default(0),
+  totalCostEur: numeric("total_cost_eur", { precision: 10, scale: 4 }).$type<string>().default("0"),
+
+  errorMessage: text("error_message"),
+  errorStage: text("error_stage").$type<"load" | "budget" | "analyze" | "apply" | "persist" | null>(),
+
+  // Plain UUID — no DB FK to articles (same circular-dep pattern as other run tables)
+  triggeringArticleId: uuid("triggering_article_id"),
+
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => ({
+  clusterIdx: index("link_rebuild_runs_cluster_idx").on(t.clusterId),
+  projectStatusIdx: index("link_rebuild_runs_project_status_idx").on(t.projectId, t.status),
 }));
 
 export const approvals = pgTable("approvals", {

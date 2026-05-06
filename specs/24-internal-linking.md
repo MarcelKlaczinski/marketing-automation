@@ -1197,7 +1197,16 @@ See "Implementation Order" — 3 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+**Session 1 (schema + per-article pipeline):**
+
+- `findValidAnchorPositions` and `isValidAnchorPosition` are exported directly from
+  `steps/apply-links.ts` (not a separate utils file) so unit tests can import the pure
+  functions without instantiating the step class. This keeps the test file clean and avoids
+  a spurious `utils.ts` for two functions that are tightly coupled to that step's logic.
+
+- `@marketing-auto/adapter-astro-sync` had to be added to `packages/pipelines/package.json`
+  dependencies so `PersistAndQueueResyncStep` can call `enqueueArticleSync`. Previously
+  pipelines only depended on adapter-anthropic, adapter-dataforseo, adapter-replicate.
 
 ## Deviations
 

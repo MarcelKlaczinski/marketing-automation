@@ -103,7 +103,8 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/CLAUDE.md)",
       "Bash(bun --env-file .env cleanup-test-data.ts)",
       "Bash(bun --filter @marketing-auto/adapter-pagespeed typecheck)",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation status --short)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation status --short)",
+      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/internal-linking/apply-links.test.ts)"
     ]
   }
 }

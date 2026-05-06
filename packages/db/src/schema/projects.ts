@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, index, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, numeric, index, unique } from "drizzle-orm/pg-core";
 import { lifecycleStageEnum, pipelineTemplateEnum, industryEnum, credentialServiceEnum } from "./_enums.ts";
 
 export const projects = pgTable("projects", {
@@ -22,6 +22,10 @@ export const projects = pgTable("projects", {
 
   // Astro repo config for Spec 21 sync adapter (null = not wired up yet)
   astroRepo: jsonb("astro_repo").$type<AstroRepoConfig>(),
+
+  // Internal linking budget (Spec 24) — max EUR/month for cluster link-rebuild runs
+  linkRebuildBudgetMonthly: numeric("link_rebuild_budget_monthly", { precision: 10, scale: 2 })
+    .$type<string>().default("30.00"),
 
   // PageSpeed thresholds (Spec 22) — all scores 0-100; defaults match local-build expectations
   pagespeedThresholds: jsonb("pagespeed_thresholds").$type<PagespeedThresholds>().notNull().default({
