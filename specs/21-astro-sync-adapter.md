@@ -1782,3 +1782,25 @@ See "Implementation Order" — four sessions with `/clear` between.
 - **`trigger.ts` return value wraps `enqueuePipeline`'s `{ jobId }` object, not a bare string.**
   Spec implied the return was a plain `string`; actual `enqueuePipeline` API returns
   `{ jobId: string }`. Trigger correctly destructures it.
+
+**Session 4:**
+
+10. **`ki-wissensraum-v2` was an empty repo — no `main` branch, no initial commit.** The GitHub
+    API returns 404 on any path lookup against an empty repo. `ResolveSchemaStep` failed with
+    "Could not find Astro content config" because there was nothing to fetch. Fix: bootstrapped
+    the repo with an initial commit via the GitHub git-data API (blobs → tree → commit →
+    `POST /git/refs`). The bootstrap script is in `bootstrap-astro-repo.ts` at project root
+    (temporary; deleted after use). Production projects will have pre-existing repos.
+
+11. **`Pipeline.run()` does not exist — integration tests must use `runPipeline()`.** The spec
+    described integration tests calling `pipeline.run(input, ctx)` but `Pipeline` is an abstract
+    base class with no `run()` method. The runner is a separate `runPipeline(pipeline, input,
+    options)` function from `@marketing-auto/pipelines/engine`. Corrected in
+    `test/integration.test.ts`.
+
+12. **Octokit `GET /repos/{owner}/{repo}/contents/{path}` response type requires a cast to
+    access `.content`.** The Octokit type for this endpoint returns a union
+    `file | directory | symlink | submodule`. Even after narrowing by `Array.isArray()`, TypeScript
+    still sees the symlink variant which has no `.content`. Fix: cast to
+    `{ type: string; content?: string; size: number }` before accessing the field. This is a
+    known Octokit SDK limitation — the narrowed type is not propagated through the union.
