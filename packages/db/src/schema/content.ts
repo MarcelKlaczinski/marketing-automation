@@ -74,6 +74,16 @@ export const articles = pgTable("articles", {
   // Vector embedding for internal linking (Spec 24) — 1024 dims = Voyage AI voyage-3
   embedding: vector("embedding", { dimensions: 1024 }),
 
+  // Collection type — hardcoded "blog" for now; forward-compat for Glossar/Case-Studies (Spec 25+)
+  collectionType: text("collection_type").$type<"blog" | "glossar" | "case_study" | "tool">().notNull().default("blog"),
+
+  // Astro sync tracking (Spec 21)
+  astroSyncedAt: timestamp("astro_synced_at", { withTimezone: true }),
+  astroCommitSha: text("astro_commit_sha"),
+  astroPullRequestUrl: text("astro_pull_request_url"),
+  astroAssetPaths: jsonb("astro_asset_paths").$type<{ heroImage?: string }>(),
+  astroFrontmatter: jsonb("astro_frontmatter").$type<Record<string, unknown>>(),
+
   publishedUrl: text("published_url"),
   publishedAt: timestamp("published_at", { withTimezone: true }),
 

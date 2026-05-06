@@ -20,6 +20,9 @@ export const projects = pgTable("projects", {
   marketingContextMd: text("marketing_context_md"),
   marketingContextUpdatedAt: timestamp("marketing_context_updated_at", { withTimezone: true }),
 
+  // Astro repo config for Spec 21 sync adapter (null = not wired up yet)
+  astroRepo: jsonb("astro_repo").$type<AstroRepoConfig>(),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -74,6 +77,15 @@ export type CostLimits = {
   monthly?: Record<string, number>;
   alertAtPercent?: number;
   killAtPercent?: number;
+};
+
+export type AstroRepoConfig = {
+  owner: string;
+  name: string;
+  installationId: number;
+  defaultBranch: string;
+  contentRoot: string;
+  assetsRoot: string;
 };
 
 export const projectCredentials = pgTable("project_credentials", {

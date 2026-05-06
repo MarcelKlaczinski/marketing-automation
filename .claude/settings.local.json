@@ -82,7 +82,14 @@
       "Bash(bun --filter @marketing-auto/db push)",
       "Bash(kill %1)",
       "Bash(grep -rn \"\\\\.\\\\.\\\\..*{.*:.*|\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/packages/pipelines/src/article/)",
-      "Bash(bun typecheck *)"
+      "Bash(bun typecheck *)",
+      "Bash(bun --filter @marketing-auto/adapter-astro-sync typecheck)",
+      "Bash(grep -v \"-----\")",
+      "Bash(bun --filter @marketing-auto/db --env-file .env -e ' *)",
+      "Bash(bun --env-file .env packages/db/src/scripts/set-astro-repo.ts)",
+      "Bash(bun --env-file .env --cwd packages/db -e ' *)",
+      "Bash(bun --cwd packages/db --env-file ../../.env -e ' *)",
+      "Bash(xargs cat *)"
     ]
   }
 }

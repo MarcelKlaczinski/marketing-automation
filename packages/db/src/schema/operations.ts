@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, decimal, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, decimal, integer, index } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
 import { articles, socialPosts } from "./content.ts";
 import { costServiceEnum, pipelineRunStatusEnum, approvalActionEnum } from "./_enums.ts";
@@ -60,6 +60,28 @@ export const pipelineRuns = pgTable("pipeline_runs", {
   projectIdx: index("pipeline_runs_project_idx").on(t.projectId),
   statusIdx: index("pipeline_runs_status_idx").on(t.projectId, t.status),
   pipelineIdx: index("pipeline_runs_pipeline_idx").on(t.pipelineName),
+}));
+
+export const astroSyncRuns = pgTable("astro_sync_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  // Plain UUIDs — no DB FK to articles to avoid circular dep (same pattern as pipelineRuns)
+  articleId: uuid("article_id").notNull(),
+  pipelineRunId: uuid("pipeline_run_id"),
+
+  status: text("status").$type<"pending" | "succeeded" | "failed">().notNull(),
+  commitSha: text("commit_sha"),
+  errorMessage: text("error_message"),
+  errorStage: text("error_stage").$type<"load" | "schema" | "image" | "render" | "commit" | "db_update">(),
+
+  filesCommitted: jsonb("files_committed").$type<string[]>(),
+  bytesCommitted: integer("bytes_committed"),
+
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => ({
+  articleIdx: index("astro_sync_runs_article_idx").on(t.articleId),
+  projectStatusIdx: index("astro_sync_runs_project_status_idx").on(t.projectId, t.status),
 }));
 
 export const approvals = pgTable("approvals", {

@@ -46,6 +46,10 @@ const envSchema = z.object({
   // Article pipeline scheduler (Spec 20) — disabled by default
   ARTICLE_SCHEDULER_ENABLED: z.coerce.boolean().default(false),
 
+  // GitHub App for Astro sync (Spec 21) — see packages/adapters/astro-sync/SETUP-GITHUB-APP.md
+  GITHUB_APP_ID: optionalStr(z.string().regex(/^\d+$/)),
+  GITHUB_APP_PRIVATE_KEY_PATH: optionalStr(z.string().min(1)),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

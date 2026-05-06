@@ -48,3 +48,4 @@
 - DO NOT use `pgEnum` without importing from `_enums.ts`
 - DO NOT modify already-applied migrations
 - DO NOT use `string` for enum-typed Drizzle columns in query filters — import the enum (`costServiceEnum`, etc.) and derive the type with `(typeof fooEnum.enumValues)[number]`. Using `string` forces an `as never` cast to satisfy Drizzle's types, which silently bypasses type safety.
+- DO NOT use today's real Unix timestamp as the `when` value in `_journal.json` for manually written migrations — the Drizzle ORM migrator skips any migration whose `when` is ≤ the `MAX(created_at)` already recorded in `__drizzle_migrations`. Always use a value strictly greater than the last existing journal entry (inspect the file, add ~100000000 as margin).
