@@ -7,6 +7,11 @@ import errors from './errors';
 import inbox from './inbox';
 import settings from './settings';
 import common from './common';
+import projects from './projects';
+import industries from './industries';
+import pipelineTemplates from './pipelineTemplates';
+import markdownEditor from './markdownEditor';
+import articleStatus from './articleStatus';
 
 export default {
   app,
@@ -18,4 +23,9 @@ export default {
   inbox,
   settings,
   common,
+  projects,
+  industries,
+  pipelineTemplates,
+  markdownEditor,
+  articleStatus,
 };

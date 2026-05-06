@@ -14,6 +14,7 @@ Designed to evolve into SaaS.
 - **Cache + Queue**: Redis 7 + BullMQ
 - **Validation**: Zod everywhere on boundaries
 - **Frontend**: Quasar 2 + Vite + Vue 3 (Options API), PWA mode
+- **Markdown editor**: `vue-codemirror` + CodeMirror v6 (`@codemirror/lang-markdown`, `@codemirror/theme-one-dark`) + `marked` v18 for preview rendering
 - **Mobile-first**: All UI designed for mobile screens first, then desktop
 - **Push Notifications**: Web Push via VAPID
 - **Language**: TypeScript strict everywhere, English-only code/comments/JSDoc

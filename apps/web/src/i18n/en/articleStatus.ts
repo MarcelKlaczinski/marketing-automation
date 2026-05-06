@@ -1,0 +1,15 @@
+export default {
+  proposed: 'Proposed',
+  approved: 'Approved',
+  generating: 'Generating',
+  outline_review: 'Outline Review',
+  drafting: 'Drafting',
+  final_review: 'Final Review',
+  schema_extending: 'Schema Extension',
+  ready_to_publish: 'Ready to Publish',
+  validating: 'PageSpeed Validation',
+  blocked_by_pagespeed: 'Blocked by PageSpeed',
+  published: 'Published',
+  failed: 'Failed',
+  rejected: 'Rejected',
+};

@@ -174,7 +174,11 @@
       "Bash(pkill -f \"bun.*dev\")",
       "Bash(bun --filter @marketing-auto/adapter-email run typecheck)",
       "Bash(bun x *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(bun --filter @marketing-auto/api tsc --noEmit)",
+      "Bash(bun --filter \"@marketing-auto/api\" run tsc --noEmit)",
+      "Bash(node -e \"const {marked} = require\\('marked'\\); console.log\\(typeof marked.parse\\('# test', {async:false}\\)\\); console.log\\(Object.keys\\(marked\\)\\)\")",
+      "Bash(node -e \"const {marked} = require\\('marked'\\); try { const r = marked.parse\\('# test', {async: false}\\); console.log\\('ok:', typeof r, r.length > 0\\); } catch\\(e\\) { console.log\\('error:', e.message\\); }\")"
     ]
   }
 }

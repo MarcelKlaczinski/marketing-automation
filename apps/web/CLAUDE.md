@@ -64,3 +64,4 @@ Global navigation guards live in `src/router/guards.ts` as `registerGuards(route
 - DO NOT write `hint="some text"` on `q-input` — Quasar `hint` is user-visible and must use `:hint="$t('...')"`. The bare attribute form looks like HTML metadata but renders below the field.
 - DO NOT hardcode a locale string in `toLocaleString()` — use `this.$i18n.locale === 'de' ? 'de-DE' : 'en-US'` so date formatting follows the active language
 - DO NOT use `q-stepper` for wizard flows that need a modern look — it produces strong Material Design / Google aesthetics. Use a custom sidebar-nav + content layout (`InstallerLayout` pattern from Spec 32) instead: left panel with numbered step list, right panel with form, page-level footer for Back/Next navigation
+- DO NOT pass `{ async: false }` to `marked.parse()` or cast its return `as string` — in `marked` v18 `parse()` is synchronous by default and already returns `string`; the option and cast are dead weight

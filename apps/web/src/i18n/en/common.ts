@@ -4,4 +4,8 @@ export default {
   edit: 'Edit',
   delete: 'Delete',
   confirm: 'Confirm',
+  back: 'Back',
+  next: 'Next',
+  required: 'Required',
+  unsavedChanges: 'Unsaved changes',
 };
