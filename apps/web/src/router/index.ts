@@ -6,6 +6,7 @@ import {
   createWebHashHistory,
 } from 'vue-router';
 import routes from './routes';
+import { registerGuards } from './guards';
 
 export default defineRouter(function () {
   const createHistory = process.env.SERVER
@@ -19,6 +20,8 @@ export default defineRouter(function () {
     routes,
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
+
+  registerGuards(Router);
 
   return Router;
 });

@@ -115,7 +115,28 @@
       "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c \"SELECT column_default FROM information_schema.columns WHERE table_name='cost_logs' AND column_name='service';\")",
       "Bash(bun --filter @marketing-auto/adapter-pagespeed test)",
       "Bash(bun --filter @marketing-auto/db seed-platform)",
-      "Bash(bun exec *)"
+      "Bash(bun exec *)",
+      "Bash(bun --filter @marketing-auto/web typecheck)",
+      "Bash(bun --filter @marketing-auto/api dev)",
+      "Bash(echo \"API PID: $!\")",
+      "Bash(curl -s http://localhost:3000/health)",
+      "Bash(./node_modules/.bin/quasar dev *)",
+      "Bash(echo \"Web PID: $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3051/)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "Bash(curl -s http://localhost:3050/health)",
+      "Bash(curl -s http://localhost:3050/api/system/status)",
+      "Bash(curl -s -I http://localhost:3050/api/system/status)",
+      "Bash(curl -s -I -H \"Origin: http://localhost:3051\" http://localhost:3050/api/system/status)",
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__read_page",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "Bash(git status *)",
+      "Bash(bun --filter @marketing-auto/web run typecheck)"
     ]
   }
 }

@@ -45,11 +45,17 @@ Routes defined in `src/router/routes.ts`:
 12. `/auth/verify`   — Magic link verify (Spec 31, AuthLayout)
 13. `/installer`     — First-run installer (Spec 32, AuthLayout)
 
+## Route Guards
+Global navigation guards live in `src/router/guards.ts` as `registerGuards(router: Router)`, called from `router/index.ts` after `createRouter()`. Do not add per-component auth checks — all redirect logic belongs in guards. Public routes: `login`, `auth-verify`, `installer`. Unauth-only routes: `login`.
+
 ## Common Mistakes to Avoid
 - DO NOT use `<script setup>` or Composition API in `.vue` components — Options API only
 - DO NOT use Quasar v1 patterns (we're on v2)
 - DO NOT use raw `localStorage` — use Quasar's `LocalStorage` plugin for everything except auth cookies
 - DO NOT use localStorage for auth — session is an httpOnly cookie set by the API
-- DO NOT hardcode user-facing strings — all visible text (including `aria-label`) must go through `$t()`; use `:aria-label="$t('...')"` not `aria-label="..."`
+- DO NOT hardcode user-facing strings — all visible text (including `aria-label`) must go through `$t()`; use `:aria-label="$t('...')"` not `aria-label="..."`; this applies to placeholder/construction banners too
 - DO NOT add a new i18n namespace without wiring it into both `de/index.ts` and `en/index.ts`
 - DO NOT name `originalCause` as `cause` in error subclasses — `Error.cause` is a reserved built-in (same rule as backend)
+- DO NOT cast `to.name as string` in route guards — `RouteRecordName` is `string | symbol`, so the cast is unjustified. Use `typeof to.name === 'string'` to narrow properly before passing to `Set.has()` or string operations
+- DO NOT use `$route.query['param'] as string` — `LocationQuery` values are `string | null | (string | null)[]`. An array value (duplicate query params) is not falsy and won't be caught by `?? ''`. Always check `Array.isArray(raw) ? raw[0] ?? '' : raw ?? ''`
+- DO NOT forget `as string` cast when using `$t()` in Quasar validator rule functions — the rule signature requires `(v: string) => true | string`, and `$t()` may return a broader type; the cast is justified here

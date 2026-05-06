@@ -4,6 +4,7 @@ import auth from './auth';
 import home from './home';
 import installer from './installer';
 import errors from './errors';
+import inbox from './inbox';
 
 export default {
   app,
@@ -12,4 +13,5 @@ export default {
   home,
   installer,
   errors,
+  inbox,
 };

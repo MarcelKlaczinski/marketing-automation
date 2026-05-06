@@ -645,8 +645,19 @@ Not needed — single session.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+**1. `$route.query` array footgun.**
+`LocationQuery` values are typed as `string | null | (string | null)[]`. An array value (duplicate `?token=` params) is not falsy, so `?? ''` doesn't protect you — the array would reach `api.post()` as-is. Fixed with explicit `Array.isArray` check. See `apps/web/CLAUDE.md` for the canonical pattern.
+
+**2. `to.name as string` is an unjustified cast.**
+After a `&&` guard, `to.name` is still `string | symbol`. `Set.has(to.name as string)` silences TS but overrides the type system. Fixed with `typeof to.name === 'string'` narrowing — no cast, same runtime behaviour, correct type narrowing.
+
+**3. Placeholder banner text is user-visible and must use `$t()`.**
+The spec showed the "coming in Spec 39" construction note as bare template text. Even temporary placeholders that appear in a rendered `<q-banner>` are user-facing and require `$t()`. Added `inbox.comingSoon` key.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+**1. `emailRules` messages use `$t()` instead of hardcoded German.**
+Spec showed `'E-Mail-Adresse erforderlich'` and `'Ungültige E-Mail-Adresse'` inline. Moved to `auth.login.emailRequired` / `auth.login.emailInvalid` keys. Reason: project rule prohibits hardcoded user-facing strings.
+
+**2. No-token failure reason uses `$t('auth.verify.failure')` instead of `'Kein Token in der URL'`.**
+Spec showed a hardcoded German string for the missing-token case. Replaced with the existing `verify.failure` key. If more specificity is needed in the future (e.g. "token missing vs. expired" distinction), add a dedicated `auth.verify.noToken` key.

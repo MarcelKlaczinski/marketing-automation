@@ -81,6 +81,7 @@ Implemented specs (do not re-implement):
 - /specs/12-replicate-adapter.md
 - /specs/13-dataforseo-adapter.md
 - /specs/11.5-email-adapter.md
+- /specs/31-web-app-auth.md
 
 ## Project Marketing Contexts
 
