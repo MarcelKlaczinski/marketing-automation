@@ -89,7 +89,9 @@
       "Bash(bun --env-file .env packages/db/src/scripts/set-astro-repo.ts)",
       "Bash(bun --env-file .env --cwd packages/db -e ' *)",
       "Bash(bun --cwd packages/db --env-file ../../.env -e ' *)",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

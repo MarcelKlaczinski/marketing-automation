@@ -4,6 +4,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db, projects, articles } from "@marketing-auto/db";
 import { enqueueArticleGeneration, continueArticleGeneration } from "@marketing-auto/pipelines";
+import { enqueueArticleSync } from "@marketing-auto/adapter-astro-sync";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("routes:articles");
@@ -102,6 +103,41 @@ articleRoutes.post(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.warn({ err: e, articleId }, "Article continuation failed");
+      return c.json({ ok: false, error: msg }, 400);
+    }
+  },
+);
+
+/**
+ * POST /api/articles/:articleId/sync
+ * Enqueues the Astro sync pipeline for a final_review or ready_to_publish article.
+ * Returns 202 with { ok: true, data: { syncRunId, jobId } }.
+ */
+articleRoutes.post(
+  "/articles/:articleId/sync",
+  async (c) => {
+    const articleId = c.req.param("articleId");
+
+    const [article] = await db
+      .select({ id: articles.id, projectId: articles.projectId })
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+
+    if (!article) {
+      return c.json({ ok: false, error: "Article not found" }, 404);
+    }
+
+    try {
+      const result = await enqueueArticleSync({
+        articleId: article.id,
+        projectId: article.projectId,
+      });
+      log.info({ articleId, syncRunId: result.syncRunId, jobId: result.jobId }, "Astro sync enqueued via HTTP");
+      return c.json({ ok: true, data: result }, 202);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.warn({ err: e, articleId }, "Astro sync enqueue failed");
       return c.json({ ok: false, error: msg }, 400);
     }
   },

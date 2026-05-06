@@ -1747,6 +1747,23 @@ See "Implementation Order" — four sessions with `/clear` between.
    `OutputSchema` with `as z.ZodType<OutputType>` — same pattern documented in
    `packages/pipelines/CLAUDE.md` under "Zod `.default()` in Step Schemas".
 
+**Session 3:**
+
+7. **`enqueuePipeline` returns `{ jobId: string }`, not a plain string.** The spec's
+   `trigger.ts` pseudocode showed the return value as a bare string and used
+   `const jobId = await enqueuePipeline(...)`. The real function returns `{ jobId: string }`
+   (see `packages/pipelines/src/engine/queue.ts`). Unwrap with `const { jobId } = await enqueuePipeline(...)`.
+
+8. **`jobOptions.jobName` does not exist in BullMQ `JobsOptions`; use `jobId`.** The spec's
+   trigger snippet used `jobOptions: { jobName: 'astro-sync-...' }`. BullMQ spells the
+   deduplication field `jobId`, not `jobName`. Fixed to match `article:outline` and
+   `article:draft` trigger patterns.
+
+9. **Dead import not caught by TypeScript strict mode — requires code review.** `render-mdx.ts`
+   initially imported `AstroSyncError` which was never used in the file. `noUnusedLocals` is
+   not enabled in the project tsconfig, so tsc didn't flag it; caught during `/review-task`.
+   Removed in the review pass.
+
 ## Deviations
 
 **Session 1:**
@@ -1755,3 +1772,13 @@ See "Implementation Order" — four sessions with `/clear` between.
   `octokit` only.** The unified `octokit` package re-exports the `App` class and all auth
   helpers. Adding the sub-packages separately is redundant and `octokit@^4` already pulls them
   as transitive deps. No functional difference.
+
+**Session 3:**
+
+- **`trigger.ts` uses `{ jobId }` in `jobOptions`, not `{ jobName }`.** Spec pseudocode
+  used `jobName` (a non-existent BullMQ field); implementation matches the correct BullMQ
+  `JobsOptions.jobId` field used by all other pipeline triggers in this project.
+
+- **`trigger.ts` return value wraps `enqueuePipeline`'s `{ jobId }` object, not a bare string.**
+  Spec implied the return was a plain `string`; actual `enqueuePipeline` API returns
+  `{ jobId: string }`. Trigger correctly destructures it.
