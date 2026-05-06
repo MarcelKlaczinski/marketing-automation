@@ -43,9 +43,18 @@ const rawBody = await c.req.json().catch(() => ({}));
 const body = MySchema.safeParse(rawBody).data ?? {};
 ```
 
+## Mixed Public/Private Routes Pattern
+When a router has some public and some auth-protected endpoints (e.g. `systemRoutes`), apply `requireAuth` **per-route**, not at router level:
+```typescript
+systemRoutes.get("/status", ...)            // public
+systemRoutes.post("/credentials", requireAuth, zValidator(...), ...)  // protected
+systemRoutes.post("/verify/:adapter", requireAuth, ...)               // protected
+```
+Business logic shared across those handlers goes in `src/lib/<domain>-service.ts` (not `packages/core`) when it has no project_id context and is tightly coupled to the HTTP layer. See `src/lib/system-service.ts`.
+
 ## Common Mistakes to Avoid
-- DO NOT do business logic in route handlers — that goes in /packages/core
-- DO NOT call adapters directly from routes — always via core services
+- DO NOT do business logic in route handlers — that goes in /packages/core (or `src/lib/<domain>-service.ts` for bootstrap/system routes without project context)
+- DO NOT call adapters directly from routes — always via core services (exception: installer verify flow per spec Decision 10, with a justification comment)
 - DO NOT use `process.env` directly — use typed `getEnv()` from @marketing-auto/shared
 - DO NOT use console.log — use the pino logger
 - DO NOT omit `--env-file ../../.env` from package.json scripts — `bun --filter` runs from the package dir, not the repo root, so `.env` at the root is not auto-loaded. Every script that touches `getEnv()` (directly or via imports) needs this flag.

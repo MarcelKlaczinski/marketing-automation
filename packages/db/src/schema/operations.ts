@@ -1,7 +1,26 @@
-import { pgTable, uuid, text, timestamp, jsonb, decimal, numeric, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, jsonb, decimal, numeric, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
 import { articles, socialPosts } from "./content.ts";
 import { costServiceEnum, pipelineRunStatusEnum, approvalActionEnum } from "./_enums.ts";
+
+export const systemSettings = pgTable("system_settings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  key: text("key").notNull().unique(),
+  value: jsonb("value").$type<unknown>(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const globalCredentials = pgTable("global_credentials", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  service: text("service").notNull(),
+  key: text("key").notNull(),
+  encryptedValue: text("encrypted_value").notNull(),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  serviceKeyUnique: uniqueIndex("global_credentials_service_key_unique").on(table.service, table.key),
+}));
 
 export const costLogs = pgTable("cost_logs", {
   id: uuid("id").primaryKey().defaultRandom(),

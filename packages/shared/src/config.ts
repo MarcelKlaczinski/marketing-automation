@@ -7,6 +7,12 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal"]).default("info"),
 
+  // Deployment mode — "lokal" (default) or "self_hosted"
+  DEPLOYMENT_MODE: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["lokal", "self_hosted"]).optional(),
+  ),
+
   // Database
   DATABASE_URL: z.string().url(),
 

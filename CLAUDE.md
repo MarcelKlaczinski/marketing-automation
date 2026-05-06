@@ -61,6 +61,8 @@ Designed to evolve into SaaS.
 - DO NOT add `as T` casts to jsonb columns that already use `.$type<T>()` — Drizzle types them correctly; the cast is dead weight that masks future type errors
 - DO NOT pass an `as const` tuple to Drizzle's `inArray()` — it expects a mutable array. Use `Array<EnumValue>` with an explicit type annotation instead (e.g. `const statuses: Array<"a" | "b"> = ["a", "b"]`)
 - DO NOT call `.on()` directly on the return value of `node:child_process` `spawn()` — Bun's type defs omit `.on()` from `ChildProcessWithoutNullStreams`. Define a local `SpawnResult` interface with the event overloads you need and cast with `as unknown as SpawnResult` (justified: runtime always has it). See `packages/adapters/pagespeed/src/steps/clone-or-update.ts` for the canonical pattern
+- DO NOT pass a `ZodEnum` (or any non-`ZodString`) to `optionalStr()` — `optionalStr` only accepts `ZodString`. For optional enum env vars use `z.preprocess((v) => (v === "" ? undefined : v), z.enum([...]).optional())` directly (see `DEPLOYMENT_MODE` in `packages/shared/src/config.ts`)
+- DO NOT add a subpath export (e.g. `"./verify"`) to an adapter `package.json` without also adding a matching `paths` entry in every consumer's `tsconfig.json` — `moduleResolution: "bundler"` honours the exports map at runtime but TypeScript still needs explicit `paths` for type resolution. Pattern: `"@marketing-auto/adapter-foo/verify": ["../../packages/adapters/foo/src/verify.ts"]`
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
