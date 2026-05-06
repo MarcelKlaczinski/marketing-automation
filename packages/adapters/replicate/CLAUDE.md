@@ -2,6 +2,12 @@
 
 Image generation via Replicate. Outputs are downloaded and re-stored to R2 for stable URLs.
 
+## Credential Loading (Spec 32)
+
+The client prefers credentials from the global vault (`getGlobal("replicate", "api_token")`),
+falling back to `REPLICATE_API_TOKEN` env var. Set via installer or env var for local dev.
+Vault credential changes require an API server restart to take effect (cached singleton).
+
 ## Hard Rules
 
 - ALL pipeline steps that need an image use this adapter — never `replicate` directly

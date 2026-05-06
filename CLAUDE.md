@@ -63,6 +63,8 @@ Designed to evolve into SaaS.
 - DO NOT call `.on()` directly on the return value of `node:child_process` `spawn()` — Bun's type defs omit `.on()` from `ChildProcessWithoutNullStreams`. Define a local `SpawnResult` interface with the event overloads you need and cast with `as unknown as SpawnResult` (justified: runtime always has it). See `packages/adapters/pagespeed/src/steps/clone-or-update.ts` for the canonical pattern
 - DO NOT pass a `ZodEnum` (or any non-`ZodString`) to `optionalStr()` — `optionalStr` only accepts `ZodString`. For optional enum env vars use `z.preprocess((v) => (v === "" ? undefined : v), z.enum([...]).optional())` directly (see `DEPLOYMENT_MODE` in `packages/shared/src/config.ts`)
 - DO NOT add a subpath export (e.g. `"./verify"`) to an adapter `package.json` without also adding a matching `paths` entry in every consumer's `tsconfig.json` — `moduleResolution: "bundler"` honours the exports map at runtime but TypeScript still needs explicit `paths` for type resolution. Pattern: `"@marketing-auto/adapter-foo/verify": ["../../packages/adapters/foo/src/verify.ts"]`
+- DO NOT call `r2.file()`, `r2.presign()`, or `r2.delete()` from `@marketing-auto/adapter-storage` without `await` — these are now async (since Spec 32 vault-first refactor). TypeScript strict mode catches the mistake at compile time, but the silent `Promise` return is easy to miss in non-strict contexts
+- DO NOT make an adapter client factory synchronous if credential resolution must hit the DB (vault) — make the factory `async` and cache the resolved client in a module-level singleton. All callers inside the file must `await` the factory. The double-await pattern `(await getApi()).method()` is the correct idiom for immediate chained calls
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
@@ -85,6 +87,7 @@ Implemented specs (do not re-implement):
 - /specs/13-dataforseo-adapter.md
 - /specs/11.5-email-adapter.md
 - /specs/31-web-app-auth.md
+- /specs/32-web-app-installer.md (Sessions 1 + 2 done; Sessions 3 + 4 frontend pending)
 
 ## Project Marketing Contexts
 

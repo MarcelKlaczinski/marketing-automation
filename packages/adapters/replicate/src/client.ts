@@ -2,6 +2,7 @@ import Replicate from "replicate";
 import type { Prediction } from "replicate";
 import { randomUUID } from "node:crypto";
 import { getEnv, createLogger } from "@marketing-auto/shared";
+import { getGlobal } from "@marketing-auto/core/credentials";
 import { track, replicateImageCostEur } from "@marketing-auto/cost-tracker";
 import type { ReplicateModel as CostReplicateModel } from "@marketing-auto/cost-tracker";
 import { putObject } from "@marketing-auto/adapter-storage";
@@ -16,14 +17,19 @@ import { buildModelInput } from "./model-inputs.ts";
 const log = createLogger("replicate");
 
 let _client: Replicate | null = null;
-function getClient(): Replicate {
+
+async function getApiToken(): Promise<string> {
+  const fromVault = await getGlobal("replicate", "api_token");
+  if (fromVault) return fromVault;
+  const fromEnv = getEnv().REPLICATE_API_TOKEN;
+  if (fromEnv) return fromEnv;
+  throw new Error("Replicate API token not configured (set via installer or REPLICATE_API_TOKEN env)");
+}
+
+async function getClient(): Promise<Replicate> {
   if (_client) return _client;
-  const env = getEnv();
-  if (!env.REPLICATE_API_TOKEN) {
-    throw new Error("REPLICATE_API_TOKEN is not set");
-  }
   _client = new Replicate({
-    auth: env.REPLICATE_API_TOKEN,
+    auth: await getApiToken(),
     // Plain URLs instead of FileOutput — we download and re-upload to R2 ourselves
     useFileOutput: false,
   });
@@ -63,7 +69,7 @@ function extractImageUrl(output: unknown): string | null {
 type TrackResult = GenerateImageResult & { prediction: Prediction };
 
 export async function generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
-  const client = getClient();
+  const client = await getClient();
   const modelSlug = REPLICATE_MODELS[input.model];
   const modelInput = buildModelInput(input);
   const ext = input.outputFormat ?? "webp";

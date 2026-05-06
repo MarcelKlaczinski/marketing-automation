@@ -2,6 +2,14 @@
 
 Object storage for generated assets. Uses Bun's native `Bun.S3Client` (zero deps).
 
+## Credential Loading (Spec 32)
+
+All R2 config is resolved from the global vault first (keys: `r2.account_id`,
+`r2.access_key_id`, `r2.secret_access_key`, `r2.bucket`, `r2.public_base_url`),
+falling back to env vars (`R2_ACCOUNT_ID`, etc.). Set via installer or env vars.
+`getFile()`, `deleteObject()`, `presignedUrl()` are now async (previously sync) to support
+the async vault lookup; all callers must `await` them.
+
 ## Usage
 
 ```typescript

@@ -1,40 +1,70 @@
 import { S3Client } from "bun";
 import type { S3File } from "bun";
 import { getEnv, createLogger } from "@marketing-auto/shared";
+import { getGlobal } from "@marketing-auto/core/credentials";
 
 const log = createLogger("storage-r2");
 
+interface R2Config {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+  publicBaseUrl: string | null;
+}
+
 let _client: S3Client | null = null;
+let _config: R2Config | null = null;
 
-function getClient(): S3Client {
-  if (_client) return _client;
-
+async function resolveR2Config(): Promise<R2Config> {
   const env = getEnv();
-  if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET) {
+
+  // Try vault first, fall back to env vars
+  const accountId =
+    (await getGlobal("r2", "account_id")) ?? env.R2_ACCOUNT_ID ?? "";
+  const accessKeyId =
+    (await getGlobal("r2", "access_key_id")) ?? env.R2_ACCESS_KEY_ID ?? "";
+  const secretAccessKey =
+    (await getGlobal("r2", "secret_access_key")) ?? env.R2_SECRET_ACCESS_KEY ?? "";
+  const bucket =
+    (await getGlobal("r2", "bucket")) ?? env.R2_BUCKET ?? "";
+  const publicBaseUrl =
+    (await getGlobal("r2", "public_base_url")) ?? env.R2_PUBLIC_BASE_URL ?? null;
+
+  if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
     throw new Error(
-      "R2 not configured. Set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET in .env",
+      "R2 not configured. Set credentials via installer or set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET in .env",
     );
   }
 
-  _client = new S3Client({
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    bucket: env.R2_BUCKET,
-    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  return { accountId, accessKeyId, secretAccessKey, bucket, publicBaseUrl };
+}
+
+async function getClientAndConfig(): Promise<{ client: S3Client; config: R2Config }> {
+  if (_client && _config) return { client: _client, config: _config };
+
+  const config = await resolveR2Config();
+  const client = new S3Client({
+    accessKeyId: config.accessKeyId,
+    secretAccessKey: config.secretAccessKey,
+    bucket: config.bucket,
+    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
   });
-  return _client;
+
+  _client = client;
+  _config = config;
+  return { client, config };
 }
 
 /**
- * Public URL for an object. Prefers custom domain (R2_PUBLIC_BASE_URL); falls back
+ * Public URL for an object. Prefers custom domain (vault or R2_PUBLIC_BASE_URL); falls back
  * to the R2.dev pub URL pattern (which requires public-bucket setting in dashboard).
  */
-function publicUrlFor(key: string): string {
-  const env = getEnv();
-  if (env.R2_PUBLIC_BASE_URL) {
-    return `${env.R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
+function publicUrlFor(key: string, config: R2Config): string {
+  if (config.publicBaseUrl) {
+    return `${config.publicBaseUrl.replace(/\/$/, "")}/${key}`;
   }
-  return `https://pub-${env.R2_ACCOUNT_ID}.r2.dev/${key}`;
+  return `https://pub-${config.accountId}.r2.dev/${key}`;
 }
 
 export type PutObjectInput = {
@@ -56,7 +86,7 @@ export type PutObjectResult = {
 };
 
 export async function putObject(input: PutObjectInput): Promise<PutObjectResult> {
-  const client = getClient();
+  const { client, config } = await getClientAndConfig();
   const file = client.file(input.key);
 
   const contentType = input.contentType ?? "application/octet-stream";
@@ -65,7 +95,7 @@ export async function putObject(input: PutObjectInput): Promise<PutObjectResult>
     type: contentType,
   });
 
-  const url = publicUrlFor(input.key);
+  const url = publicUrlFor(input.key, config);
 
   log.debug({ key: input.key, bytesStored, contentType }, "R2 put");
 
@@ -78,16 +108,17 @@ export async function putObject(input: PutObjectInput): Promise<PutObjectResult>
 }
 
 export async function objectExists(key: string): Promise<boolean> {
-  const client = getClient();
+  const { client } = await getClientAndConfig();
   return await client.exists(key);
 }
 
-export function getFile(key: string): S3File {
-  return getClient().file(key);
+export async function getFile(key: string): Promise<S3File> {
+  const { client } = await getClientAndConfig();
+  return client.file(key);
 }
 
 export async function deleteObject(key: string): Promise<boolean> {
-  const client = getClient();
+  const { client } = await getClientAndConfig();
   try {
     await client.delete(key);
     return true;
@@ -97,12 +128,12 @@ export async function deleteObject(key: string): Promise<boolean> {
   }
 }
 
-export function presignedUrl(input: {
+export async function presignedUrl(input: {
   key: string;
   method: "GET" | "PUT";
   expiresInSeconds?: number;
-}): string {
-  const client = getClient();
+}): Promise<string> {
+  const { client } = await getClientAndConfig();
   return client.presign(input.key, {
     method: input.method,
     expiresIn: input.expiresInSeconds ?? 3600,

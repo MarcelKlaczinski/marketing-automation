@@ -1,5 +1,6 @@
 import * as dfs from "dataforseo-client";
 import { getEnv, createLogger } from "@marketing-auto/shared";
+import { getGlobal } from "@marketing-auto/core/credentials";
 import { track, dataforseoCostEur, EUR_PER_USD } from "@marketing-auto/cost-tracker";
 import {
   type SerpInput,
@@ -25,14 +26,16 @@ const DEFAULT_LANGUAGE = "de";
 let _serpApi: dfs.SerpApi | null = null;
 let _labsApi: dfs.DataforseoLabsApi | null = null;
 
-function getCredentials(): { username: string; password: string } {
+async function getCredentials(): Promise<{ username: string; password: string }> {
   const env = getEnv();
-  if (!env.DATAFORSEO_LOGIN || !env.DATAFORSEO_PASSWORD) {
+  const username = (await getGlobal("dataforseo", "login")) ?? env.DATAFORSEO_LOGIN;
+  const password = (await getGlobal("dataforseo", "password")) ?? env.DATAFORSEO_PASSWORD;
+  if (!username || !password) {
     throw new DataForSeoError(
-      "DATAFORSEO_LOGIN and DATAFORSEO_PASSWORD must be set",
+      "DataForSEO credentials not configured (set via installer or DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD env)",
     );
   }
-  return { username: env.DATAFORSEO_LOGIN, password: env.DATAFORSEO_PASSWORD };
+  return { username, password };
 }
 
 function makeAuthHttp(
@@ -50,16 +53,16 @@ function makeAuthHttp(
   };
 }
 
-function getSerpApi(): dfs.SerpApi {
+async function getSerpApi(): Promise<dfs.SerpApi> {
   if (_serpApi) return _serpApi;
-  const { username, password } = getCredentials();
+  const { username, password } = await getCredentials();
   _serpApi = new dfs.SerpApi(BASE_URL, makeAuthHttp(username, password));
   return _serpApi;
 }
 
-function getLabsApi(): dfs.DataforseoLabsApi {
+async function getLabsApi(): Promise<dfs.DataforseoLabsApi> {
   if (_labsApi) return _labsApi;
-  const { username, password } = getCredentials();
+  const { username, password } = await getCredentials();
   _labsApi = new dfs.DataforseoLabsApi(
     BASE_URL,
     makeAuthHttp(username, password),
@@ -219,7 +222,7 @@ export async function serp(input: SerpInput): Promise<SerpResult> {
         req.depth = depth;
         req.device = device;
         try {
-          return await getSerpApi().googleOrganicLiveAdvanced([req]);
+          return await (await getSerpApi()).googleOrganicLiveAdvanced([req]);
         } catch (e) {
           throw new DataForSeoError("DataForSEO SERP call failed", undefined, e);
         }
@@ -325,7 +328,7 @@ export async function keywordOverview(
         req.include_serp_info = input.includeSerpInfo ?? false;
         req.include_clickstream_data = input.includeClickstreamData ?? false;
         try {
-          return await getLabsApi().googleKeywordOverviewLive([req]);
+          return await (await getLabsApi()).googleKeywordOverviewLive([req]);
         } catch (e) {
           throw new DataForSeoError("Keyword overview call failed", undefined, e);
         }
@@ -437,7 +440,7 @@ export async function relatedKeywords(
           ];
         }
         try {
-          return await getLabsApi().googleRelatedKeywordsLive([req]);
+          return await (await getLabsApi()).googleRelatedKeywordsLive([req]);
         } catch (e) {
           throw new DataForSeoError("Related keywords call failed", undefined, e);
         }
@@ -512,7 +515,7 @@ export async function rankedKeywords(
           ["ranked_serp_element.serp_item.rank_absolute", "<=", maxPosition],
         ];
         try {
-          return await getLabsApi().googleRankedKeywordsLive([req]);
+          return await (await getLabsApi()).googleRankedKeywordsLive([req]);
         } catch (e) {
           throw new DataForSeoError("Ranked keywords call failed", undefined, e);
         }

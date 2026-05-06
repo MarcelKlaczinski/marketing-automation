@@ -79,7 +79,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/installer',
-    component: () => import('src/layouts/AuthLayout.vue'),
+    component: () => import('src/layouts/InstallerLayout.vue'),
     children: [
       {
         path: '',

@@ -160,7 +160,18 @@
       "Bash(bun --env-file .env apps/api/src/server.ts)",
       "Bash(curl -s -X POST http://localhost:3050/api/system/credentials -H 'Content-Type: application/json' -d '{\"service\":\"anthropic\",\"key\":\"api_key\",\"value\":\"sk-ant-test-fake-key-123\"}')",
       "Bash(curl -s -X POST http://localhost:3050/api/system/initialize)",
-      "Bash(pkill -f \"apps/api/src/server.ts\")"
+      "Bash(pkill -f \"apps/api/src/server.ts\")",
+      "Bash(bun --filter \"@marketing-auto/adapter-anthropic\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/adapter-replicate\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/adapter-storage\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/adapter-dataforseo\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/adapter-email\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/adapter-astro-sync\" typecheck)",
+      "Bash(bun --filter @marketing-auto/web run type-check)",
+      "Bash(bun --filter \"*web*\" run type-check)",
+      "Bash(pkill -f \"quasar dev\")",
+      "Bash(pkill -f \"bun run dev\")",
+      "Bash(pkill -f \"bun.*dev\")"
     ]
   }
 }

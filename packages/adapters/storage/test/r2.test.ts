@@ -33,8 +33,8 @@ describeLive("R2 storage (LIVE)", () => {
     expect(await r2.exists(testKey)).toBe(false);
   });
 
-  it("presignedUrl returns a signed URL", () => {
-    const url = r2.presign({ key: testKey, method: "GET" });
+  it("presignedUrl returns a signed URL", async () => {
+    const url = await r2.presign({ key: testKey, method: "GET" });
     expect(url).toMatch(/^https:\/\//);
     expect(url).toContain("X-Amz-Signature");
   });

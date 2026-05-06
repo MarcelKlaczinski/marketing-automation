@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@marketing-auto/cost-tracker": "workspace:*",
+    "@marketing-auto/core": "workspace:*",
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/shared": "workspace:*",
     "dataforseo-client": "^2.0.24"

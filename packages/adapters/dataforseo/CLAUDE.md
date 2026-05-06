@@ -2,6 +2,11 @@
 
 Typed SEO data adapter for SERP analysis, keyword research, and competitor intelligence.
 
+## Credential Loading (Spec 32)
+
+Credentials are resolved from the global vault first (`dataforseo.login`, `dataforseo.password`),
+falling back to `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` env vars. Set via installer or env vars.
+
 ## Hard Rules
 
 - ALL pipeline steps that need SEO data use this adapter — never `dataforseo-client` directly

@@ -14,6 +14,7 @@
   "dependencies": {
     "@marketing-auto/shared": "workspace:*",
     "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
     "nodemailer": "^6.9.16"
   },

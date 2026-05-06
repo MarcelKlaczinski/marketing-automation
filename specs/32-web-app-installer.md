@@ -1251,8 +1251,37 @@ See "Implementation Order" — 4 sessions with `/clear` between.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+**Session 1 (Backend infrastructure)**
+
+- `optionalStr()` in `packages/shared/src/config.ts` only accepts `ZodString`, not `ZodEnum`. `DEPLOYMENT_MODE` must use `z.preprocess((v) => (v === "" ? undefined : v), z.enum([...]).optional())` directly.
+- Adapter subpath exports (`"./verify"` in `package.json`) require matching `paths` entries in every consumer's `tsconfig.json`. `moduleResolution: "bundler"` resolves at runtime but TypeScript type-checking still needs explicit path mappings.
+- `ioredis` is installed inside `packages/pipelines/node_modules/` (not hoisted to root) and lacks types visible to the API package. The Redis reachability check was implemented via a raw `node:net` TCP connection instead — cheaper and zero extra dependency.
+- Verify functions call external APIs (Anthropic, Replicate, etc.) without going through the cost-tracker. This is intentional: the installer has no `project_id` context to attribute costs to, and each verify call is a cheap existence check (≤1 LLM token for Anthropic). Accepted as a known gap.
+- The spec referenced `@marketing-auto/credentials` as the import path for `encrypt`/`decrypt`. The actual package is `@marketing-auto/core` (credentials live in `packages/core/src/credentials/`).
+- The spec placed `verifyR2` in `@marketing-auto/adapter-replicate/verify-r2`. R2 storage is in `packages/adapters/storage`; the verify function lives at `@marketing-auto/adapter-storage/verify`.
+
+**Session 2 (Adapter loading refactor)**
+
+- Making an adapter client factory async (to support the vault lookup) requires ALL internal callers within that file to `await` the factory. The DataForSEO adapter's double-await pattern — `(await getSerpApi()).methodName()` — is the correct idiom when a method is called immediately after the factory resolves.
+- The storage adapter's formerly synchronous helpers (`getFile`, `presignedUrl`, `deleteObject`) became async because credential resolution is async and must complete before the `S3Client` is constructed. This is a breaking change to the public API of those three functions. Any callers that relied on synchronous return values will silently receive a `Promise` instead; TypeScript's strict mode catches this at compile time. The storage test was updated accordingly.
+- The storage adapter required a new `getClientAndConfig()` helper returning `{ client, config }` rather than just `getClient()` returning the client. The `publicUrlFor()` helper needs the resolved `R2Config` (specifically `publicBaseUrl` and `accountId`) which are only available after the async vault resolution. Caching both together in `_client`/`_config` avoids redundant lookups.
+- The email adapter's `getTransporter()` does not cache the "SMTP unconfigured" state. In dev mode (no vault credentials, no SMTP env vars), every `sendEmail()` call re-queries the vault. This is a known, accepted trade-off — magic-link emails are rare enough that the overhead is negligible, and fixing it would require an additional `_smtpChecked` sentinel.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+**Helper functions extracted to `src/lib/system-service.ts`**
+The spec wrote `getAdapterStatus`, `checkPostgres`, `checkRedis`, `readAdapterCreds`, etc. directly inside `system.ts`. During review, these were extracted to `apps/api/src/lib/system-service.ts` to comply with the "routes are thin glue" rule. Behaviour is identical.
+
+**`requireAuth` added to credential/verify endpoints**
+The spec noted these endpoints "should require auth" but left it as a comment. During implementation, `requireAuth` was applied per-route on `POST /credentials`, `DELETE /credentials/:service/:key`, and `POST /verify/:adapter`. `GET /status`, `GET /info`, and `POST /initialize` remain public.
+
+**Session 3 (Frontend wizard)**
+
+- `q-stepper` was replaced with a fully custom sidebar-nav + content layout. The stepper's Material Design aesthetics were too strong and not overridable at the CSS level without fighting the component internals. The custom layout (`InstallerLayout.vue` + two-column flex) is simpler, fully styleable, and produces a modern Linear/Vercel-like wizard feel.
+- `InstallerLayout.vue` was created (full-width, no sidebar, no header) instead of reusing `AuthLayout`. `AuthLayout` constrains to `col-lg-4` (~400px) which is too narrow for a two-column wizard layout.
+- Back/Next page navigation was moved out of each step component into a shared page-level footer in `InstallerPage.vue`. Each step component now only owns its form actions (Save, Verify, Skip dialog). This resolved the "four buttons in one row" UX problem the spec design would have produced.
+- `InstallerSummary` no longer owns the Finish button — it was moved to the `InstallerPage` footer alongside Back/Next. The summary component is now a pure display component.
+- `@skipped` emit from `StepBase` carries no payload. `InstallerPage.onStepSkipped()` uses `this.currentStep` as the step identifier rather than receiving it as an event argument.
+- `q-banner` was replaced throughout with hand-rolled CSS alert boxes (left-border accent, tinted background). `q-banner` forces the Material Design balloon shape and icon placement that contributes to the Google look.
+- Quasar `hint` prop on `q-input` is user-visible and requires `:hint="$t('...')"`. Bare `hint="text"` looks like an HTML attribute but renders below the field. Added hardcoded hint strings in `StepGithubApp` were caught in review and moved to i18n.
+- `toLocaleString()` must derive locale from `this.$i18n.locale`, not hardcode `'de-DE'`. Hardcoding was caught in review.
