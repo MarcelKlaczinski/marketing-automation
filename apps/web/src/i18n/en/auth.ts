@@ -11,7 +11,7 @@ export default {
       'Email is not configured. The sign-in link will appear in the server log (dev mode).',
     checkServerLog: 'Sign-in link in server log',
     checkServerLogHint:
-      'Check the console where `apps/api` is running for a line containing "Magic link generated".',
+      'Check the console where `apps/api` is running for a block titled "🔐 Magic link". Copy the URL and paste it into your browser.',
     useDifferentEmail: 'Use a different email',
   },
   verify: {

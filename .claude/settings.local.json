@@ -171,7 +171,9 @@
       "Bash(bun --filter \"*web*\" run type-check)",
       "Bash(pkill -f \"quasar dev\")",
       "Bash(pkill -f \"bun run dev\")",
-      "Bash(pkill -f \"bun.*dev\")"
+      "Bash(pkill -f \"bun.*dev\")",
+      "Bash(bun --filter @marketing-auto/adapter-email run typecheck)",
+      "Bash(bun x *)"
     ]
   }
 }

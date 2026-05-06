@@ -22,6 +22,19 @@ export type SendEmailInput = {
 
   /** Reply-to address. Falls back to from if not set. */
   replyTo?: string;
+
+  /**
+   * Structured payload for dev-mode console output.
+   * When SMTP is NOT configured, printed as a formatted block instead of the truncated HTML body.
+   * Use for emails where a specific URL or token is the primary content (e.g. magic links).
+   */
+  devLog?: {
+    primaryAction: string;
+    url?: string;
+    token?: string;
+    expiresInMinutes?: number;
+    additionalLines?: string[];
+  };
 };
 
 export type SendEmailResult = {

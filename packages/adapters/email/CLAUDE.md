@@ -10,6 +10,29 @@ SMTP config is resolved from the global vault first (keys: `smtp.host`, `smtp.po
 `SMTP_USER`, `SMTP_APP_PASSWORD` env vars. `SMTP_FROM_NAME` (display name) still comes from env only.
 Set credentials via installer or env vars. Dev fallback (no creds at all) logs to console.
 
+## Dev-mode console output (`devLog`)
+
+When SMTP is unconfigured, `sendEmail()` prints a formatted block to stdout instead of sending.
+For emails where a URL or token is the primary content (magic links, future password reset), pass a
+`devLog` payload to `sendEmail()` so the URL appears on its own line — not buried in truncated HTML.
+
+```typescript
+sendEmail({
+  // ... required fields ...
+  devLog: {
+    primaryAction: "🔐  Magic link (copy this URL into your browser)",
+    url: input.verifyUrl,
+    expiresInMinutes: input.expiresInMinutes,
+    additionalLines: ["Note: configure SMTP via installer for real emails."],
+  },
+});
+```
+
+Emails without `devLog` fall back to the old 200-char HTML truncation (backward-compat for cost
+alerts, briefings, etc.). When adding a new email type that carries an action URL, always provide
+`devLog`. Use `console.log` directly inside `printDevLogBlock` — pino would format as JSON and
+defeat the purpose of human-readable terminal output.
+
 ## Hard Rules
 
 - ALL email sending goes through this adapter — never `nodemailer` directly

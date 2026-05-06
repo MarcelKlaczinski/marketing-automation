@@ -11,7 +11,7 @@ export default {
       'E-Mail ist nicht konfiguriert. Der Anmelde-Link wird im Server-Log angezeigt (Dev-Modus).',
     checkServerLog: 'Anmelde-Link im Server-Log',
     checkServerLogHint:
-      'Schaue in der Konsole, in der `apps/api` läuft, nach einer Zeile mit "Magic link generated".',
+      'Schaue in der Konsole, in der `apps/api` läuft, nach einem Block mit "🔐 Magic link". Kopiere die URL und füge sie in deinen Browser ein.',
     useDifferentEmail: 'Andere E-Mail verwenden',
   },
   verify: {

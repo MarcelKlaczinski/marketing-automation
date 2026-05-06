@@ -79,11 +79,21 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       { to: input.to, subject: input.subject, operation: input.operation },
       "SMTP not configured — email logged to console (dev fallback)",
     );
-    console.log(
-      `\n📧 Email (would-be-sent) — ${input.subject}\n` +
-      `   To: ${input.to}\n` +
-      `   ${input.html.slice(0, 200)}${input.html.length > 200 ? "…" : ""}\n`,
-    );
+    if (input.devLog) {
+      printDevLogBlock({
+        subject: input.subject,
+        to: input.to,
+        operation: input.operation,
+        ...input.devLog,
+      });
+    } else {
+      // console.log for direct stdout — pino logger would format as JSON
+      console.log(
+        `\n📧 Email (would-be-sent) — ${input.subject}\n` +
+        `   To: ${input.to}\n` +
+        `   ${input.html.slice(0, 200)}${input.html.length > 200 ? "…" : ""}\n`,
+      );
+    }
     return { messageId: "dev-fallback", delivered: false };
   }
 
@@ -179,5 +189,63 @@ export async function sendMagicLinkEmail(input: SendMagicLinkInput): Promise<Sen
     subject: "Sign in to Marketing Automation",
     html,
     text,
+    devLog: {
+      primaryAction: "🔐  Magic link (copy this URL into your browser)",
+      url: input.verifyUrl,
+      expiresInMinutes: input.expiresInMinutes,
+      additionalLines: [
+        `Recipient: ${input.to}`,
+        `Note:      Configure SMTP via the installer to send real emails.`,
+      ],
+    },
   });
+}
+
+function printDevLogBlock(payload: {
+  subject: string;
+  to: string;
+  operation: string;
+  primaryAction: string;
+  url?: string;
+  token?: string;
+  expiresInMinutes?: number;
+  additionalLines?: string[];
+}): void {
+  const divider = "═".repeat(72);
+  const lines: string[] = [
+    "",
+    divider,
+    `📧  EMAIL (DEV FALLBACK — SMTP not configured)`,
+    divider,
+    `Subject:    ${payload.subject}`,
+    `To:         ${payload.to}`,
+    `Operation:  ${payload.operation}`,
+    "",
+    `${payload.primaryAction}:`,
+  ];
+
+  if (payload.url) {
+    lines.push("");
+    lines.push(`   ${payload.url}`);
+    lines.push("");
+  } else if (payload.token) {
+    lines.push("");
+    lines.push(`   Token: ${payload.token}`);
+    lines.push("");
+  }
+
+  if (typeof payload.expiresInMinutes === "number") {
+    lines.push(`Expires in: ${payload.expiresInMinutes} minutes`);
+  }
+
+  if (payload.additionalLines) {
+    lines.push("");
+    lines.push(...payload.additionalLines);
+  }
+
+  lines.push(divider);
+  lines.push("");
+
+  // console.log for direct stdout — pino logger would format as JSON
+  console.log(lines.join("\n"));
 }
