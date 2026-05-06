@@ -110,7 +110,11 @@
       "Bash(brew install *)",
       "Bash(command -v psql)",
       "Bash(PGPASSWORD=dev_password_change_me /opt/homebrew/bin/psql -h localhost -p 5432 -U marketing_auto -d marketing_auto -c \"SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;\")",
-      "Bash(/opt/homebrew/bin/psql -h localhost -p 5432 -U marketing_auto -d marketing_auto -c ' *)"
+      "Bash(/opt/homebrew/bin/psql -h localhost -p 5432 -U marketing_auto -d marketing_auto -c ' *)",
+      "Bash(git commit *)",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c \"SELECT column_default FROM information_schema.columns WHERE table_name='cost_logs' AND column_name='service';\")",
+      "Bash(bun --filter @marketing-auto/adapter-pagespeed test)",
+      "Bash(bun --filter @marketing-auto/db seed-platform)"
     ]
   }
 }
