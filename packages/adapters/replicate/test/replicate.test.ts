@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import { eq } from "drizzle-orm";
 import { db, projects, costLogs } from "@marketing-auto/db";
-import { generateImage, ReplicateGenerationError } from "../src/index.ts";
+import { generateImage } from "../src/index.ts";
 
 const live = process.env.RUN_LIVE_REPLICATE === "1";
 const describeLive = live ? describe : describe.skip;

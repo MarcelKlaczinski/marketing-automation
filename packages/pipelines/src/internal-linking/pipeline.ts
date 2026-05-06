@@ -40,7 +40,7 @@ class OrchestrateClusterRebuildStep extends BaseStep<
     return 8 * 0.30;
   }
 
-  async execute(input: z.infer<typeof ClusterRebuildInputSchema>, ctx: StepContext) {
+  async execute(input: z.infer<typeof ClusterRebuildInputSchema>, _ctx: StepContext) {
     await this.checkBudget(input.projectId);
 
     const clusterArticles = await db

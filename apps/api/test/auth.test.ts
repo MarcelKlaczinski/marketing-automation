@@ -1,19 +1,16 @@
 import { describe, it, expect, beforeEach, afterAll } from "bun:test";
 import app from "../src/server.ts";
-import { db, users, magicLinkTokens, sessions } from "@marketing-auto/db";
+import { db, users, magicLinkTokens } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 
 describe("Magic Link Auth", () => {
   const testEmail = `test-${Date.now()}@example.com`;
-  let userId: string;
 
   beforeEach(async () => {
-    const [u] = await db
+    await db
       .insert(users)
       .values({ email: testEmail, name: "Test User", role: "owner" })
-      .onConflictDoUpdate({ target: users.email, set: { name: "Test User" } })
-      .returning();
-    userId = u!.id;
+      .onConflictDoUpdate({ target: users.email, set: { name: "Test User" } });
   });
 
   afterAll(async () => {

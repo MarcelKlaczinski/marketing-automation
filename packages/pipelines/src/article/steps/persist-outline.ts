@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { db, articles } from "@marketing-auto/db";
-import { ArticleOutlineSchema, ArticleOutlineSchemaOutput } from "../types.ts";
+import { ArticleOutlineSchemaOutput } from "../types.ts";
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),

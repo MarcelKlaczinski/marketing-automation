@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation branch -d claude/clever-mendel-13aa4f)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline -3)"
+    ]
+  }
+}
