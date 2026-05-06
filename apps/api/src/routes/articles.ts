@@ -7,10 +7,13 @@ import { enqueueArticleGeneration, continueArticleGeneration } from "@marketing-
 import { enqueueArticleSync } from "@marketing-auto/adapter-astro-sync";
 import { enqueueArticleValidation } from "@marketing-auto/adapter-pagespeed";
 import { createLogger } from "@marketing-auto/shared";
+import { requireAuth } from "../middleware/auth.ts";
 
 const log = createLogger("routes:articles");
 
 export const articleRoutes = new Hono();
+
+articleRoutes.use(requireAuth);
 
 const GenerateBodySchema = z.object({
   cornerstoneSlug: z.string().min(1),
