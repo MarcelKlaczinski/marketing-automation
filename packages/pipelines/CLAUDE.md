@@ -104,6 +104,55 @@ readonly outputSchema = ArticleOutlineSchemaOutput;
 
 The `.default()` behavior is preserved at runtime — use this pattern whenever a schema needs a default for LLM-output resilience.
 
+## Testing Pipeline Steps
+
+**Unit tests** (no LLM/API calls) call `step.execute(input, ctx)` directly against a real DB.
+Use this `mockCtx` pattern:
+
+```typescript
+import { createLogger } from "@marketing-auto/shared";
+import type { StepContext } from "../src/engine/step.ts";
+
+const mockCtx = (projectId: string): StepContext => ({
+  projectId,
+  pipelineRunId: crypto.randomUUID(),
+  stepRunId: crypto.randomUUID(),
+  pipelineName: "test",
+  log: createLogger("test"),
+  reportProgress: async () => {},
+  getStepOutput: () => undefined,
+});
+```
+
+**Live-gated tests** (call real APIs) use `describe.skipIf`:
+
+```typescript
+const LIVE = process.env.RUN_LIVE_ARTICLE_PIPELINE === "1";
+describe.skipIf(!LIVE)("MyStep (live)", () => { ... });
+```
+
+Run with: `RUN_LIVE_ARTICLE_PIPELINE=1 bun --filter @marketing-auto/pipelines test`
+
+**Two gotchas to avoid:**
+
+1. **`projectSlug` must match the DB slug exactly.** Steps that call `buildSystemPrompt`
+   (Research, Outline, Draft, SelfReview) load the marketing context by `projectSlug`.
+   Capture the slug from `beforeAll` and pass it through — never re-derive it:
+   ```typescript
+   // ✗ Wrong: doesn't match the slug inserted in beforeAll
+   projectSlug: `my-test-${projectId.slice(0, 8)}`
+   // ✓ Right: capture slug variable in beforeAll and use it
+   projectSlug,
+   ```
+
+2. **Steps that mutate the article slug need `afterEach` cleanup.**
+   `PersistOutlineStep` writes the LLM-chosen slug back to the articles row. If `beforeEach`
+   re-inserts with the original slug, the next run hits the unique `(project_id, slug)` index
+   when the step writes the same derived slug again. Use `afterEach` to delete by `articleId`.
+
+**Integration tests** use `runPipeline()` (the synchronous runner) — no BullMQ worker needed.
+Set `approvalMode: "manual"` to prevent `afterComplete` from calling `enqueuePipeline`.
+
 ## Common Mistakes
 
 - DO NOT do business logic outside of `execute()` — it won't be tracked

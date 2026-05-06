@@ -1935,3 +1935,11 @@ See "Implementation Order" — five sessions with `/clear` between each.
 **Session 4:**
 
 1. **Scheduler integrated into existing worker process, not standalone.** The spec showed `article-scheduler.ts` as a self-contained file with its own `new Queue(...)` + `new Worker(...)` setup. Implementation instead exports a single `runArticleSchedulerTick()` function and registers it via `registerScheduledJob()` in `workers/index.ts` — the same pattern as `auth-cleanup`. Reason: no second long-running process, consistent with the existing scheduler infrastructure, and the tick function is independently testable.
+
+**Session 5:**
+
+1. **`projectSlug` in step tests must be the actual DB slug, not a derived string.** Steps that call `buildSystemPrompt` (Research, Outline, Draft, SelfReview) look up the marketing context by `projectSlug`. Any test that calls these steps must capture the slug from `beforeAll` and pass it directly — never re-derive it from the UUID (e.g. `self-review-test-${projectId.slice(0,8)}`). Mismatch causes `loadProjectContext` to return `null` and `buildSystemPrompt` to throw.
+
+2. **`PersistOutlineStep` mutates the article slug — `afterEach` teardown required.** The step writes `OUTLINE.slug` to the articles row. If `beforeEach` re-inserts an article with the original slug on the next iteration, the unique `(project_id, slug)` index then fails when the step tries to write the same `OUTLINE.slug` again. Fix: `afterEach` deletes the article by `articleId` so each test starts clean.
+
+3. **`as T` casts on `.$type<T>()` columns are wrong in test query results too.** The CLAUDE.md rule applies to read paths, not just schema definitions. Use `!` (non-null assertion) when you've just written the field and know it's set; use a prior `expect(...).toBeTruthy()` assertion to document the assumption.
