@@ -1727,6 +1727,26 @@ See "Implementation Order" — four sessions with `/clear` between.
    `restrict` when `onDelete` is omitted. Caught during `/review-task` — always add
    `{ onDelete: "cascade" }` to every project-scoped FK.
 
+**Session 2:**
+
+4. **Non-greedy regex in schema body extraction cuts off at the first `})` inside nested fields.**
+   The spec's regex `([\s\S]*?)\}\s*\)` stops at the first balanced `})` encountered, which
+   can be inside a field like `schemaJsonLd: z.object({}).optional()` — truncating the body
+   before `draft` and `tags`. Fixed by replacing the regex with a bracket-counting walk
+   (`bracketBalanced()` in `resolve-schema.ts`). This approach handles arbitrarily nested
+   objects without regex lookahead tricks.
+
+5. **Classification order matters: `string_array` must be checked before `string`.** The
+   pattern `z.array(z.string())` also satisfies the `z\.string\(\)` regex, so checking `string`
+   first always wins. The fix is a simple reordering — more specific patterns first.
+
+6. **`AstroRepoConfigSchema` has `.default()` fields, causing `_input` variance mismatch in
+   `BaseStep`.** Fields `defaultBranch`, `contentRoot`, and `assetsRoot` have Zod defaults,
+   making their `_input` type `string | undefined` while `_output` is `string`. TypeScript
+   rejects this as `ZodType<TOutput>` in `BaseStep`'s generic. Fix: cast the step's
+   `OutputSchema` with `as z.ZodType<OutputType>` — same pattern documented in
+   `packages/pipelines/CLAUDE.md` under "Zod `.default()` in Step Schemas".
+
 ## Deviations
 
 **Session 1:**

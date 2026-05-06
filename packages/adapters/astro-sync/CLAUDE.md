@@ -51,6 +51,14 @@ The installation ID comes from `bun --filter @marketing-auto/adapter-astro-sync 
   that the file was machine-written
 - DO NOT use the regex schema parser as if it were authoritative. It's a heuristic.
   Always check `unpopulatedRequired` field in step output
+- DO NOT use a non-greedy regex to extract the `z.object({...})` schema body — it stops
+  at the first `})` inside any nested field (e.g. `z.object({})`). Use bracket counting instead
+  (see `bracketBalanced()` in `resolve-schema.ts`)
+- DO NOT check `z.string()` before `z.array(z.string())` in the field classifier — the array
+  pattern also contains `z.string()`, so more-specific checks must come first
+- DO NOT assign `outputSchema = SomeSchema` in a step class when the schema has `.default()`
+  fields — Zod's `_input` variance (`string | undefined`) conflicts with `BaseStep`'s
+  `ZodType<TOutput>` generic. Cast with `as z.ZodType<OutputType>` (same pattern as pipelines)
 
 ## Performance / Cost
 
