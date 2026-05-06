@@ -17,6 +17,7 @@
         "@hono/zod-validator": "^0.4.0",
         "@marketing-auto/adapter-astro-sync": "workspace:*",
         "@marketing-auto/adapter-email": "workspace:*",
+        "@marketing-auto/adapter-pagespeed": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/pipelines": "workspace:*",
         "@marketing-auto/shared": "workspace:*",

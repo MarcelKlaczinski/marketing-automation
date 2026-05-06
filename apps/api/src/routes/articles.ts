@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, projects, articles } from "@marketing-auto/db";
 import { enqueueArticleGeneration, continueArticleGeneration } from "@marketing-auto/pipelines";
 import { enqueueArticleSync } from "@marketing-auto/adapter-astro-sync";
+import { enqueueArticleValidation } from "@marketing-auto/adapter-pagespeed";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("routes:articles");
@@ -138,6 +139,41 @@ articleRoutes.post(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.warn({ err: e, articleId }, "Astro sync enqueue failed");
+      return c.json({ ok: false, error: msg }, 400);
+    }
+  },
+);
+
+/**
+ * POST /api/articles/:articleId/validate-pagespeed
+ * Enqueues PageSpeed validation for a ready_to_publish or blocked_by_pagespeed article.
+ * Returns 202 with { ok: true, data: { pagespeedRunId, jobId } }.
+ */
+articleRoutes.post(
+  "/articles/:articleId/validate-pagespeed",
+  async (c) => {
+    const articleId = c.req.param("articleId");
+
+    const [article] = await db
+      .select({ id: articles.id, projectId: articles.projectId })
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+
+    if (!article) {
+      return c.json({ ok: false, error: "Article not found" }, 404);
+    }
+
+    try {
+      const result = await enqueueArticleValidation({
+        articleId: article.id,
+        projectId: article.projectId,
+      });
+      log.info({ articleId, pagespeedRunId: result.pagespeedRunId, jobId: result.jobId }, "PageSpeed validation enqueued via HTTP");
+      return c.json({ ok: true, data: result }, 202);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log.warn({ err: e, articleId }, "PageSpeed validation enqueue failed");
       return c.json({ ok: false, error: msg }, 400);
     }
   },

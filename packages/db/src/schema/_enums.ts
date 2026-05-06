@@ -30,6 +30,7 @@ export const articleStatusEnum = pgEnum("article_status", [
   "outline_review",
   "drafting",
   "final_review",
+  "schema_extending",
   "ready_to_publish",
   "validating",
   "published",

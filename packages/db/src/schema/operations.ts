@@ -113,6 +113,33 @@ export const pagespeedRuns = pgTable("pagespeed_runs", {
   projectStatusIdx: index("pagespeed_runs_project_status_idx").on(t.projectId, t.status),
 }));
 
+export const schemaExtensionRuns = pgTable("schema_extension_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  // Plain UUID — no DB FK to articles (same circular-dep pattern as pipelineRuns/astroSyncRuns)
+  articleId: uuid("article_id").notNull(),
+  pipelineRunId: uuid("pipeline_run_id"),
+
+  status: text("status").$type<"pending" | "succeeded" | "failed">().notNull(),
+  detectedTypes: jsonb("detected_types").$type<{
+    breadcrumb: boolean;
+    faq: boolean;
+    howto: boolean;
+  } | null>().default(null),
+
+  faqQuestionCount: integer("faq_question_count").default(0),
+  howtoStepCount: integer("howto_step_count").default(0),
+
+  errorMessage: text("error_message"),
+  errorStage: text("error_stage").$type<"detect" | "build" | "persist" | null>(),
+
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => ({
+  articleIdx: index("schema_extension_runs_article_idx").on(t.articleId),
+  projectStatusIdx: index("schema_extension_runs_project_status_idx").on(t.projectId, t.status),
+}));
+
 export const approvals = pgTable("approvals", {
   id: uuid("id").primaryKey().defaultRandom(),
   projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),

@@ -10,6 +10,7 @@ import { HeroImageStep } from "./steps/hero-image.ts";
 import { AssemblyStep } from "./steps/assembly.ts";
 import { PersistArticleStep } from "./steps/persist-article.ts";
 import { continueArticleGeneration } from "./trigger.ts";
+import { enqueueSchemaExtension } from "../schema-extension/trigger.ts";
 
 // ───── Job 1: Outline Pipeline ────────────────────────────────────────────────
 
@@ -246,5 +247,21 @@ export class ArticleDraftPipeline extends Pipeline<
     }
 
     return output;
+  }
+
+  override async afterComplete(
+    _output: z.infer<typeof DraftOutputSchema>,
+    pipelineInput: z.infer<typeof DraftInputSchema>,
+  ): Promise<void> {
+    try {
+      await enqueueSchemaExtension({
+        articleId: pipelineInput.articleId,
+        projectId: pipelineInput.projectId,
+      });
+    } catch (e) {
+      // Schema extension failure must not retry the whole article pipeline (Spec 20 lesson #6)
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[article:draft] schema extension enqueue failed for ${pipelineInput.articleId}: ${msg}`);
+    }
   }
 }
