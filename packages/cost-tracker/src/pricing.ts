@@ -39,7 +39,6 @@ export function anthropicCostEur(input: {
 export const REPLICATE_PRICING_USD_PER_IMAGE = {
   "black-forest-labs/flux-1.1-pro": 0.04,
   "black-forest-labs/flux-schnell": 0.003,
-  "black-forest-labs/flux-2-pro":   0.05,
   "ideogram-ai/ideogram-v3":         0.04,
 } as const;
 
