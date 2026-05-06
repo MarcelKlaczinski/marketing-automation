@@ -104,7 +104,13 @@
       "Bash(bun --env-file .env cleanup-test-data.ts)",
       "Bash(bun --filter @marketing-auto/adapter-pagespeed typecheck)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation status --short)",
-      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/internal-linking/apply-links.test.ts)"
+      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/internal-linking/apply-links.test.ts)",
+      "Bash(PGPASSWORD=dev_password_change_me psql -h localhost -U marketing_auto -d marketing_auto -c \"SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name\")",
+      "Bash(PGPASSWORD=dev_password_change_me psql -h localhost -p 5432 -U marketing_auto -d marketing_auto -c \"SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;\")",
+      "Bash(brew install *)",
+      "Bash(command -v psql)",
+      "Bash(PGPASSWORD=dev_password_change_me /opt/homebrew/bin/psql -h localhost -p 5432 -U marketing_auto -d marketing_auto -c \"SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;\")",
+      "Bash(/opt/homebrew/bin/psql -h localhost -p 5432 -U marketing_auto -d marketing_auto -c ' *)"
     ]
   }
 }
