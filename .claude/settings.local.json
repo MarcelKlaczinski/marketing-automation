@@ -173,7 +173,8 @@
       "Bash(pkill -f \"bun run dev\")",
       "Bash(pkill -f \"bun.*dev\")",
       "Bash(bun --filter @marketing-auto/adapter-email run typecheck)",
-      "Bash(bun x *)"
+      "Bash(bun x *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

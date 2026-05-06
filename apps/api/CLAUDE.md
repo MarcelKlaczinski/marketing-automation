@@ -52,6 +52,20 @@ systemRoutes.post("/verify/:adapter", requireAuth, ...)               // protect
 ```
 Business logic shared across those handlers goes in `src/lib/<domain>-service.ts` (not `packages/core`) when it has no project_id context and is tightly coupled to the HTTP layer. See `src/lib/system-service.ts`.
 
+## Route Param Enum Validation Pattern
+
+When validating a route parameter against a typed `as const` array, widen the **array** to accept `string`, not the value being tested:
+
+```typescript
+const validServices = ["anthropic", "replicate"] as const;
+// ✅ correct — widen the array
+if (!(validServices as readonly string[]).includes(service)) { ... }
+// ❌ wrong — casts the value before checking, defeating the guard
+if (!validServices.includes(service as typeof validServices[number])) { ... }
+```
+
+After the guard the type is still `string`, so cast explicitly if you need the narrowed type downstream.
+
 ## Common Mistakes to Avoid
 - DO NOT do business logic in route handlers — that goes in /packages/core (or `src/lib/<domain>-service.ts` for bootstrap/system routes without project context)
 - DO NOT call adapters directly from routes — always via core services (exception: installer verify flow per spec Decision 10, with a justification comment)

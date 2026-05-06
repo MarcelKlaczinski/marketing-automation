@@ -1,16 +1,69 @@
 <template>
   <q-page padding>
-    <h1 class="text-h4 q-mb-md">{{ $t('nav.settings') }}</h1>
-    <q-banner class="bg-info text-white">
-      <template #avatar>
-        <q-icon name="construction" />
-      </template>
-      Diese Seite wird in Spec 39 implementiert.
-    </q-banner>
+    <h1 class="text-h5 q-mb-lg">{{ $t('settings.title') }}</h1>
+
+    <q-tabs
+      v-model="activeTab"
+      align="left"
+      class="text-grey-8 q-mb-lg"
+      indicator-color="primary"
+      active-color="primary"
+      narrow-indicator
+      @update:model-value="onTabChange"
+    >
+      <q-tab name="adapters" :label="$t('settings.tabs.adapters') as string" icon="api" />
+      <q-tab name="system" :label="$t('settings.tabs.system') as string" icon="dns" />
+      <q-tab name="profile" :label="$t('settings.tabs.profile') as string" icon="person" />
+    </q-tabs>
+
+    <q-tab-panels v-model="activeTab" animated class="bg-transparent">
+      <q-tab-panel name="adapters" class="q-px-none">
+        <SettingsAdaptersPanel />
+      </q-tab-panel>
+      <q-tab-panel name="system" class="q-px-none">
+        <SettingsSystemPanel />
+      </q-tab-panel>
+      <q-tab-panel name="profile" class="q-px-none">
+        <SettingsProfilePanel />
+      </q-tab-panel>
+    </q-tab-panels>
   </q-page>
 </template>
 
 <script lang="ts">
 import { defineComponent } from 'vue';
-export default defineComponent({ name: 'SettingsPage' });
+import SettingsAdaptersPanel from 'src/components/settings/SettingsAdaptersPanel.vue';
+import SettingsSystemPanel from 'src/components/settings/SettingsSystemPanel.vue';
+import SettingsProfilePanel from 'src/components/settings/SettingsProfilePanel.vue';
+
+type TabName = 'adapters' | 'system' | 'profile';
+
+export default defineComponent({
+  name: 'SettingsPage',
+
+  components: {
+    SettingsAdaptersPanel,
+    SettingsSystemPanel,
+    SettingsProfilePanel,
+  },
+
+  data: () => ({
+    activeTab: 'adapters' as TabName,
+  }),
+
+  created() {
+    const raw = this.$route.query['tab'];
+    const tabFromQuery = Array.isArray(raw) ? raw[0] ?? '' : raw ?? '';
+    if (['adapters', 'system', 'profile'].includes(tabFromQuery)) {
+      this.activeTab = tabFromQuery as TabName;
+    }
+  },
+
+  methods: {
+    onTabChange(newTab: string | number | null): void {
+      if (typeof newTab !== 'string') return;
+      void this.$router.replace({ query: { ...this.$route.query, tab: newTab } });
+    },
+  },
+});
 </script>

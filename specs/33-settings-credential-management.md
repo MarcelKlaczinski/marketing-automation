@@ -964,8 +964,9 @@ Optional split if session 1 grows beyond ~5h.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- `/api/system/info` was missing `nodeVersion` — added `nodeVersion: process.version` to the endpoint so the System tab can display the Bun runtime version.
+- The `systemStatusStore` already has a `fetchDeploymentMode()` action, but `SettingsSystemPanel` calls `/system/info` directly since it needs `nodeVersion` and `apiVersion` which aren't in the store. The duplication is intentional.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+**`coreUnreachable` banner condition** — Spec had `!postgresStatus.verified || !redisStatus.verified`, which fires when `verified === null` (unknown/not-yet-checked state). Changed to `=== false` to match the existing store convention: `null` means "not checked yet", `false` means "checked and failed". Showing the error banner before any check runs would create a false alarm on first load.

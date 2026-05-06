@@ -39,6 +39,7 @@ systemRoutes.get("/info", (c) => {
     data: {
       deploymentMode: mode,
       apiVersion: "0.1.0",
+      nodeVersion: process.version,
     },
   });
 });
@@ -110,6 +111,24 @@ systemRoutes.delete("/credentials/:service/:key", requireAuth, async (c) => {
     .delete(globalCredentials)
     .where(and(eq(globalCredentials.service, service), eq(globalCredentials.key, key)));
   return c.json({ ok: true });
+});
+
+// ───── DELETE /api/system/credentials/:service ──────────────────────────────
+// Auth required — removes all credentials for a service and clears its verify status.
+
+const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app"] as const;
+type ValidService = typeof validServices[number];
+
+systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
+  const service = c.req.param("service");
+  if (!(validServices as readonly string[]).includes(service)) {
+    return c.json({ ok: false, error: `Unknown service: ${service}` }, 400);
+  }
+
+  await db.delete(globalCredentials).where(eq(globalCredentials.service, service));
+  await db.delete(systemSettings).where(eq(systemSettings.key, `last_verified_${service}`));
+
+  return c.json({ ok: true, data: { service } });
 });
 
 // ───── POST /api/system/verify/:adapter ─────────────────────────────────────
