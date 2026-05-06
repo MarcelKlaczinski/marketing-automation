@@ -75,7 +75,6 @@ export const costServiceEnum = pgEnum("cost_service", [
   "anthropic",
   "replicate",
   "dataforseo",
-  "elevenlabs",
   "smtp",
 ]);
 

@@ -73,12 +73,6 @@ export function dataforseoCostEur(input: {
   return usdToEur(DATAFORSEO_PRICING_USD[input.operation] * input.count);
 }
 
-export const ELEVENLABS_PRICING_USD_PER_1K_CHARS = 0.30;
-
-export function elevenlabsCostEur(input: { characters: number }): number {
-  return usdToEur((input.characters / 1000) * ELEVENLABS_PRICING_USD_PER_1K_CHARS);
-}
-
 export const RESEND_PRICING_USD_PER_EMAIL = 0.0001;
 
 export function resendCostEur(input: { count: number }): number {

@@ -7,7 +7,6 @@ import {
   anthropicCostEur,
   replicateImageCostEur,
   dataforseoCostEur,
-  elevenlabsCostEur,
   resendCostEur,
   getCurrentSpend,
   getProjectCostSummary,
@@ -63,11 +62,6 @@ describe("other pricing helpers", () => {
   it("dataforseoCostEur: 100 serpStandard requests", () => {
     const eur = dataforseoCostEur({ operation: "serpStandard", count: 100 });
     expect(eur).toBeCloseTo(0.0006 * 100 * EUR_PER_USD, 5);
-  });
-
-  it("elevenlabsCostEur: 1000 characters", () => {
-    const eur = elevenlabsCostEur({ characters: 1000 });
-    expect(eur).toBeCloseTo(0.30 * EUR_PER_USD, 4);
   });
 
   it("resendCostEur: 100 emails", () => {
