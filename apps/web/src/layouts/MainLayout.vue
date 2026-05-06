@@ -98,7 +98,6 @@ import { defineComponent } from 'vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useUiStore } from 'src/stores/ui';
 import { useSystemStatusStore } from 'src/stores/system-status';
-import { useQuasar } from 'quasar';
 
 const navLinks = [
   { routeName: 'inbox', icon: 'inbox', labelKey: 'nav.inbox' },
@@ -112,9 +111,7 @@ export default defineComponent({
   name: 'MainLayout',
 
   setup() {
-    const $q = useQuasar();
     return {
-      $q,
       authStore: useAuthStore(),
       uiStore: useUiStore(),
       systemStatusStore: useSystemStatusStore(),

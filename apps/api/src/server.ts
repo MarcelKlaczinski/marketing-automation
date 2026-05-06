@@ -1,5 +1,6 @@
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import { healthRoutes } from "./routes/health.ts";
 import { authRoutes } from "./routes/auth.ts";
@@ -12,7 +13,13 @@ const log = createLogger("api");
 
 const app = new Hono();
 
-// Middleware (order matters: logger first, then session loader on every request)
+// Middleware (order matters: CORS first, then logger, then session loader)
+app.use("*", cors({
+  origin: env.CORS_ORIGIN,
+  credentials: true,
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+}));
 app.use("*", honoLogger((message) => log.info(message)));
 app.use("*", sessionLoader);
 
