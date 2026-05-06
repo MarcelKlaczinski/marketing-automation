@@ -60,6 +60,7 @@ Designed to evolve into SaaS.
 - DO NOT import a shared type from your local package when casting for a Drizzle `$type<T>` column — under `exactOptionalPropertyTypes`, Zod-inferred types with `field?: string | undefined` are structurally incompatible with DB-defined types that have `field?: string`. Always import the type from `@marketing-auto/db` for the cast (e.g. `SelfReviewIssue`, `ArticleOutline`)
 - DO NOT add `as T` casts to jsonb columns that already use `.$type<T>()` — Drizzle types them correctly; the cast is dead weight that masks future type errors
 - DO NOT pass an `as const` tuple to Drizzle's `inArray()` — it expects a mutable array. Use `Array<EnumValue>` with an explicit type annotation instead (e.g. `const statuses: Array<"a" | "b"> = ["a", "b"]`)
+- DO NOT call `.on()` directly on the return value of `node:child_process` `spawn()` — Bun's type defs omit `.on()` from `ChildProcessWithoutNullStreams`. Define a local `SpawnResult` interface with the event overloads you need and cast with `as unknown as SpawnResult` (justified: runtime always has it). See `packages/adapters/pagespeed/src/steps/clone-or-update.ts` for the canonical pattern
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding

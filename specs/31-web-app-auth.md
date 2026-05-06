@@ -610,6 +610,54 @@ Spec 30's pinia boot file calls `auth.fetchCurrent()` on app start. Spec 31 does
 **Decision 5: No global 401 → auto-redirect interceptor.**
 The api-client doesn't auto-redirect on 401. Reason: would cause confusing UX if a single 401 (e.g., from a stale stored route) suddenly redirects mid-session. Route guards handle redirects on navigation. API-call 401s are handled by call sites (most show an error toast and let the user retry).
 
+## Discovered During Implementation (Session 2)
+
+### API Contract Deviations Found and Fixed
+
+The spec (and Spec 04's original implementation) had a **protocol mismatch** between the actual API endpoints and what the frontend expected. All five were fixed during Session 2 smoke testing:
+
+1. **`/magic-link/request` was missing** — only `POST /login` existed. Fixed by adding `/magic-link/request` as a new endpoint; `/login` kept as legacy alias.
+
+2. **`POST /magic-link/verify` was missing** — only `GET /verify?token=` (redirect flow) existed. Fixed by adding the JSON endpoint. The spec's "Backend: Verify endpoint behavior" section correctly described the desired API; the implementation just hadn't been built.
+
+3. **`GET /verify` redirect targets were wrong** — redirected to `/login?error=` instead of `/auth/login?error=`. Fixed in `apps/api/src/routes/auth.ts`.
+
+4. **`/me` returned unwrapped `{ id, email }`** — the spec said `{ ok: true, data: { id, email } }`, implementation returned the user object directly. Auth store was updated to parse `res.data.data` (the `{ ok, data }` envelope). The spec's Backend section was updated to match the real response: `{ ok: true, data: { id, email } }`.
+
+5. **`AuthVerifyPage` parsed `res.data.user`** — should be `res.data.data.user` after the `{ ok, data: { user } }` envelope. Fixed in the Vue component.
+
+### `APP_BASE_URL` Must Be the Frontend Origin
+
+`APP_BASE_URL` in `.env` must point to the **frontend** (e.g., `http://localhost:3051`), **not** the API origin. Magic-link emails link to `APP_BASE_URL/auth/verify?token=...` (the frontend verify page). If set to the API URL (`:3050`), clicking the email link lands on a 404 (the API has no `/auth/verify` HTML route).
+
+This is documented in `apps/api/CLAUDE.md` under Auth Patterns.
+
+### Email Shim Must Return `SendEmailResult`
+
+`apps/api/src/lib/email.ts`'s `sendMagicLinkEmail` function originally returned `Promise<void>`. The caller in `issueMagicLink()` checks `.delivered` to decide whether to log the verify URL (dev-mode fallback). The shim must return `Promise<SendEmailResult>` so callers can check `.delivered`.
+
+### `requiredCoreReady` Stub Semantics
+
+The system status store's `requiredCoreReady` getter originally returned `false` when `postgres.verified === null` (null = "not checked yet" in the pre-Spec-32 stub). This caused the route guard to always redirect to `/installer`, blocking all auth smoke testing.
+
+Fix: treat `verified === null` as "not checked / assume ready" for the MVP guard. The gate only blocks when `configured === false` AND `verified` is not null (i.e., an actual connectivity failure).
+
+```typescript
+requiredCoreReady: (state): boolean => {
+  const postgresReady = state.postgres.configured || state.postgres.verified === null;
+  const redisReady = state.redis.configured || state.redis.verified === null;
+  return postgresReady && redisReady;
+},
+```
+
+### CORS Port Collision During Testing
+
+Running the Vite dev server on a different port than `CORS_ORIGIN` (e.g., 3052 vs 3051) silently blocks all API calls with CORS errors — no visible error in the UI, just failed requests. Always test against the port that matches `CORS_ORIGIN` in `.env`.
+
+### Route Guard `to.name` Cast
+
+The spec template used `to.name as string` inside `UNAUTH_ONLY_ROUTE_NAMES.has(...)`. Under strict TypeScript, `RouteRecordName` is `string | symbol`, so the cast is unjustified. The implemented guard narrows with `typeof to.name === 'string'` before the `Set.has()` call. See `apps/web/CLAUDE.md` for details.
+
 **Decision 6: No "remember me" toggle.**
 Sessions are 30 days regardless. Vanilla v3 has the same behavior; users don't notice the absence. Adds complexity for marginal value.
 

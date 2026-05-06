@@ -136,7 +136,21 @@
       "mcp__Claude_in_Chrome__javascript_tool",
       "mcp__Claude_in_Chrome__read_console_messages",
       "Bash(git status *)",
-      "Bash(bun --filter @marketing-auto/web run typecheck)"
+      "Bash(bun --filter @marketing-auto/web run typecheck)",
+      "Bash(bun --filter @marketing-auto/web dev)",
+      "Bash(echo \"DEV_PID=$!\")",
+      "mcp__Claude_in_Chrome__tabs_create_mcp",
+      "Bash(redis-cli ping *)",
+      "Bash(pkill -f \"bun.*api\")",
+      "Bash(echo \"API_PID=$!\")",
+      "Bash(curl -s http://localhost:3050/api/auth/me)",
+      "Bash(lsof -ti:3050)",
+      "Bash(xargs kill -9)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3050/api/auth/magic-link/request -H 'Content-Type: application/json' -d '{\"email\":\"marcelklaczinski@outlook.de\"}')",
+      "Bash(curl -s -w '\\\\nHTTP %{http_code}' -X POST http://localhost:3050/api/auth/magic-link/request -H 'Content-Type: application/json' -d '{\"email\":\"marcelklaczinski@outlook.de\"}')",
+      "mcp__Claude_in_Chrome__computer",
+      "Bash(curl -s -X POST http://localhost:3050/api/auth/magic-link/request -H 'Content-Type: application/json' -d '{\"email\":\"marcelklaczinski@outlook.de\"}')",
+      "Bash(bun tsc *)"
     ]
   }
 }
