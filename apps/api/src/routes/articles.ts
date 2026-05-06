@@ -46,7 +46,7 @@ async function triggerWithPreRunId(opts: TriggerOptions): Promise<{ runId: strin
     pipelineName: opts.pipelineName,
     projectId: opts.projectId,
     status: "queued",
-    input: { articleId: opts.articleId },
+    input: { articleId: opts.articleId } as Record<string, unknown>,
   }).returning({ id: pipelineRuns.id });
 
   const preRunId = run!.id;
