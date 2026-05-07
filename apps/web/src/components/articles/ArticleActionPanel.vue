@@ -32,7 +32,7 @@ import type { ActionDef } from './PipelineActionRow.vue';
 
 interface PipelineAction extends ActionDef {
   enabledWhen: (status: string) => boolean;
-  triggerFn: (articleId: string) => Promise<{ runId: string; jobId: string }>;
+  triggerFn: (articleId: string) => Promise<{ runId: string; jobId: string; deduped: boolean }>;
 }
 
 export default defineComponent({
@@ -126,12 +126,22 @@ export default defineComponent({
       if (!action.enabled || this.loadingAction !== null) return;
       this.loadingAction = action.id;
       try {
-        const { runId } = await action.triggerFn(this.articleId);
+        const result = await action.triggerFn(this.articleId);
+        if (result.deduped) {
+          this.notify.info(this.$t('articles.actions.alreadyRunning') as string);
+          return;
+        }
         this.notify.success(this.$t('articles.actions.triggered', { action: this.$t(action.i18nKey) }) as string);
-        this.$emit('action-triggered', { actionId: action.id, runId });
+        this.$emit('action-triggered', { actionId: action.id, runId: result.runId });
       } catch (e) {
         if (e instanceof HttpError) {
-          this.notify.error(e.userMessage);
+          if (e.status === 402) {
+            this.notify.error(this.$t('cost.errors.limitExceeded') as string);
+          } else if (e.status === 423) {
+            this.notify.error(this.$t('projectPause.errors.queuePaused') as string);
+          } else {
+            this.notify.error(e.userMessage);
+          }
         }
       } finally {
         this.loadingAction = null;

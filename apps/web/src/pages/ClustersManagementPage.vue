@@ -1,5 +1,7 @@
 <template>
   <q-page padding>
+    <ProjectPauseBanner :slug="slug" />
+
     <div class="row items-center q-mb-lg">
       <div class="col">
         <q-breadcrumbs class="text-body2 q-mb-xs">
@@ -108,11 +110,12 @@ import PillarSection from 'src/components/clusters/PillarSection.vue';
 import ClusterCreateDialog from 'src/components/clusters/ClusterCreateDialog.vue';
 import ConfirmDeleteDialog from 'src/components/common/ConfirmDeleteDialog.vue';
 import ArticleMoveDialog from 'src/components/clusters/ArticleMoveDialog.vue';
+import ProjectPauseBanner from 'src/components/common/ProjectPauseBanner.vue';
 
 export default defineComponent({
   name: 'ClustersManagementPage',
 
-  components: { PillarSection, ClusterCreateDialog, ConfirmDeleteDialog, ArticleMoveDialog },
+  components: { PillarSection, ClusterCreateDialog, ConfirmDeleteDialog, ArticleMoveDialog, ProjectPauseBanner },
 
   props: {
     slug: { type: String, required: true },

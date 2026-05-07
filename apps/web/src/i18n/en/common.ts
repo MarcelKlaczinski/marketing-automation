@@ -12,4 +12,5 @@ export default {
   required: 'Required',
   unsavedChanges: 'Unsaved changes',
   comingSoon: 'Will be implemented in a later session.',
+  acknowledge: 'Acknowledge',
 };

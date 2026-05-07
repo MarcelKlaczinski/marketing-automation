@@ -38,6 +38,13 @@ export default {
     noCompetitors: 'No competitors identified — please try again.',
     complete: 'Competitor analysis complete.',
     regenerate: 'Re-analyze',
+    confirmation: {
+      title: 'Ready for Competitor Analysis?',
+      body: '{count} competitors identified. Analysis will cost ~€{cost} (DataForSEO).',
+      tooManyCompetitors: '{count} competitors exceed the maximum of {max}. Please trim the list before starting.',
+      cancel: 'Cancel',
+      runAnalysis: 'Start Analysis',
+    },
   },
 
   phase3: {

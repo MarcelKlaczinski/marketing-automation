@@ -1,5 +1,6 @@
 import { ref, type Ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { api } from 'src/lib/api-client';
+import { HttpError } from 'src/lib/http-error';
 
 export type ActivityType =
   | 'cold_start'
@@ -70,7 +71,10 @@ export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): Us
     loading.value = true;
     try {
       const sinceMs = (opts.sinceHours?.value ?? 24) * 60 * 60 * 1000;
-      const since = new Date(Date.now() - sinceMs).toISOString();
+      const rawSince = Date.now() - sinceMs;
+      // Round down to 5-minute boundary for cache-friendliness
+      const ROUND_TO = 5 * 60 * 1000;
+      const since = new Date(Math.floor(rawSince / ROUND_TO) * ROUND_TO).toISOString();
       const params = new URLSearchParams({ since });
       if (opts.projectId?.value) params.set('projectId', opts.projectId.value);
 
@@ -81,6 +85,10 @@ export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): Us
       activeCount.value = res.data.data.activeCount;
       error.value = null;
     } catch (e) {
+      if (e instanceof HttpError && (e.status === 401 || e.status === 403)) {
+        stop();
+        return;
+      }
       error.value = e instanceof Error ? e.message : 'fetch_failed';
     } finally {
       loading.value = false;

@@ -12,4 +12,5 @@ export default {
   required: 'Pflichtfeld',
   unsavedChanges: 'Ungespeicherte Änderungen',
   comingSoon: 'Wird in einer späteren Session implementiert.',
+  acknowledge: 'Bestätigen',
 };

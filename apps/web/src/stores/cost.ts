@@ -56,6 +56,19 @@ export interface CostLogsResponse {
   offset: number;
 }
 
+export interface CostAlert {
+  id: string;
+  projectId: string;
+  projectName: string | null;
+  service: string;
+  thresholdType: 'daily' | 'monthly';
+  limitEur: string;
+  spentEur: string;
+  percent: number;
+  acknowledgedAt: string | null;
+  createdAt: string;
+}
+
 interface CostFilters {
   projectId: string | null;
   service: string | null;
@@ -67,6 +80,7 @@ interface CostFilters {
 interface CostState {
   aggregations: CostAggregations | null;
   logs: CostLogsResponse | null;
+  alerts: CostAlert[];
   loading: boolean;
   filters: CostFilters;
 }
@@ -75,6 +89,7 @@ export const useCostStore = defineStore('cost', {
   state: (): CostState => ({
     aggregations: null,
     logs: null,
+    alerts: [],
     loading: false,
     filters: {
       projectId: null,
@@ -119,6 +134,16 @@ export const useCostStore = defineStore('cost', {
 
     setFilters(patch: Partial<CostFilters>): void {
       this.filters = { ...this.filters, ...patch };
+    },
+
+    async fetchAlerts(): Promise<void> {
+      const res = await api.get<{ ok: boolean; data: CostAlert[] }>('/cost/alerts');
+      this.alerts = res.data.data;
+    },
+
+    async acknowledgeAlert(id: string): Promise<void> {
+      await api.post(`/cost/alerts/${id}/acknowledge`);
+      await this.fetchAlerts();
     },
   },
 });

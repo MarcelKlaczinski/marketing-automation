@@ -1,5 +1,6 @@
 import { ref, watch, onUnmounted, type Ref } from 'vue';
 import { api } from 'src/lib/api-client';
+import { HttpError } from 'src/lib/http-error';
 
 export interface PipelineRun {
   id: string;
@@ -59,6 +60,10 @@ export function usePipelineRunPolling(
       error.value = null;
       if (terminal.value) stop();
     } catch (e) {
+      if (e instanceof HttpError && (e.status === 401 || e.status === 403)) {
+        stop();
+        return;
+      }
       error.value = e instanceof Error ? e : new Error(String(e));
     } finally {
       loading.value = false;

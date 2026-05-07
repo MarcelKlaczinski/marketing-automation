@@ -45,6 +45,7 @@ export default {
       changeReason: 'Change reason (optional)',
       changeReasonPlaceholder: 'e.g. "Revised intro" or "Fixed factual error"',
       resyncAfterSave: 'Automatically re-sync to Astro after saving',
+      resyncDisabledHint: 'Re-sync only available when status is "Ready to Publish", "Published", or "PageSpeed Blocked".',
       confirm: 'Save',
     },
   },
@@ -60,6 +61,7 @@ export default {
     triggered: 'Action started: {action}',
     notAvailable: 'Action not available in current status',
     noRunsYet: 'No runs yet.',
+    alreadyRunning: 'Pipeline already running — action was not triggered again',
   },
 
   runs: {

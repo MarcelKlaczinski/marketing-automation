@@ -111,36 +111,36 @@ export const useArticlesStore = defineStore('articles', {
       }
     },
 
-    async triggerOutline(articleId: string): Promise<{ runId: string; jobId: string }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string } }>(
+    async triggerOutline(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
         `/articles/${articleId}/generate-outline`,
       );
       return res.data.data;
     },
 
-    async triggerDraft(articleId: string): Promise<{ runId: string; jobId: string }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string } }>(
+    async triggerDraft(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
         `/articles/${articleId}/generate-draft`,
       );
       return res.data.data;
     },
 
-    async triggerSync(articleId: string): Promise<{ runId: string; jobId: string }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string } }>(
+    async triggerSync(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
         `/articles/${articleId}/sync`,
       );
       return res.data.data;
     },
 
-    async triggerPagespeedValidation(articleId: string): Promise<{ runId: string; jobId: string }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string } }>(
+    async triggerPagespeedValidation(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
         `/articles/${articleId}/validate-pagespeed`,
       );
       return res.data.data;
     },
 
-    async triggerSchemaExtension(articleId: string): Promise<{ runId: string; jobId: string }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string } }>(
+    async triggerSchemaExtension(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
         `/articles/${articleId}/extend-schema`,
       );
       return res.data.data;

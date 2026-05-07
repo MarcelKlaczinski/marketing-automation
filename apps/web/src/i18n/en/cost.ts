@@ -43,4 +43,12 @@ export default {
     of: 'of',
     noResults: 'No results for these filters',
   },
+
+  alerts: {
+    title: '{count} active cost alerts',
+  },
+
+  errors: {
+    limitExceeded: 'Cost limit reached. Pipeline paused.',
+  },
 };

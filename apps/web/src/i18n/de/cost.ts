@@ -43,4 +43,12 @@ export default {
     of: 'von',
     noResults: 'Keine Treffer für diese Filter',
   },
+
+  alerts: {
+    title: '{count} aktive Kostenwarnungen',
+  },
+
+  errors: {
+    limitExceeded: 'Kostenlimit erreicht. Pipeline pausiert.',
+  },
 };

@@ -19,6 +19,12 @@
       </div>
     </div>
 
+    <CostAlertsBanner
+      v-if="costStore.alerts.length > 0"
+      :alerts="costStore.alerts"
+      @acknowledge="onAcknowledge"
+    />
+
     <CostSummaryCards :aggregations="costStore.aggregations" :loading="costStore.loading" />
     <CostByServiceChart :aggregations="costStore.aggregations" class="q-mt-lg" />
     <CostDailyChart :aggregations="costStore.aggregations" class="q-mt-lg" />
@@ -38,6 +44,7 @@ import CostByServiceChart from 'src/components/cost/CostByServiceChart.vue';
 import CostDailyChart from 'src/components/cost/CostDailyChart.vue';
 import CostByOperationTable from 'src/components/cost/CostByOperationTable.vue';
 import CostLogsTable from 'src/components/cost/CostLogsTable.vue';
+import CostAlertsBanner from 'src/components/cost/CostAlertsBanner.vue';
 
 export default defineComponent({
   name: 'CostDashboardPage',
@@ -48,6 +55,7 @@ export default defineComponent({
     CostDailyChart,
     CostByOperationTable,
     CostLogsTable,
+    CostAlertsBanner,
   },
 
   setup() {
@@ -81,6 +89,7 @@ export default defineComponent({
     await Promise.all([
       this.costStore.fetchAggregations(),
       this.costStore.fetchLogs(),
+      this.costStore.fetchAlerts(),
     ]);
   },
 
@@ -90,7 +99,12 @@ export default defineComponent({
       await Promise.all([
         this.costStore.fetchAggregations(),
         this.costStore.fetchLogs(),
+        this.costStore.fetchAlerts(),
       ]);
+    },
+
+    async onAcknowledge(id: string): Promise<void> {
+      await this.costStore.acknowledgeAlert(id);
     },
   },
 });

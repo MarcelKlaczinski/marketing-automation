@@ -6,11 +6,48 @@
       <q-btn color="primary" :label="$t('coldStart.phase2.startButton')" :loading="triggering" unelevated @click="onStart" />
     </div>
 
-    <!-- running (either sub-pipeline) -->
-    <div v-else-if="phase === 'running'">
+    <!-- running Phase 2.1: identifying competitors -->
+    <div v-else-if="phase === 'identifying'">
       <q-banner class="bg-blue-1 text-blue-9 q-mb-md" rounded>
         <template #avatar><q-spinner size="20px" color="primary" /></template>
-        {{ subPhase === 'identifying' ? $t('coldStart.phase2.identifying') : $t('coldStart.phase2.running') }}
+        {{ $t('coldStart.phase2.identifying') }}
+      </q-banner>
+    </div>
+
+    <!-- confirmation: Phase 2.1 done, waiting for user to approve Phase 2.2 -->
+    <div v-else-if="phase === 'confirming'" class="confirmation-card q-pa-md q-mb-md" style="border: 1px solid var(--q-primary); border-radius: 8px;">
+      <div class="text-h6 q-mb-sm">{{ $t('coldStart.phase2.confirmation.title') }}</div>
+      <div class="text-body2 q-mb-md">
+        {{ $t('coldStart.phase2.confirmation.body', {
+          count: competitorCount,
+          cost: estimatedCost.toFixed(2),
+        }) }}
+      </div>
+      <q-banner v-if="competitorCount > MAX_COMPETITORS" class="bg-warning text-dark q-mb-md" rounded>
+        <template #avatar><q-icon name="warning" /></template>
+        {{ $t('coldStart.phase2.confirmation.tooManyCompetitors', {
+          count: competitorCount,
+          max: MAX_COMPETITORS,
+        }) }}
+      </q-banner>
+      <div class="row q-gutter-sm">
+        <q-btn outline :label="$t('coldStart.phase2.confirmation.cancel')" @click="onCancelConfirm" />
+        <q-btn
+          color="primary"
+          unelevated
+          :label="$t('coldStart.phase2.confirmation.runAnalysis')"
+          :disable="competitorCount > MAX_COMPETITORS || competitorCount === 0"
+          :loading="triggering"
+          @click="onConfirm"
+        />
+      </div>
+    </div>
+
+    <!-- running Phase 2.2: analyzing -->
+    <div v-else-if="phase === 'analyzing'">
+      <q-banner class="bg-blue-1 text-blue-9 q-mb-md" rounded>
+        <template #avatar><q-spinner size="20px" color="primary" /></template>
+        {{ $t('coldStart.phase2.running') }}
       </q-banner>
     </div>
 
@@ -35,8 +72,11 @@ import { defineComponent, ref } from 'vue';
 import { useColdStartStore } from 'src/stores/cold-start';
 import { usePipelineRunPolling } from 'src/composables/usePipelineRunPolling';
 
-type Phase = 'idle' | 'running' | 'complete';
-type SubPhase = 'identifying' | 'analyzing';
+const MAX_COMPETITORS = 15;
+const COST_PER_COMPETITOR_EUR = 0.20;
+
+type Competitor = { domain: string; why_relevant: string; expected_strengths: string[] };
+type Phase = 'idle' | 'identifying' | 'confirming' | 'analyzing' | 'complete';
 
 export default defineComponent({
   name: 'Phase2CompetitorAnalysis',
@@ -60,9 +100,10 @@ export default defineComponent({
   },
 
   data: () => ({
+    MAX_COMPETITORS,
     triggering: false,
-    subPhase: 'identifying' as SubPhase,
     errorMsg: '',
+    pendingCompetitors: [] as Competitor[],
   }),
 
   computed: {
@@ -72,12 +113,22 @@ export default defineComponent({
     phase(): Phase {
       const aRun = this.analysisRun;
       if (aRun?.status === 'completed') return 'complete';
-      if (aRun?.status === 'running' || aRun?.status === 'queued') return 'running';
+      if (aRun?.status === 'running' || aRun?.status === 'queued') return 'analyzing';
+
+      if (this.pendingCompetitors.length > 0) return 'confirming';
 
       const qRun = this.questionsRun;
-      if (qRun?.status === 'running' || qRun?.status === 'queued') return 'running';
+      if (qRun?.status === 'running' || qRun?.status === 'queued') return 'identifying';
 
       return 'idle';
+    },
+
+    competitorCount(): number {
+      return this.pendingCompetitors.length;
+    },
+
+    estimatedCost(): number {
+      return this.competitorCount * COST_PER_COMPETITOR_EUR;
     },
   },
 
@@ -86,12 +137,11 @@ export default defineComponent({
       if (!isTerminal) return;
       const qRun = this.questionsRun;
       if (qRun?.status === 'completed' && qRun.output) {
-        // Auto-trigger analysis with identified competitors
-        const out = qRun.output as { competitors?: { domain: string; why_relevant: string; expected_strengths: string[] }[] };
+        const out = qRun.output as { competitors?: Competitor[] };
         const competitors = out.competitors ?? [];
         if (competitors.length > 0) {
-          this.subPhase = 'analyzing';
-          void this.triggerAnalysis(competitors);
+          // Show confirmation card instead of auto-triggering
+          this.pendingCompetitors = competitors;
         } else {
           this.errorMsg = this.$t('coldStart.phase2.noCompetitors') as string;
         }
@@ -104,6 +154,7 @@ export default defineComponent({
       if (!isTerminal) return;
       const aRun = this.analysisRun;
       if (aRun?.status === 'completed') {
+        this.pendingCompetitors = [];
         this.$emit('done');
       } else if (aRun?.status === 'failed') {
         this.errorMsg = aRun.error ?? (this.$t('coldStart.phase2.failed') as string);
@@ -115,7 +166,7 @@ export default defineComponent({
     async onStart(): Promise<void> {
       this.triggering = true;
       this.errorMsg = '';
-      this.subPhase = 'identifying';
+      this.pendingCompetitors = [];
       try {
         const { runId } = await this.coldStartStore.triggerCompetitorQuestions(this.slug);
         this.analysisRunId = null;
@@ -128,12 +179,22 @@ export default defineComponent({
       }
     },
 
-    async triggerAnalysis(competitors: { domain: string; why_relevant: string; expected_strengths: string[] }[]): Promise<void> {
+    onCancelConfirm(): void {
+      this.pendingCompetitors = [];
+      this.questionsRunId = null;
+    },
+
+    async onConfirm(): Promise<void> {
+      this.triggering = true;
+      this.errorMsg = '';
       try {
-        const { runId } = await this.coldStartStore.triggerCompetitorAnalysis(this.slug, competitors);
+        const { runId } = await this.coldStartStore.triggerCompetitorAnalysis(this.slug, this.pendingCompetitors);
+        this.pendingCompetitors = [];
         this.analysisRunId = runId;
       } catch {
         this.errorMsg = this.$t('coldStart.phase2.failed') as string;
+      } finally {
+        this.triggering = false;
       }
     },
   },

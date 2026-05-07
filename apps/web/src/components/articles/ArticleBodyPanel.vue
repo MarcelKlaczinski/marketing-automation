@@ -44,9 +44,13 @@
           />
           <q-checkbox
             v-model="resyncAfterSave"
+            :disable="!canResync()"
             class="q-mt-md"
             :label="$t('articles.body.saveDialog.resyncAfterSave') as string"
           />
+          <div v-if="!canResync()" class="text-caption text-grey-7 q-mt-xs">
+            {{ $t('articles.body.saveDialog.resyncDisabledHint') }}
+          </div>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn flat :label="$t('common.cancel')" v-close-popup />

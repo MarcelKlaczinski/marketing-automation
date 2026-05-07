@@ -38,6 +38,13 @@ export default {
     noCompetitors: 'Keine Wettbewerber identifiziert — bitte erneut versuchen.',
     complete: 'Wettbewerber-Analyse abgeschlossen.',
     regenerate: 'Erneut analysieren',
+    confirmation: {
+      title: 'Bereit für Wettbewerbs-Analyse?',
+      body: '{count} Wettbewerber identifiziert. Die Analyse kostet ca. €{cost} (DataForSEO).',
+      tooManyCompetitors: '{count} Wettbewerber überschreiten das Maximum von {max}. Bitte kürze die Liste vor dem Start.',
+      cancel: 'Abbrechen',
+      runAnalysis: 'Analyse starten',
+    },
   },
 
   phase3: {

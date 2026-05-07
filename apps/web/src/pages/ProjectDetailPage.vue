@@ -16,6 +16,8 @@
     </div>
 
     <template v-else>
+      <ProjectPauseBanner :slug="slug" />
+
       <div class="row items-center q-mb-md">
         <q-btn flat round icon="arrow_back" :to="{ name: 'projects' }" class="q-mr-sm" />
         <div class="col">
@@ -75,6 +77,7 @@ import ProjectOverviewPanel from 'src/components/projects/ProjectOverviewPanel.v
 import ProjectSettingsPanel from 'src/components/projects/ProjectSettingsPanel.vue';
 import ColdStartPanel from 'src/components/projects/ColdStartPanel.vue';
 import ArticlesPanel from 'src/components/projects/ArticlesPanel.vue';
+import ProjectPauseBanner from 'src/components/common/ProjectPauseBanner.vue';
 
 type TabName = 'overview' | 'cold-start' | 'articles' | 'clusters' | 'settings';
 const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles', 'clusters', 'settings'];
@@ -82,7 +85,7 @@ const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles'
 export default defineComponent({
   name: 'ProjectDetailPage',
 
-  components: { ProjectOverviewPanel, ProjectSettingsPanel, ColdStartPanel, ArticlesPanel },
+  components: { ProjectOverviewPanel, ProjectSettingsPanel, ColdStartPanel, ArticlesPanel, ProjectPauseBanner },
 
   props: {
     slug: { type: String, required: true },
