@@ -15,6 +15,7 @@ import articleStatus from './articleStatus';
 import coldStart from './coldStart';
 import articles from './articles';
 import cost from './cost';
+import activity from './activity';
 
 export default {
   app,
@@ -34,4 +35,5 @@ export default {
   coldStart,
   articles,
   cost,
+  activity,
 };
