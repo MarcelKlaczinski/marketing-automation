@@ -9,10 +9,11 @@
     "./client": "./src/client.ts"
   },
   "scripts": {
-    "generate": "bun --env-file ../../.env node_modules/.bin/drizzle-kit generate",
+    "generate": "drizzle-kit generate --env-file ../../.env",
     "migrate": "bun --env-file ../../.env src/migrate.ts",
-    "studio": "drizzle-kit studio",
-    "push": "drizzle-kit push",
+    "studio": "drizzle-kit studio --env-file ../../.env",
+    "push": "drizzle-kit push --env-file ../../.env",
+    "check": "drizzle-kit check --env-file ../../.env",
     "test": "cd ../.. && bun test packages/db/test",
     "typecheck": "tsc --noEmit",
     "seed-platform": "bun --env-file ../../.env src/scripts/seed-platform.ts"

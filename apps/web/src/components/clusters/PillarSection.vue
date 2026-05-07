@@ -66,6 +66,7 @@
         :key="cluster.id"
         :cluster="cluster"
         :all-clusters="allClusters"
+        :all-pillars="allPillars"
         :is-first="idx === 0"
         :is-last="idx === clusters.length - 1"
         @rename="(p) => $emit('cluster-rename', p)"
@@ -125,6 +126,7 @@ export default defineComponent({
     pillar: { type: Object as PropType<Pillar>, required: true },
     clusters: { type: Array as PropType<Cluster[]>, required: true },
     allClusters: { type: Array as PropType<Cluster[]>, required: true },
+    allPillars: { type: Array as PropType<Pillar[]>, required: true },
     isFirst: { type: Boolean, default: false },
     isLast: { type: Boolean, default: false },
     slug: { type: String, required: true },

@@ -35,7 +35,7 @@ articleRoutes.use(requireAuth);
 
 // ─── list ─────────────────────────────────────────────────────────────────────
 
-articleRoutes.get("/articles", async (c) => {
+articleRoutes.get("/", async (c) => {
   const projectSlug = c.req.query("projectSlug");
   if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
 
@@ -72,7 +72,7 @@ articleRoutes.get("/articles", async (c) => {
 
 // ─── detail ───────────────────────────────────────────────────────────────────
 
-articleRoutes.get("/articles/:id", async (c) => {
+articleRoutes.get("/:id", async (c) => {
   const id = c.req.param("id");
 
   const [article] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
@@ -130,7 +130,7 @@ const ArticleUpdateSchema = z.object({
   ]).optional(),
 });
 
-articleRoutes.patch("/articles/:id", zValidator("json", ArticleUpdateSchema), async (c) => {
+articleRoutes.patch("/:id", zValidator("json", ArticleUpdateSchema), async (c) => {
   const id = c.req.param("id");
   const input = c.req.valid("json");
 
@@ -164,7 +164,7 @@ const BodyUpdateSchema = z.object({
   changeReason: z.string().max(500).optional(),
 });
 
-articleRoutes.post("/articles/:id/body", zValidator("json", BodyUpdateSchema), async (c) => {
+articleRoutes.post("/:id/body", zValidator("json", BodyUpdateSchema), async (c) => {
   const id = c.req.param("id");
   const input = c.req.valid("json");
 
@@ -199,7 +199,7 @@ articleRoutes.post("/articles/:id/body", zValidator("json", BodyUpdateSchema), a
 
 // ─── versions list ────────────────────────────────────────────────────────────
 
-articleRoutes.get("/articles/:id/versions", async (c) => {
+articleRoutes.get("/:id/versions", async (c) => {
   const id = c.req.param("id");
 
   const [exists] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id)).limit(1);
@@ -220,7 +220,7 @@ articleRoutes.get("/articles/:id/versions", async (c) => {
 
 // ─── version body ─────────────────────────────────────────────────────────────
 
-articleRoutes.get("/articles/:id/versions/:version", async (c) => {
+articleRoutes.get("/:id/versions/:version", async (c) => {
   const id = c.req.param("id");
   const version = parseInt(c.req.param("version"), 10);
   if (isNaN(version)) return c.json({ ok: false, error: "Invalid version number" }, 400);
@@ -235,7 +235,7 @@ articleRoutes.get("/articles/:id/versions/:version", async (c) => {
 
 // ─── pipeline triggers (preRunId pattern) ─────────────────────────────────────
 
-articleRoutes.post("/articles/:id/generate-outline", async (c) => {
+articleRoutes.post("/:id/generate-outline", async (c) => {
   const id = c.req.param("id");
   const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
     .from(articles).where(eq(articles.id, id)).limit(1);
@@ -253,7 +253,7 @@ articleRoutes.post("/articles/:id/generate-outline", async (c) => {
   return triggerResultToResponse(c, result);
 });
 
-articleRoutes.post("/articles/:id/generate-draft", async (c) => {
+articleRoutes.post("/:id/generate-draft", async (c) => {
   const id = c.req.param("id");
   const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
     .from(articles).where(eq(articles.id, id)).limit(1);
@@ -271,7 +271,7 @@ articleRoutes.post("/articles/:id/generate-draft", async (c) => {
   return triggerResultToResponse(c, result);
 });
 
-articleRoutes.post("/articles/:id/sync", async (c) => {
+articleRoutes.post("/:id/sync", async (c) => {
   const id = c.req.param("id");
   const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
     .from(articles).where(eq(articles.id, id)).limit(1);
@@ -288,7 +288,7 @@ articleRoutes.post("/articles/:id/sync", async (c) => {
   return triggerResultToResponse(c, result);
 });
 
-articleRoutes.post("/articles/:id/validate-pagespeed", async (c) => {
+articleRoutes.post("/:id/validate-pagespeed", async (c) => {
   const id = c.req.param("id");
   const [article] = await db
     .select({ id: articles.id, projectId: articles.projectId, astroCommitSha: articles.astroCommitSha })
@@ -324,7 +324,7 @@ articleRoutes.post("/articles/:id/validate-pagespeed", async (c) => {
   return triggerResultToResponse(c, result);
 });
 
-articleRoutes.post("/articles/:id/extend-schema", async (c) => {
+articleRoutes.post("/:id/extend-schema", async (c) => {
   const id = c.req.param("id");
   const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
     .from(articles).where(eq(articles.id, id)).limit(1);
@@ -342,7 +342,39 @@ articleRoutes.post("/articles/:id/extend-schema", async (c) => {
   return triggerResultToResponse(c, result);
 });
 
-// ─── legacy endpoints (kept for CLI compat) ────────────────────────────────────
+// ─── continue (CLI compat) ────────────────────────────────────────────────────
+
+const ContinueBodySchema = z.object({
+  modelOverride: z.enum(["claude-opus-4-7", "claude-sonnet-4-6"]).optional(),
+});
+
+articleRoutes.post("/:articleId/continue", async (c) => {
+  const articleId = c.req.param("articleId");
+  const rawBody = await c.req.json().catch(() => ({}));
+  const bodyResult = ContinueBodySchema.safeParse(rawBody);
+  const body = bodyResult.success ? bodyResult.data : {};
+
+  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
+    .from(articles).where(eq(articles.id, articleId)).limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  try {
+    const base = { articleId: article.id, projectId: article.projectId };
+    const input = body.modelOverride ? { ...base, modelOverride: body.modelOverride } : base;
+    const result = await continueArticleGeneration(input);
+    log.info({ articleId, draftJobId: result.draftJobId }, "Article continuation enqueued via HTTP");
+    return c.json({ ok: true, data: result }, 202);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    log.warn({ err: e, articleId }, "Article continuation failed");
+    return c.json({ ok: false, error: msg }, 400);
+  }
+});
+
+// ─── legacy generate (CLI compat, mounted at /api NOT /api/articles) ──────────
+// POST /api/projects/:projectSlug/articles/generate starts with /projects/ so it
+// cannot live on articleRoutes (mounted at /api/articles). Exported separately
+// and mounted at /api in server.ts.
 
 const GenerateBodySchema = z.object({
   cornerstoneSlug: z.string().min(1),
@@ -350,11 +382,11 @@ const GenerateBodySchema = z.object({
   modelOverride: z.enum(["claude-opus-4-7", "claude-sonnet-4-6"]).optional(),
 });
 
-const ContinueBodySchema = z.object({
-  modelOverride: z.enum(["claude-opus-4-7", "claude-sonnet-4-6"]).optional(),
-});
+export const legacyArticleRoutes = new Hono();
 
-articleRoutes.post(
+legacyArticleRoutes.use(requireAuth);
+
+legacyArticleRoutes.post(
   "/projects/:projectSlug/articles/generate",
   zValidator("json", GenerateBodySchema),
   async (c) => {
@@ -377,26 +409,3 @@ articleRoutes.post(
     }
   },
 );
-
-articleRoutes.post("/articles/:articleId/continue", async (c) => {
-  const articleId = c.req.param("articleId");
-  const rawBody = await c.req.json().catch(() => ({}));
-  const bodyResult = ContinueBodySchema.safeParse(rawBody);
-  const body = bodyResult.success ? bodyResult.data : {};
-
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
-    .from(articles).where(eq(articles.id, articleId)).limit(1);
-  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
-
-  try {
-    const base = { articleId: article.id, projectId: article.projectId };
-    const input = body.modelOverride ? { ...base, modelOverride: body.modelOverride } : base;
-    const result = await continueArticleGeneration(input);
-    log.info({ articleId, draftJobId: result.draftJobId }, "Article continuation enqueued via HTTP");
-    return c.json({ ok: true, data: result }, 202);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ err: e, articleId }, "Article continuation failed");
-    return c.json({ ok: false, error: msg }, 400);
-  }
-});

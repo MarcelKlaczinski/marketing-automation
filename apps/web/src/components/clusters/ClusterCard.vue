@@ -92,6 +92,7 @@
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
 import type { Cluster } from 'src/stores/clusters';
+import type { Pillar } from 'src/stores/pillars';
 import InlineEdit from 'src/components/common/InlineEdit.vue';
 
 export default defineComponent({
@@ -102,6 +103,7 @@ export default defineComponent({
   props: {
     cluster: { type: Object as PropType<Cluster>, required: true },
     allClusters: { type: Array as PropType<Cluster[]>, required: true },
+    allPillars: { type: Array as PropType<Pillar[]>, required: true },
     isFirst: { type: Boolean, default: false },
     isLast: { type: Boolean, default: false },
   },
@@ -109,16 +111,8 @@ export default defineComponent({
   emits: ['rename', 'delete', 'move', 'change-pillar', 'move-articles'],
 
   computed: {
-    availablePillars(): Array<{ id: string; name: string }> {
-      const seenPillarIds = new Set<string>();
-      const result: Array<{ id: string; name: string }> = [];
-      for (const c of this.allClusters) {
-        if (c.pillarId === this.cluster.pillarId) continue;
-        if (seenPillarIds.has(c.pillarId)) continue;
-        seenPillarIds.add(c.pillarId);
-        if (c.pillarName) result.push({ id: c.pillarId, name: c.pillarName });
-      }
-      return result;
+    availablePillars(): Pillar[] {
+      return this.allPillars.filter((p) => p.id !== this.cluster.pillarId);
     },
   },
 

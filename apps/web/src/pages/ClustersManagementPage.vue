@@ -41,6 +41,7 @@
         :pillar="pillar"
         :clusters="clustersByPillar[pillar.id] ?? []"
         :all-clusters="allClusters"
+        :all-pillars="pillars"
         :is-first="idx === 0"
         :is-last="idx === pillars.length - 1"
         :slug="slug"

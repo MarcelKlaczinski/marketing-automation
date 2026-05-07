@@ -65,7 +65,10 @@ export const usePillarsStore = defineStore('pillars', {
           // Cast justified: guarded by instanceof HttpError + 'error' in e.body above
           const body = e.body as { error: string; data?: { clusterCount: number } };
           if (body.error === 'pillar_has_clusters') {
-            return { deleted: false, clusterCount: body.data?.clusterCount };
+            const clusterCount = body.data?.clusterCount;
+            return clusterCount !== undefined
+              ? { deleted: false, clusterCount }
+              : { deleted: false };
           }
         }
         throw e;

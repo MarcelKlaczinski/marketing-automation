@@ -116,10 +116,11 @@ pillarRoutes.delete("/:id", async (c) => {
     .limit(1);
   if (!pillar) return c.json({ ok: false, error: "Pillar not found" }, 404);
 
-  const [{ count }] = await db
+  const countResult = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(clusters)
     .where(eq(clusters.pillarId, id));
+  const count = countResult[0]?.count ?? 0;
 
   if (count > 0) {
     return c.json({ ok: false, error: "pillar_has_clusters", data: { clusterCount: count } }, 409);

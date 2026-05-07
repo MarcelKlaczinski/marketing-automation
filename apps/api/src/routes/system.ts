@@ -117,7 +117,6 @@ systemRoutes.delete("/credentials/:service/:key", requireAuth, async (c) => {
 // Auth required — removes all credentials for a service and clears its verify status.
 
 const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app"] as const;
-type ValidService = typeof validServices[number];
 
 systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
   const service = c.req.param("service");

@@ -69,7 +69,26 @@ Designed to evolve into SaaS.
 - DO NOT make an adapter client factory synchronous if credential resolution must hit the DB (vault) — make the factory `async` and cache the resolved client in a module-level singleton. All callers inside the file must `await` the factory. The double-await pattern `(await getApi()).method()` is the correct idiom for immediate chained calls
 - DO NOT assume `enqueuePipeline()` returns a `runId` — it only returns `{ jobId }`. When a UI needs a stable runId to poll immediately, use the **preRunId pattern**: INSERT a `pipeline_runs` row (`status='queued'`) before enqueuing, pass its ID as `preRunId` through job data; the runner UPDATEs it to `status='running'` instead of INSERTing. See `packages/pipelines/src/cold-start/triggers.ts` for the canonical implementation
 - DO NOT derive Cold-Start phase completion from DB columns that don't exist (`projects.brandVoice`, `projects.coldStartCompletedAt`, `competitors` table) — Phase 1 = `projects.marketingContextMd` non-empty; Phase 2 = latest `cold-start:competitor-analysis` run `completed`; Phase 5 = latest `cold-start:go-live-checklist` run `completed`
+- DO NOT destructure the first element of a Drizzle `select` result when you only need an aggregate — `const [{ count }] = await db.select(...)` causes TS2339 because the array can be empty. Use `const result = await db.select(...); const count = result[0]?.count ?? 0` instead
 - DO NOT write a new pipeline-trigger HTTP endpoint without using `triggerWithPreRunId` or `checkTriggerAllowed` from `apps/api/src/routes/_lib/trigger-helpers.ts` — these enforce pause-check → cost-check → idempotency in the correct order. A route that skips them bypasses cost limits silently. See `apps/api/CLAUDE.md` for which variant to use
+
+## Local DB Setup
+
+Fresh machine? Run:
+```bash
+bun run db:setup    # provisions PostgreSQL role + database (idempotent)
+bun run db:migrate  # applies all migrations
+bun --env-file .env apps/api/src/scripts/apply-cost-defaults.ts  # applies cost limits to existing projects
+```
+
+Verify with `bun test` from any package — DB-touching tests should pass.
+
+### Env-file gotcha
+
+Drizzle-kit subcommands (check, migrate, push, studio, generate) need `--env-file ../../.env`
+when run from `packages/db`. The scripts in `packages/db/package.json` have this baked in,
+so always use `bun run check` / `bun run migrate` (not bare `bunx drizzle-kit …`).
+The root scripts (`bun run db:migrate`, `bun run db:check`, etc.) also handle this automatically.
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding

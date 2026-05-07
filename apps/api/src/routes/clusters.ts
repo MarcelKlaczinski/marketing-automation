@@ -178,10 +178,11 @@ clusterRoutes.delete("/:id", async (c) => {
     .limit(1);
   if (!cluster) return c.json({ ok: false, error: "Cluster not found" }, 404);
 
-  const [{ count }] = await db
+  const countResult = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(articles)
     .where(eq(articles.clusterId, id));
+  const count = countResult[0]?.count ?? 0;
 
   await db.delete(clusters).where(eq(clusters.id, id));
 
