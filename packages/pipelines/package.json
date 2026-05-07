@@ -17,6 +17,7 @@
   "dependencies": {
     "@marketing-auto/shared": "workspace:*",
     "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/adapter-anthropic": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",

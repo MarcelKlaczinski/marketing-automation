@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, timestamp, jsonb, decimal, numeric, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
 import { articles, socialPosts } from "./content.ts";
+import { users } from "./auth.ts";
 import { costServiceEnum, pipelineRunStatusEnum, approvalActionEnum } from "./_enums.ts";
 
 export const systemSettings = pgTable("system_settings", {
@@ -184,6 +185,33 @@ export const linkRebuildRuns = pgTable("link_rebuild_runs", {
 }, (t) => ({
   clusterIdx: index("link_rebuild_runs_cluster_idx").on(t.clusterId),
   projectStatusIdx: index("link_rebuild_runs_project_status_idx").on(t.projectId, t.status),
+}));
+
+// Spec 41: Cost Enforcement — pause state per project (single row, UPSERT semantics)
+export const projectPauseStates = pgTable("project_pause_states", {
+  projectId: uuid("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
+  pausedAt: timestamp("paused_at", { withTimezone: true }).notNull().defaultNow(),
+  reason: text("reason").notNull(),
+  reasonDetails: jsonb("reason_details").$type<Record<string, unknown>>().default({}),
+  pausedBy: uuid("paused_by").references(() => users.id, { onDelete: "set null" }),
+  service: text("service"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Spec 41: Cost Enforcement — log of alertAtPercent threshold breaches
+export const costAlerts = pgTable("cost_alerts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  service: text("service").notNull(),
+  thresholdType: text("threshold_type").$type<"daily" | "monthly">().notNull(),
+  limitEur: numeric("limit_eur", { precision: 10, scale: 2 }).$type<string>().notNull(),
+  spentEur: numeric("spent_eur", { precision: 10, scale: 4 }).$type<string>().notNull(),
+  percent: integer("percent").notNull(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledgedBy: uuid("acknowledged_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  projectCreatedIdx: index("cost_alerts_project_created_idx").on(t.projectId, t.createdAt),
 }));
 
 export const approvals = pgTable("approvals", {

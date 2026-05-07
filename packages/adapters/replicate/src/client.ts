@@ -3,6 +3,7 @@ import type { Prediction } from "replicate";
 import { randomUUID } from "node:crypto";
 import { getEnv, createLogger } from "@marketing-auto/shared";
 import { getGlobal } from "@marketing-auto/core/credentials";
+import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { track, replicateImageCostEur } from "@marketing-auto/cost-tracker";
 import type { ReplicateModel as CostReplicateModel } from "@marketing-auto/cost-tracker";
 import { putObject } from "@marketing-auto/adapter-storage";
@@ -69,6 +70,12 @@ function extractImageUrl(output: unknown): string | null {
 type TrackResult = GenerateImageResult & { prediction: Prediction };
 
 export async function generateImage(input: GenerateImageInput): Promise<GenerateImageResult> {
+  await assertCostBudget(
+    input.projectId,
+    "replicate",
+    estimateCostEur("replicate", input.operation),
+  );
+
   const client = await getClient();
   const modelSlug = REPLICATE_MODELS[input.model];
   const modelInput = buildModelInput(input);

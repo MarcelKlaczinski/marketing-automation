@@ -1,6 +1,7 @@
 import * as dfs from "dataforseo-client";
 import { getEnv, createLogger } from "@marketing-auto/shared";
 import { getGlobal } from "@marketing-auto/core/credentials";
+import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { track, dataforseoCostEur, EUR_PER_USD } from "@marketing-auto/cost-tracker";
 import {
   type SerpInput,
@@ -185,6 +186,12 @@ function taskReportedCostEur(task: unknown): number | null {
 // ─────────────────────────────────────────────────────────────
 
 export async function serp(input: SerpInput): Promise<SerpResult> {
+  await assertCostBudget(
+    input.projectId,
+    "dataforseo",
+    estimateCostEur("dataforseo", input.operation),
+  );
+
   const mode = input.mode ?? "live";
 
   if (mode === "standard") {
@@ -298,6 +305,12 @@ const INTENT_MAP: Record<string, KeywordIntent> = {
 export async function keywordOverview(
   input: KeywordOverviewInput,
 ): Promise<KeywordOverviewResult> {
+  await assertCostBudget(
+    input.projectId,
+    "dataforseo",
+    estimateCostEur("dataforseo", input.operation),
+  );
+
   if (input.keywords.length === 0) {
     throw new DataForSeoError("keywords array must contain at least 1 keyword");
   }
@@ -409,6 +422,12 @@ export async function keywordOverview(
 export async function relatedKeywords(
   input: RelatedKeywordsInput,
 ): Promise<RelatedKeywordsResult> {
+  await assertCostBudget(
+    input.projectId,
+    "dataforseo",
+    estimateCostEur("dataforseo", input.operation),
+  );
+
   const locationCode = input.locationCode ?? DEFAULT_LOCATION;
   const languageCode = input.languageCode ?? DEFAULT_LANGUAGE;
   const depth = input.depth ?? 4;
@@ -487,6 +506,12 @@ export async function relatedKeywords(
 export async function rankedKeywords(
   input: RankedKeywordsInput,
 ): Promise<RankedKeywordsResult> {
+  await assertCostBudget(
+    input.projectId,
+    "dataforseo",
+    estimateCostEur("dataforseo", input.operation),
+  );
+
   const locationCode = input.locationCode ?? DEFAULT_LOCATION;
   const languageCode = input.languageCode ?? DEFAULT_LANGUAGE;
   const limit = input.limit ?? 100;

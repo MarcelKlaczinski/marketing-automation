@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getEnv, createLogger } from "@marketing-auto/shared";
 import { getGlobal } from "@marketing-auto/core/credentials";
+import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { track, anthropicCostEur } from "@marketing-auto/cost-tracker";
 import {
   ANTHROPIC_MODELS,
@@ -125,6 +126,12 @@ function isRetryableError(e: unknown): boolean {
 }
 
 export async function messages(input: MessagesInput): Promise<MessagesResult> {
+  await assertCostBudget(
+    input.projectId,
+    "anthropic",
+    estimateCostEur("anthropic", input.operation),
+  );
+
   const client = await getClient();
   const modelId = ANTHROPIC_MODELS[input.model];
   const maxTokens = Math.min(

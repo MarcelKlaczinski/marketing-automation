@@ -202,6 +202,15 @@ This works whenever the hook's side-effect (DB insert, queue enqueue) precedes a
 
 4. **Pipelines with `afterComplete` auto-triggers break status assertions in integration tests.** If `afterComplete` transitions the article (e.g., `final_review` → `schema_extending`), a test that asserts `status === "final_review"` immediately after `runPipeline` will fail. Assert both statuses: `expect(["final_review", "schema_extending"]).toContain(saved!.status)` with a comment explaining why.
 
+## Cost Enforcement Integration (Spec 41)
+
+`getPipelineQueue()` registers the BullMQ pause/resume callbacks with `registerQueuePauser` from `@marketing-auto/core/cost`. This must fire before any cost limit can be hit, so:
+
+- `startPipelineWorker()` calls `getPipelineQueue()` at startup to ensure registration happens even in worker-only processes.
+- `enqueuePipeline()` also calls `getPipelineQueue()`, so API+worker combined processes are covered.
+
+If `registerQueuePauser` is never called (e.g., a process that imports `assertCostBudget` but never initializes a queue), the DB pause state is still written — but Redis `queue.pause()` is not called. The trigger-layer check (`isProjectPaused`) will still block new jobs. This is acceptable but means already-queued jobs may start.
+
 ## Common Mistakes
 
 - DO NOT do business logic outside of `execute()` — it won't be tracked

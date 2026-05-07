@@ -2,6 +2,9 @@ import { Queue, Worker, type JobsOptions } from "bullmq";
 import IORedis from "ioredis";
 import { z } from "zod";
 import { getEnv, createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { db, pipelineRuns } from "@marketing-auto/db";
+import { registerQueuePauser } from "@marketing-auto/core/cost";
 import { runPipeline } from "./runner.ts";
 import type { Pipeline } from "./pipeline.ts";
 import { pipelineRegistry } from "./registry.ts";
@@ -39,6 +42,16 @@ export function getPipelineQueue(): Queue {
       removeOnFail: { count: 1000, age: 30 * 24 * 3600 },
     },
   });
+
+  // Register the cost-enforcement pause/resume callbacks so packages/core can
+  // pause BullMQ queues without a circular dependency on packages/pipelines.
+  // Single global queue — pausing it is acceptable for the single-tenant setup.
+  // Multi-tenant deployments would need per-project queues (out of scope).
+  registerQueuePauser(
+    async (_projectId: string) => { await _queue!.pause(); },
+    async (_projectId: string) => { await _queue!.resume(); },
+  );
+
   return _queue;
 }
 
@@ -78,6 +91,10 @@ export async function enqueuePipeline(input: EnqueuePipelineInput): Promise<{ jo
 export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
   const concurrency = opts?.concurrency ?? 5;
 
+  // Ensure queue is initialized and queue pauser registered (needed when this
+  // process never calls enqueuePipeline, e.g. a dedicated worker-only process).
+  getPipelineQueue();
+
   const worker = new Worker(
     QUEUE_NAME,
     async (job) => {
@@ -88,10 +105,14 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         throw new Error(`Pipeline not registered: ${pipelineName}`);
       }
 
+      const runOpts: Parameters<typeof runPipeline>[2] = preRunId !== undefined
+        ? { projectId, jobId: String(job.id), preRunId }
+        : { projectId, jobId: String(job.id) };
+
       const result = await runPipeline(
         pipeline as Pipeline<unknown, unknown>,
         input,
-        { projectId, jobId: String(job.id), preRunId },
+        runOpts,
         async (percent) => {
           await job.updateProgress(percent);
         },
@@ -111,7 +132,25 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
 
   worker.on("ready", () => log.info({ concurrency }, "Pipeline worker started"));
   worker.on("completed", (job) => log.info({ jobId: job.id, name: job.name }, "Job completed"));
-  worker.on("failed", (job, err) => log.error({ jobId: job?.id, err }, "Job failed"));
+  worker.on("failed", async (job, err) => {
+    log.error({ jobId: job?.id, err }, "Job failed");
+
+    // Tag cost-limit failures so the frontend can show a special error UI
+    const isCostError =
+      (err as { name?: string }).name === "CostLimitExceededError" ||
+      (err.message?.startsWith("cost_limit_exceeded:") ?? false);
+
+    if (isCostError && job?.data?.preRunId) {
+      // pipelineRuns.output is $type<Record<string,unknown>>; literal needs cast to match
+      const costOutput: Record<string, unknown> = { errorType: "cost_limit_exceeded" };
+      await db.update(pipelineRuns)
+        .set({ output: costOutput })
+        .where(eq(pipelineRuns.id, String(job.data.preRunId)))
+        .catch((updateErr: unknown) => {
+          log.warn({ err: updateErr }, "Failed to tag cost error on pipeline_run");
+        });
+    }
+  });
 
   return worker;
 }

@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { getEnv, createLogger } from "@marketing-auto/shared";
 import { getGlobal } from "@marketing-auto/core/credentials";
+import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { track } from "@marketing-auto/cost-tracker";
 import {
   type SendEmailInput,
@@ -75,6 +76,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const smtp = await getTransporter();
 
   if (!smtp) {
+    // Dev fallback — no real cost incurred, skip cost check
     log.warn(
       { to: input.to, subject: input.subject, operation: input.operation },
       "SMTP not configured — email logged to console (dev fallback)",
@@ -99,6 +101,12 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 
   const { transporter, config } = smtp;
   const projectId = input.projectId ?? PLATFORM_PROJECT_ID;
+
+  await assertCostBudget(
+    projectId,
+    "smtp",
+    estimateCostEur("smtp", input.operation),
+  );
   const fromAddress = `"${env.SMTP_FROM_NAME}" <${config.fromAddress}>`;
 
   log.debug({

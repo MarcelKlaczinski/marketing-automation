@@ -5,7 +5,8 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./credentials": "./src/credentials/index.ts"
+    "./credentials": "./src/credentials/index.ts",
+    "./cost": "./src/cost/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
