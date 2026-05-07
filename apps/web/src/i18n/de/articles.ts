@@ -59,6 +59,23 @@ export default {
     extendSchema: 'Schema.org erweitern',
     triggered: 'Aktion gestartet: {action}',
     notAvailable: 'Aktion nicht verfügbar im aktuellen Status',
+    noRunsYet: 'Noch keine Runs.',
+  },
+
+  runs: {
+    type: {
+      sync: 'Astro-Sync',
+      pagespeed: 'PageSpeed',
+      schema: 'Schema.org',
+    },
+    status: {
+      pending: 'Läuft',
+      succeeded: 'Erfolgreich',
+      failed: 'Fehlgeschlagen',
+      errored: 'Fehler',
+      budgetExceeded: 'Budget überschritten',
+      unknown: 'Unbekannt',
+    },
   },
 
   header: {
