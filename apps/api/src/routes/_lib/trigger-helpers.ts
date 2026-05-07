@@ -17,6 +17,8 @@ export interface TriggerOptions {
   /** Optional cost pre-flight */
   costEstimate?: { service: string; operation: string; multiplier?: number };
   /** Enqueue the actual BullMQ job; receives the full input payload including preRunId */
+  // Function contravariance: enqueue fns like enqueueArticleOutlinePipeline require a concrete input
+  // type (e.g. { articleId: string }) that is incompatible with the generic inputPayload at the type level.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   enqueue: (input: any) => Promise<{ jobId: string }>;
   /** Additional fields merged into pipeline_runs.input and the enqueue payload */
@@ -159,6 +161,7 @@ export function triggerResultToResponse(c: Context, result: TriggerResult): Resp
       return c.json({ ok: false, error: "cost_limit_exceeded", data: result.details }, 402);
     }
   }
+  // Error branches are already handled above; result is safely the success union here
   return c.json(
     { ok: true, data: result },
     (result as { deduped: boolean }).deduped ? 200 : 202,

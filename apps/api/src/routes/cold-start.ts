@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { eq, and, sql, desc, inArray, isNull } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { db, projects, clusters, articles, pipelineRuns } from "@marketing-auto/db";
 import { requireAuth } from "../middleware/auth.ts";
 import { checkTriggerAllowed, guardErrorToResponse } from "./_lib/trigger-helpers.ts";
@@ -26,21 +26,6 @@ async function resolveProject(slug: string): Promise<{ id: string; marketingCont
     .where(eq(projects.slug, slug))
     .limit(1);
   return proj ?? null;
-}
-
-async function latestRunStatus(projectId: string, pipelineName: string | string[]): Promise<string | null> {
-  const names = Array.isArray(pipelineName) ? pipelineName : [pipelineName];
-  const [run] = await db
-    .select({ status: pipelineRuns.status })
-    .from(pipelineRuns)
-    .where(and(
-      eq(pipelineRuns.projectId, projectId),
-      inArray(pipelineRuns.pipelineName, names),
-      isNull(pipelineRuns.stepName),
-    ))
-    .orderBy(desc(pipelineRuns.createdAt))
-    .limit(1);
-  return run?.status ?? null;
 }
 
 // ───── Status endpoint ─────────────────────────────────────────────────────
@@ -389,6 +374,7 @@ coldStartRoutes.patch(
     if (patch.title !== undefined) patchFields["title"] = patch.title;
     if (patch.cornerstoneKeyword !== undefined) patchFields["cornerstoneKeyword"] = patch.cornerstoneKeyword;
     if (patch.metaDescription !== undefined) patchFields["metaDescription"] = patch.metaDescription;
+    // exactOptionalPropertyTypes: Record<string,unknown> is not assignable to Drizzle's strict column type; conditional build above ensures only valid keys are present
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await db.update(articles).set(patchFields as any).where(eq(articles.id, articleId));
     const [updated] = await db.select().from(articles).where(eq(articles.id, articleId)).limit(1);
