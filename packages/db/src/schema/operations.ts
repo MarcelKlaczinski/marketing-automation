@@ -92,7 +92,7 @@ export const astroSyncRuns = pgTable("astro_sync_runs", {
   status: text("status").$type<"pending" | "succeeded" | "failed">().notNull(),
   commitSha: text("commit_sha"),
   errorMessage: text("error_message"),
-  errorStage: text("error_stage").$type<"load" | "schema" | "image" | "render" | "commit" | "db_update">(),
+  errorStage: text("error_stage").$type<"load" | "schema" | "image" | "render" | "commit" | "db_update" | "stale_read">(),
 
   filesCommitted: jsonb("files_committed").$type<string[]>(),
   bytesCommitted: integer("bytes_committed"),

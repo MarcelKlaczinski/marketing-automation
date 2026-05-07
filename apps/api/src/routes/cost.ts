@@ -1,8 +1,8 @@
 import { Hono } from "hono";
-import { eq, and, gte, lte, desc, sql, like } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, like, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { db, costLogs, projects } from "@marketing-auto/db";
+import { db, costLogs, projects, costAlerts } from "@marketing-auto/db";
 import { requireAuth } from "../middleware/auth.ts";
 
 export const costRoutes = new Hono();
@@ -191,4 +191,52 @@ costRoutes.get("/logs", zValidator("query", logsQuerySchema), async (c) => {
       offset: q.offset,
     },
   });
+});
+
+// ─── Cost alerts ──────────────────────────────────────────────────────────────
+
+const alertsQuerySchema = z.object({
+  projectId: z.string().uuid().optional(),
+  includeAcked: z.coerce.boolean().default(false),
+});
+
+costRoutes.get("/alerts", zValidator("query", alertsQuerySchema), async (c) => {
+  const { projectId, includeAcked } = c.req.valid("query");
+
+  const filters = [];
+  if (projectId) filters.push(eq(costAlerts.projectId, projectId));
+  if (!includeAcked) filters.push(isNull(costAlerts.acknowledgedAt));
+
+  const alerts = await db
+    .select({
+      id: costAlerts.id,
+      projectId: costAlerts.projectId,
+      projectName: projects.name,
+      service: costAlerts.service,
+      thresholdType: costAlerts.thresholdType,
+      limitEur: costAlerts.limitEur,
+      spentEur: costAlerts.spentEur,
+      percent: costAlerts.percent,
+      acknowledgedAt: costAlerts.acknowledgedAt,
+      createdAt: costAlerts.createdAt,
+    })
+    .from(costAlerts)
+    .leftJoin(projects, eq(costAlerts.projectId, projects.id))
+    .where(filters.length > 0 ? and(...filters) : undefined)
+    .orderBy(desc(costAlerts.createdAt))
+    .limit(100);
+
+  return c.json({ ok: true, data: alerts });
+});
+
+costRoutes.post("/alerts/:id/acknowledge", async (c) => {
+  const id = c.req.param("id");
+  const user = c.get("user") as { id: string } | undefined;
+
+  await db
+    .update(costAlerts)
+    .set({ acknowledgedAt: new Date(), acknowledgedBy: user?.id ?? null })
+    .where(eq(costAlerts.id, id));
+
+  return c.json({ ok: true, data: { id } });
 });

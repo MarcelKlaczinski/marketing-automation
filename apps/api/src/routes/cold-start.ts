@@ -4,6 +4,7 @@ import { z } from "zod";
 import { eq, and, sql, desc, inArray, isNull } from "drizzle-orm";
 import { db, projects, clusters, articles, pipelineRuns } from "@marketing-auto/db";
 import { requireAuth } from "../middleware/auth.ts";
+import { checkTriggerAllowed, guardErrorToResponse } from "./_lib/trigger-helpers.ts";
 import {
   enqueueColdStartVoiceQuestions,
   enqueueColdStartVoiceSynthesize,
@@ -184,6 +185,14 @@ coldStartRoutes.post("/:slug/cold-start/voice-refinement/questions", async (c) =
   const proj = await resolveProject(slug);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
+  const blocked = await checkTriggerAllowed({
+    pipelineName: "cold-start:voice-refinement-questions",
+    projectId: proj.id,
+    uniqueKey: { field: "projectId", value: proj.id },
+    costEstimate: { service: "anthropic", operation: "cold-start:voice-extraction" },
+  });
+  if (blocked) return guardErrorToResponse(c, blocked);
+
   const { runId, jobId } = await enqueueColdStartVoiceQuestions({ projectId: proj.id });
   return c.json({ ok: true, data: { runId, jobId } }, 202);
 });
@@ -203,6 +212,14 @@ coldStartRoutes.post(
     const proj = await resolveProject(slug);
     if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
+    const blocked = await checkTriggerAllowed({
+      pipelineName: "cold-start:voice-synthesis",
+      projectId: proj.id,
+      uniqueKey: { field: "projectId", value: proj.id },
+      costEstimate: { service: "anthropic", operation: "cold-start:voice-extraction" },
+    });
+    if (blocked) return guardErrorToResponse(c, blocked);
+
     const { answers } = c.req.valid("json");
     const { runId, jobId } = await enqueueColdStartVoiceSynthesize({ projectId: proj.id, answers });
     return c.json({ ok: true, data: { runId, jobId } }, 202);
@@ -216,16 +233,26 @@ coldStartRoutes.post("/:slug/cold-start/competitor-analysis/questions", async (c
   const proj = await resolveProject(slug);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
+  const blocked = await checkTriggerAllowed({
+    pipelineName: "cold-start:competitor-questions",
+    projectId: proj.id,
+    uniqueKey: { field: "projectId", value: proj.id },
+    costEstimate: { service: "anthropic", operation: "cold-start:competitor-questions" },
+  });
+  if (blocked) return guardErrorToResponse(c, blocked);
+
   const { runId, jobId } = await enqueueColdStartCompetitorQuestions({ projectId: proj.id });
   return c.json({ ok: true, data: { runId, jobId } }, 202);
 });
+
+const MAX_COMPETITORS = 15;
 
 const competitorAnalysisSchema = z.object({
   competitors: z.array(z.object({
     domain: z.string(),
     why_relevant: z.string(),
     expected_strengths: z.array(z.string()),
-  })).min(1).max(5),
+  })).min(1).max(MAX_COMPETITORS),
 });
 
 coldStartRoutes.post(
@@ -237,6 +264,24 @@ coldStartRoutes.post(
     if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
     const { competitors } = c.req.valid("json");
+
+    // Hard cap enforced at schema level above; defensive double-check
+    if (competitors.length > MAX_COMPETITORS) {
+      return c.json({
+        ok: false,
+        error: "competitor_count_exceeded",
+        message: `${competitors.length} competitors exceed the limit of ${MAX_COMPETITORS}. Trim the list before running analysis.`,
+      }, 422);
+    }
+
+    const blocked = await checkTriggerAllowed({
+      pipelineName: "cold-start:competitor-analysis",
+      projectId: proj.id,
+      uniqueKey: { field: "projectId", value: proj.id },
+      costEstimate: { service: "dataforseo", operation: "serp-analysis", multiplier: competitors.length },
+    });
+    if (blocked) return guardErrorToResponse(c, blocked);
+
     const { runId, jobId } = await enqueueColdStartCompetitorAnalysis({ projectId: proj.id, competitors });
     return c.json({ ok: true, data: { runId, jobId } }, 202);
   },
@@ -249,17 +294,24 @@ coldStartRoutes.post("/:slug/cold-start/cluster-plan", async (c) => {
   const proj = await resolveProject(slug);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
+  const blocked = await checkTriggerAllowed({
+    pipelineName: "cold-start:cluster-propose",
+    projectId: proj.id,
+    uniqueKey: { field: "projectId", value: proj.id },
+    costEstimate: { service: "anthropic", operation: "cold-start:cluster-plan" },
+  });
+  if (blocked) return guardErrorToResponse(c, blocked);
+
   const rawBody = await c.req.json().catch(() => ({}));
   const { contentGaps, topicsToAvoid } = z.object({
     contentGaps: z.array(z.string()).optional(),
     topicsToAvoid: z.array(z.string()).optional(),
   }).parse(rawBody);
 
-  const { runId, jobId } = await enqueueColdStartClusterPropose({
-    projectId: proj.id,
-    contentGaps,
-    topicsToAvoid,
-  });
+  const clusterProposeInput: Parameters<typeof enqueueColdStartClusterPropose>[0] = { projectId: proj.id };
+  if (contentGaps !== undefined) clusterProposeInput.contentGaps = contentGaps;
+  if (topicsToAvoid !== undefined) clusterProposeInput.topicsToAvoid = topicsToAvoid;
+  const { runId, jobId } = await enqueueColdStartClusterPropose(clusterProposeInput);
   return c.json({ ok: true, data: { runId, jobId } }, 202);
 });
 
@@ -288,6 +340,14 @@ coldStartRoutes.post(
     const slug = c.req.param("slug");
     const proj = await resolveProject(slug);
     if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
+
+    const blocked = await checkTriggerAllowed({
+      pipelineName: "cold-start:cornerstone-list",
+      projectId: proj.id,
+      uniqueKey: { field: "projectId", value: proj.id },
+      costEstimate: { service: "anthropic", operation: "cold-start:cornerstone-spec" },
+    });
+    if (blocked) return guardErrorToResponse(c, blocked);
 
     const { approvedClusters } = c.req.valid("json");
     const { runId, jobId } = await enqueueColdStartCornerstoneList({ projectId: proj.id, approvedClusters });
@@ -325,7 +385,12 @@ coldStartRoutes.patch(
     const articleId = c.req.param("articleId");
     const patch = c.req.valid("json");
 
-    await db.update(articles).set({ ...patch, updatedAt: new Date() }).where(eq(articles.id, articleId));
+    const patchFields: Record<string, unknown> = { updatedAt: new Date() };
+    if (patch.title !== undefined) patchFields["title"] = patch.title;
+    if (patch.cornerstoneKeyword !== undefined) patchFields["cornerstoneKeyword"] = patch.cornerstoneKeyword;
+    if (patch.metaDescription !== undefined) patchFields["metaDescription"] = patch.metaDescription;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.update(articles).set(patchFields as any).where(eq(articles.id, articleId));
     const [updated] = await db.select().from(articles).where(eq(articles.id, articleId)).limit(1);
     return c.json({ ok: true, data: updated });
   },
@@ -355,6 +420,14 @@ coldStartRoutes.post("/:slug/cold-start/go-live-checklist", async (c) => {
   const slug = c.req.param("slug");
   const proj = await resolveProject(slug);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const blocked = await checkTriggerAllowed({
+    pipelineName: "cold-start:go-live-checklist",
+    projectId: proj.id,
+    uniqueKey: { field: "projectId", value: proj.id },
+    costEstimate: { service: "anthropic", operation: "cold-start:go-live-checklist" },
+  });
+  if (blocked) return guardErrorToResponse(c, blocked);
 
   const { runId, jobId } = await enqueueColdStartGoLiveChecklist({ projectId: proj.id });
   return c.json({ ok: true, data: { runId, jobId } }, 202);

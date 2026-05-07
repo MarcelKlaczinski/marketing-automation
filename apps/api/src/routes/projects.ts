@@ -4,6 +4,7 @@ import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { db, projects, clusters, articles } from "@marketing-auto/db";
 import { requireAuth } from "../middleware/auth.ts";
+import { resumeProjectQueues, getPauseInfo, DEFAULT_COST_LIMITS } from "@marketing-auto/core";
 
 export const projectRoutes = new Hono();
 
@@ -121,7 +122,7 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       industry: input.industry,
       pipelineTemplate: input.pipelineTemplate,
       marketingContextMd: input.marketingContextMd ?? "",
-      costLimits: { daily: {}, monthly: {} },
+      costLimits: DEFAULT_COST_LIMITS,
     })
     .returning();
 
@@ -202,4 +203,26 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     .limit(1);
 
   return c.json({ ok: true, data: updated });
+});
+
+// ─── Pause / Resume ───────────────────────────────────────────────────────────
+
+projectRoutes.get("/:slug/pause-state", async (c) => {
+  const slug = c.req.param("slug");
+  const [proj] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug)).limit(1);
+  if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const info = await getPauseInfo(proj.id);
+  return c.json({ ok: true, data: info });
+});
+
+projectRoutes.post("/:slug/resume-queues", async (c) => {
+  const slug = c.req.param("slug");
+  const [proj] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug)).limit(1);
+  if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const user = c.get("user") as { id: string } | undefined;
+  await resumeProjectQueues(proj.id, user?.id);
+
+  return c.json({ ok: true, data: { resumed: true } });
 });

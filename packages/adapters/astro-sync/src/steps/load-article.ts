@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { db, articles, projects, clusters } from "@marketing-auto/db";
+import { db, articles, projects, clusters, pipelineRuns } from "@marketing-auto/db";
 import { AstroSyncError, AstroRepoConfigSchema, type AstroRepoConfig } from "../types.ts";
 
 const InputSchema = z.object({
@@ -44,7 +44,7 @@ export class LoadArticleStep extends BaseStep<
 
   override estimatedCostEur(): number { return 0; }
 
-  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
+  async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const [article] = await db
       .select()
       .from(articles)
@@ -53,6 +53,21 @@ export class LoadArticleStep extends BaseStep<
 
     if (!article) {
       throw new AstroSyncError(`Article ${input.articleId} not found`, "load");
+    }
+
+    // Stale-read guard: abort if the article was modified after the pipeline run was created.
+    // This prevents committing stale content when the user edits the article while the sync is queued.
+    const [run] = await db
+      .select({ createdAt: pipelineRuns.createdAt })
+      .from(pipelineRuns)
+      .where(eq(pipelineRuns.id, ctx.pipelineRunId))
+      .limit(1);
+
+    if (run && article.updatedAt > run.createdAt) {
+      throw new AstroSyncError(
+        `stale_read: article was updated at ${article.updatedAt.toISOString()} after pipeline run started at ${run.createdAt.toISOString()}. Trigger a new sync to pick up the latest content.`,
+        "stale_read",
+      );
     }
 
     if (article.status !== "final_review" && article.status !== "ready_to_publish") {

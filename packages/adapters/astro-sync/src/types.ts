@@ -46,7 +46,7 @@ export type SyncResult = {
 export class AstroSyncError extends Error {
   constructor(
     message: string,
-    public readonly stage: "load" | "schema" | "image" | "render" | "commit" | "db_update" | "auth" | "config",
+    public readonly stage: "load" | "schema" | "image" | "render" | "commit" | "db_update" | "auth" | "config" | "stale_read",
     public readonly originalCause?: unknown,
   ) {
     super(message);

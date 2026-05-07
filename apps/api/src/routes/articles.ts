@@ -2,14 +2,13 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { recalcPillarArticleId } from "./clusters.ts";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, gte } from "drizzle-orm";
 import {
   db,
   projects,
   articles,
   clusters,
   contentPillars,
-  pipelineRuns,
   astroSyncRuns,
   pagespeedRuns,
   schemaExtensionRuns,
@@ -26,38 +25,13 @@ import {
 } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { requireAuth } from "../middleware/auth.ts";
+import { triggerWithPreRunId, triggerResultToResponse } from "./_lib/trigger-helpers.ts";
 
 const log = createLogger("routes:articles");
 
 export const articleRoutes = new Hono();
 
 articleRoutes.use(requireAuth);
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
-
-interface TriggerOptions {
-  pipelineName: string;
-  articleId: string;
-  projectId: string;
-  enqueue: (input: { preRunId: string; articleId: string; projectId: string }) => Promise<{ jobId: string }>;
-}
-
-async function triggerWithPreRunId(opts: TriggerOptions): Promise<{ runId: string; jobId: string }> {
-  const [run] = await db.insert(pipelineRuns).values({
-    pipelineName: opts.pipelineName,
-    projectId: opts.projectId,
-    status: "queued",
-    input: { articleId: opts.articleId } as Record<string, unknown>,
-  }).returning({ id: pipelineRuns.id });
-
-  const preRunId = run!.id;
-
-  const { jobId } = await opts.enqueue({ preRunId, articleId: opts.articleId, projectId: opts.projectId });
-
-  await db.update(pipelineRuns).set({ jobId }).where(eq(pipelineRuns.id, preRunId));
-
-  return { runId: preRunId, jobId };
-}
 
 // ─── list ─────────────────────────────────────────────────────────────────────
 
@@ -267,20 +241,16 @@ articleRoutes.post("/articles/:id/generate-outline", async (c) => {
     .from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  try {
-    const result = await triggerWithPreRunId({
-      pipelineName: "article:outline",
-      articleId: article.id,
-      projectId: article.projectId,
-      enqueue: enqueueArticleOutlinePipeline,
-    });
-    log.info({ articleId: id, ...result }, "Outline pipeline triggered via HTTP");
-    return c.json({ ok: true, data: result }, 202);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ err: e, articleId: id }, "Outline trigger failed");
-    return c.json({ ok: false, error: msg }, 400);
-  }
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:outline",
+    projectId: article.projectId,
+    uniqueKey: { field: "articleId", value: article.id },
+    costEstimate: { service: "anthropic", operation: "outline-generation" },
+    extraInput: { articleId: article.id },
+    enqueue: enqueueArticleOutlinePipeline,
+  });
+  log.info({ articleId: id, ...result }, "Outline pipeline triggered via HTTP");
+  return triggerResultToResponse(c, result);
 });
 
 articleRoutes.post("/articles/:id/generate-draft", async (c) => {
@@ -289,20 +259,16 @@ articleRoutes.post("/articles/:id/generate-draft", async (c) => {
     .from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  try {
-    const result = await triggerWithPreRunId({
-      pipelineName: "article:draft",
-      articleId: article.id,
-      projectId: article.projectId,
-      enqueue: enqueueArticleDraftPipeline,
-    });
-    log.info({ articleId: id, ...result }, "Draft pipeline triggered via HTTP");
-    return c.json({ ok: true, data: result }, 202);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ err: e, articleId: id }, "Draft trigger failed");
-    return c.json({ ok: false, error: msg }, 400);
-  }
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:draft",
+    projectId: article.projectId,
+    uniqueKey: { field: "articleId", value: article.id },
+    costEstimate: { service: "anthropic", operation: "draft-generation" },
+    extraInput: { articleId: article.id },
+    enqueue: enqueueArticleDraftPipeline,
+  });
+  log.info({ articleId: id, ...result }, "Draft pipeline triggered via HTTP");
+  return triggerResultToResponse(c, result);
 });
 
 articleRoutes.post("/articles/:id/sync", async (c) => {
@@ -311,42 +277,51 @@ articleRoutes.post("/articles/:id/sync", async (c) => {
     .from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  try {
-    const result = await triggerWithPreRunId({
-      pipelineName: "article:astro-sync",
-      articleId: article.id,
-      projectId: article.projectId,
-      enqueue: enqueueArticleSyncPipeline,
-    });
-    log.info({ articleId: id, ...result }, "Astro sync triggered via HTTP");
-    return c.json({ ok: true, data: result }, 202);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ err: e, articleId: id }, "Astro sync trigger failed");
-    return c.json({ ok: false, error: msg }, 400);
-  }
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:astro-sync",
+    projectId: article.projectId,
+    uniqueKey: { field: "articleId", value: article.id },
+    extraInput: { articleId: article.id },
+    enqueue: enqueueArticleSyncPipeline,
+  });
+  log.info({ articleId: id, ...result }, "Astro sync triggered via HTTP");
+  return triggerResultToResponse(c, result);
 });
 
 articleRoutes.post("/articles/:id/validate-pagespeed", async (c) => {
   const id = c.req.param("id");
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId, astroCommitSha: articles.astroCommitSha })
     .from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  try {
-    const result = await triggerWithPreRunId({
-      pipelineName: "article:pagespeed-validation",
-      articleId: article.id,
-      projectId: article.projectId,
-      enqueue: enqueuePagespeedValidationPipeline,
-    });
-    log.info({ articleId: id, ...result }, "PageSpeed validation triggered via HTTP");
-    return c.json({ ok: true, data: result }, 202);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ err: e, articleId: id }, "PageSpeed trigger failed");
-    return c.json({ ok: false, error: msg }, 400);
+  // Cooldown: reject if a run exists within the last 5 minutes with the same commit SHA
+  const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+  const [recentRun] = await db
+    .select({ startedAt: pagespeedRuns.startedAt, astroCommitSha: pagespeedRuns.astroCommitSha })
+    .from(pagespeedRuns)
+    .where(and(eq(pagespeedRuns.articleId, id), gte(pagespeedRuns.startedAt, fiveMinAgo)))
+    .orderBy(desc(pagespeedRuns.startedAt))
+    .limit(1);
+
+  if (recentRun && recentRun.astroCommitSha && recentRun.astroCommitSha === article.astroCommitSha) {
+    return c.json({
+      ok: false,
+      error: "pagespeed_cooldown",
+      message: "PageSpeed run too recent for unchanged content. Wait 5 minutes or sync new changes first.",
+      data: { lastRunAt: recentRun.startedAt.toISOString() },
+    }, 429);
   }
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:pagespeed-validation",
+    projectId: article.projectId,
+    uniqueKey: { field: "articleId", value: article.id },
+    extraInput: { articleId: article.id },
+    enqueue: enqueuePagespeedValidationPipeline,
+  });
+  log.info({ articleId: id, ...result }, "PageSpeed validation triggered via HTTP");
+  return triggerResultToResponse(c, result);
 });
 
 articleRoutes.post("/articles/:id/extend-schema", async (c) => {
@@ -355,20 +330,16 @@ articleRoutes.post("/articles/:id/extend-schema", async (c) => {
     .from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  try {
-    const result = await triggerWithPreRunId({
-      pipelineName: "article:schema-extension",
-      articleId: article.id,
-      projectId: article.projectId,
-      enqueue: enqueueSchemaExtensionPipeline,
-    });
-    log.info({ articleId: id, ...result }, "Schema extension triggered via HTTP");
-    return c.json({ ok: true, data: result }, 202);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    log.warn({ err: e, articleId: id }, "Schema extension trigger failed");
-    return c.json({ ok: false, error: msg }, 400);
-  }
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:schema-extension",
+    projectId: article.projectId,
+    uniqueKey: { field: "articleId", value: article.id },
+    costEstimate: { service: "anthropic", operation: "schema-extension" },
+    extraInput: { articleId: article.id },
+    enqueue: enqueueSchemaExtensionPipeline,
+  });
+  log.info({ articleId: id, ...result }, "Schema extension triggered via HTTP");
+  return triggerResultToResponse(c, result);
 });
 
 // ─── legacy endpoints (kept for CLI compat) ────────────────────────────────────

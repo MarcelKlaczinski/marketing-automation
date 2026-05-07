@@ -11,6 +11,7 @@ import { RenderMdxStep } from "./steps/render-mdx.ts";
 import { CommitToGitHubStep } from "./steps/commit-to-github.ts";
 import { UpdateDbStatusStep } from "./steps/update-db-status.ts";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
+import { AstroSyncError } from "./types.ts";
 
 const log = createLogger("astro-sync:pipeline");
 
@@ -132,11 +133,16 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
 
       if (pendingRun) {
         const message = error instanceof Error ? error.message : String(error);
-        await db.update(astroSyncRuns).set({
-          status: "failed",
-          errorMessage: message,
-          finishedAt: new Date(),
-        }).where(eq(astroSyncRuns.id, pendingRun.id));
+        const updateBase = { status: "failed" as const, errorMessage: message, finishedAt: new Date() };
+        // Only persist stages that exist on the DB column type (auth/config are error types, not DB stages)
+        const validStages = ["load", "schema", "image", "render", "commit", "db_update", "stale_read"] as const;
+        type ValidStage = typeof validStages[number];
+        const rawStage = error instanceof AstroSyncError ? error.stage : undefined;
+        const errorStage = rawStage !== undefined && (validStages as readonly string[]).includes(rawStage)
+          ? rawStage as ValidStage
+          : undefined;
+        const updateSet = errorStage !== undefined ? { ...updateBase, errorStage } : updateBase;
+        await db.update(astroSyncRuns).set(updateSet).where(eq(astroSyncRuns.id, pendingRun.id));
       }
     } catch {
       // Cleanup failure must not affect BullMQ retry behavior
