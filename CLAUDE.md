@@ -94,7 +94,7 @@ Implemented specs (do not re-implement):
 - /specs/31-web-app-auth.md
 - /specs/32-web-app-installer.md (all sessions done)
 - /specs/35-coldstart-ui.md
-- /specs/41-cost-enforcement-pipeline-hardening.md (sessions 1+2 done; session 3 = frontend)
+- /specs/41-cost-enforcement-pipeline-hardening.md
 
 ## Project Marketing Contexts
 

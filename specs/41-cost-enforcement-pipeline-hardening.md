@@ -3,7 +3,7 @@
 **Phase:** 4 (Welle 4 — kritische Härtung VOR Spec 40 Push Notifications)
 **Estimated Effort:** 2-3 days (3 sessions)
 **Dependencies:** Spec 03 (cost tracker), Spec 05 (pipeline engine), Spec 35/36 (existing trigger endpoints)
-**Status:** **CRITICAL — implement before further pipeline development**
+**Status:** **DONE — all 3 sessions complete**
 **Recommended Model:** Opus 4.7 (cross-cutting concern: backend + frontend + DB; touches every adapter)
 
 ---
@@ -1556,6 +1556,16 @@ Total: ~16 hours.
 - `checkTriggerAllowed()` variant (lighter guard that returns `null` on success) was added alongside `triggerWithPreRunId()`. The spec only described the latter, but cold-start triggers already manage their own `pipeline_runs` row via `enqueuePipeline()` — using the full helper would double-insert. The variant removes that risk cleanly.
 
 - Pre-existing unused function `latestRunStatus` in `cold-start.ts` was removed during the review pass. It was never called but importing `pipelineRuns` and `isNull` for it. Cleaned up.
+
+## Discovered During Implementation
+
+**Session 3**
+
+- `cost.thresholdTypes` i18n namespace was missing entirely — `'daily'` and `'monthly'` values from `cost_alerts.threshold_type` had no translations. Added `thresholdTypes: { daily, monthly }` to both `de/cost.ts` and `en/cost.ts`. Caught during `/review-task`.
+
+- `ProjectPauseBanner` and `CostAlertsBanner` initially rendered `service` and `thresholdType` as raw DB enum values. Fixed using dynamic i18n key interpolation (e.g. `$t(\`cost.services.${service}\`)`). The `cost.services.*` translations already existed from Spec 38; only `thresholdTypes` was missing. Note: dynamic key interpolation works when the enum values map 1:1 to an existing i18n namespace — if a new service is ever added, its translation key must be added in parallel.
+
+- Phase 2 state machine required a 4-state type (`'idle' | 'identifying' | 'confirming' | 'analyzing' | 'complete'`) rather than the 2-state type in the original component (`'idle' | 'running' | 'complete'`). The confirmation step is a distinct UI state that cannot be collapsed into either "running" or "idle".
 
 ## Deviations
 
