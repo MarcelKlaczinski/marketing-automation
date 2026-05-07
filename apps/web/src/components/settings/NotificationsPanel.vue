@@ -29,7 +29,7 @@
             <q-space />
 
             <q-btn
-              v-if="!isSubscribed && permission !== 'denied'"
+              v-if="!isSubscribed"
               color="primary"
               :label="$t('settings.notifications.enable') as string"
               :loading="loading"
