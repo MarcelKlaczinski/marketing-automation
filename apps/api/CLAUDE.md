@@ -104,6 +104,7 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT omit `--env-file ../../.env` from package.json scripts — `bun --filter` runs from the package dir, not the repo root, so `.env` at the root is not auto-loaded. Every script that touches `getEnv()` (directly or via imports) needs this flag.
 - DO NOT import `requireAuth` from `"../middleware/require-auth"` — the file is `src/middleware/auth.ts`. Correct import: `import { requireAuth } from "../middleware/auth.ts"`. A wrong path silently crashes the server at startup with a module-not-found error.
 - DO NOT mount a route file at a specific prefix (e.g. `/api/articles`) if that file contains routes whose paths don't start with that prefix (e.g. `/projects/:slug/…`). Those routes become unreachable. Extract them into a separate named export (e.g. `legacyArticleRoutes`) and mount that separately at the broader prefix (`/api`). See `src/routes/articles.ts` + `src/server.ts` for the canonical example.
+- DO NOT register a named sub-route (e.g. `/across-projects`) after a wildcard param route (e.g. `/:id`) in the same Hono router — Hono matches in registration order, so `/:id` silently captures the named route as `id="across-projects"`. Always register specific named paths before wildcard params. See the ordering in `src/routes/articles.ts` (line ~87 `across-projects` before line ~128 `/:id`).
 
 ## Notifications Deploy Checklist (Spec 40)
 

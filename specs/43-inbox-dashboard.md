@@ -1195,8 +1195,9 @@ Single session.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- **Hono route ordering is registration-order-dependent**: the spec's new `GET /articles/across-projects` route had to be registered *before* the existing `GET /articles/:id` wildcard, otherwise Hono would capture "across-projects" as an article ID. This is now documented as a DO NOT in `apps/api/CLAUDE.md`.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- **`useSessionStore` → `useAuthStore`**: The spec's code samples referenced `useSessionStore()` and `session.user?.email`, but no such store exists in the project. Used the existing `useAuthStore()` / `authStore.user?.email` pattern instead (same data, consistent with the pre-existing stub).
+- **`SetupIncompleteBanner` kept inline**: The spec listed `SetupIncompleteBanner` as a standalone imported component. The existing stub already had the banner inline using `systemStatusStore.allConfigured`; that pattern was preserved rather than extracting a new component out of scope.
