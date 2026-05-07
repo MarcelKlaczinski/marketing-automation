@@ -12,6 +12,7 @@
       "@marketing-auto/shared": ["../../packages/shared/src/index.ts"],
       "@marketing-auto/shared/*": ["../../packages/shared/src/*.ts"],
       "@marketing-auto/core": ["../../packages/core/src/index.ts"],
+      "@marketing-auto/core/notifications": ["../../packages/core/src/notifications/index.ts"],
       "@marketing-auto/core/*": ["../../packages/core/src/*.ts"],
       "@marketing-auto/adapter-anthropic": ["../../packages/adapters/anthropic/src/index.ts"],
       "@marketing-auto/adapter-anthropic/verify": [

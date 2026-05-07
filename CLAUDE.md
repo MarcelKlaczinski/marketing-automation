@@ -17,7 +17,7 @@ Designed to evolve into SaaS.
 - **Markdown editor**: `vue-codemirror` + CodeMirror v6 (`@codemirror/lang-markdown`, `@codemirror/theme-one-dark`, `@codemirror/view`, `@codemirror/state`, `@codemirror/commands`) + `marked` v18 for preview rendering
 - **Charts**: `chart.js` v4 + `vue-chartjs` v5 (Options API wrapper for Chart.js; register elements explicitly before use)
 - **Mobile-first**: All UI designed for mobile screens first, then desktop
-- **Push Notifications**: Web Push via VAPID
+- **Push Notifications**: Web Push via VAPID — `web-push` npm package in `packages/core`
 - **Language**: TypeScript strict everywhere, English-only code/comments/JSDoc
 
 ## Architecture
@@ -73,6 +73,9 @@ Designed to evolve into SaaS.
 - DO NOT write a new pipeline-trigger HTTP endpoint without using `triggerWithPreRunId` or `checkTriggerAllowed` from `apps/api/src/routes/_lib/trigger-helpers.ts` — these enforce pause-check → cost-check → idempotency in the correct order. A route that skips them bypasses cost limits silently. See `apps/api/CLAUDE.md` for which variant to use
 - DO NOT run `biome check --write` without first confirming `noNonNullAssertion` is set to `"off"` in `biome.json` — the `recommended: true` default sets it to `"error"`, and `--write` applies the safe-fix (`!` → `?.`) across the entire codebase, changing `string` to `string | undefined` silently and causing hundreds of downstream typecheck errors. Always verify `biome.json` has `"noNonNullAssertion": "off"` before running any `biome --write`
 - DO NOT run `biome check --unsafe` on this codebase — the `noConsoleLog` unsafe fix removes the entire call body (arguments and all), leaving empty if/for blocks and corrupted script files. All intentional `console.log` calls in scripts are annotated with `// biome-ignore lint/suspicious/noConsoleLog: script output`
+- DO NOT use `.rowCount` on Drizzle `update()` or `delete()` results — the property does not exist on `RowList<never[]>`. Use `.returning({ id: table.id })` and check `.length` instead: `const rows = await db.update(...).returning({ id: t.id }); return rows.length`
+- DO NOT use `bun add <pkg> --filter @marketing-auto/foo` to install a package into a workspace — Bun interprets `--filter` as an npm package name to look up, not a workspace filter. Use `bun add <pkg> --cwd packages/foo` (or `--cwd apps/api`) instead
+- DO NOT pass a bare column reference to Drizzle's index `.where()` — it expects an SQL expression. Use `isNull(col)` or `sql\`...\`` for partial index conditions: `.where(isNull(t.readAt))` not `.where(t.readAt)`
 
 ## Local DB Setup
 
@@ -116,6 +119,7 @@ Implemented specs (do not re-implement):
 - /specs/32-web-app-installer.md (all sessions done)
 - /specs/35-coldstart-ui.md
 - /specs/41-cost-enforcement-pipeline-hardening.md
+- /specs/40-notifications.md
 
 ## Project Marketing Contexts
 

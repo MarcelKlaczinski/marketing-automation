@@ -1,4 +1,5 @@
-import { articles, astroSyncRuns, db } from "@marketing-auto/db";
+import { createNotification } from "@marketing-auto/core/notifications";
+import { articles, astroSyncRuns, db, users } from "@marketing-auto/db";
 import { enqueueClusterLinkRebuild } from "@marketing-auto/pipelines";
 import { Pipeline } from "@marketing-auto/pipelines/engine";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
@@ -161,6 +162,31 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
       }
     } catch {
       // Cleanup failure must not affect BullMQ retry behavior
+    }
+
+    // Notify owners of sync failure (critical — triggers Web Push)
+    try {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const owners = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, "owner"));
+      const errorStageLabel =
+        error instanceof AstroSyncError ? ` (${error.stage})` : "";
+      for (const owner of owners) {
+        void createNotification({
+          userId: owner.id,
+          type: "sync_failure",
+          severity: "critical",
+          title: "Astro-Sync failed",
+          message: `${errorMessage.slice(0, 200)}${errorStageLabel}`,
+          link: `/articles/${pipelineInput.articleId}`,
+          metadata: { articleId: pipelineInput.articleId },
+        });
+      }
+    } catch {
+      // Notification failure must not affect retry behavior
     }
   }
 

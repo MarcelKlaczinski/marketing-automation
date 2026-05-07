@@ -12,6 +12,9 @@ import { healthRoutes } from "./routes/health.ts";
 import { pillarRoutes } from "./routes/pillars.ts";
 import { pipelineRunsRoutes } from "./routes/pipeline-runs.ts";
 import { projectRoutes } from "./routes/projects.ts";
+import { adminRoutes } from "./routes/admin.ts";
+import { notificationRoutes } from "./routes/notifications.ts";
+import { pushSubscriptionRoutes } from "./routes/push-subscriptions.ts";
 import { systemRoutes } from "./routes/system.ts";
 
 const env = getEnv();
@@ -47,6 +50,9 @@ app.route("/api/pipeline-runs", pipelineRunsRoutes);
 app.route("/api/cost", costRoutes);
 app.route("/api/pillars", pillarRoutes);
 app.route("/api/clusters", clusterRoutes);
+app.route("/api/notifications", notificationRoutes);
+app.route("/api/push", pushSubscriptionRoutes);
+app.route("/api/admin", adminRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

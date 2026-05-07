@@ -14,6 +14,7 @@
       <q-tab name="adapters" :label="$t('settings.tabs.adapters') as string" icon="api" />
       <q-tab name="system" :label="$t('settings.tabs.system') as string" icon="dns" />
       <q-tab name="profile" :label="$t('settings.tabs.profile') as string" icon="person" />
+      <q-tab name="notifications" :label="$t('settings.tabs.notifications') as string" icon="notifications" />
     </q-tabs>
 
     <q-tab-panels v-model="activeTab" animated class="bg-transparent">
@@ -26,17 +27,21 @@
       <q-tab-panel name="profile" class="q-px-none">
         <SettingsProfilePanel />
       </q-tab-panel>
+      <q-tab-panel name="notifications" class="q-px-none">
+        <NotificationsPanel />
+      </q-tab-panel>
     </q-tab-panels>
   </q-page>
 </template>
 
 <script lang="ts">
+import NotificationsPanel from "src/components/settings/NotificationsPanel.vue";
 import SettingsAdaptersPanel from "src/components/settings/SettingsAdaptersPanel.vue";
 import SettingsProfilePanel from "src/components/settings/SettingsProfilePanel.vue";
 import SettingsSystemPanel from "src/components/settings/SettingsSystemPanel.vue";
 import { defineComponent } from "vue";
 
-type TabName = "adapters" | "system" | "profile";
+type TabName = "adapters" | "system" | "profile" | "notifications";
 
 export default defineComponent({
   name: "SettingsPage",
@@ -45,6 +50,7 @@ export default defineComponent({
     SettingsAdaptersPanel,
     SettingsSystemPanel,
     SettingsProfilePanel,
+    NotificationsPanel,
   },
 
   data: () => ({
@@ -54,7 +60,7 @@ export default defineComponent({
   created() {
     const raw = this.$route.query.tab;
     const tabFromQuery = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
-    if (["adapters", "system", "profile"].includes(tabFromQuery)) {
+    if (["adapters", "system", "profile", "notifications"].includes(tabFromQuery)) {
       this.activeTab = tabFromQuery as TabName;
     }
   },

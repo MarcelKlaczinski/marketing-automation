@@ -27,6 +27,8 @@
           @click="toggleTheme"
         />
 
+        <NotificationBell v-if="authStore.user" />
+
         <q-btn-dropdown
           v-if="authStore.user"
           flat
@@ -94,6 +96,7 @@
 </template>
 
 <script lang="ts">
+import NotificationBell from "src/components/notifications/NotificationBell.vue";
 import { useAuthStore } from "src/stores/auth";
 import { useSystemStatusStore } from "src/stores/system-status";
 import { useUiStore } from "src/stores/ui";
@@ -109,6 +112,8 @@ const navLinks = [
 
 export default defineComponent({
   name: "MainLayout",
+
+  components: { NotificationBell },
 
   setup() {
     return {

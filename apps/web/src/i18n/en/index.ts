@@ -14,6 +14,7 @@ import industries from "./industries";
 import installer from "./installer";
 import markdownEditor from "./markdownEditor";
 import nav from "./nav";
+import notifications from "./notifications";
 import pipelineTemplates from "./pipelineTemplates";
 import projectPause from "./projectPause";
 import projects from "./projects";
@@ -40,4 +41,5 @@ export default {
   activity,
   clusters,
   projectPause,
+  notifications,
 };

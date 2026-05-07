@@ -5,6 +5,7 @@ export default {
     adapters: "Adapters",
     system: "System",
     profile: "Profile",
+    notifications: "Notifications",
   },
 
   adapters: {
@@ -42,5 +43,28 @@ export default {
     intro: "Your account.",
     email: "Email address",
     userId: "User ID",
+  },
+
+  notifications: {
+    title: "Browser Notifications",
+    intro: "Receive push notifications for critical events (pipeline failures, cost limits) even when the tab is closed.",
+    enabled: "Enabled on this device",
+    disabled: "Not enabled on this device",
+    enable: "Enable",
+    disable: "Disable",
+    unsupported: "Push notifications are not supported in this browser.",
+    permissionDenied: "Permission denied. Enable it in your browser settings.",
+    permissionDeniedToast: "Permission denied. Enable it in your browser settings.",
+    enabledSuccess: "Push notifications enabled",
+    disabledSuccess: "Push notifications disabled",
+    sendTest: "Send test notification",
+    testSent: "Test notification sent",
+    activeDevices: "Active devices",
+    noDevices: "No devices registered",
+    unknownDevice: "Unknown device",
+    subscribedAt: "Registered {time}",
+    lastUsed: "Last used {time}",
+    revoke: "Revoke",
+    deviceRevoked: "Device revoked",
   },
 };

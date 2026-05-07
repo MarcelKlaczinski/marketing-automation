@@ -1,6 +1,7 @@
-import { db, projectPauseStates } from "@marketing-auto/db";
+import { db, projectPauseStates, projects, users } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
+import { createNotification } from "../notifications/index.ts";
 
 const log = createLogger("cost-enforcement");
 
@@ -67,6 +68,27 @@ export async function pauseProjectQueues(
   }
 
   log.warn({ projectId, reason, service }, "Project queues paused");
+
+  // Notify all owners (critical — triggers Web Push)
+  const [project] = await db
+    .select({ slug: projects.slug, name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
+
+  for (const owner of owners) {
+    void createNotification({
+      userId: owner.id,
+      type: "cost_limit_pause",
+      severity: "critical",
+      title: "Project pipeline paused",
+      message: `${project?.name ?? "Project"} paused due to cost limit (${service ?? "unknown"}).`,
+      link: project?.slug ? `/projects/${project.slug}` : "/cost",
+      metadata: { projectId, reason, service, ...reasonDetails },
+    });
+  }
 }
 
 export async function resumeProjectQueues(projectId: string, resumedBy?: string): Promise<void> {

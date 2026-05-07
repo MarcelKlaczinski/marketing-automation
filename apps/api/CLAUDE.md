@@ -104,3 +104,27 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT omit `--env-file ../../.env` from package.json scripts — `bun --filter` runs from the package dir, not the repo root, so `.env` at the root is not auto-loaded. Every script that touches `getEnv()` (directly or via imports) needs this flag.
 - DO NOT import `requireAuth` from `"../middleware/require-auth"` — the file is `src/middleware/auth.ts`. Correct import: `import { requireAuth } from "../middleware/auth.ts"`. A wrong path silently crashes the server at startup with a module-not-found error.
 - DO NOT mount a route file at a specific prefix (e.g. `/api/articles`) if that file contains routes whose paths don't start with that prefix (e.g. `/projects/:slug/…`). Those routes become unreachable. Extract them into a separate named export (e.g. `legacyArticleRoutes`) and mount that separately at the broader prefix (`/api`). See `src/routes/articles.ts` + `src/server.ts` for the canonical example.
+
+## Notifications Deploy Checklist (Spec 40)
+
+When deploying to production for the first time (after local development):
+
+1. **Generate fresh VAPID keys** for production. Nicht die localhost-Keys wiederverwenden:
+   ```
+   bunx web-push generate-vapid-keys
+   ```
+   Prod-Env aktualisieren: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+
+2. **Localhost-Subscriptions löschen** (sie sind an den dev-Origin gebunden):
+   ```sql
+   DELETE FROM push_subscriptions WHERE endpoint LIKE '%localhost%' OR endpoint LIKE '%127.0.0.1%';
+   ```
+
+3. **Service Worker erreichbar unter `/push-service-worker.js`** — im Prod-Build verifizieren.
+
+4. **HTTPS required in production.** Service Worker Registration auf Nicht-localhost erfordert HTTPS.
+
+5. **Täglicher Prune**: `POST /api/admin/prune-notifications` per Cron oder manuell wöchentlich:
+   ```
+   curl -X POST -H "Cookie: ma_session=..." https://your-domain/api/admin/prune-notifications
+   ```

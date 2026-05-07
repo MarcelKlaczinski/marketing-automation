@@ -43,7 +43,6 @@ export async function track<T>(input: {
       },
       "Cost alert threshold crossed"
     );
-    // TODO Spec 41: send Web Push notification to project owner
   }
 
   const startedAt = Date.now();

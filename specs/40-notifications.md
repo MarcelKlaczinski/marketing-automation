@@ -1864,8 +1864,20 @@ Total: ~14 hours.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- **`.rowCount` doesn't exist on Drizzle update/delete results.** `RowList<never[]>` has no `rowCount` property. Must use `.returning({ id: table.id }).length` instead. Added to root CLAUDE.md Common Mistakes.
+
+- **Drizzle index `.where()` requires an SQL expression, not a bare column.** `index().on(...).where(t.readAt)` throws TS2345. Must use `isNull(t.readAt)` (imported from `drizzle-orm`).
+
+- **`bun add <pkg> --filter <workspace>` doesn't work.** Bun treats `--filter` as an npm package name, not a workspace selector. Use `bun add <pkg> --cwd packages/foo` instead.
+
+- **`@marketing-auto/core/notifications` subpath needs explicit `paths` in API's `tsconfig.json`.** The existing wildcard `"@marketing-auto/core/*": ["*.ts"]` resolves `*/index.ts` only under bundler resolution — TSC still needs `"@marketing-auto/core/notifications": ["../../packages/core/src/notifications/index.ts"]` added before the wildcard entry.
+
+- **SSE `EventSource` requires an absolute URL.** Passing `/api/notifications/stream` directly fails in some environments. The composable must prefix with `import.meta.env.VITE_API_BASE_URL`.
+
+- **Spec code examples used `process.env`, `console.*`, and German user-facing strings** — all three violate CLAUDE.md rules (`getEnv()`, pino logger, English-only code). Fixed during implementation.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- **Component named `NotificationsPanel.vue`, not `NotificationsTab.vue`.** The spec called for `NotificationsTab.vue`, but all existing Settings components use the `*Panel.vue` suffix (`SystemPanel.vue`, `ProfilePanel.vue`, etc.). Named consistently to match the established convention.
+
+- **`POST /api/admin/prune-notifications` uses `requireAuth`, not a separate admin secret.** The spec said "admin auth middleware required — assumes you have one" but no admin middleware exists. The endpoint is protected by `requireAuth` (session cookie), which is sufficient for a single-operator system.

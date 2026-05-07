@@ -1,6 +1,7 @@
-import { costAlerts, costLogs, db, projects } from "@marketing-auto/db";
+import { costAlerts, costLogs, db, projects, users } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { and, eq, gte, sql } from "drizzle-orm";
+import { createNotification } from "../notifications/index.ts";
 import { pauseProjectQueues } from "./pause.ts";
 
 const log = createLogger("cost-enforcement");
@@ -226,4 +227,25 @@ async function maybeRecordAlert(
     { projectId, service, thresholdType, percent: Math.round(percent) },
     "Cost alert recorded"
   );
+
+  // Notify owners (warning — in-app only, no Web Push)
+  const [project] = await db
+    .select({ slug: projects.slug, name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+
+  const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
+
+  for (const owner of owners) {
+    void createNotification({
+      userId: owner.id,
+      type: "cost_alert",
+      severity: "warning",
+      title: `Cost alert ${Math.round(percent)}%`,
+      message: `${service} ${thresholdType}: € ${spentEur.toFixed(2)} of € ${limitEur.toFixed(2)} (${project?.name ?? projectId})`,
+      link: `/cost?projectId=${projectId}`,
+      metadata: { projectId, service, thresholdType, percent },
+    });
+  }
 }

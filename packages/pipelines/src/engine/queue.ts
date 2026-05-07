@@ -1,5 +1,6 @@
 import { registerQueuePauser } from "@marketing-auto/core/cost";
-import { db, pipelineRuns } from "@marketing-auto/db";
+import { createNotification } from "@marketing-auto/core/notifications";
+import { db, pipelineRuns, users } from "@marketing-auto/db";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { type JobsOptions, Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
@@ -135,8 +136,48 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
     }
   );
 
+  const MEANINGFUL_PIPELINES = new Set([
+    "article:outline",
+    "article:draft",
+    "article:sync",
+    "cold-start:cluster-plan",
+    "cold-start:cornerstone-spec",
+  ]);
+
+  const PIPELINE_TITLES: Record<string, string> = {
+    "article:outline": "Outline complete",
+    "article:draft": "Draft complete",
+    "article:sync": "Astro-Sync complete",
+    "cold-start:cluster-plan": "Cluster plan complete",
+    "cold-start:cornerstone-spec": "Cornerstone spec complete",
+  };
+
   worker.on("ready", () => log.info({ concurrency }, "Pipeline worker started"));
-  worker.on("completed", (job) => log.info({ jobId: job.id, name: job.name }, "Job completed"));
+
+  worker.on("completed", async (job) => {
+    log.info({ jobId: job.id, name: job.name }, "Job completed");
+
+    const pipelineName = String(job.data?.pipelineName ?? "");
+    const projectId = String(job.data?.projectId ?? "");
+    if (!MEANINGFUL_PIPELINES.has(pipelineName) || !projectId) return;
+
+    const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
+    const articleId = job.data?.articleId as string | undefined;
+    const link = articleId ? `/articles/${articleId}` : "/activity";
+
+    for (const owner of owners) {
+      void createNotification({
+        userId: owner.id,
+        type: "pipeline_completion",
+        severity: "info",
+        title: PIPELINE_TITLES[pipelineName] ?? "Pipeline complete",
+        message: `${pipelineName} completed successfully.`,
+        link,
+        metadata: { pipelineName, articleId },
+      }).catch((e: unknown) => log.warn({ err: e }, "Failed to create completion notification"));
+    }
+  });
+
   worker.on("failed", async (job, err) => {
     log.error({ jobId: job?.id, err }, "Job failed");
 
@@ -155,6 +196,34 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         .catch((updateErr: unknown) => {
           log.warn({ err: updateErr }, "Failed to tag cost error on pipeline_run");
         });
+    }
+
+    // Skip cost-limit failures — already covered by the pause notification in pause.ts
+    if (isCostError) return;
+
+    const projectId = String(job?.data?.projectId ?? "");
+    if (!projectId) return;
+
+    const owners = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, "owner"))
+      .catch(() => [] as { id: string }[]);
+
+    const pipelineName = String(job?.data?.pipelineName ?? "");
+    const articleId = job?.data?.articleId as string | undefined;
+    const link = articleId ? `/articles/${articleId}` : "/activity";
+
+    for (const owner of owners) {
+      void createNotification({
+        userId: owner.id,
+        type: "pipeline_failure",
+        severity: "critical",
+        title: "Pipeline failed",
+        message: `${pipelineName || "Pipeline"}: ${(err.message ?? "Unknown error").slice(0, 200)}`,
+        link,
+        metadata: { pipelineName, articleId, error: err.message },
+      }).catch((e: unknown) => log.warn({ err: e }, "Failed to create failure notification"));
     }
   });
 

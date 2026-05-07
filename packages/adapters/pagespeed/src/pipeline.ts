@@ -1,6 +1,9 @@
+import { createNotification } from "@marketing-auto/core/notifications";
+import { db, users } from "@marketing-auto/db";
 import { Pipeline } from "@marketing-auto/pipelines/engine";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { AstroBuildStep } from "./steps/astro-build.ts";
 import { CloneOrUpdateAstroRepoStep } from "./steps/clone-or-update.ts";
@@ -114,8 +117,30 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
     await this.killPreviewServer();
   }
 
-  override async afterError(_error: unknown, _input: PipelineInput): Promise<void> {
+  override async afterError(error: unknown, input: PipelineInput): Promise<void> {
     await this.killPreviewServer();
+
+    // Notify owners of pagespeed failure (warning — in-app only)
+    try {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const owners = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, "owner"));
+      for (const owner of owners) {
+        void createNotification({
+          userId: owner.id,
+          type: "pagespeed_failure",
+          severity: "warning",
+          title: "PageSpeed validation failed",
+          message: errorMessage.slice(0, 200),
+          link: `/articles/${input.articleId}`,
+          metadata: { articleId: input.articleId },
+        });
+      }
+    } catch {
+      // Notification failure must not affect retry behavior
+    }
   }
 
   private async killPreviewServer(): Promise<void> {
