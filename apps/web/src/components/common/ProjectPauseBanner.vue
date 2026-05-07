@@ -6,7 +6,7 @@
     <div class="text-subtitle1 text-weight-bold">{{ $t('projectPause.title') }}</div>
     <div class="text-body2 q-mt-xs">
       {{ $t('projectPause.reason', { reason: $t(`projectPause.reasons.${pauseInfo.reason}`) }) }}
-      <span v-if="pauseInfo.service"> ({{ pauseInfo.service }})</span>
+      <span v-if="pauseInfo.service"> ({{ $t(`cost.services.${pauseInfo.service}`) }})</span>
     </div>
     <div class="text-caption q-mt-xs opacity-75">
       {{ $t('projectPause.pausedAt', { time: formatTime(pauseInfo.pausedAt) }) }}

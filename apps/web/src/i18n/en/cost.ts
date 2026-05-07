@@ -25,6 +25,11 @@ export default {
     smtp: 'SMTP',
   },
 
+  thresholdTypes: {
+    daily: 'Daily',
+    monthly: 'Monthly',
+  },
+
   filters: {
     project: 'Project',
     allProjects: 'All Projects',

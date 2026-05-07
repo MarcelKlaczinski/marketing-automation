@@ -10,10 +10,10 @@
       <q-item v-for="alert in alerts" :key="alert.id" class="q-px-none">
         <q-item-section>
           <q-item-label>
-            <strong>{{ alert.projectName ?? '—' }}</strong> · {{ alert.service }}
+            <strong>{{ alert.projectName ?? '—' }}</strong> · {{ $t(`cost.services.${alert.service}`) }}
           </q-item-label>
           <q-item-label caption>
-            {{ alert.thresholdType }}: € {{ formatEur(alert.spentEur) }} / € {{ formatEur(alert.limitEur) }}
+            {{ $t(`cost.thresholdTypes.${alert.thresholdType}`) }}: € {{ formatEur(alert.spentEur) }} / € {{ formatEur(alert.limitEur) }}
             ({{ alert.percent }}%)
           </q-item-label>
         </q-item-section>
