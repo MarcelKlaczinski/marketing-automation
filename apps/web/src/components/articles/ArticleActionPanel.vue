@@ -53,8 +53,9 @@ export default defineComponent({
     };
   },
 
-  data() {
-    const store = useArticlesStore();
+  data: () => {
+    // triggerFn uses useArticlesStore() lazily at call-time — store is a singleton
+    const s = () => useArticlesStore();
     const actions: PipelineAction[] = [
       {
         id: 'outline',
@@ -62,7 +63,7 @@ export default defineComponent({
         icon: 'list',
         enabled: false,
         enabledWhen: (status) => ['proposed', 'approved', 'failed'].includes(status),
-        triggerFn: (id) => store.triggerOutline(id),
+        triggerFn: (id) => s().triggerOutline(id),
       },
       {
         id: 'draft',
@@ -70,7 +71,7 @@ export default defineComponent({
         icon: 'description',
         enabled: false,
         enabledWhen: (status) => status === 'outline_review',
-        triggerFn: (id) => store.triggerDraft(id),
+        triggerFn: (id) => s().triggerDraft(id),
       },
       {
         id: 'sync',
@@ -78,7 +79,7 @@ export default defineComponent({
         icon: 'cloud_upload',
         enabled: false,
         enabledWhen: (status) => ['ready_to_publish', 'published', 'blocked_by_pagespeed'].includes(status),
-        triggerFn: (id) => store.triggerSync(id),
+        triggerFn: (id) => s().triggerSync(id),
       },
       {
         id: 'validate-pagespeed',
@@ -86,7 +87,7 @@ export default defineComponent({
         icon: 'speed',
         enabled: false,
         enabledWhen: (status) => ['published', 'blocked_by_pagespeed', 'ready_to_publish'].includes(status),
-        triggerFn: (id) => store.triggerPagespeedValidation(id),
+        triggerFn: (id) => s().triggerPagespeedValidation(id),
       },
       {
         id: 'extend-schema',
@@ -94,7 +95,7 @@ export default defineComponent({
         icon: 'data_object',
         enabled: false,
         enabledWhen: (status) => ['final_review', 'ready_to_publish', 'published'].includes(status),
-        triggerFn: (id) => store.triggerSchemaExtension(id),
+        triggerFn: (id) => s().triggerSchemaExtension(id),
       },
     ];
     return {

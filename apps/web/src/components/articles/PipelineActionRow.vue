@@ -1,13 +1,13 @@
 <template>
-  <q-tooltip v-if="!action.enabled" :target="true">
-    {{ $t('articles.actions.notAvailable') }}
-  </q-tooltip>
   <button
     :class="['action-row', { 'action-row--disabled': !action.enabled || loading }]"
     :disabled="!action.enabled || loading"
     type="button"
     @click="$emit('click')"
   >
+    <q-tooltip v-if="!action.enabled">
+      {{ $t('articles.actions.notAvailable') }}
+    </q-tooltip>
     <q-icon :name="action.icon" size="18px" class="action-row__icon" />
     <span class="action-row__label">{{ $t(action.i18nKey) }}</span>
     <q-spinner v-if="loading" size="14px" color="primary" class="action-row__spinner" />

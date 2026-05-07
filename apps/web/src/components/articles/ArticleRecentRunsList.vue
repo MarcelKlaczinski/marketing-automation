@@ -67,6 +67,9 @@ export default defineComponent({
     combinedRuns(): RunRow[] {
       const rows: RunRow[] = [];
 
+      // Field casts justified: ArticleDetail.recentRuns.* is typed as Record<string,unknown>[]
+      // because the API envelope is untyped at the store boundary. The shapes here are
+      // DB-schema facts (id uuid, status text, startedAt timestamptz | null).
       for (const raw of this.detail.recentRuns.sync) {
         const r = raw as Record<string, unknown>;
         rows.push({
@@ -154,7 +157,7 @@ export default defineComponent({
     },
 
     formatTime(isoStr: string | null): string {
-      if (!isoStr) return '—';
+      if (!isoStr) return this.$t('articles.lane.empty') as string;
       const d = new Date(isoStr);
       return d.toLocaleString(this.$i18n.locale === 'de' ? 'de-DE' : 'en-US', {
         month: 'short',
