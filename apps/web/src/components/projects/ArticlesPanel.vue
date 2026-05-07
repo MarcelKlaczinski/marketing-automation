@@ -20,6 +20,16 @@
         </button>
       </div>
 
+      <q-btn
+        flat
+        dense
+        icon="account_tree"
+        size="sm"
+        :label="$t('clusters.actions.manage') as string"
+        :to="{ name: 'project-clusters', params: { slug } }"
+        class="q-mr-sm"
+      />
+
       <q-space />
 
       <div class="article-count">

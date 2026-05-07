@@ -72,3 +72,4 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT use `process.env` directly — use typed `getEnv()` from @marketing-auto/shared
 - DO NOT use console.log — use the pino logger
 - DO NOT omit `--env-file ../../.env` from package.json scripts — `bun --filter` runs from the package dir, not the repo root, so `.env` at the root is not auto-loaded. Every script that touches `getEnv()` (directly or via imports) needs this flag.
+- DO NOT import `requireAuth` from `"../middleware/require-auth"` — the file is `src/middleware/auth.ts`. Correct import: `import { requireAuth } from "../middleware/auth.ts"`. A wrong path silently crashes the server at startup with a module-not-found error.

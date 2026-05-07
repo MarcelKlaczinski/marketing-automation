@@ -222,7 +222,8 @@
       "Bash(echo \"EXIT:$?\")",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/web/src/pages/ProjectDetailPage.vue)",
       "Bash(bun --filter @marketing-auto/web vue-tsc --noEmit)",
-      "Bash(bunx vue-tsc *)"
+      "Bash(bunx vue-tsc *)",
+      "Bash(bun --filter @marketing-auto/web tsc --noEmit)"
     ]
   }
 }

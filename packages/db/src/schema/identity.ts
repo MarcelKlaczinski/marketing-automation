@@ -46,8 +46,10 @@ export const clusters = pgTable("clusters", {
   satelliteKeywords: jsonb("satellite_keywords").$type<SatelliteKeywordEntry[]>().notNull().default([]),
   status: text("status").notNull().default("proposed"),
   pillarArticleId: uuid("pillar_article_id"),
+  position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   projectIdx: index("clusters_project_idx").on(t.projectId),
   pillarIdx: index("clusters_pillar_idx").on(t.pillarId),
+  pillarPositionIdx: index("clusters_pillar_position_idx").on(t.pillarId, t.position),
 }));

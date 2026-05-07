@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
+import { recalcPillarArticleId } from "./clusters.ts";
 import { eq, desc, and, sql } from "drizzle-orm";
 import {
   db,
@@ -159,7 +160,7 @@ articleRoutes.patch("/articles/:id", zValidator("json", ArticleUpdateSchema), as
   const id = c.req.param("id");
   const input = c.req.valid("json");
 
-  const [existing] = await db.select({ id: articles.id })
+  const [existing] = await db.select({ id: articles.id, clusterId: articles.clusterId })
     .from(articles).where(eq(articles.id, id)).limit(1);
   if (!existing) return c.json({ ok: false, error: "Article not found" }, 404);
 
@@ -172,6 +173,11 @@ articleRoutes.patch("/articles/:id", zValidator("json", ArticleUpdateSchema), as
   if (input.status !== undefined) patch.status = input.status;
 
   await db.update(articles).set(patch).where(eq(articles.id, id));
+
+  // Recalc pillarArticleId when cornerstoneSpecId-related fields change for clustered articles
+  if (existing.clusterId && input.cornerstoneKeyword !== undefined) {
+    await recalcPillarArticleId(existing.clusterId);
+  }
 
   const [updated] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
   return c.json({ ok: true, data: updated });

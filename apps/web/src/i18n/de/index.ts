@@ -16,6 +16,7 @@ import coldStart from './coldStart';
 import articles from './articles';
 import cost from './cost';
 import activity from './activity';
+import clusters from './clusters';
 
 export default {
   app,
@@ -36,4 +37,5 @@ export default {
   articles,
   cost,
   activity,
+  clusters,
 };

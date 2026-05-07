@@ -4,6 +4,8 @@ export default {
   edit: 'Edit',
   delete: 'Delete',
   confirm: 'Confirm',
+  create: 'Create',
+  optional: 'optional',
   back: 'Back',
   next: 'Next',
   prev: 'Previous',

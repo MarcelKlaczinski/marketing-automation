@@ -10,6 +10,8 @@ import { systemRoutes } from "./routes/system.ts";
 import { pipelineRunsRoutes } from "./routes/pipeline-runs.ts";
 import { coldStartRoutes } from "./routes/cold-start.ts";
 import { costRoutes } from "./routes/cost.ts";
+import { pillarRoutes } from "./routes/pillars.ts";
+import { clusterRoutes } from "./routes/clusters.ts";
 import { sessionLoader } from "./middleware/auth.ts";
 
 const env = getEnv();
@@ -36,6 +38,8 @@ app.route("/api/projects", projectRoutes);
 app.route("/api/projects", coldStartRoutes);
 app.route("/api/pipeline-runs", pipelineRunsRoutes);
 app.route("/api/cost", costRoutes);
+app.route("/api/pillars", pillarRoutes);
+app.route("/api/clusters", clusterRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 
