@@ -15,6 +15,7 @@ Designed to evolve into SaaS.
 - **Validation**: Zod everywhere on boundaries
 - **Frontend**: Quasar 2 + Vite + Vue 3 (Options API), PWA mode
 - **Markdown editor**: `vue-codemirror` + CodeMirror v6 (`@codemirror/lang-markdown`, `@codemirror/theme-one-dark`, `@codemirror/view`, `@codemirror/state`, `@codemirror/commands`) + `marked` v18 for preview rendering
+- **Charts**: `chart.js` v4 + `vue-chartjs` v5 (Options API wrapper for Chart.js; register elements explicitly before use)
 - **Mobile-first**: All UI designed for mobile screens first, then desktop
 - **Push Notifications**: Web Push via VAPID
 - **Language**: TypeScript strict everywhere, English-only code/comments/JSDoc

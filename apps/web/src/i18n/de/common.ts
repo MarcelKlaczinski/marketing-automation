@@ -6,6 +6,7 @@ export default {
   confirm: 'Bestätigen',
   back: 'Zurück',
   next: 'Weiter',
+  prev: 'Zurück',
   required: 'Pflichtfeld',
   unsavedChanges: 'Ungespeicherte Änderungen',
   comingSoon: 'Wird in einer späteren Session implementiert.',

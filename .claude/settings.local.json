@@ -218,7 +218,10 @@
       "Bash(bun --filter @marketing-auto/web exec tsc --noEmit)",
       "Bash(npx --yes typescript tsc --noEmit)",
       "Bash(grep -v \"^$\")",
-      "Bash(./node_modules/.bin/tsc --noEmit)"
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/web/src/pages/ProjectDetailPage.vue)",
+      "Bash(bun --filter @marketing-auto/web vue-tsc --noEmit)"
     ]
   }
 }

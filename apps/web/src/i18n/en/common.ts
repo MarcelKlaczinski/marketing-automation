@@ -6,6 +6,7 @@ export default {
   confirm: 'Confirm',
   back: 'Back',
   next: 'Next',
+  prev: 'Previous',
   required: 'Required',
   unsavedChanges: 'Unsaved changes',
   comingSoon: 'Will be implemented in a later session.',

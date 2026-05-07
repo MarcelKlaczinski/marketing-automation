@@ -1408,8 +1408,10 @@ Optional split. Not required.
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- **Chart.js type gaps**: `ticks.callback` types `v` as `number | string` even on `LinearScale`; `ctx.parsed.y` in tooltip callbacks is `number | null`. Both require null guards or casts. Documented in `apps/web/CLAUDE.md`.
+- **Service labels must be i18n'd**: The `serviceOptions` dropdown labels (`'Anthropic'`, etc.) are user-visible and must go through `$t()`, even though the underlying values are technical enum identifiers. Added `cost.services.*` i18n keys.
+- **`/aggregations` projectId must be Zod-validated**: The spec code sample read `projectId` with `c.req.query()` without validation. A non-UUID string causes a Postgres 500 (invalid UUID). Added `aggregationsQuerySchema` with `z.string().uuid().optional()` + `zValidator`.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- **`/aggregations` handler uses `zValidator`** — spec code sample did not include Zod validation on the query param. Added during review to align with the "Zod everywhere on boundaries" rule.
