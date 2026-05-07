@@ -2048,6 +2048,12 @@ See "Implementation Order" — 5 sessions with `/clear` between.
 
 - `STATUS_TO_GROUP` in `ArticleDetailHeader` was initially duplicated from `src/lib/article-status.ts`. Caught in review and fixed to import from the shared lib. Always import from `article-status.ts` rather than redefining the map locally.
 
+**Session 4 (History + Validation tabs)**
+
+- The spec described the validation panel as "read-only display" of schema extension runs without specifying how run status values should be presented. Raw DB enum values (`pending`, `succeeded`, `failed`) in `:label` bindings bypass the `$t()` rule — caught in review. Pattern: define a module-level `Record<string, string>` map from enum → i18n key, then call `this.$t(map[value]) as string`. Same pattern applies whenever DB status/outcome enums appear in any user-visible binding. See `SCHEMA_STATUS_KEYS` in `ArticleValidationPanel.vue`.
+
+- `as unknown as T` double-cast is required when narrowing from `Record<string, unknown>[]` items (the `recentRuns.*` arrays in `ArticleDetail`) to a typed interface — TypeScript doesn't allow a direct `as T` cast from `Record<string, unknown>` to an interface with specific typed fields, because the two types are not in an assignable relationship. The `as unknown` bridge is the correct pattern (mirrors the CodeMirror rule in `apps/web/CLAUDE.md`). This differs from `detail.article as { ... }` which works directly because the cast target's fields are compatible with `unknown` values.
+
 ## Deviations
 
 **Session 1 (Backend)**

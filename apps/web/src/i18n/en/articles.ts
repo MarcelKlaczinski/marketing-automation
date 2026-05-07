@@ -94,4 +94,53 @@ export default {
     slugHint: 'Lowercase letters, digits, and hyphens only',
     statusWarning: 'Status changes are manual — for emergency recovery only',
   },
+
+  history: {
+    noVersions: 'No versions yet.',
+    version: 'Version {n}',
+    noReason: '(no change reason)',
+    diffModal: {
+      title: 'Compare version {n}',
+      selected: 'Version {n}',
+      current: 'Current',
+      loading: 'Loading content...',
+      close: 'Close',
+    },
+  },
+
+  validation: {
+    pagespeed: {
+      title: 'PageSpeed Results',
+      notRun: 'Not validated yet.',
+      testedUrl: 'Tested URL',
+      failedCategories: 'Failed categories',
+      outcome: {
+        pass: 'Passed',
+        fail: 'Failed',
+        error: 'Error',
+      },
+      categories: {
+        performance: 'Performance',
+        accessibility: 'Accessibility',
+        'best-practices': 'Best Practices',
+        seo: 'SEO',
+      },
+    },
+    schema: {
+      title: 'Schema.org Extension',
+      notRun: 'Not yet executed.',
+      faqCount: '{count} FAQ questions',
+      howtoCount: '{count} steps',
+      types: {
+        breadcrumb: 'Breadcrumb',
+        faq: 'FAQ',
+        howto: 'HowTo',
+      },
+      status: {
+        pending: 'Pending',
+        succeeded: 'Succeeded',
+        failed: 'Failed',
+      },
+    },
+  },
 };

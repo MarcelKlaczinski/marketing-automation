@@ -94,4 +94,53 @@ export default {
     slugHint: 'Nur Kleinbuchstaben, Ziffern und Bindestriche erlaubt',
     statusWarning: 'Status-Änderungen manuell vornehmen — nur für Notfallkorrekturen',
   },
+
+  history: {
+    noVersions: 'Noch keine Versionen vorhanden.',
+    version: 'Version {n}',
+    noReason: '(kein Änderungsgrund)',
+    diffModal: {
+      title: 'Version {n} vergleichen',
+      selected: 'Version {n}',
+      current: 'Aktuell',
+      loading: 'Lädt Inhalt...',
+      close: 'Schließen',
+    },
+  },
+
+  validation: {
+    pagespeed: {
+      title: 'PageSpeed-Ergebnisse',
+      notRun: 'Noch nicht validiert.',
+      testedUrl: 'Getestete URL',
+      failedCategories: 'Fehlgeschlagene Kategorien',
+      outcome: {
+        pass: 'Bestanden',
+        fail: 'Nicht bestanden',
+        error: 'Fehler',
+      },
+      categories: {
+        performance: 'Performance',
+        accessibility: 'Zugänglichkeit',
+        'best-practices': 'Best Practices',
+        seo: 'SEO',
+      },
+    },
+    schema: {
+      title: 'Schema.org-Erweiterung',
+      notRun: 'Noch nicht ausgeführt.',
+      faqCount: '{count} FAQ-Fragen',
+      howtoCount: '{count} Schritte',
+      types: {
+        breadcrumb: 'Breadcrumb',
+        faq: 'FAQ',
+        howto: 'HowTo',
+      },
+      status: {
+        pending: 'Ausstehend',
+        succeeded: 'Erfolgreich',
+        failed: 'Fehlgeschlagen',
+      },
+    },
+  },
 };

@@ -214,7 +214,11 @@
       "Bash(xargs ls -la)",
       "Bash(grep -o '$t\\('\\\\''[^'\\\\'']*' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/articles/ArticleCard.vue /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/articles/ArticleKanbanLane.vue /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/projects/ArticlesPanel.vue)",
       "Bash(cat)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(bun --filter @marketing-auto/web exec tsc --noEmit)",
+      "Bash(npx --yes typescript tsc --noEmit)",
+      "Bash(grep -v \"^$\")",
+      "Bash(./node_modules/.bin/tsc --noEmit)"
     ]
   }
 }
