@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { eq } from "drizzle-orm";
-import { db, articles } from "@marketing-auto/db";
 import { enqueueArticleValidation } from "@marketing-auto/adapter-pagespeed";
+import { articles, db } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
 
 const slug = process.argv[2];
 if (!slug) {
@@ -21,12 +21,9 @@ if (all.length === 0) {
 
 const article = all[0]!;
 
-if (
-  article.status !== "ready_to_publish" &&
-  article.status !== "blocked_by_pagespeed"
-) {
+if (article.status !== "ready_to_publish" && article.status !== "blocked_by_pagespeed") {
   console.error(
-    `Article status "${article.status}" — needs "ready_to_publish" or "blocked_by_pagespeed"`,
+    `Article status "${article.status}" — needs "ready_to_publish" or "blocked_by_pagespeed"`
   );
   process.exit(1);
 }

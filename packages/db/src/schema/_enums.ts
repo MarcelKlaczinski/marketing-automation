@@ -93,7 +93,4 @@ export const approvalActionEnum = pgEnum("approval_action", [
   "changes_requested",
 ]);
 
-export const userRoleEnum = pgEnum("user_role", [
-  "owner",
-  "editor",
-]);
+export const userRoleEnum = pgEnum("user_role", ["owner", "editor"]);

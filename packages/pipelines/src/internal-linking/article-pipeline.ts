@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { Pipeline } from "../engine/pipeline.ts";
-import { LoadCandidatesStep } from "./steps/load-candidates.ts";
 import { AnalyzeLinksStep } from "./steps/analyze-links.ts";
 import { ApplyLinksStep } from "./steps/apply-links.ts";
+import { LoadCandidatesStep } from "./steps/load-candidates.ts";
 import { PersistAndQueueResyncStep } from "./steps/persist-and-resync.ts";
 import type { LinkSuggestion } from "./types.ts";
 
@@ -49,7 +49,7 @@ export class ArticleLinkUpdatePipeline extends Pipeline<
     toStep: { name: string },
     output: unknown,
     pipelineInput: ArticleLinkInput,
-    getStepOutput: <T = unknown>(name: string) => T | undefined,
+    getStepOutput: <T = unknown>(name: string) => T | undefined
   ): unknown {
     if (fromStep.name === "load-candidates" && toStep.name === "analyze-links") {
       return output;

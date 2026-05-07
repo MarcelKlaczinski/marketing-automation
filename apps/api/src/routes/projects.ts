@@ -1,10 +1,10 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
+import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues } from "@marketing-auto/core";
+import { articles, clusters, db, projects } from "@marketing-auto/db";
 import { eq, sql } from "drizzle-orm";
-import { db, projects, clusters, articles } from "@marketing-auto/db";
+import { Hono } from "hono";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
-import { resumeProjectQueues, getPauseInfo, DEFAULT_COST_LIMITS } from "@marketing-auto/core";
 
 export const projectRoutes = new Hono();
 
@@ -65,11 +65,7 @@ projectRoutes.get("/", async (c) => {
 
 projectRoutes.get("/:slug", async (c) => {
   const slug = c.req.param("slug");
-  const [proj] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
+  const [proj] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
 
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
@@ -96,10 +92,25 @@ projectRoutes.get("/:slug", async (c) => {
 });
 
 const createProjectSchema = z.object({
-  slug: z.string().min(2).max(40).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(2)
+    .max(40)
+    .regex(/^[a-z0-9-]+$/),
   name: z.string().min(2).max(120),
-  industry: z.enum(["ai_education", "automotive_dealer", "renewable_affiliate", "music_school", "other"]),
-  pipelineTemplate: z.enum(["educational", "affiliate_review", "local_business", "programmatic_seo"]),
+  industry: z.enum([
+    "ai_education",
+    "automotive_dealer",
+    "renewable_affiliate",
+    "music_school",
+    "other",
+  ]),
+  pipelineTemplate: z.enum([
+    "educational",
+    "affiliate_review",
+    "local_business",
+    "programmatic_seo",
+  ]),
   marketingContextMd: z.string().max(50_000).optional(),
 });
 
@@ -132,8 +143,12 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
 const updateProjectSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   domain: z.string().nullable().optional(),
-  industry: z.enum(["ai_education", "automotive_dealer", "renewable_affiliate", "music_school", "other"]).optional(),
-  pipelineTemplate: z.enum(["educational", "affiliate_review", "local_business", "programmatic_seo"]).optional(),
+  industry: z
+    .enum(["ai_education", "automotive_dealer", "renewable_affiliate", "music_school", "other"])
+    .optional(),
+  pipelineTemplate: z
+    .enum(["educational", "affiliate_review", "local_business", "programmatic_seo"])
+    .optional(),
   marketingContextMd: z.string().max(50_000).optional(),
   costLimits: z
     .object({
@@ -180,27 +195,26 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
 
   // Build update object conditionally — exactOptionalPropertyTypes forbids spreading optional fields directly
   const setFields: Record<string, unknown> = { updatedAt: new Date() };
-  if (input.name !== undefined) setFields['name'] = input.name;
-  if (input.domain !== undefined) setFields['domain'] = input.domain;
-  if (input.industry !== undefined) setFields['industry'] = input.industry;
-  if (input.pipelineTemplate !== undefined) setFields['pipelineTemplate'] = input.pipelineTemplate;
-  if (input.marketingContextMd !== undefined) setFields['marketingContextMd'] = input.marketingContextMd;
-  if (input.costLimits !== undefined) setFields['costLimits'] = input.costLimits;
-  if (input.astroRepo !== undefined) setFields['astroRepo'] = input.astroRepo;
-  if (input.pagespeedThresholds !== undefined) setFields['pagespeedThresholds'] = input.pagespeedThresholds;
-  if (input.linkRebuildBudgetMonthly !== undefined) setFields['linkRebuildBudgetMonthly'] = input.linkRebuildBudgetMonthly;
+  if (input.name !== undefined) setFields.name = input.name;
+  if (input.domain !== undefined) setFields.domain = input.domain;
+  if (input.industry !== undefined) setFields.industry = input.industry;
+  if (input.pipelineTemplate !== undefined) setFields.pipelineTemplate = input.pipelineTemplate;
+  if (input.marketingContextMd !== undefined)
+    setFields.marketingContextMd = input.marketingContextMd;
+  if (input.costLimits !== undefined) setFields.costLimits = input.costLimits;
+  if (input.astroRepo !== undefined) setFields.astroRepo = input.astroRepo;
+  if (input.pagespeedThresholds !== undefined)
+    setFields.pagespeedThresholds = input.pagespeedThresholds;
+  if (input.linkRebuildBudgetMonthly !== undefined)
+    setFields.linkRebuildBudgetMonthly = input.linkRebuildBudgetMonthly;
 
   await db
     .update(projects)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: Record<string,unknown> is structurally incompatible with Drizzle's strict partial column type; conditional build ensures only valid keys are present
     .set(setFields as any)
     .where(eq(projects.id, existing.id));
 
-  const [updated] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, existing.id))
-    .limit(1);
+  const [updated] = await db.select().from(projects).where(eq(projects.id, existing.id)).limit(1);
 
   return c.json({ ok: true, data: updated });
 });
@@ -209,7 +223,11 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
 
 projectRoutes.get("/:slug/pause-state", async (c) => {
   const slug = c.req.param("slug");
-  const [proj] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug)).limit(1);
+  const [proj] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
   const info = await getPauseInfo(proj.id);
@@ -218,7 +236,11 @@ projectRoutes.get("/:slug/pause-state", async (c) => {
 
 projectRoutes.post("/:slug/resume-queues", async (c) => {
   const slug = c.req.param("slug");
-  const [proj] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, slug)).limit(1);
+  const [proj] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
   const user = c.get("user") as { id: string } | undefined;

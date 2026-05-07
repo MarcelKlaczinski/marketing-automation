@@ -1,5 +1,5 @@
-import { ref, onMounted, onBeforeUnmount } from 'vue';
-import { api } from 'src/lib/api-client';
+import { api } from "src/lib/api-client";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 
 export interface PauseInfo {
   pausedAt: string;
@@ -16,7 +16,9 @@ export function useProjectPauseState(slug: string) {
   async function fetchOnce(): Promise<void> {
     loading.value = true;
     try {
-      const res = await api.get<{ ok: boolean; data: PauseInfo | null }>(`/projects/${slug}/pause-state`);
+      const res = await api.get<{ ok: boolean; data: PauseInfo | null }>(
+        `/projects/${slug}/pause-state`
+      );
       pauseInfo.value = res.data.data;
     } finally {
       loading.value = false;

@@ -68,24 +68,24 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { useColdStartStore } from 'src/stores/cold-start';
-import { usePipelineRunPolling } from 'src/composables/usePipelineRunPolling';
+import { usePipelineRunPolling } from "src/composables/usePipelineRunPolling";
+import { useColdStartStore } from "src/stores/cold-start";
+import { defineComponent, ref } from "vue";
 
 const MAX_COMPETITORS = 15;
-const COST_PER_COMPETITOR_EUR = 0.20;
+const COST_PER_COMPETITOR_EUR = 0.2;
 
 type Competitor = { domain: string; why_relevant: string; expected_strengths: string[] };
-type Phase = 'idle' | 'identifying' | 'confirming' | 'analyzing' | 'complete';
+type Phase = "idle" | "identifying" | "confirming" | "analyzing" | "complete";
 
 export default defineComponent({
-  name: 'Phase2CompetitorAnalysis',
+  name: "Phase2CompetitorAnalysis",
 
   props: {
     slug: { type: String, required: true },
   },
 
-  emits: ['done'],
+  emits: ["done"],
 
   setup() {
     const questionsRunId = ref<string | null>(null);
@@ -102,25 +102,29 @@ export default defineComponent({
   data: () => ({
     MAX_COMPETITORS,
     triggering: false,
-    errorMsg: '',
+    errorMsg: "",
     pendingCompetitors: [] as Competitor[],
   }),
 
   computed: {
-    questionsRun() { return this.questionsPolling.run.value; },
-    analysisRun() { return this.analysisPolling.run.value; },
+    questionsRun() {
+      return this.questionsPolling.run.value;
+    },
+    analysisRun() {
+      return this.analysisPolling.run.value;
+    },
 
     phase(): Phase {
       const aRun = this.analysisRun;
-      if (aRun?.status === 'completed') return 'complete';
-      if (aRun?.status === 'running' || aRun?.status === 'queued') return 'analyzing';
+      if (aRun?.status === "completed") return "complete";
+      if (aRun?.status === "running" || aRun?.status === "queued") return "analyzing";
 
-      if (this.pendingCompetitors.length > 0) return 'confirming';
+      if (this.pendingCompetitors.length > 0) return "confirming";
 
       const qRun = this.questionsRun;
-      if (qRun?.status === 'running' || qRun?.status === 'queued') return 'identifying';
+      if (qRun?.status === "running" || qRun?.status === "queued") return "identifying";
 
-      return 'idle';
+      return "idle";
     },
 
     competitorCount(): number {
@@ -133,31 +137,31 @@ export default defineComponent({
   },
 
   watch: {
-    'questionsPolling.terminal.value'(isTerminal: boolean) {
+    "questionsPolling.terminal.value"(isTerminal: boolean) {
       if (!isTerminal) return;
       const qRun = this.questionsRun;
-      if (qRun?.status === 'completed' && qRun.output) {
+      if (qRun?.status === "completed" && qRun.output) {
         const out = qRun.output as { competitors?: Competitor[] };
         const competitors = out.competitors ?? [];
         if (competitors.length > 0) {
           // Show confirmation card instead of auto-triggering
           this.pendingCompetitors = competitors;
         } else {
-          this.errorMsg = this.$t('coldStart.phase2.noCompetitors') as string;
+          this.errorMsg = this.$t("coldStart.phase2.noCompetitors") as string;
         }
-      } else if (qRun?.status === 'failed') {
-        this.errorMsg = qRun.error ?? (this.$t('coldStart.phase2.failed') as string);
+      } else if (qRun?.status === "failed") {
+        this.errorMsg = qRun.error ?? (this.$t("coldStart.phase2.failed") as string);
       }
     },
 
-    'analysisPolling.terminal.value'(isTerminal: boolean) {
+    "analysisPolling.terminal.value"(isTerminal: boolean) {
       if (!isTerminal) return;
       const aRun = this.analysisRun;
-      if (aRun?.status === 'completed') {
+      if (aRun?.status === "completed") {
         this.pendingCompetitors = [];
-        this.$emit('done');
-      } else if (aRun?.status === 'failed') {
-        this.errorMsg = aRun.error ?? (this.$t('coldStart.phase2.failed') as string);
+        this.$emit("done");
+      } else if (aRun?.status === "failed") {
+        this.errorMsg = aRun.error ?? (this.$t("coldStart.phase2.failed") as string);
       }
     },
   },
@@ -165,7 +169,7 @@ export default defineComponent({
   methods: {
     async onStart(): Promise<void> {
       this.triggering = true;
-      this.errorMsg = '';
+      this.errorMsg = "";
       this.pendingCompetitors = [];
       try {
         const { runId } = await this.coldStartStore.triggerCompetitorQuestions(this.slug);
@@ -186,13 +190,16 @@ export default defineComponent({
 
     async onConfirm(): Promise<void> {
       this.triggering = true;
-      this.errorMsg = '';
+      this.errorMsg = "";
       try {
-        const { runId } = await this.coldStartStore.triggerCompetitorAnalysis(this.slug, this.pendingCompetitors);
+        const { runId } = await this.coldStartStore.triggerCompetitorAnalysis(
+          this.slug,
+          this.pendingCompetitors
+        );
         this.pendingCompetitors = [];
         this.analysisRunId = runId;
       } catch {
-        this.errorMsg = this.$t('coldStart.phase2.failed') as string;
+        this.errorMsg = this.$t("coldStart.phase2.failed") as string;
       } finally {
         this.triggering = false;
       }

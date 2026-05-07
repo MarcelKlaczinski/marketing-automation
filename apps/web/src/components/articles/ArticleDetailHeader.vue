@@ -39,18 +39,18 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { ArticleDetail } from 'src/stores/articles';
-import { STATUS_TO_GROUP, STATUS_GROUP_COLORS } from 'src/lib/article-status';
+import { STATUS_GROUP_COLORS, STATUS_TO_GROUP } from "src/lib/article-status";
+import type { ArticleDetail } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ArticleDetailHeader',
+  name: "ArticleDetailHeader",
 
   props: {
     detail: { type: Object as PropType<ArticleDetail>, required: true },
   },
 
-  emits: ['back'],
+  emits: ["back"],
 
   computed: {
     article() {
@@ -93,25 +93,25 @@ export default defineComponent({
     },
 
     statusColor(): string {
-      const group = STATUS_TO_GROUP[this.article.status] ?? 'in_progress';
+      const group = STATUS_TO_GROUP[this.article.status] ?? "in_progress";
       const hexColor = STATUS_GROUP_COLORS[group as keyof typeof STATUS_GROUP_COLORS];
       const colorMap: Record<string, string> = {
-        '#f2c037': 'warning',
-        '#3f51b5': 'primary',
-        '#21ba45': 'positive',
-        '#c10015': 'negative',
+        "#f2c037": "warning",
+        "#3f51b5": "primary",
+        "#21ba45": "positive",
+        "#c10015": "negative",
       };
-      return colorMap[hexColor] ?? 'grey';
+      return colorMap[hexColor] ?? "grey";
     },
 
     formattedUpdatedAt(): string {
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
       return new Date(this.article.updatedAt).toLocaleString(locale, {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     },
   },

@@ -1,8 +1,12 @@
-import { describe, it, expect, afterEach } from "bun:test";
-import { join } from "node:path";
-import { rm, readFile, mkdir } from "node:fs/promises";
+import { afterEach, describe, expect, it } from "bun:test";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { fileExists, readMarkdownIfExists, writeMarkdownAtomic } from "../../src/cold-start/shared/markdown-io.ts";
+import { join } from "node:path";
+import {
+  fileExists,
+  readMarkdownIfExists,
+  writeMarkdownAtomic,
+} from "../../src/cold-start/shared/markdown-io.ts";
 
 const TEST_DIR = join(tmpdir(), `markdown-io-test-${process.pid}`);
 

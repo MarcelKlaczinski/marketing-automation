@@ -1,4 +1,4 @@
-import { z } from "zod";
+import type { z } from "zod";
 import type { BaseStep } from "./step.ts";
 
 /**
@@ -34,7 +34,7 @@ export abstract class Pipeline<TInput = unknown, TOutput = unknown> {
     _toStep: BaseStep<unknown, unknown>,
     output: unknown,
     _pipelineInput: TInput,
-    _getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    _getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     return output;
   }

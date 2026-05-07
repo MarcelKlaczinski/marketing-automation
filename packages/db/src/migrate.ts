@@ -1,6 +1,6 @@
+import { createLogger } from "@marketing-auto/shared";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { db } from "./client.ts";
-import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("db:migrate");
 

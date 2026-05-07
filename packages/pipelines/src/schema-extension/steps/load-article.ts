@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { articles, clusters, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { db, articles, projects, clusters } from "@marketing-auto/db";
 import { SchemaExtensionError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -24,10 +24,12 @@ const OutputSchema = z.object({
     name: z.string(),
     domain: z.string(),
   }),
-  cluster: z.object({
-    name: z.string(),
-    pillar: z.string(),
-  }).nullable(),
+  cluster: z
+    .object({
+      name: z.string(),
+      pillar: z.string(),
+    })
+    .nullable(),
 });
 
 export class LoadArticleStep extends BaseStep<
@@ -38,25 +40,39 @@ export class LoadArticleStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
-    const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, input.articleId))
+      .limit(1);
     if (!article) throw new SchemaExtensionError(`Article ${input.articleId} not found`, "load");
 
     if (article.status !== "schema_extending" && article.status !== "final_review") {
       throw new SchemaExtensionError(
         `Article status "${article.status}", expected "schema_extending" or "final_review"`,
-        "load",
+        "load"
       );
     }
 
-    const [project] = await db.select().from(projects).where(eq(projects.id, article.projectId)).limit(1);
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, article.projectId))
+      .limit(1);
     if (!project) throw new SchemaExtensionError("Project not found", "load");
 
     let cluster: { name: string; pillar: string } | null = null;
     if (article.clusterId) {
-      const [c] = await db.select().from(clusters).where(eq(clusters.id, article.clusterId)).limit(1);
+      const [c] = await db
+        .select()
+        .from(clusters)
+        .where(eq(clusters.id, article.clusterId))
+        .limit(1);
       if (c) cluster = { name: c.name, pillar: c.pillar ?? "general" };
     }
 

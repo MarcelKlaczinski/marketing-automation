@@ -21,10 +21,10 @@ export {
 } from "./types.ts";
 
 import {
-  serp as _serp,
   keywordOverview as _keywordOverview,
-  relatedKeywords as _relatedKeywords,
   rankedKeywords as _rankedKeywords,
+  relatedKeywords as _relatedKeywords,
+  serp as _serp,
 } from "./client.ts";
 
 export const dataforseo = {

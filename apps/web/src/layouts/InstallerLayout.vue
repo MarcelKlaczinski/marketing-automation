@@ -7,6 +7,6 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-export default defineComponent({ name: 'InstallerLayout' });
+import { defineComponent } from "vue";
+export default defineComponent({ name: "InstallerLayout" });
 </script>

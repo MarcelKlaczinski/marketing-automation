@@ -15,13 +15,14 @@ export const AnalyzeLinksOutputSchema = z.object({
 export type AnalyzeLinksOutput = z.infer<typeof AnalyzeLinksOutputSchema>;
 
 // Cast alias for use as BaseStep outputSchema (Zod .default() variance workaround)
-export const AnalyzeLinksOutputSchemaOutput = AnalyzeLinksOutputSchema as z.ZodType<AnalyzeLinksOutput>;
+export const AnalyzeLinksOutputSchemaOutput =
+  AnalyzeLinksOutputSchema as z.ZodType<AnalyzeLinksOutput>;
 
 export class InternalLinkingError extends Error {
   constructor(
     message: string,
     public readonly stage: "load" | "budget" | "analyze" | "apply" | "persist",
-    public readonly originalCause?: unknown,
+    public readonly originalCause?: unknown
   ) {
     super(message);
     this.name = "InternalLinkingError";

@@ -1,6 +1,6 @@
-import { db, costLogs, costServiceEnum } from "@marketing-auto/db";
+import { costLogs, type costServiceEnum, db } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
-import { checkLimit, CostLimitExceeded } from "./limits.ts";
+import { CostLimitExceeded, checkLimit } from "./limits.ts";
 
 type CostService = (typeof costServiceEnum.enumValues)[number];
 
@@ -35,11 +35,14 @@ export async function track<T>(input: {
   });
 
   if (check.alertTriggered) {
-    log.warn({
-      projectId: input.projectId,
-      service: input.service,
-      ...check.alertTriggered,
-    }, "Cost alert threshold crossed");
+    log.warn(
+      {
+        projectId: input.projectId,
+        service: input.service,
+        ...check.alertTriggered,
+      },
+      "Cost alert threshold crossed"
+    );
     // TODO Spec 41: send Web Push notification to project owner
   }
 
@@ -51,7 +54,7 @@ export async function track<T>(input: {
   if (!Number.isFinite(actualCost) || actualCost < 0) {
     log.warn(
       { actualCost, estimated: input.estimatedCostEur },
-      "computeCostEur returned invalid value, using estimate",
+      "computeCostEur returned invalid value, using estimate"
     );
     actualCost = input.estimatedCostEur;
   }
@@ -70,7 +73,9 @@ export async function track<T>(input: {
 
   // Build conditionally to satisfy exactOptionalPropertyTypes
   if (input.pipelineRunId !== undefined && input.articleId !== undefined) {
-    await db.insert(costLogs).values({ ...base, pipelineRunId: input.pipelineRunId, articleId: input.articleId });
+    await db
+      .insert(costLogs)
+      .values({ ...base, pipelineRunId: input.pipelineRunId, articleId: input.articleId });
   } else if (input.pipelineRunId !== undefined) {
     await db.insert(costLogs).values({ ...base, pipelineRunId: input.pipelineRunId });
   } else if (input.articleId !== undefined) {
@@ -79,13 +84,16 @@ export async function track<T>(input: {
     await db.insert(costLogs).values(base);
   }
 
-  log.debug({
-    projectId: input.projectId,
-    service: input.service,
-    operation: input.operation,
-    costEur: actualCost,
-    durationMs,
-  }, "Cost logged");
+  log.debug(
+    {
+      projectId: input.projectId,
+      service: input.service,
+      operation: input.operation,
+      costEur: actualCost,
+      durationMs,
+    },
+    "Cost logged"
+  );
 
   return result;
 }

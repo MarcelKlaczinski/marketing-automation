@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import {
-  IdentifyCompetitorsStep,
-  FetchCompetitorKeywordsStep,
-  SynthesizeCompetitorReportStep,
   CompetitorSchema,
+  FetchCompetitorKeywordsStep,
+  IdentifyCompetitorsStep,
+  SynthesizeCompetitorReportStep,
 } from "./steps.ts";
 
 // ─── Questions pipeline ───────────────────────────────────────────────────────
@@ -16,11 +16,13 @@ const QuestionsInputSchema = z.object({
 
 const QuestionsOutputSchema = z.object({
   competitors: z.array(CompetitorSchema),
-  review_questions: z.array(z.object({
-    id: z.string(),
-    question: z.string(),
-    why_it_matters: z.string(),
-  })),
+  review_questions: z.array(
+    z.object({
+      id: z.string(),
+      question: z.string(),
+      why_it_matters: z.string(),
+    })
+  ),
 });
 
 export class CompetitorQuestionsPipeline extends Pipeline<
@@ -64,7 +66,7 @@ export class CompetitorAnalysisPipeline extends Pipeline<
     toStep: { name: string },
     output: unknown,
     pipelineInput: z.infer<typeof AnalysisInputSchema>,
-    _getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    _getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     if (
       fromStep.name === "fetch-competitor-keywords" &&

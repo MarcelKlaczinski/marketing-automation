@@ -32,12 +32,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { isCornerstone, isInFlightStatus } from 'src/lib/article-status';
-import type { ArticleListItem } from 'src/stores/articles';
+import { isCornerstone, isInFlightStatus } from "src/lib/article-status";
+import type { ArticleListItem } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ArticleCard',
+  name: "ArticleCard",
 
   props: {
     article: { type: Object as PropType<ArticleListItem>, required: true },
@@ -51,13 +51,13 @@ export default defineComponent({
       return isInFlightStatus(this.article.status);
     },
     isFailed(): boolean {
-      return ['failed', 'blocked_by_pagespeed'].includes(this.article.status);
+      return ["failed", "blocked_by_pagespeed"].includes(this.article.status);
     },
   },
 
   methods: {
     onClick(): void {
-      void this.$router.push({ name: 'article-detail', params: { id: this.article.id } });
+      void this.$router.push({ name: "article-detail", params: { id: this.article.id } });
     },
   },
 });

@@ -1,8 +1,22 @@
-import { pgTable, uuid, text, timestamp, jsonb, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
-import { projects } from "./projects.ts";
+import {
+  articleStatusEnum,
+  socialFormatEnum,
+  socialPlatformEnum,
+  socialStatusEnum,
+} from "./_enums.ts";
 import { clusters } from "./identity.ts";
-import { articleStatusEnum, socialPlatformEnum, socialFormatEnum, socialStatusEnum } from "./_enums.ts";
+import { projects } from "./projects.ts";
 
 // ArticleOutline and SelfReviewIssue shapes are defined in packages/pipelines — these
 // are lightweight re-declarations for DB typing only (no Zod dependency in DB package).
@@ -25,140 +39,184 @@ export type ArticleOutline = {
 
 export type SelfReviewIssue = {
   severity: "critical" | "warning" | "suggestion";
-  category: "voice_drift" | "factual_concern" | "weak_intro" | "weak_conclusion" | "section_imbalance" | "keyword_stuffing" | "missing_examples" | "verbose" | "other";
+  category:
+    | "voice_drift"
+    | "factual_concern"
+    | "weak_intro"
+    | "weak_conclusion"
+    | "section_imbalance"
+    | "keyword_stuffing"
+    | "missing_examples"
+    | "verbose"
+    | "other";
   location: string;
   description: string;
   suggestion?: string;
 };
 
-export const articles = pgTable("articles", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  clusterId: uuid("cluster_id").references(() => clusters.id, { onDelete: "set null" }),
-  // No DB-level FK to pipelineRuns — avoids circular dep between content.ts ↔ operations.ts
-  cornerstoneSpecId: uuid("cornerstone_spec_id"),
+export const articles = pgTable(
+  "articles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    clusterId: uuid("cluster_id").references(() => clusters.id, { onDelete: "set null" }),
+    // No DB-level FK to pipelineRuns — avoids circular dep between content.ts ↔ operations.ts
+    cornerstoneSpecId: uuid("cornerstone_spec_id"),
 
-  // Identity
-  slug: text("slug").notNull(),
-  cornerstoneKeyword: text("cornerstone_keyword").notNull(),
+    // Identity
+    slug: text("slug").notNull(),
+    cornerstoneKeyword: text("cornerstone_keyword").notNull(),
 
-  // Content fields — populated incrementally by pipeline steps
-  title: text("title"),
-  metaDescription: text("meta_description"),
-  outline: jsonb("outline").$type<ArticleOutline>(),
-  bodyMd: text("body_md"),
+    // Content fields — populated incrementally by pipeline steps
+    title: text("title"),
+    metaDescription: text("meta_description"),
+    outline: jsonb("outline").$type<ArticleOutline>(),
+    bodyMd: text("body_md"),
 
-  // Generated assets
-  heroImageR2Key: text("hero_image_r2_key"),
-  heroImagePublicUrl: text("hero_image_public_url"),
-  heroImageAltText: text("hero_image_alt_text"),
+    // Generated assets
+    heroImageR2Key: text("hero_image_r2_key"),
+    heroImagePublicUrl: text("hero_image_public_url"),
+    heroImageAltText: text("hero_image_alt_text"),
 
-  // Schema.org JSON-LD — array of objects (Spec 23 extended from single object in Spec 20)
-  schemaJsonLd: jsonb("schema_json_ld").$type<Array<Record<string, unknown>>>(),
+    // Schema.org JSON-LD — array of objects (Spec 23 extended from single object in Spec 20)
+    schemaJsonLd: jsonb("schema_json_ld").$type<Array<Record<string, unknown>>>(),
 
-  // Pipeline state
-  status: articleStatusEnum("status").notNull().default("proposed"),
-  approvalMode: text("approval_mode").$type<"manual" | "auto">().notNull().default("manual"),
+    // Pipeline state
+    status: articleStatusEnum("status").notNull().default("proposed"),
+    approvalMode: text("approval_mode").$type<"manual" | "auto">().notNull().default("manual"),
 
-  // Pipeline-run correlation (UUIDs only — no DB FK to avoid circular dep with operations.ts)
-  outlinePipelineRunId: uuid("outline_pipeline_run_id"),
-  draftPipelineRunId: uuid("draft_pipeline_run_id"),
+    // Pipeline-run correlation (UUIDs only — no DB FK to avoid circular dep with operations.ts)
+    outlinePipelineRunId: uuid("outline_pipeline_run_id"),
+    draftPipelineRunId: uuid("draft_pipeline_run_id"),
 
-  // Self-review output (written by SelfReviewStep)
-  selfReviewIssues: jsonb("self_review_issues").$type<SelfReviewIssue[]>(),
-  selfReviewScore: integer("self_review_score"),
+    // Self-review output (written by SelfReviewStep)
+    selfReviewIssues: jsonb("self_review_issues").$type<SelfReviewIssue[]>(),
+    selfReviewScore: integer("self_review_score"),
 
-  // Word count cached for queries / dashboards
-  wordCount: integer("word_count"),
+    // Word count cached for queries / dashboards
+    wordCount: integer("word_count"),
 
-  // Vector embedding for internal linking (Spec 24) — 1024 dims = Voyage AI voyage-3
-  embedding: vector("embedding", { dimensions: 1024 }),
+    // Vector embedding for internal linking (Spec 24) — 1024 dims = Voyage AI voyage-3
+    embedding: vector("embedding", { dimensions: 1024 }),
 
-  // Collection type — hardcoded "blog" for now; forward-compat for Glossar/Case-Studies (Spec 25+)
-  collectionType: text("collection_type").$type<"blog" | "glossar" | "case_study" | "tool">().notNull().default("blog"),
+    // Collection type — hardcoded "blog" for now; forward-compat for Glossar/Case-Studies (Spec 25+)
+    collectionType: text("collection_type")
+      .$type<"blog" | "glossar" | "case_study" | "tool">()
+      .notNull()
+      .default("blog"),
 
-  // Astro sync tracking (Spec 21)
-  astroSyncedAt: timestamp("astro_synced_at", { withTimezone: true }),
-  astroCommitSha: text("astro_commit_sha"),
-  astroPullRequestUrl: text("astro_pull_request_url"),
-  astroAssetPaths: jsonb("astro_asset_paths").$type<{ heroImage?: string }>(),
-  astroFrontmatter: jsonb("astro_frontmatter").$type<Record<string, unknown>>(),
+    // Astro sync tracking (Spec 21)
+    astroSyncedAt: timestamp("astro_synced_at", { withTimezone: true }),
+    astroCommitSha: text("astro_commit_sha"),
+    astroPullRequestUrl: text("astro_pull_request_url"),
+    astroAssetPaths: jsonb("astro_asset_paths").$type<{ heroImage?: string }>(),
+    astroFrontmatter: jsonb("astro_frontmatter").$type<Record<string, unknown>>(),
 
-  // PageSpeed validation results (Spec 22)
-  pagespeedValidatedAt: timestamp("pagespeed_validated_at", { withTimezone: true }),
-  pagespeedScores: jsonb("pagespeed_scores").$type<{
-    performance: number;
-    accessibility: number;
-    bestPractices: number;
-    seo: number;
-  } | null>().default(null),
-  pagespeedCoreWebVitals: jsonb("pagespeed_core_web_vitals").$type<{
-    lcp: number;
-    inp: number | null;
-    cls: number;
-  } | null>().default(null),
-  pagespeedFailedThresholds: jsonb("pagespeed_failed_thresholds").$type<string[] | null>().default(null),
-  pagespeedReportUrl: text("pagespeed_report_url"),
-  pagespeedAstroCommitSha: text("pagespeed_astro_commit_sha"),
+    // PageSpeed validation results (Spec 22)
+    pagespeedValidatedAt: timestamp("pagespeed_validated_at", { withTimezone: true }),
+    pagespeedScores: jsonb("pagespeed_scores")
+      .$type<{
+        performance: number;
+        accessibility: number;
+        bestPractices: number;
+        seo: number;
+      } | null>()
+      .default(null),
+    pagespeedCoreWebVitals: jsonb("pagespeed_core_web_vitals")
+      .$type<{
+        lcp: number;
+        inp: number | null;
+        cls: number;
+      } | null>()
+      .default(null),
+    pagespeedFailedThresholds: jsonb("pagespeed_failed_thresholds")
+      .$type<string[] | null>()
+      .default(null),
+    pagespeedReportUrl: text("pagespeed_report_url"),
+    pagespeedAstroCommitSha: text("pagespeed_astro_commit_sha"),
 
-  publishedUrl: text("published_url"),
-  publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedUrl: text("published_url"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
 
-  // Internal linking (Spec 24)
-  internalLinksUpdatedAt: timestamp("internal_links_updated_at", { withTimezone: true }),
-  internalLinksAdded: integer("internal_links_added").default(0),
-  internalLinkTargets: jsonb("internal_link_targets").$type<string[]>().default([]),
+    // Internal linking (Spec 24)
+    internalLinksUpdatedAt: timestamp("internal_links_updated_at", { withTimezone: true }),
+    internalLinksAdded: integer("internal_links_added").default(0),
+    internalLinkTargets: jsonb("internal_link_targets").$type<string[]>().default([]),
 
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  projectIdx: index("articles_project_idx").on(t.projectId),
-  clusterIdx: index("articles_cluster_idx").on(t.clusterId),
-  statusIdx: index("articles_status_idx").on(t.projectId, t.status),
-  cornerstoneKeywordIdx: index("articles_cornerstone_keyword_idx").on(t.cornerstoneKeyword),
-  uniqueSlugPerProject: uniqueIndex("articles_project_slug_unique").on(t.projectId, t.slug),
-  embeddingIdx: index("articles_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
-}));
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index("articles_project_idx").on(t.projectId),
+    clusterIdx: index("articles_cluster_idx").on(t.clusterId),
+    statusIdx: index("articles_status_idx").on(t.projectId, t.status),
+    cornerstoneKeywordIdx: index("articles_cornerstone_keyword_idx").on(t.cornerstoneKeyword),
+    uniqueSlugPerProject: uniqueIndex("articles_project_slug_unique").on(t.projectId, t.slug),
+    embeddingIdx: index("articles_embedding_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops")
+    ),
+  })
+);
 
-export const articleVersions = pgTable("article_versions", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  articleId: uuid("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
-  version: integer("version").notNull(),
-  bodyMd: text("body_md").notNull(),
-  changeReason: text("change_reason"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  articleIdx: index("article_versions_article_idx").on(t.articleId),
-}));
+export const articleVersions = pgTable(
+  "article_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    articleId: uuid("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    bodyMd: text("body_md").notNull(),
+    changeReason: text("change_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    articleIdx: index("article_versions_article_idx").on(t.articleId),
+  })
+);
 
-export const socialPosts = pgTable("social_posts", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
-  articleId: uuid("article_id").references(() => articles.id, { onDelete: "set null" }),
+export const socialPosts = pgTable(
+  "social_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    articleId: uuid("article_id").references(() => articles.id, { onDelete: "set null" }),
 
-  platform: socialPlatformEnum("platform").notNull(),
-  format: socialFormatEnum("format").notNull(),
-  status: socialStatusEnum("status").notNull().default("draft"),
+    platform: socialPlatformEnum("platform").notNull(),
+    format: socialFormatEnum("format").notNull(),
+    status: socialStatusEnum("status").notNull().default("draft"),
 
-  content: jsonb("content").$type<SocialPostContent>().notNull(),
+    content: jsonb("content").$type<SocialPostContent>().notNull(),
 
-  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
-  publishedAt: timestamp("published_at", { withTimezone: true }),
-  publishedUrl: text("published_url"),
+    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedUrl: text("published_url"),
 
-  metrics: jsonb("metrics").$type<Record<string, number>>(),
+    metrics: jsonb("metrics").$type<Record<string, number>>(),
 
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => ({
-  projectIdx: index("social_posts_project_idx").on(t.projectId),
-  statusIdx: index("social_posts_status_idx").on(t.projectId, t.status),
-  scheduledIdx: index("social_posts_scheduled_idx").on(t.scheduledAt),
-  articleIdx: index("social_posts_article_idx").on(t.articleId),
-}));
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index("social_posts_project_idx").on(t.projectId),
+    statusIdx: index("social_posts_status_idx").on(t.projectId, t.status),
+    scheduledIdx: index("social_posts_scheduled_idx").on(t.scheduledAt),
+    articleIdx: index("social_posts_article_idx").on(t.articleId),
+  })
+);
 
 export type SocialPostContent =
-  | { kind: "carousel"; slides: Array<{ imageUrl: string; caption?: string }>; caption: string; hashtags: string[] }
+  | {
+      kind: "carousel";
+      slides: Array<{ imageUrl: string; caption?: string }>;
+      caption: string;
+      hashtags: string[];
+    }
   | { kind: "reel"; videoUrl: string; coverUrl: string; caption: string; hashtags: string[] }
   | { kind: "single_image"; imageUrl: string; caption: string; hashtags: string[] }
   | { kind: "story"; imageUrl: string; durationSec?: number };

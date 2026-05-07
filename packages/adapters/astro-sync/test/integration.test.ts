@@ -15,12 +15,12 @@
  * The test creates a fresh article, runs the full pipeline synchronously,
  * verifies the commit on GitHub, and asserts DB state transitions.
  */
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db, articles, astroSyncRuns, projects } from "@marketing-auto/db";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { articles, astroSyncRuns, db, projects } from "@marketing-auto/db";
 import { runPipeline } from "@marketing-auto/pipelines/engine";
-import { ArticleSyncPipeline } from "../src/pipeline.ts";
+import { eq } from "drizzle-orm";
 import { getInstallationOctokit } from "../src/github-auth.ts";
+import { ArticleSyncPipeline } from "../src/pipeline.ts";
 
 const SKIP = !process.env.RUN_LIVE_ASTRO_SYNC;
 const PROJECT_SLUG = "ki-wissensraum";
@@ -45,7 +45,8 @@ describe("ArticleSyncPipeline — live integration", () => {
       .limit(1);
 
     if (!project) throw new Error(`Project "${PROJECT_SLUG}" not found in DB`);
-    if (!project.astroRepo) throw new Error(`Project "${PROJECT_SLUG}" has no astroRepo configured`);
+    if (!project.astroRepo)
+      throw new Error(`Project "${PROJECT_SLUG}" has no astroRepo configured`);
 
     projectId = project.id;
     const repo = project.astroRepo as { owner: string; name: string; installationId: number };
@@ -141,7 +142,7 @@ describe("ArticleSyncPipeline — live integration", () => {
     const octokit = await getInstallationOctokit(installationId);
     const { data: commit } = await octokit.request(
       "GET /repos/{owner}/{repo}/git/commits/{commit_sha}",
-      { owner: repoOwner, repo: repoName, commit_sha: commitSha },
+      { owner: repoOwner, repo: repoName, commit_sha: commitSha }
     );
 
     expect(commit.sha).toBe(commitSha);
@@ -154,10 +155,12 @@ describe("ArticleSyncPipeline — live integration", () => {
     const octokit = await getInstallationOctokit(installationId);
     const mdxPath = `src/content/blog/${TEST_SLUG}.mdx`;
 
-    const res = await octokit.request(
-      "GET /repos/{owner}/{repo}/contents/{path}",
-      { owner: repoOwner, repo: repoName, path: mdxPath, ref: commitSha },
-    );
+    const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+      owner: repoOwner,
+      repo: repoName,
+      path: mdxPath,
+      ref: commitSha,
+    });
 
     expect(Array.isArray(res.data)).toBe(false);
     const fileData = res.data as { type: string; content?: string; size: number };
@@ -174,10 +177,12 @@ describe("ArticleSyncPipeline — live integration", () => {
     const octokit = await getInstallationOctokit(installationId);
     const imagePath = `src/assets/articles/${TEST_SLUG}/hero.jpg`;
 
-    const res = await octokit.request(
-      "GET /repos/{owner}/{repo}/contents/{path}",
-      { owner: repoOwner, repo: repoName, path: imagePath, ref: commitSha },
-    );
+    const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+      owner: repoOwner,
+      repo: repoName,
+      path: imagePath,
+      ref: commitSha,
+    });
 
     expect(Array.isArray(res.data)).toBe(false);
     const fileData = res.data as { type: string; size: number };
@@ -189,10 +194,7 @@ describe("ArticleSyncPipeline — live integration", () => {
     if (SKIP || !commitSha) return;
 
     // Reset article status to allow re-sync
-    await db
-      .update(articles)
-      .set({ status: "final_review" })
-      .where(eq(articles.id, articleId));
+    await db.update(articles).set({ status: "final_review" }).where(eq(articles.id, articleId));
 
     const pipeline = new ArticleSyncPipeline();
     const result = await runPipeline(pipeline, { articleId, projectId }, { projectId });

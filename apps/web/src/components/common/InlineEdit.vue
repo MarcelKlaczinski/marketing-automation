@@ -25,10 +25,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, nextTick } from 'vue';
+import { defineComponent, nextTick } from "vue";
 
 export default defineComponent({
-  name: 'InlineEdit',
+  name: "InlineEdit",
 
   props: {
     value: { type: String, required: true },
@@ -36,12 +36,12 @@ export default defineComponent({
     minLength: { type: Number, default: 2 },
   },
 
-  emits: ['save'],
+  emits: ["save"],
 
   data() {
     return {
       editing: false,
-      draft: '',
+      draft: "",
     };
   },
 
@@ -75,14 +75,14 @@ export default defineComponent({
         return;
       }
       if (trimmed !== this.value) {
-        this.$emit('save', trimmed);
+        this.$emit("save", trimmed);
       }
       this.editing = false;
     },
 
     onCancel(): void {
       this.editing = false;
-      this.draft = '';
+      this.draft = "";
     },
   },
 });

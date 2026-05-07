@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "bun:test";
+import { afterEach, describe, expect, it } from "bun:test";
 import { r2 } from "../src/index.ts";
 
 const live = process.env.RUN_LIVE_R2 === "1";
@@ -8,7 +8,9 @@ describeLive("R2 storage (LIVE)", () => {
   const testKey = `test/spec-12-${Date.now()}.txt`;
 
   afterEach(async () => {
-    try { await r2.delete(testKey); } catch {}
+    try {
+      await r2.delete(testKey);
+    } catch {}
   });
 
   it("puts a string and reads it back via fetch", async () => {

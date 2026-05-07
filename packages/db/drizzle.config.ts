@@ -1,5 +1,5 @@
-import { defineConfig } from "drizzle-kit";
 import { getEnv } from "@marketing-auto/shared/config";
+import { defineConfig } from "drizzle-kit";
 
 const env = getEnv();
 

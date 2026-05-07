@@ -1,8 +1,8 @@
 export default {
-  heading: 'Navigation',
-  inbox: 'Inbox',
-  projects: 'Projects',
-  cost: 'Costs',
-  activity: 'Activity',
-  settings: 'Settings',
+  heading: "Navigation",
+  inbox: "Inbox",
+  projects: "Projects",
+  cost: "Costs",
+  activity: "Activity",
+  settings: "Settings",
 };

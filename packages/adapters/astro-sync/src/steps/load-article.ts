@@ -1,8 +1,8 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { articles, clusters, db, pipelineRuns, projects } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { db, articles, projects, clusters, pipelineRuns } from "@marketing-auto/db";
-import { AstroSyncError, AstroRepoConfigSchema, type AstroRepoConfig } from "../types.ts";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { type AstroRepoConfig, AstroRepoConfigSchema, AstroSyncError } from "../types.ts";
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),
@@ -23,10 +23,12 @@ const OutputSchema = z.object({
     collectionType: z.string(),
     wordCount: z.number(),
   }),
-  cluster: z.object({
-    name: z.string(),
-    pillar: z.string(),
-  }).nullable(),
+  cluster: z
+    .object({
+      name: z.string(),
+      pillar: z.string(),
+    })
+    .nullable(),
   // AstroRepoConfigSchema has .default() fields → _input has string|undefined.
   // Cast to ZodType<output> to satisfy BaseStep's strict generic (safe: .parse() always returns output).
   astroRepo: AstroRepoConfigSchema,
@@ -34,15 +36,14 @@ const OutputSchema = z.object({
 type LoadArticleOutput = z.infer<typeof OutputSchema>;
 const OutputSchemaCast = OutputSchema as z.ZodType<LoadArticleOutput>;
 
-export class LoadArticleStep extends BaseStep<
-  z.infer<typeof InputSchema>,
-  LoadArticleOutput
-> {
+export class LoadArticleStep extends BaseStep<z.infer<typeof InputSchema>, LoadArticleOutput> {
   readonly name = "load-article";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchemaCast;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const [article] = await db
@@ -66,21 +67,21 @@ export class LoadArticleStep extends BaseStep<
     if (run && article.updatedAt > run.createdAt) {
       throw new AstroSyncError(
         `stale_read: article was updated at ${article.updatedAt.toISOString()} after pipeline run started at ${run.createdAt.toISOString()}. Trigger a new sync to pick up the latest content.`,
-        "stale_read",
+        "stale_read"
       );
     }
 
     if (article.status !== "final_review" && article.status !== "ready_to_publish") {
       throw new AstroSyncError(
         `Article status is "${article.status}", expected "final_review" or "ready_to_publish"`,
-        "load",
+        "load"
       );
     }
 
     if (!article.bodyMd || !article.heroImagePublicUrl || !article.title) {
       throw new AstroSyncError(
         "Article missing required fields (bodyMd, heroImagePublicUrl, or title)",
-        "load",
+        "load"
       );
     }
 
@@ -97,7 +98,7 @@ export class LoadArticleStep extends BaseStep<
     if (!project.astroRepo) {
       throw new AstroSyncError(
         `Project "${project.slug}" has no astroRepo configured. Set projects.astro_repo first.`,
-        "config",
+        "config"
       );
     }
 

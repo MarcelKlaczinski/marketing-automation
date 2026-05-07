@@ -1,8 +1,8 @@
-import { eq, and } from "drizzle-orm";
 import { db, projectCredentials } from "@marketing-auto/db";
 import { type Result, err, tryAsync } from "@marketing-auto/shared";
-import { encryptJson, decryptJson } from "./crypto.ts";
-import type { CredentialService, CredentialPayload } from "./types.ts";
+import { and, eq } from "drizzle-orm";
+import { decryptJson, encryptJson } from "./crypto.ts";
+import type { CredentialPayload, CredentialService } from "./types.ts";
 
 export class CredentialVault {
   /**
@@ -49,15 +49,17 @@ export class CredentialVault {
   async get<S extends CredentialService>(input: {
     projectId: string;
     service: S;
-  }): Promise<Result<{ payload: CredentialPayload<S>; expiresAt: Date | null }, "NotFound" | Error>> {
+  }): Promise<
+    Result<{ payload: CredentialPayload<S>; expiresAt: Date | null }, "NotFound" | Error>
+  > {
     const rows = await db
       .select()
       .from(projectCredentials)
       .where(
         and(
           eq(projectCredentials.projectId, input.projectId),
-          eq(projectCredentials.service, input.service),
-        ),
+          eq(projectCredentials.service, input.service)
+        )
       )
       .limit(1);
 
@@ -101,8 +103,8 @@ export class CredentialVault {
         .where(
           and(
             eq(projectCredentials.projectId, input.projectId),
-            eq(projectCredentials.service, input.service),
-          ),
+            eq(projectCredentials.service, input.service)
+          )
         );
     });
   }

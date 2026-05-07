@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { articles, clusters, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { db, articles, clusters, projects } from "@marketing-auto/db";
 import { ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -26,27 +26,46 @@ export class TopicIntakeStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
-    const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
-    if (!article) throw new ArticlePipelineError(`Article ${input.articleId} not found`, "topic_intake");
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, input.articleId))
+      .limit(1);
+    if (!article)
+      throw new ArticlePipelineError(`Article ${input.articleId} not found`, "topic_intake");
 
     if (!article.clusterId) {
       throw new ArticlePipelineError(
-        `Article has no clusterId — cannot proceed without cluster context`,
-        "topic_intake",
+        "Article has no clusterId — cannot proceed without cluster context",
+        "topic_intake"
       );
     }
 
-    const [cluster] = await db.select().from(clusters).where(eq(clusters.id, article.clusterId)).limit(1);
-    if (!cluster) throw new ArticlePipelineError(`Cluster ${article.clusterId} not found`, "topic_intake");
+    const [cluster] = await db
+      .select()
+      .from(clusters)
+      .where(eq(clusters.id, article.clusterId))
+      .limit(1);
+    if (!cluster)
+      throw new ArticlePipelineError(`Cluster ${article.clusterId} not found`, "topic_intake");
 
-    const [project] = await db.select().from(projects).where(eq(projects.id, input.projectId)).limit(1);
-    if (!project) throw new ArticlePipelineError(`Project ${input.projectId} not found`, "topic_intake");
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, input.projectId))
+      .limit(1);
+    if (!project)
+      throw new ArticlePipelineError(`Project ${input.projectId} not found`, "topic_intake");
 
     const clusterData = cluster.satelliteKeywords ?? [];
-    const matchingEntry = clusterData.find((e) => e.cornerstoneKeyword === article.cornerstoneKeyword);
+    const matchingEntry = clusterData.find(
+      (e) => e.cornerstoneKeyword === article.cornerstoneKeyword
+    );
     const satelliteKeywords = matchingEntry?.keywords.map((k) => k.keyword) ?? [];
 
     return {

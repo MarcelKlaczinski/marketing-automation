@@ -1,3 +1,3 @@
 export default {
-  intro: 'Select an area from the sidebar.',
+  intro: "Select an area from the sidebar.",
 };

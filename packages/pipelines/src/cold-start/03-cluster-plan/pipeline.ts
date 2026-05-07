@@ -1,16 +1,16 @@
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import {
-  GenerateClusterCandidatesStep,
-  ValidateKeywordsStep,
-  ExpandWithSatellitesStep,
-  SynthesizeClusterPlanStep,
-  ClusterCandidateSchema,
+  type ClusterCandidateSchema,
   ConfirmedClusterSchema,
-  ValidatedClusterSchema,
-  ExpandedClusterSchema,
+  ExpandWithSatellitesStep,
+  type ExpandedClusterSchema,
   FinalClusterSchema,
+  GenerateClusterCandidatesStep,
   SatelliteKeywordSchema,
+  SynthesizeClusterPlanStep,
+  ValidateKeywordsStep,
+  ValidatedClusterSchema,
 } from "./steps.ts";
 
 // ─── Propose pipeline ─────────────────────────────────────────────────────────
@@ -35,17 +35,14 @@ export class ClusterProposePipeline extends Pipeline<
   readonly name = "cold-start:cluster-propose";
   readonly inputSchema = ProposeInputSchema;
   readonly outputSchema = ProposeOutputSchema;
-  readonly steps = [
-    new GenerateClusterCandidatesStep(),
-    new ValidateKeywordsStep(),
-  ] as const;
+  readonly steps = [new GenerateClusterCandidatesStep(), new ValidateKeywordsStep()] as const;
 
   override bridge(
     fromStep: { name: string },
     toStep: { name: string },
     output: unknown,
     _pipelineInput: z.infer<typeof ProposeInputSchema>,
-    _getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    _getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     if (
       fromStep.name === "generate-cluster-candidates" &&
@@ -81,22 +78,16 @@ export class ClusterExpandPipeline extends Pipeline<
   readonly name = "cold-start:cluster-expand";
   readonly inputSchema = ExpandInputSchema;
   readonly outputSchema = ExpandOutputSchema;
-  readonly steps = [
-    new ExpandWithSatellitesStep(),
-    new SynthesizeClusterPlanStep(),
-  ] as const;
+  readonly steps = [new ExpandWithSatellitesStep(), new SynthesizeClusterPlanStep()] as const;
 
   override bridge(
     fromStep: { name: string },
     toStep: { name: string },
     output: unknown,
     pipelineInput: z.infer<typeof ExpandInputSchema>,
-    _getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    _getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
-    if (
-      fromStep.name === "expand-with-satellites" &&
-      toStep.name === "synthesize-cluster-plan"
-    ) {
+    if (fromStep.name === "expand-with-satellites" && toStep.name === "synthesize-cluster-plan") {
       const out = output as { expandedClusters: Array<z.infer<typeof ExpandedClusterSchema>> };
       return {
         projectSlug: pipelineInput.projectSlug,

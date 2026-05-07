@@ -72,15 +72,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useProjectsStore } from 'src/stores/projects';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import MarkdownEditor from 'src/components/common/MarkdownEditor.vue';
-import type { Project } from 'src/stores/projects';
+import MarkdownEditor from "src/components/common/MarkdownEditor.vue";
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { useProjectsStore } from "src/stores/projects";
+import type { Project } from "src/stores/projects";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ProjectOverviewPanel',
+  name: "ProjectOverviewPanel",
 
   components: { MarkdownEditor },
 
@@ -88,7 +88,7 @@ export default defineComponent({
     project: { type: Object as PropType<Project>, required: true },
   },
 
-  emits: ['updated'],
+  emits: ["updated"],
 
   setup() {
     return {
@@ -99,8 +99,8 @@ export default defineComponent({
 
   data() {
     return {
-      contextDraft: this.project.marketingContextMd ?? '',
-      lastSaved: this.project.marketingContextMd ?? '',
+      contextDraft: this.project.marketingContextMd ?? "",
+      lastSaved: this.project.marketingContextMd ?? "",
       saving: false,
     };
   },
@@ -115,10 +115,10 @@ export default defineComponent({
   },
 
   watch: {
-    'project.marketingContextMd'(newVal: string | null): void {
+    "project.marketingContextMd"(newVal: string | null): void {
       if (newVal !== this.lastSaved) {
-        this.contextDraft = newVal ?? '';
-        this.lastSaved = newVal ?? '';
+        this.contextDraft = newVal ?? "";
+        this.lastSaved = newVal ?? "";
       }
     },
   },
@@ -132,8 +132,8 @@ export default defineComponent({
           marketingContextMd: this.contextDraft,
         });
         this.lastSaved = this.contextDraft;
-        this.notify.success(this.$t('projects.overview.saveSuccess') as string);
-        this.$emit('updated');
+        this.notify.success(this.$t("projects.overview.saveSuccess") as string);
+        this.$emit("updated");
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {
@@ -148,7 +148,7 @@ export default defineComponent({
     },
 
     formatDate(iso: string): string {
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
       return new Date(iso).toLocaleDateString(locale);
     },
   },

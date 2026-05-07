@@ -1,7 +1,7 @@
+import { getGlobal } from "@marketing-auto/core/credentials";
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import { S3Client } from "bun";
 import type { S3File } from "bun";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { getGlobal } from "@marketing-auto/core/credentials";
 
 const log = createLogger("storage-r2");
 
@@ -20,20 +20,17 @@ async function resolveR2Config(): Promise<R2Config> {
   const env = getEnv();
 
   // Try vault first, fall back to env vars
-  const accountId =
-    (await getGlobal("r2", "account_id")) ?? env.R2_ACCOUNT_ID ?? "";
-  const accessKeyId =
-    (await getGlobal("r2", "access_key_id")) ?? env.R2_ACCESS_KEY_ID ?? "";
+  const accountId = (await getGlobal("r2", "account_id")) ?? env.R2_ACCOUNT_ID ?? "";
+  const accessKeyId = (await getGlobal("r2", "access_key_id")) ?? env.R2_ACCESS_KEY_ID ?? "";
   const secretAccessKey =
     (await getGlobal("r2", "secret_access_key")) ?? env.R2_SECRET_ACCESS_KEY ?? "";
-  const bucket =
-    (await getGlobal("r2", "bucket")) ?? env.R2_BUCKET ?? "";
+  const bucket = (await getGlobal("r2", "bucket")) ?? env.R2_BUCKET ?? "";
   const publicBaseUrl =
     (await getGlobal("r2", "public_base_url")) ?? env.R2_PUBLIC_BASE_URL ?? null;
 
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket) {
     throw new Error(
-      "R2 not configured. Set credentials via installer or set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET in .env",
+      "R2 not configured. Set credentials via installer or set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET in .env"
     );
   }
 

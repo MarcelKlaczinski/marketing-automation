@@ -36,8 +36,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useSystemStatusStore } from 'src/stores/system-status';
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
 
 interface InfraStatus {
   configured: boolean;
@@ -46,14 +46,18 @@ interface InfraStatus {
 }
 
 export default defineComponent({
-  name: 'StepCore',
-  emits: ['configured', 'skipped'],
+  name: "StepCore",
+  emits: ["configured", "skipped"],
   setup() {
     return { systemStatusStore: useSystemStatusStore() };
   },
   computed: {
-    postgres(): InfraStatus { return this.systemStatusStore.postgres; },
-    redis(): InfraStatus { return this.systemStatusStore.redis; },
+    postgres(): InfraStatus {
+      return this.systemStatusStore.postgres;
+    },
+    redis(): InfraStatus {
+      return this.systemStatusStore.redis;
+    },
   },
 });
 </script>

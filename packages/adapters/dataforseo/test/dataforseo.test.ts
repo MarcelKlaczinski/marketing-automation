@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { costLogs, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
-import { db, projects, costLogs } from "@marketing-auto/db";
 import {
-  serp,
-  keywordOverview,
-  relatedKeywords,
-  rankedKeywords,
   DataForSeoError,
+  keywordOverview,
+  rankedKeywords,
+  relatedKeywords,
+  serp,
 } from "../src/index.ts";
 
 const live = process.env.RUN_LIVE_DATAFORSEO === "1";
@@ -50,10 +50,7 @@ describeLive("DataForSEO adapter (LIVE)", () => {
     expect(result.organicResults[0]!.url).toMatch(/^https?:\/\//);
     expect(result.checkUrl).toBeDefined();
 
-    const logs = await db
-      .select()
-      .from(costLogs)
-      .where(eq(costLogs.projectId, projectId));
+    const logs = await db.select().from(costLogs).where(eq(costLogs.projectId, projectId));
     const last = logs[logs.length - 1]!;
     expect(last.service).toBe("dataforseo");
     expect(Number(last.costEur)).toBeGreaterThan(0);
@@ -106,7 +103,7 @@ describeLive("DataForSEO adapter (LIVE)", () => {
         keyword: "test",
         mode: "standard",
         estimatedCostEur: 0.001,
-      }),
+      })
     ).rejects.toThrow(DataForSeoError);
   });
 });

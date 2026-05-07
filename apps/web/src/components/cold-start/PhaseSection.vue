@@ -28,12 +28,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { PhaseStatusLabel } from 'src/stores/cold-start';
-import PhaseStatusPill from './PhaseStatusPill.vue';
+import type { PhaseStatusLabel } from "src/stores/cold-start";
+import { type PropType, defineComponent } from "vue";
+import PhaseStatusPill from "./PhaseStatusPill.vue";
 
 export default defineComponent({
-  name: 'PhaseSection',
+  name: "PhaseSection",
 
   components: { PhaseStatusPill },
 
@@ -53,10 +53,10 @@ export default defineComponent({
     status: {
       immediate: true,
       handler(newStatus: PhaseStatusLabel) {
-        if (this.unlocked && newStatus !== 'complete') {
+        if (this.unlocked && newStatus !== "complete") {
           this.expanded = true;
         }
-        if (newStatus === 'complete') {
+        if (newStatus === "complete") {
           this.expanded = false;
         }
       },
@@ -64,7 +64,7 @@ export default defineComponent({
     unlocked: {
       immediate: true,
       handler(isUnlocked: boolean) {
-        if (isUnlocked && this.status !== 'complete') {
+        if (isUnlocked && this.status !== "complete") {
           this.expanded = true;
         }
       },

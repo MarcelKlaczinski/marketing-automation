@@ -1,7 +1,7 @@
-import { App } from "octokit";
 import { readFile } from "node:fs/promises";
-import { getEnv, createLogger } from "@marketing-auto/shared";
 import { getGlobal } from "@marketing-auto/core/credentials";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import { App } from "octokit";
 import { AstroSyncError } from "./types.ts";
 
 const log = createLogger("astro-sync:auth");
@@ -18,8 +18,8 @@ export async function getGitHubApp(): Promise<App> {
   if (!appId) {
     throw new AstroSyncError(
       "GitHub App ID not configured (set via installer or GITHUB_APP_ID env). " +
-      "See packages/adapters/astro-sync/SETUP-GITHUB-APP.md",
-      "auth",
+        "See packages/adapters/astro-sync/SETUP-GITHUB-APP.md",
+      "auth"
     );
   }
 
@@ -30,12 +30,13 @@ export async function getGitHubApp(): Promise<App> {
   if (vaultPemContent) {
     privateKey = vaultPemContent;
   } else {
-    const keyPath = (await getGlobal("github_app", "private_key_path")) ?? env.GITHUB_APP_PRIVATE_KEY_PATH;
+    const keyPath =
+      (await getGlobal("github_app", "private_key_path")) ?? env.GITHUB_APP_PRIVATE_KEY_PATH;
     if (!keyPath) {
       throw new AstroSyncError(
         "GitHub App private key not configured (set via installer or GITHUB_APP_PRIVATE_KEY_PATH env). " +
-        "See packages/adapters/astro-sync/SETUP-GITHUB-APP.md",
-        "auth",
+          "See packages/adapters/astro-sync/SETUP-GITHUB-APP.md",
+        "auth"
       );
     }
     try {
@@ -44,7 +45,7 @@ export async function getGitHubApp(): Promise<App> {
       throw new AstroSyncError(
         `Failed to read GitHub App private key from ${keyPath}: ${e instanceof Error ? e.message : String(e)}`,
         "auth",
-        e,
+        e
       );
     }
   }

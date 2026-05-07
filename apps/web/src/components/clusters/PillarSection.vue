@@ -111,14 +111,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { Pillar } from 'src/stores/pillars';
-import type { Cluster } from 'src/stores/clusters';
-import InlineEdit from 'src/components/common/InlineEdit.vue';
-import ClusterCard from './ClusterCard.vue';
+import InlineEdit from "src/components/common/InlineEdit.vue";
+import type { Cluster } from "src/stores/clusters";
+import type { Pillar } from "src/stores/pillars";
+import { type PropType, defineComponent } from "vue";
+import ClusterCard from "./ClusterCard.vue";
 
 export default defineComponent({
-  name: 'PillarSection',
+  name: "PillarSection",
 
   components: { InlineEdit, ClusterCard },
 
@@ -133,36 +133,36 @@ export default defineComponent({
   },
 
   emits: [
-    'rename',
-    'delete',
-    'move',
-    'cluster-create',
-    'cluster-rename',
-    'cluster-delete',
-    'cluster-move',
-    'cluster-change-pillar',
-    'cluster-move-articles',
+    "rename",
+    "delete",
+    "move",
+    "cluster-create",
+    "cluster-rename",
+    "cluster-delete",
+    "cluster-move",
+    "cluster-change-pillar",
+    "cluster-move-articles",
   ],
 
   data() {
     return {
       descriptionDialogOpen: false,
-      descriptionDraft: '',
+      descriptionDraft: "",
     };
   },
 
   methods: {
     onRenameName(name: string): void {
-      this.$emit('rename', { id: this.pillar.id, name, description: this.pillar.description });
+      this.$emit("rename", { id: this.pillar.id, name, description: this.pillar.description });
     },
 
     onEditDescription(): void {
-      this.descriptionDraft = this.pillar.description ?? '';
+      this.descriptionDraft = this.pillar.description ?? "";
       this.descriptionDialogOpen = true;
     },
 
     confirmDescription(): void {
-      this.$emit('rename', {
+      this.$emit("rename", {
         id: this.pillar.id,
         name: this.pillar.name,
         description: this.descriptionDraft.trim() || null,

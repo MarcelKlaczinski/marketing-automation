@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { z } from "zod";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { BaseStep, Pipeline, runPipeline } from "../src/engine/index.ts";
 import type { StepContext } from "../src/engine/index.ts";
-import { loadSkill, _resetSkillCache } from "../src/skills/loader.ts";
+import { _resetSkillCache, loadSkill } from "../src/skills/loader.ts";
 
 // --- Test steps ---
 
@@ -50,12 +50,15 @@ describe("Pipeline runner", () => {
   let projectId: string;
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `pipeline-test-${Date.now()}`,
-      name: "Pipeline Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `pipeline-test-${Date.now()}`,
+        name: "Pipeline Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
     projectId = p!.id;
   });
 
@@ -64,11 +67,7 @@ describe("Pipeline runner", () => {
   });
 
   it("runs a trivial pipeline to completion", async () => {
-    const result = await runPipeline(
-      new TrivialPipeline(),
-      { message: "hello" },
-      { projectId },
-    );
+    const result = await runPipeline(new TrivialPipeline(), { message: "hello" }, { projectId });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -78,11 +77,7 @@ describe("Pipeline runner", () => {
   });
 
   it("captures step failure and marks pipeline failed", async () => {
-    const result = await runPipeline(
-      new FailingPipeline(),
-      { message: "x" },
-      { projectId },
-    );
+    const result = await runPipeline(new FailingPipeline(), { message: "x" }, { projectId });
 
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -93,11 +88,9 @@ describe("Pipeline runner", () => {
 
   it("rejects invalid pipeline input via Zod", async () => {
     await expect(
-      runPipeline(
-        new TrivialPipeline(),
-        { message: 123 } as unknown as { message: string },
-        { projectId },
-      ),
+      runPipeline(new TrivialPipeline(), { message: 123 } as unknown as { message: string }, {
+        projectId,
+      })
     ).rejects.toThrow();
   });
 });
@@ -110,7 +103,9 @@ describe("loadSkill", () => {
   });
 
   it("throws a clear error for a nonexistent skill", async () => {
-    await expect(loadSkill("__nonexistent_skill__")).rejects.toThrow("Skill not found: __nonexistent_skill__");
+    await expect(loadSkill("__nonexistent_skill__")).rejects.toThrow(
+      "Skill not found: __nonexistent_skill__"
+    );
   });
 
   it("loads and caches a real skill if submodule is populated", async () => {

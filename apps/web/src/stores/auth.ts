@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import { api } from 'src/lib/api-client';
+import { defineStore } from "pinia";
+import { api } from "src/lib/api-client";
 
 interface User {
   id: string;
@@ -11,7 +11,7 @@ interface AuthState {
   loading: boolean;
 }
 
-export const useAuthStore = defineStore('auth', {
+export const useAuthStore = defineStore("auth", {
   state: (): AuthState => ({
     user: null,
     loading: false,
@@ -25,7 +25,7 @@ export const useAuthStore = defineStore('auth', {
     async fetchCurrent(): Promise<User | null> {
       this.loading = true;
       try {
-        const res = await api.get<{ ok: boolean; data: User }>('/auth/me');
+        const res = await api.get<{ ok: boolean; data: User }>("/auth/me");
         this.user = res.data.data;
         return this.user;
       } catch {
@@ -38,7 +38,7 @@ export const useAuthStore = defineStore('auth', {
 
     async logout(): Promise<void> {
       try {
-        await api.post('/auth/logout');
+        await api.post("/auth/logout");
       } catch {
         // Ignore — local state cleanup is what matters
       }

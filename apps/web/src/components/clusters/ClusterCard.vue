@@ -90,13 +90,13 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { Cluster } from 'src/stores/clusters';
-import type { Pillar } from 'src/stores/pillars';
-import InlineEdit from 'src/components/common/InlineEdit.vue';
+import InlineEdit from "src/components/common/InlineEdit.vue";
+import type { Cluster } from "src/stores/clusters";
+import type { Pillar } from "src/stores/pillars";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ClusterCard',
+  name: "ClusterCard",
 
   components: { InlineEdit },
 
@@ -108,7 +108,7 @@ export default defineComponent({
     isLast: { type: Boolean, default: false },
   },
 
-  emits: ['rename', 'delete', 'move', 'change-pillar', 'move-articles'],
+  emits: ["rename", "delete", "move", "change-pillar", "move-articles"],
 
   computed: {
     availablePillars(): Pillar[] {
@@ -118,7 +118,7 @@ export default defineComponent({
 
   methods: {
     onRenameName(name: string): void {
-      this.$emit('rename', {
+      this.$emit("rename", {
         id: this.cluster.id,
         name,
         primaryKeyword: this.cluster.primaryKeyword,

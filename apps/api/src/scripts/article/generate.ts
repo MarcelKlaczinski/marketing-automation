@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-import { eq, and, inArray } from "drizzle-orm";
-import { db, projects, clusters, articles } from "@marketing-auto/db";
+import { articles, clusters, db, projects } from "@marketing-auto/db";
 import { enqueueArticleGeneration } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
+import { and, eq, inArray } from "drizzle-orm";
 
 const log = createLogger("cli:article-generate");
 
@@ -10,13 +10,17 @@ const args = process.argv.slice(2);
 const approvalMode = args.includes("--auto") ? "auto" : "manual";
 const allApproved = args.includes("--all-approved");
 const limitIdx = args.indexOf("--limit");
-const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]!, 10) : undefined;
+const limit = limitIdx !== -1 ? Number.parseInt(args[limitIdx + 1]!, 10) : undefined;
 
 if (allApproved) {
   // Batch mode: article:generate --all-approved <project-slug> [--limit N] [--auto]
-  const projectSlug = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--limit");
+  const projectSlug = args.find(
+    (a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--limit"
+  );
   if (!projectSlug) {
-    console.error("Usage: bun ... article:generate --all-approved <project-slug> [--limit N] [--auto]");
+    console.error(
+      "Usage: bun ... article:generate --all-approved <project-slug> [--limit N] [--auto]"
+    );
     process.exit(1);
   }
 
@@ -28,7 +32,9 @@ if (allApproved) {
 
   const cornerstones = await findApprovedCornerstones(project.id, limit);
   if (cornerstones.length === 0) {
-    console.log("No approved cornerstones available for generation. Mark clusters as approved first.");
+    console.log(
+      "No approved cornerstones available for generation. Mark clusters as approved first."
+    );
     process.exit(0);
   }
 
@@ -52,14 +58,18 @@ if (allApproved) {
 
   console.log(`
 Enqueued ${successCount}/${cornerstones.length}. Mode: ${approvalMode}.
-${approvalMode === "manual"
+${
+  approvalMode === "manual"
     ? "Run `article:continue <cornerstone-keyword>` after reviewing each outline."
-    : "Job 2 (draft + image) auto-runs after each outline completes."}`);
+    : "Job 2 (draft + image) auto-runs after each outline completes."
+}`);
   process.exit(successCount > 0 ? 0 : 1);
 }
 
 // Single mode: article:generate <cornerstone-keyword> [--auto]
-const cornerstoneSlug = args.find((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--limit");
+const cornerstoneSlug = args.find(
+  (a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--limit"
+);
 if (!cornerstoneSlug) {
   console.error(`Usage:
   Single: bun ... article:generate <cornerstone-keyword> [--auto]
@@ -69,7 +79,9 @@ if (!cornerstoneSlug) {
 
 const project = await findProjectForCornerstone(cornerstoneSlug);
 if (!project) {
-  console.error(`Cornerstone "${cornerstoneSlug}" not found in any cluster. Run cold-start cluster-plan first.`);
+  console.error(
+    `Cornerstone "${cornerstoneSlug}" not found in any cluster. Run cold-start cluster-plan first.`
+  );
   process.exit(1);
 }
 
@@ -88,9 +100,11 @@ try {
 Job 1 (research + outline) running in background. Check Drizzle Studio in ~2-3 min.
 
 Next:
-${approvalMode === "manual"
+${
+  approvalMode === "manual"
     ? `  After outline review: bun --filter @marketing-auto/api article:continue ${cornerstoneSlug}`
-    : `  Job 2 (draft + image) auto-runs after Job 1 completes.`}`);
+    : `  Job 2 (draft + image) auto-runs after Job 1 completes.`
+}`);
 
   process.exit(0);
 } catch (e) {
@@ -114,14 +128,9 @@ async function findApprovedCornerstones(projectId: string, limitN?: number): Pro
   }
 
   // Exclude cornerstones that already have active or published articles
-  const activeStatuses: Array<"generating" | "outline_review" | "drafting" | "final_review" | "ready_to_publish" | "published"> = [
-    "generating",
-    "outline_review",
-    "drafting",
-    "final_review",
-    "ready_to_publish",
-    "published",
-  ];
+  const activeStatuses: Array<
+    "generating" | "outline_review" | "drafting" | "final_review" | "ready_to_publish" | "published"
+  > = ["generating", "outline_review", "drafting", "final_review", "ready_to_publish", "published"];
   const existing = await db
     .select({ kw: articles.cornerstoneKeyword })
     .from(articles)

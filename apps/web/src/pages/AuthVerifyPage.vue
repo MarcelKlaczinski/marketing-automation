@@ -33,15 +33,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { api } from 'src/lib/api-client';
-import { useAuthStore } from 'src/stores/auth';
-import { HttpError } from 'src/lib/http-error';
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { useAuthStore } from "src/stores/auth";
+import { defineComponent } from "vue";
 
-type VerifyState = 'loading' | 'success' | 'failure';
+type VerifyState = "loading" | "success" | "failure";
 
 export default defineComponent({
-  name: 'AuthVerifyPage',
+  name: "AuthVerifyPage",
 
   setup() {
     return {
@@ -50,37 +50,37 @@ export default defineComponent({
   },
 
   data: () => ({
-    state: 'loading' as VerifyState,
-    failureReason: '',
+    state: "loading" as VerifyState,
+    failureReason: "",
   }),
 
   async mounted() {
-    const rawToken = this.$route.query['token'];
-    const token = Array.isArray(rawToken) ? (rawToken[0] ?? '') : (rawToken ?? '');
+    const rawToken = this.$route.query.token;
+    const token = Array.isArray(rawToken) ? (rawToken[0] ?? "") : (rawToken ?? "");
     if (!token) {
-      this.state = 'failure';
-      this.failureReason = this.$t('auth.verify.failure') as string;
+      this.state = "failure";
+      this.failureReason = this.$t("auth.verify.failure") as string;
       return;
     }
 
     try {
       const res = await api.post<{ ok: boolean; data: { user: { id: string; email: string } } }>(
-        '/auth/magic-link/verify',
-        { token },
+        "/auth/magic-link/verify",
+        { token }
       );
 
       this.authStore.user = res.data.data.user;
-      this.state = 'success';
+      this.state = "success";
 
       setTimeout(() => {
-        void this.$router.push({ name: 'inbox' });
+        void this.$router.push({ name: "inbox" });
       }, 800);
     } catch (e) {
-      this.state = 'failure';
+      this.state = "failure";
       if (e instanceof HttpError) {
         this.failureReason = e.userMessage;
       } else {
-        this.failureReason = this.$t('auth.verify.failure') as string;
+        this.failureReason = this.$t("auth.verify.failure") as string;
       }
     }
   },

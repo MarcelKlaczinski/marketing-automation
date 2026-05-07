@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { install, computeExecutablePath, Browser } from "@puppeteer/browsers";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { Browser, computeExecutablePath, install } from "@puppeteer/browsers";
 
 const CHROME_BUILD_ID = "stable";
 const CACHE_DIR = join(homedir(), ".cache", "puppeteer");

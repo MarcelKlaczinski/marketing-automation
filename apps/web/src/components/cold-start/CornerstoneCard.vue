@@ -88,34 +88,34 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { CornerstoneArticle } from 'src/stores/cold-start';
+import type { CornerstoneArticle } from "src/stores/cold-start";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CornerstoneCard',
+  name: "CornerstoneCard",
 
   props: {
     article: { type: Object as PropType<CornerstoneArticle>, required: true },
     acting: { type: Boolean, default: false },
   },
 
-  emits: ['approve', 'reject', 'save'],
+  emits: ["approve", "reject", "save"],
 
   data() {
     return {
       editing: false,
       saving: false,
-      editTitle: this.article.title ?? '',
+      editTitle: this.article.title ?? "",
       editKeyword: this.article.cornerstoneKeyword,
-      editMetaDescription: this.article.metaDescription ?? '',
+      editMetaDescription: this.article.metaDescription ?? "",
     };
   },
 
   methods: {
     startEdit(): void {
-      this.editTitle = this.article.title ?? '';
+      this.editTitle = this.article.title ?? "";
       this.editKeyword = this.article.cornerstoneKeyword;
-      this.editMetaDescription = this.article.metaDescription ?? '';
+      this.editMetaDescription = this.article.metaDescription ?? "";
       this.editing = true;
     },
 
@@ -126,7 +126,7 @@ export default defineComponent({
     async onSave(): Promise<void> {
       this.saving = true;
       try {
-        this.$emit('save', {
+        this.$emit("save", {
           title: this.editTitle || undefined,
           cornerstoneKeyword: this.editKeyword || undefined,
           metaDescription: this.editMetaDescription || undefined,

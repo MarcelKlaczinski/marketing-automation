@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db, projects, clusters, articles, contentPillars } from "@marketing-auto/db";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 import { AssemblyStep } from "../../src/article/steps/assembly.ts";
 import { ArticlePipelineError } from "../../src/article/types.ts";
 import type { ArticleOutline } from "../../src/article/types.ts";
@@ -20,8 +20,10 @@ const mockCtx = (projectId: string): StepContext => ({
 const SAMPLE_OUTLINE: ArticleOutline = {
   title: "Die besten KI-Schreibtools 2024 im Vergleich",
   slug: "ki-schreibtools-vergleich",
-  metaDescription: "KI-Schreibtools im Vergleich: Welches Tool passt zu dir? Alle wichtigen Infos kompakt zusammengefasst.",
-  introAngle: "Wenn du täglich Texte schreibst, kennst du das Problem: der Cursor blinkt, die Ideen fehlen. KI-Schreibtools sollen das ändern — aber welches lohnt sich wirklich? In diesem Artikel zeigen wir dir die besten Optionen.",
+  metaDescription:
+    "KI-Schreibtools im Vergleich: Welches Tool passt zu dir? Alle wichtigen Infos kompakt zusammengefasst.",
+  introAngle:
+    "Wenn du täglich Texte schreibst, kennst du das Problem: der Cursor blinkt, die Ideen fehlen. KI-Schreibtools sollen das ändern — aber welches lohnt sich wirklich? In diesem Artikel zeigen wir dir die besten Optionen.",
   sections: [
     {
       h2: "Was KI-Schreibtools wirklich leisten",
@@ -33,7 +35,12 @@ const SAMPLE_OUTLINE: ArticleOutline = {
     {
       h2: "Die 5 beliebtesten Tools im Vergleich",
       intent: "Direkter Produktvergleich",
-      keyPoints: ["ChatGPT im Vergleich", "Claude im Vergleich", "Jasper im Vergleich", "Rytr im Vergleich"],
+      keyPoints: [
+        "ChatGPT im Vergleich",
+        "Claude im Vergleich",
+        "Jasper im Vergleich",
+        "Rytr im Vergleich",
+      ],
       estimatedWords: 600,
       targetKeywords: ["chatgpt schreiben"],
     },
@@ -52,7 +59,8 @@ const SAMPLE_OUTLINE: ArticleOutline = {
       targetKeywords: [],
     },
   ],
-  heroImagePrompt: "Flat illustration of an AI brain connected to a writing pen, clean white background, electric blue accents, modern tech aesthetic",
+  heroImagePrompt:
+    "Flat illustration of an AI brain connected to a writing pen, clean white background, electric blue accents, modern tech aesthetic",
   heroImageStyle: "illustrated",
   estimatedTotalWords: 1500,
 };
@@ -63,41 +71,53 @@ describe("AssemblyStep", () => {
   let articleId: string;
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `assembly-test-${Date.now()}`,
-      name: "Assembly Test Project",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `assembly-test-${Date.now()}`,
+        name: "Assembly Test Project",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
     projectId = p!.id;
 
-    const [pillar] = await db.insert(contentPillars).values({
-      projectId,
-      name: "AI Tools",
-      position: 0,
-    }).returning();
+    const [pillar] = await db
+      .insert(contentPillars)
+      .values({
+        projectId,
+        name: "AI Tools",
+        position: 0,
+      })
+      .returning();
 
-    const [c] = await db.insert(clusters).values({
-      projectId,
-      pillarId: pillar!.id,
-      name: "AI Writing",
-      pillar: "AI Tools",
-      cornerstoneKeywords: ["ki-schreibtools"],
-      satelliteKeywords: [],
-      status: "approved",
-    }).returning();
+    const [c] = await db
+      .insert(clusters)
+      .values({
+        projectId,
+        pillarId: pillar!.id,
+        name: "AI Writing",
+        pillar: "AI Tools",
+        cornerstoneKeywords: ["ki-schreibtools"],
+        satelliteKeywords: [],
+        status: "approved",
+      })
+      .returning();
     clusterId = c!.id;
 
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: "ki-schreibtools-vergleich",
-      cornerstoneKeyword: "ki-schreibtools",
-      outline: SAMPLE_OUTLINE,
-      heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-      status: "drafting",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "ki-schreibtools-vergleich",
+        cornerstoneKeyword: "ki-schreibtools",
+        outline: SAMPLE_OUTLINE,
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        status: "drafting",
+        approvalMode: "manual",
+      })
+      .returning();
     articleId = a!.id;
   });
 
@@ -148,18 +168,21 @@ describe("AssemblyStep", () => {
   });
 
   it("throws ArticlePipelineError when article has no outline", async () => {
-    const [noOutline] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: "no-outline-slug",
-      cornerstoneKeyword: "no-outline",
-      status: "drafting",
-      approvalMode: "manual",
-    }).returning();
+    const [noOutline] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "no-outline-slug",
+        cornerstoneKeyword: "no-outline",
+        status: "drafting",
+        approvalMode: "manual",
+      })
+      .returning();
 
     const step = new AssemblyStep();
     await expect(
-      step.execute({ articleId: noOutline!.id, projectId }, mockCtx(projectId)),
+      step.execute({ articleId: noOutline!.id, projectId }, mockCtx(projectId))
     ).rejects.toThrow(ArticlePipelineError);
 
     await db.delete(articles).where(eq(articles.id, noOutline!.id));

@@ -1,19 +1,23 @@
-import nodemailer, { type Transporter } from "nodemailer";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { getGlobal } from "@marketing-auto/core/credentials";
 import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
+import { getGlobal } from "@marketing-auto/core/credentials";
 import { track } from "@marketing-auto/cost-tracker";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import nodemailer, { type Transporter } from "nodemailer";
 import {
+  EmailError,
   type SendEmailInput,
   type SendEmailResult,
   type SendMagicLinkInput,
-  EmailError,
 } from "./types.ts";
 
 const log = createLogger("email");
 
 function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 interface SmtpConfig {
@@ -37,7 +41,7 @@ async function resolveSmtpConfig(): Promise<SmtpConfig | null> {
 
   const host = (await getGlobal("smtp", "host")) ?? env.SMTP_HOST;
   const portStr = await getGlobal("smtp", "port");
-  const port = portStr ? parseInt(portStr, 10) : env.SMTP_PORT;
+  const port = portStr ? Number.parseInt(portStr, 10) : env.SMTP_PORT;
   const fromAddress = (await getGlobal("smtp", "from_address")) ?? env.SMTP_USER ?? user;
 
   return { host, port, user, password, fromAddress };
@@ -79,7 +83,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
     // Dev fallback — no real cost incurred, skip cost check
     log.warn(
       { to: input.to, subject: input.subject, operation: input.operation },
-      "SMTP not configured — email logged to console (dev fallback)",
+      "SMTP not configured — email logged to console (dev fallback)"
     );
     if (input.devLog) {
       printDevLogBlock({
@@ -89,12 +93,6 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         ...input.devLog,
       });
     } else {
-      // console.log for direct stdout — pino logger would format as JSON
-      console.log(
-        `\n📧 Email (would-be-sent) — ${input.subject}\n` +
-        `   To: ${input.to}\n` +
-        `   ${input.html.slice(0, 200)}${input.html.length > 200 ? "…" : ""}\n`,
-      );
     }
     return { messageId: "dev-fallback", delivered: false };
   }
@@ -102,20 +100,19 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
   const { transporter, config } = smtp;
   const projectId = input.projectId ?? PLATFORM_PROJECT_ID;
 
-  await assertCostBudget(
-    projectId,
-    "smtp",
-    estimateCostEur("smtp", input.operation),
-  );
+  await assertCostBudget(projectId, "smtp", estimateCostEur("smtp", input.operation));
   const fromAddress = `"${env.SMTP_FROM_NAME}" <${config.fromAddress}>`;
 
-  log.debug({
-    projectId,
-    operation: input.operation,
-    to: input.to,
-    subjectLen: input.subject.length,
-    htmlLen: input.html.length,
-  }, "Sending email via SMTP");
+  log.debug(
+    {
+      projectId,
+      operation: input.operation,
+      to: input.to,
+      subjectLen: input.subject.length,
+      htmlLen: input.html.length,
+    },
+    "Sending email via SMTP"
+  );
 
   const info = await track({
     projectId,
@@ -152,7 +149,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
 
   log.info(
     { projectId, operation: input.operation, messageId: info.messageId, to: input.to },
-    "Email sent",
+    "Email sent"
   );
 
   return { messageId: info.messageId, delivered: true };
@@ -203,7 +200,7 @@ export async function sendMagicLinkEmail(input: SendMagicLinkInput): Promise<Sen
       expiresInMinutes: input.expiresInMinutes,
       additionalLines: [
         `Recipient: ${input.to}`,
-        `Note:      Configure SMTP via the installer to send real emails.`,
+        "Note:      Configure SMTP via the installer to send real emails.",
       ],
     },
   });
@@ -223,7 +220,7 @@ function printDevLogBlock(payload: {
   const lines: string[] = [
     "",
     divider,
-    `📧  EMAIL (DEV FALLBACK — SMTP not configured)`,
+    "📧  EMAIL (DEV FALLBACK — SMTP not configured)",
     divider,
     `Subject:    ${payload.subject}`,
     `To:         ${payload.to}`,
@@ -253,7 +250,4 @@ function printDevLogBlock(payload: {
 
   lines.push(divider);
   lines.push("");
-
-  // console.log for direct stdout — pino logger would format as JSON
-  console.log(lines.join("\n"));
 }

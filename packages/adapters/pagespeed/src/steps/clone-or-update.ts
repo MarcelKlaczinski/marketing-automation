@@ -1,8 +1,8 @@
-import { z } from "zod";
 import { spawn } from "node:child_process";
-import { mkdir, access } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
+import { z } from "zod";
 import { PagespeedError } from "../types.ts";
 
 const log = createLogger("pagespeed:clone");
@@ -27,9 +27,14 @@ export class CloneOrUpdateAstroRepoStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
-  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
+  async execute(
+    input: z.infer<typeof InputSchema>,
+    _ctx: StepContext
+  ): Promise<z.infer<typeof OutputSchema>> {
     await mkdir(input.workDir, { recursive: true });
     const repoPath = `${input.workDir}/repo`;
     const cloneUrl = `https://github.com/${input.astroRepoOwner}/${input.astroRepoName}.git`;
@@ -74,17 +79,17 @@ export type RunCmdStage = "clone" | "build" | "preview" | "lighthouse" | "evalua
  * an EventEmitter, omitting .on() from the inferred return type of spawn().
  */
 interface SpawnResult {
-  readonly stdout: { on(event: 'data', cb: (d: Buffer) => void): void };
-  readonly stderr: { on(event: 'data', cb: (d: Buffer) => void): void };
-  on(event: 'close', cb: (code: number | null) => void): void;
-  on(event: 'error', cb: (err: Error) => void): void;
+  readonly stdout: { on(event: "data", cb: (d: Buffer) => void): void };
+  readonly stderr: { on(event: "data", cb: (d: Buffer) => void): void };
+  on(event: "close", cb: (code: number | null) => void): void;
+  on(event: "error", cb: (err: Error) => void): void;
   kill(signal?: string): boolean;
 }
 
 export function runCmd(
   cmd: string,
   args: string[],
-  opts: { cwd: string; timeoutMs?: number; stage?: RunCmdStage },
+  opts: { cwd: string; timeoutMs?: number; stage?: RunCmdStage }
 ): Promise<{ stdout: string; stderr: string }> {
   const stage = opts.stage ?? "clone";
   return new Promise((resolve, reject) => {
@@ -95,26 +100,26 @@ export function runCmd(
     let stdout = "";
     let stderr = "";
 
-    proc.stdout.on("data", (d: Buffer) => { stdout += String(d); });
-    proc.stderr.on("data", (d: Buffer) => { stderr += String(d); });
+    proc.stdout.on("data", (d: Buffer) => {
+      stdout += String(d);
+    });
+    proc.stderr.on("data", (d: Buffer) => {
+      stderr += String(d);
+    });
 
     const timeout = opts.timeoutMs
       ? setTimeout(() => {
           proc.kill("SIGKILL");
-          reject(new PagespeedError(
-            `${cmd} timed out after ${opts.timeoutMs}ms`,
-            stage,
-          ));
+          reject(new PagespeedError(`${cmd} timed out after ${opts.timeoutMs}ms`, stage));
         }, opts.timeoutMs)
       : null;
 
     proc.on("close", (code: number | null) => {
       if (timeout) clearTimeout(timeout);
       if (code !== 0) {
-        reject(new PagespeedError(
-          `${cmd} ${args.join(" ")} failed (exit ${code}):\n${stderr}`,
-          stage,
-        ));
+        reject(
+          new PagespeedError(`${cmd} ${args.join(" ")} failed (exit ${code}):\n${stderr}`, stage)
+        );
       } else {
         resolve({ stdout, stderr });
       }

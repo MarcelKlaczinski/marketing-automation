@@ -57,10 +57,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType, type Component } from 'vue';
-import { api } from 'src/lib/api-client';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
+import { useNotify } from "src/composables/useNotify";
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { type Component, type PropType, defineComponent } from "vue";
 
 interface AdapterStatus {
   configured: boolean;
@@ -70,7 +70,7 @@ interface AdapterStatus {
 }
 
 export default defineComponent({
-  name: 'SettingsAdapterCard',
+  name: "SettingsAdapterCard",
 
   props: {
     service: { type: String, required: true },
@@ -81,7 +81,7 @@ export default defineComponent({
     stepComponent: { type: [Object, Function] as PropType<Component>, required: true },
   },
 
-  emits: ['configured', 'disconnected'],
+  emits: ["configured", "disconnected"],
 
   setup() {
     return { notify: useNotify() };
@@ -95,20 +95,21 @@ export default defineComponent({
 
   computed: {
     statusClass(): string {
-      if (this.status.verified === true) return 'status-pill status-pill--ok';
-      if (this.status.configured) return 'status-pill status-pill--warn';
-      return 'status-pill status-pill--off';
+      if (this.status.verified === true) return "status-pill status-pill--ok";
+      if (this.status.configured) return "status-pill status-pill--warn";
+      return "status-pill status-pill--off";
     },
     statusLabel(): string {
-      if (this.status.verified === true) return this.$t('settings.adapters.status.verified') as string;
-      if (this.status.configured) return this.$t('settings.adapters.status.configured') as string;
-      return this.$t('settings.adapters.status.notConfigured') as string;
+      if (this.status.verified === true)
+        return this.$t("settings.adapters.status.verified") as string;
+      if (this.status.configured) return this.$t("settings.adapters.status.configured") as string;
+      return this.$t("settings.adapters.status.notConfigured") as string;
     },
   },
 
   methods: {
     onConfigured(): void {
-      this.$emit('configured');
+      this.$emit("configured");
     },
     confirmDisconnect(): void {
       this.disconnectDialogOpen = true;
@@ -117,10 +118,10 @@ export default defineComponent({
       this.disconnecting = true;
       try {
         await api.delete(`/system/credentials/${this.service}`);
-        this.notify.success(this.$t('settings.adapters.disconnectDialog.success') as string);
+        this.notify.success(this.$t("settings.adapters.disconnectDialog.success") as string);
         this.disconnectDialogOpen = false;
         this.expanded = false;
-        this.$emit('disconnected');
+        this.$emit("disconnected");
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {

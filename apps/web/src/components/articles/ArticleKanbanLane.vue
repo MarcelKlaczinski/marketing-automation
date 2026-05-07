@@ -37,26 +37,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
 import {
-  STATUS_TO_GROUP,
   GROUP_ORDER,
   STATUS_GROUP_COLORS,
+  STATUS_TO_GROUP,
   type StatusGroup,
-} from 'src/lib/article-status';
-import type { ArticleListItem } from 'src/stores/articles';
-import ArticleCard from './ArticleCard.vue';
+} from "src/lib/article-status";
+import type { ArticleListItem } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
+import ArticleCard from "./ArticleCard.vue";
 
 interface KanbanLane {
   id: string;
-  type: 'pillar' | 'cluster';
+  type: "pillar" | "cluster";
   pillarName?: string | null;
   clusterName?: string | null;
   articles: ArticleListItem[];
 }
 
 export default defineComponent({
-  name: 'ArticleKanbanLane',
+  name: "ArticleKanbanLane",
 
   components: { ArticleCard },
 

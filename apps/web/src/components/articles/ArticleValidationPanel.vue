@@ -137,8 +137,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { ArticleDetail } from 'src/stores/articles';
+import type { ArticleDetail } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
 
 interface PagespeedRun {
   outcome: string | null;
@@ -162,26 +162,26 @@ const SCORE_GOOD = 90;
 const SCORE_OK = 50;
 
 const PAGESPEED_CATEGORY_KEYS: Record<string, string> = {
-  performance: 'articles.validation.pagespeed.categories.performance',
-  accessibility: 'articles.validation.pagespeed.categories.accessibility',
-  'best-practices': 'articles.validation.pagespeed.categories.best-practices',
-  seo: 'articles.validation.pagespeed.categories.seo',
+  performance: "articles.validation.pagespeed.categories.performance",
+  accessibility: "articles.validation.pagespeed.categories.accessibility",
+  "best-practices": "articles.validation.pagespeed.categories.best-practices",
+  seo: "articles.validation.pagespeed.categories.seo",
 };
 
 const SCHEMA_TYPE_KEYS: Record<string, string> = {
-  breadcrumb: 'articles.validation.schema.types.breadcrumb',
-  faq: 'articles.validation.schema.types.faq',
-  howto: 'articles.validation.schema.types.howto',
+  breadcrumb: "articles.validation.schema.types.breadcrumb",
+  faq: "articles.validation.schema.types.faq",
+  howto: "articles.validation.schema.types.howto",
 };
 
 const SCHEMA_STATUS_KEYS: Record<string, string> = {
-  pending: 'articles.validation.schema.status.pending',
-  succeeded: 'articles.validation.schema.status.succeeded',
-  failed: 'articles.validation.schema.status.failed',
+  pending: "articles.validation.schema.status.pending",
+  succeeded: "articles.validation.schema.status.succeeded",
+  failed: "articles.validation.schema.status.failed",
 };
 
 export default defineComponent({
-  name: 'ArticleValidationPanel',
+  name: "ArticleValidationPanel",
 
   props: {
     detail: { type: Object as PropType<ArticleDetail>, required: true },
@@ -201,24 +201,25 @@ export default defineComponent({
 
   methods: {
     outcomeColor(outcome: string | null): string {
-      if (outcome === 'pass') return 'positive';
-      if (outcome === 'fail') return 'negative';
-      return 'warning';
+      if (outcome === "pass") return "positive";
+      if (outcome === "fail") return "negative";
+      return "warning";
     },
 
     outcomeLabel(outcome: string | null): string {
-      const key = outcome === 'pass'
-        ? 'articles.validation.pagespeed.outcome.pass'
-        : outcome === 'fail'
-          ? 'articles.validation.pagespeed.outcome.fail'
-          : 'articles.validation.pagespeed.outcome.error';
+      const key =
+        outcome === "pass"
+          ? "articles.validation.pagespeed.outcome.pass"
+          : outcome === "fail"
+            ? "articles.validation.pagespeed.outcome.fail"
+            : "articles.validation.pagespeed.outcome.error";
       return this.$t(key) as string;
     },
 
     scoreColor(score: number): string {
-      if (score >= SCORE_GOOD) return 'positive';
-      if (score >= SCORE_OK) return 'warning';
-      return 'negative';
+      if (score >= SCORE_GOOD) return "positive";
+      if (score >= SCORE_OK) return "warning";
+      return "negative";
     },
 
     categoryLabel(key: string): string {
@@ -237,8 +238,8 @@ export default defineComponent({
     },
 
     formatDate(iso: string): string {
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
-      return new Date(iso).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
+      return new Date(iso).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
     },
   },
 });

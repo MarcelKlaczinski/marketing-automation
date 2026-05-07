@@ -1,7 +1,7 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
 import { db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { GenerateVoiceQuestionsStep, SynthesizeVoiceContextStep } from "./steps.ts";
 
@@ -16,13 +16,15 @@ const QuestionsInputSchema = z.object({
 });
 
 const QuestionsOutputSchema = z.object({
-  questions: z.array(z.object({
-    id: z.string(),
-    category: z.string(),
-    question: z.string(),
-    why_it_matters: z.string(),
-    suggested_starter: z.string(),
-  })),
+  questions: z.array(
+    z.object({
+      id: z.string(),
+      category: z.string(),
+      question: z.string(),
+      why_it_matters: z.string(),
+      suggested_starter: z.string(),
+    })
+  ),
 });
 
 export class VoiceRefinementQuestionsPipeline extends Pipeline<
@@ -60,13 +62,14 @@ export class VoiceSynthesisPipeline extends Pipeline<
 
   override async afterComplete(
     output: z.infer<typeof SynthesisOutputSchema>,
-    input: z.infer<typeof SynthesisInputSchema>,
+    input: z.infer<typeof SynthesisInputSchema>
   ): Promise<void> {
     try {
       const condition = input.projectId
         ? eq(projects.id, input.projectId)
         : eq(projects.slug, input.projectSlug);
-      await db.update(projects)
+      await db
+        .update(projects)
         .set({ marketingContextMd: output.updatedMarketingContextMd, updatedAt: new Date() })
         .where(condition);
       log.info({ projectSlug: input.projectSlug }, "marketingContextMd written to project");

@@ -36,18 +36,18 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useCostStore } from 'src/stores/cost';
-import { useProjectsStore } from 'src/stores/projects';
-import CostSummaryCards from 'src/components/cost/CostSummaryCards.vue';
-import CostByServiceChart from 'src/components/cost/CostByServiceChart.vue';
-import CostDailyChart from 'src/components/cost/CostDailyChart.vue';
-import CostByOperationTable from 'src/components/cost/CostByOperationTable.vue';
-import CostLogsTable from 'src/components/cost/CostLogsTable.vue';
-import CostAlertsBanner from 'src/components/cost/CostAlertsBanner.vue';
+import CostAlertsBanner from "src/components/cost/CostAlertsBanner.vue";
+import CostByOperationTable from "src/components/cost/CostByOperationTable.vue";
+import CostByServiceChart from "src/components/cost/CostByServiceChart.vue";
+import CostDailyChart from "src/components/cost/CostDailyChart.vue";
+import CostLogsTable from "src/components/cost/CostLogsTable.vue";
+import CostSummaryCards from "src/components/cost/CostSummaryCards.vue";
+import { useCostStore } from "src/stores/cost";
+import { useProjectsStore } from "src/stores/projects";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CostDashboardPage',
+  name: "CostDashboardPage",
 
   components: {
     CostSummaryCards,
@@ -75,10 +75,7 @@ export default defineComponent({
         label: p.name,
         value: p.id,
       }));
-      return [
-        { label: this.$t('cost.filters.allProjects') as string, value: null },
-        ...opts,
-      ];
+      return [{ label: this.$t("cost.filters.allProjects") as string, value: null }, ...opts];
     },
   },
 

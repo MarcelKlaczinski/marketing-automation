@@ -10,11 +10,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'StepIntro',
-  emits: ['configured', 'skipped'],
+  name: "StepIntro",
+  emits: ["configured", "skipped"],
 });
 </script>
 

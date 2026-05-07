@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
 import { createConnection } from "node:net";
-import { db, systemSettings, globalCredentials } from "@marketing-auto/db";
 import { decrypt } from "@marketing-auto/core";
+import { db, globalCredentials, systemSettings } from "@marketing-auto/db";
 import { getEnv } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 
 export interface AdapterStatusRow {
   configured: boolean;
@@ -11,7 +11,10 @@ export interface AdapterStatusRow {
   missingKeys: string[];
 }
 
-export async function getAdapterStatus(service: string, requiredKeys: string[]): Promise<AdapterStatusRow> {
+export async function getAdapterStatus(
+  service: string,
+  requiredKeys: string[]
+): Promise<AdapterStatusRow> {
   const rows = await db
     .select({ key: globalCredentials.key })
     .from(globalCredentials)
@@ -41,7 +44,13 @@ export async function getAllAdapterStatuses() {
   const [anthropic, replicate, r2, dataforseo, smtp, githubApp] = await Promise.all([
     getAdapterStatus("anthropic", ["api_key"]),
     getAdapterStatus("replicate", ["api_token"]),
-    getAdapterStatus("r2", ["account_id", "access_key_id", "secret_access_key", "bucket", "public_base_url"]),
+    getAdapterStatus("r2", [
+      "account_id",
+      "access_key_id",
+      "secret_access_key",
+      "bucket",
+      "public_base_url",
+    ]),
     getAdapterStatus("dataforseo", ["login", "password"]),
     getAdapterStatus("smtp", ["host", "port", "user", "password", "from_address"]),
     getAdapterStatus("github_app", ["app_id", "private_key_path"]),
@@ -49,7 +58,11 @@ export async function getAllAdapterStatuses() {
   return { anthropic, replicate, r2, dataforseo, smtp, githubApp };
 }
 
-export async function checkPostgres(): Promise<{ configured: boolean; verified: boolean; lastVerifiedAt: string | null }> {
+export async function checkPostgres(): Promise<{
+  configured: boolean;
+  verified: boolean;
+  lastVerifiedAt: string | null;
+}> {
   const env = getEnv();
   if (!env.DATABASE_URL) {
     return { configured: false, verified: false, lastVerifiedAt: null };
@@ -62,7 +75,11 @@ export async function checkPostgres(): Promise<{ configured: boolean; verified: 
   }
 }
 
-export async function checkRedis(): Promise<{ configured: boolean; verified: boolean; lastVerifiedAt: string | null }> {
+export async function checkRedis(): Promise<{
+  configured: boolean;
+  verified: boolean;
+  lastVerifiedAt: string | null;
+}> {
   const env = getEnv();
   if (!env.REDIS_URL) {
     return { configured: false, verified: false, lastVerifiedAt: null };
@@ -70,12 +87,22 @@ export async function checkRedis(): Promise<{ configured: boolean; verified: boo
   try {
     const url = new URL(env.REDIS_URL);
     const host = url.hostname;
-    const port = parseInt(url.port || "6379", 10);
+    const port = Number.parseInt(url.port || "6379", 10);
     await new Promise<void>((resolve, reject) => {
       const socket = createConnection({ host, port });
-      const timer = setTimeout(() => { socket.destroy(); reject(new Error("timeout")); }, 5_000);
-      socket.on("connect", () => { clearTimeout(timer); socket.destroy(); resolve(); });
-      socket.on("error", (e) => { clearTimeout(timer); reject(e); });
+      const timer = setTimeout(() => {
+        socket.destroy();
+        reject(new Error("timeout"));
+      }, 5_000);
+      socket.on("connect", () => {
+        clearTimeout(timer);
+        socket.destroy();
+        resolve();
+      });
+      socket.on("error", (e) => {
+        clearTimeout(timer);
+        reject(e);
+      });
     });
     return { configured: true, verified: true, lastVerifiedAt: new Date().toISOString() };
   } catch {

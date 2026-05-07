@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { costLogs, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
-import { db, projects, costLogs } from "@marketing-auto/db";
 import { messages } from "../src/client.ts";
 
 const live = process.env.RUN_LIVE_ANTHROPIC === "1";
@@ -43,10 +43,7 @@ describeLive("Anthropic adapter (LIVE)", () => {
     expect(result.raw.length).toBeGreaterThan(0);
     expect(result.outputTokens).toBeGreaterThan(0);
 
-    const logs = await db
-      .select()
-      .from(costLogs)
-      .where(eq(costLogs.projectId, projectId));
+    const logs = await db.select().from(costLogs).where(eq(costLogs.projectId, projectId));
     expect(logs.length).toBe(1);
     expect(Number(logs[0]!.costEur)).toBeGreaterThan(0);
   });
@@ -70,40 +67,34 @@ describeLive("Anthropic adapter (LIVE)", () => {
     expect((result.json as Record<string, unknown>).greeting).toBeDefined();
   });
 
-  it(
-    "shows cache hit on second call with same prefix",
-    async () => {
-      const longPrefix = "This is a stable cached system prompt. "
-        .repeat(500)
-        .slice(0, 18000);
+  it("shows cache hit on second call with same prefix", async () => {
+    const longPrefix = "This is a stable cached system prompt. ".repeat(500).slice(0, 18000);
 
-      const first = await messages({
-        projectId,
-        operation: "cache-warmup",
-        model: "claude-haiku-4-5",
-        systemPrefix: longPrefix,
-        systemSuffix: "Reply briefly.",
-        userMessage: "First call.",
-        maxTokens: 30,
-        estimatedCostEur: 0.05,
-      });
-      expect(first.raw.length).toBeGreaterThan(0);
+    const first = await messages({
+      projectId,
+      operation: "cache-warmup",
+      model: "claude-haiku-4-5",
+      systemPrefix: longPrefix,
+      systemSuffix: "Reply briefly.",
+      userMessage: "First call.",
+      maxTokens: 30,
+      estimatedCostEur: 0.05,
+    });
+    expect(first.raw.length).toBeGreaterThan(0);
 
-      const second = await messages({
-        projectId,
-        operation: "cache-hit",
-        model: "claude-haiku-4-5",
-        systemPrefix: longPrefix,
-        systemSuffix: "Reply briefly.",
-        userMessage: "Second call.",
-        maxTokens: 30,
-        estimatedCostEur: 0.05,
-      });
-      expect(second.cacheStats.cacheReadInputTokens).toBeGreaterThan(0);
-      expect(second.cacheStats.hit).toBe(true);
-    },
-    30_000,
-  );
+    const second = await messages({
+      projectId,
+      operation: "cache-hit",
+      model: "claude-haiku-4-5",
+      systemPrefix: longPrefix,
+      systemSuffix: "Reply briefly.",
+      userMessage: "Second call.",
+      maxTokens: 30,
+      estimatedCostEur: 0.05,
+    });
+    expect(second.cacheStats.cacheReadInputTokens).toBeGreaterThan(0);
+    expect(second.cacheStats.hit).toBe(true);
+  }, 30_000);
 });
 
 describe("type exports", () => {

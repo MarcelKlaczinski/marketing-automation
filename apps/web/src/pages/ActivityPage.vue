@@ -78,13 +78,18 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { useProjectsStore } from 'src/stores/projects';
-import { useActiveRunsPolling, type ActivityEntry, type ActivityType, type NormalizedStatus } from 'src/composables/useActiveRunsPolling';
-import ActivityRow from 'src/components/activity/ActivityRow.vue';
+import ActivityRow from "src/components/activity/ActivityRow.vue";
+import {
+  type ActivityEntry,
+  type ActivityType,
+  type NormalizedStatus,
+  useActiveRunsPolling,
+} from "src/composables/useActiveRunsPolling";
+import { useProjectsStore } from "src/stores/projects";
+import { defineComponent, ref } from "vue";
 
 export default defineComponent({
-  name: 'ActivityPage',
+  name: "ActivityPage",
 
   components: { ActivityRow },
 
@@ -132,26 +137,43 @@ export default defineComponent({
 
     projectOptions(): { label: string; value: string | null }[] {
       return [
-        { label: this.$t('activity.filters.allProjects') as string, value: null },
+        { label: this.$t("activity.filters.allProjects") as string, value: null },
         ...this.projectsStore.list.map((p) => ({ label: p.name, value: p.id })),
       ];
     },
 
     typeOptions(): { label: string; value: ActivityType }[] {
-      const types: ActivityType[] = ['cold_start', 'article_outline', 'article_draft', 'astro_sync', 'pagespeed', 'schema_extension', 'link_rebuild'];
+      const types: ActivityType[] = [
+        "cold_start",
+        "article_outline",
+        "article_draft",
+        "astro_sync",
+        "pagespeed",
+        "schema_extension",
+        "link_rebuild",
+      ];
       return types.map((t) => ({ label: this.$t(`activity.types.${t}`) as string, value: t }));
     },
 
     statusOptions(): { label: string; value: NormalizedStatus }[] {
-      const statuses: NormalizedStatus[] = ['queued', 'running', 'completed', 'failed', 'cancelled'];
-      return statuses.map((s) => ({ label: this.$t(`activity.statuses.${s}`) as string, value: s }));
+      const statuses: NormalizedStatus[] = [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+      ];
+      return statuses.map((s) => ({
+        label: this.$t(`activity.statuses.${s}`) as string,
+        value: s,
+      }));
     },
 
     sinceOptions(): { label: string; value: number }[] {
       return [
-        { label: this.$t('activity.since.24h') as string, value: 24 },
-        { label: this.$t('activity.since.7d') as string, value: 24 * 7 },
-        { label: this.$t('activity.since.30d') as string, value: 24 * 30 },
+        { label: this.$t("activity.since.24h") as string, value: 24 },
+        { label: this.$t("activity.since.7d") as string, value: 24 * 7 },
+        { label: this.$t("activity.since.30d") as string, value: 24 * 30 },
       ];
     },
 

@@ -2,17 +2,17 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
-import { healthRoutes } from "./routes/health.ts";
-import { authRoutes } from "./routes/auth.ts";
+import { sessionLoader } from "./middleware/auth.ts";
 import { articleRoutes, legacyArticleRoutes } from "./routes/articles.ts";
-import { projectRoutes } from "./routes/projects.ts";
-import { systemRoutes } from "./routes/system.ts";
-import { pipelineRunsRoutes } from "./routes/pipeline-runs.ts";
+import { authRoutes } from "./routes/auth.ts";
+import { clusterRoutes } from "./routes/clusters.ts";
 import { coldStartRoutes } from "./routes/cold-start.ts";
 import { costRoutes } from "./routes/cost.ts";
+import { healthRoutes } from "./routes/health.ts";
 import { pillarRoutes } from "./routes/pillars.ts";
-import { clusterRoutes } from "./routes/clusters.ts";
-import { sessionLoader } from "./middleware/auth.ts";
+import { pipelineRunsRoutes } from "./routes/pipeline-runs.ts";
+import { projectRoutes } from "./routes/projects.ts";
+import { systemRoutes } from "./routes/system.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -20,13 +20,19 @@ const log = createLogger("api");
 const app = new Hono();
 
 // Middleware (order matters: CORS first, then logger, then session loader)
-app.use("*", cors({
-  origin: env.CORS_ORIGIN,
-  credentials: true,
-  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization"],
-}));
-app.use("*", honoLogger((message) => log.info(message)));
+app.use(
+  "*",
+  cors({
+    origin: env.CORS_ORIGIN,
+    credentials: true,
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+  })
+);
+app.use(
+  "*",
+  honoLogger((message) => log.info(message))
+);
 app.use("*", sessionLoader);
 
 // Public routes

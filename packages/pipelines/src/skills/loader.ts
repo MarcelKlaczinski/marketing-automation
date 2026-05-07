@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { eq } from "drizzle-orm";
 import { db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("skills");
 
@@ -40,9 +40,7 @@ export async function loadSkill(name: string): Promise<string> {
  */
 export async function loadSkills(names: string[]): Promise<string> {
   const contents = await Promise.all(names.map(loadSkill));
-  return contents
-    .map((c, i) => `# Skill: ${names[i]}\n\n${c}`)
-    .join("\n\n---\n\n");
+  return contents.map((c, i) => `# Skill: ${names[i]}\n\n${c}`).join("\n\n---\n\n");
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

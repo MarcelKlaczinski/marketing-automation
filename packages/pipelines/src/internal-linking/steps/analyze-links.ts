@@ -1,8 +1,13 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
-import { AnalyzeLinksOutputSchema, AnalyzeLinksOutputSchemaOutput, type AnalyzeLinksOutput } from "../types.ts";
+import {
+  type AnalyzeLinksOutput,
+  AnalyzeLinksOutputSchema,
+  AnalyzeLinksOutputSchemaOutput,
+} from "../types.ts";
 
 const InputSchema = z.object({
   article: z.object({
@@ -12,34 +17,35 @@ const InputSchema = z.object({
     bodyMd: z.string(),
     projectSlug: z.string(),
   }),
-  candidates: z.array(z.object({
-    slug: z.string(),
-    title: z.string(),
-    cornerstoneKeyword: z.string(),
-    metaDescription: z.string(),
-  })),
+  candidates: z.array(
+    z.object({
+      slug: z.string(),
+      title: z.string(),
+      cornerstoneKeyword: z.string(),
+      metaDescription: z.string(),
+    })
+  ),
   existingLinkSlugs: z.array(z.string()),
 });
 
-export class AnalyzeLinksStep extends BaseStep<
-  z.infer<typeof InputSchema>,
-  AnalyzeLinksOutput
-> {
+export class AnalyzeLinksStep extends BaseStep<z.infer<typeof InputSchema>, AnalyzeLinksOutput> {
   readonly name = "analyze-links";
   readonly inputSchema = InputSchema;
   readonly outputSchema = AnalyzeLinksOutputSchemaOutput;
 
-  override estimatedCostEur(): number { return 0.30; }
+  override estimatedCostEur(): number {
+    return 0.3;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<AnalyzeLinksOutput> {
     if (input.candidates.length === 0) {
       return { suggestions: [], overallNotes: "No candidates available (solo cluster article)" };
     }
 
-    const existingNote = input.existingLinkSlugs.length > 0
-      ? `These slugs are ALREADY linked: ${input.existingLinkSlugs.join(", ")}. ` +
-        `Do NOT add duplicate links to them. You may suggest replacing existing anchor text only if you have a clearly better placement.`
-      : `No existing internal links in this article.`;
+    const existingNote =
+      input.existingLinkSlugs.length > 0
+        ? `These slugs are ALREADY linked: ${input.existingLinkSlugs.join(", ")}. Do NOT add duplicate links to them. You may suggest replacing existing anchor text only if you have a clearly better placement.`
+        : "No existing internal links in this article.";
 
     const prompt = await buildSystemPrompt({
       skills: ["copywriting", "ai-seo", "content-strategy"],
@@ -89,7 +95,10 @@ Constraint: max 10 suggestions. Aim for 3-7. Quality > quantity.
     });
 
     const candidatesList = input.candidates
-      .map((c) => `- /${c.slug} — "${c.title}" (cornerstone: "${c.cornerstoneKeyword}"; ${c.metaDescription})`)
+      .map(
+        (c) =>
+          `- /${c.slug} — "${c.title}" (cornerstone: "${c.cornerstoneKeyword}"; ${c.metaDescription})`
+      )
       .join("\n");
 
     const userMsg = [
@@ -97,20 +106,20 @@ Constraint: max 10 suggestions. Aim for 3-7. Quality > quantity.
       `Slug: ${input.article.slug}`,
       `Title: ${input.article.title}`,
       `Cornerstone keyword: ${input.article.cornerstoneKeyword}`,
-      ``,
-      `# Body`,
+      "",
+      "# Body",
       input.article.bodyMd,
-      ``,
-      `# Available link targets in this cluster`,
+      "",
+      "# Available link targets in this cluster",
       candidatesList,
-      ``,
-      `Now produce link suggestions per the rules.`,
+      "",
+      "Now produce link suggestions per the rules.",
     ].join("\n");
 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: `internal-link-analysis-${input.article.slug.slice(0, 30)}`,
+      operation: COST_OPS.INTERNAL_LINK_ANALYSIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

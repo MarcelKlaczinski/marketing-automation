@@ -34,27 +34,27 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { ActivityEntry } from 'src/composables/useActiveRunsPolling';
+import type { ActivityEntry } from "src/composables/useActiveRunsPolling";
+import { type PropType, defineComponent } from "vue";
 
 const STATUS_ICONS: Record<string, string> = {
-  queued: 'schedule',
-  running: 'sync',
-  completed: 'check_circle',
-  failed: 'error',
-  cancelled: 'cancel',
+  queued: "schedule",
+  running: "sync",
+  completed: "check_circle",
+  failed: "error",
+  cancelled: "cancel",
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  queued: 'grey',
-  running: 'primary',
-  completed: 'positive',
-  failed: 'negative',
-  cancelled: 'grey-7',
+  queued: "grey",
+  running: "primary",
+  completed: "positive",
+  failed: "negative",
+  cancelled: "grey-7",
 };
 
 export default defineComponent({
-  name: 'ActivityRow',
+  name: "ActivityRow",
 
   props: {
     entry: { type: Object as PropType<ActivityEntry>, required: true },
@@ -62,22 +62,24 @@ export default defineComponent({
 
   computed: {
     isInFlight(): boolean {
-      return this.entry.status === 'queued' || this.entry.status === 'running';
+      return this.entry.status === "queued" || this.entry.status === "running";
     },
 
     statusIcon(): string {
-      return STATUS_ICONS[this.entry.status] ?? 'help';
+      return STATUS_ICONS[this.entry.status] ?? "help";
     },
 
     iconColor(): string {
-      return STATUS_COLORS[this.entry.status] ?? 'grey';
+      return STATUS_COLORS[this.entry.status] ?? "grey";
     },
 
     duration(): string | null {
       const start = this.entry.startedAt ? new Date(this.entry.startedAt).getTime() : null;
       const end = this.entry.finishedAt
         ? new Date(this.entry.finishedAt).getTime()
-        : this.isInFlight ? Date.now() : null;
+        : this.isInFlight
+          ? Date.now()
+          : null;
       if (!start || !end) return null;
       const seconds = Math.round((end - start) / 1000);
       if (seconds < 60) return `${seconds}s`;
@@ -92,23 +94,26 @@ export default defineComponent({
 
   methods: {
     relativeTime(iso: string | null): string {
-      if (!iso) return '';
+      if (!iso) return "";
       const ms = Date.now() - new Date(iso).getTime();
       const s = Math.round(ms / 1000);
-      if (s < 60) return this.$t('activity.relative.justNow') as string;
+      if (s < 60) return this.$t("activity.relative.justNow") as string;
       const m = Math.round(s / 60);
-      if (m < 60) return this.$t('activity.relative.minutesAgo', { n: m }) as string;
+      if (m < 60) return this.$t("activity.relative.minutesAgo", { n: m }) as string;
       const h = Math.round(m / 60);
-      if (h < 24) return this.$t('activity.relative.hoursAgo', { n: h }) as string;
+      if (h < 24) return this.$t("activity.relative.hoursAgo", { n: h }) as string;
       const d = Math.round(h / 24);
-      return this.$t('activity.relative.daysAgo', { n: d }) as string;
+      return this.$t("activity.relative.daysAgo", { n: d }) as string;
     },
 
     onClick(): void {
       if (this.entry.articleId) {
-        void this.$router.push({ name: 'article-detail', params: { id: this.entry.articleId } });
+        void this.$router.push({ name: "article-detail", params: { id: this.entry.articleId } });
       } else if (this.entry.projectSlug) {
-        void this.$router.push({ name: 'project-detail', params: { slug: this.entry.projectSlug } });
+        void this.$router.push({
+          name: "project-detail",
+          params: { slug: this.entry.projectSlug },
+        });
       }
     },
   },

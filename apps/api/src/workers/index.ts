@@ -1,26 +1,26 @@
-import {
-  startPipelineWorker,
-  startScheduler,
-  registerScheduledJob,
-  pipelineRegistry,
-  closePipelineInfrastructure,
-  ArticleOutlinePipeline,
-  ArticleDraftPipeline,
-  SchemaExtensionPipeline,
-  ClusterLinkRebuildPipeline,
-  VoiceRefinementQuestionsPipeline,
-  VoiceSynthesisPipeline,
-  CompetitorQuestionsPipeline,
-  CompetitorAnalysisPipeline,
-  ClusterProposePipeline,
-  CornerstoneListPipeline,
-  GoLiveChecklistPipeline,
-} from "@marketing-auto/pipelines";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
 import { PageSpeedValidationPipeline } from "@marketing-auto/adapter-pagespeed";
+import {
+  ArticleDraftPipeline,
+  ArticleOutlinePipeline,
+  ClusterLinkRebuildPipeline,
+  ClusterProposePipeline,
+  CompetitorAnalysisPipeline,
+  CompetitorQuestionsPipeline,
+  CornerstoneListPipeline,
+  GoLiveChecklistPipeline,
+  SchemaExtensionPipeline,
+  VoiceRefinementQuestionsPipeline,
+  VoiceSynthesisPipeline,
+  closePipelineInfrastructure,
+  pipelineRegistry,
+  registerScheduledJob,
+  startPipelineWorker,
+  startScheduler,
+} from "@marketing-auto/pipelines";
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
-import { createLogger, getEnv } from "@marketing-auto/shared";
 
 const log = createLogger("worker");
 const env = getEnv();

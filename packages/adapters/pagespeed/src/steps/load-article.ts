@@ -1,9 +1,9 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { db, articles, projects } from "@marketing-auto/db";
-import { getEnv } from "@marketing-auto/shared";
 import { AstroRepoConfigSchema } from "@marketing-auto/adapter-astro-sync";
+import { articles, db, projects } from "@marketing-auto/db";
+import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
+import { getEnv } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { PagespeedError, PagespeedScoresSchema } from "../types.ts";
 
 const InputSchema = z.object({
@@ -35,15 +35,14 @@ const OutputSchema = z.object({
 }) as z.ZodType<LoadArticleOutput>;
 // ZodType cast: AstroRepoConfigSchema has .default() fields causing _input variance
 
-export class LoadArticleStep extends BaseStep<
-  z.infer<typeof InputSchema>,
-  LoadArticleOutput
-> {
+export class LoadArticleStep extends BaseStep<z.infer<typeof InputSchema>, LoadArticleOutput> {
   readonly name = "load-article";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<LoadArticleOutput> {
     const [article] = await db
@@ -59,15 +58,12 @@ export class LoadArticleStep extends BaseStep<
     if (article.status !== "ready_to_publish" && article.status !== "blocked_by_pagespeed") {
       throw new PagespeedError(
         `Article status is "${article.status}", expected "ready_to_publish" or "blocked_by_pagespeed" (re-run after fix)`,
-        "config",
+        "config"
       );
     }
 
     if (!article.astroCommitSha) {
-      throw new PagespeedError(
-        `Article has no astroCommitSha — sync via Spec 21 first`,
-        "config",
-      );
+      throw new PagespeedError("Article has no astroCommitSha — sync via Spec 21 first", "config");
     }
 
     const [project] = await db
@@ -83,7 +79,7 @@ export class LoadArticleStep extends BaseStep<
     if (!project.astroRepo) {
       throw new PagespeedError(
         `Project "${project.slug}" has no astroRepo configured (set via Spec 21 setup)`,
-        "config",
+        "config"
       );
     }
 

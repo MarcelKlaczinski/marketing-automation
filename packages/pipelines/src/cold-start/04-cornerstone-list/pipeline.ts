@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { db, projects, articles } from "@marketing-auto/db";
+import { articles, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import {
-  GenerateCornerstoneSpecsStep,
   ApprovedClusterSchema,
   CornerstoneSpecSchema,
+  GenerateCornerstoneSpecsStep,
 } from "./steps.ts";
 
 const log = createLogger("pipelines:cornerstone-list");
@@ -32,11 +32,15 @@ export class CornerstoneListPipeline extends Pipeline<
 
   override async afterComplete(
     output: z.infer<typeof OutputSchema>,
-    input: z.infer<typeof InputSchema>,
+    input: z.infer<typeof InputSchema>
   ): Promise<void> {
     let projectId = input.projectId;
     if (!projectId) {
-      const [proj] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, input.projectSlug)).limit(1);
+      const [proj] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.slug, input.projectSlug))
+        .limit(1);
       projectId = proj?.id;
     }
     if (!projectId) {
@@ -46,20 +50,29 @@ export class CornerstoneListPipeline extends Pipeline<
 
     for (const cs of output.cornerstones) {
       try {
-        await db.insert(articles).values({
-          projectId,
-          slug: cs.proposed_slug,
-          cornerstoneKeyword: cs.cornerstone_keyword,
-          title: cs.proposed_title,
-          metaDescription: cs.meta_description,
-          status: "proposed",
-        }).onConflictDoNothing();
+        await db
+          .insert(articles)
+          .values({
+            projectId,
+            slug: cs.proposed_slug,
+            cornerstoneKeyword: cs.cornerstone_keyword,
+            title: cs.proposed_title,
+            metaDescription: cs.meta_description,
+            status: "proposed",
+          })
+          .onConflictDoNothing();
       } catch (err) {
-        log.warn({ err, slug: cs.proposed_slug }, "Failed to insert cornerstone article — may already exist");
+        log.warn(
+          { err, slug: cs.proposed_slug },
+          "Failed to insert cornerstone article — may already exist"
+        );
       }
     }
 
-    log.info({ projectSlug: input.projectSlug, count: output.cornerstones.length }, "Cornerstone articles written");
+    log.info(
+      { projectSlug: input.projectSlug, count: output.cornerstones.length },
+      "Cornerstone articles written"
+    );
   }
 }
 

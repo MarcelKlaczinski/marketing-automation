@@ -69,27 +69,27 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { api } from 'src/lib/api-client';
-import { useSystemStatusStore } from 'src/stores/system-status';
+import { api } from "src/lib/api-client";
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
 
 interface SystemInfo {
-  deploymentMode: 'lokal' | 'self_hosted';
+  deploymentMode: "lokal" | "self_hosted";
   nodeVersion: string;
   apiVersion: string;
 }
 
 export default defineComponent({
-  name: 'SettingsSystemPanel',
+  name: "SettingsSystemPanel",
 
   setup() {
     return { systemStatusStore: useSystemStatusStore() };
   },
 
   data: () => ({
-    deploymentMode: 'lokal' as 'lokal' | 'self_hosted',
-    nodeVersion: '',
-    apiVersion: '',
+    deploymentMode: "lokal" as "lokal" | "self_hosted",
+    nodeVersion: "",
+    apiVersion: "",
   }),
 
   computed: {
@@ -108,10 +108,10 @@ export default defineComponent({
   methods: {
     async fetchSystemInfo(): Promise<void> {
       try {
-        const res = await api.get<{ ok: boolean; data: SystemInfo }>('/system/info');
+        const res = await api.get<{ ok: boolean; data: SystemInfo }>("/system/info");
         const info = res.data.data;
         this.deploymentMode = info.deploymentMode;
-        this.nodeVersion = info.nodeVersion ?? '';
+        this.nodeVersion = info.nodeVersion ?? "";
         this.apiVersion = info.apiVersion;
       } catch {
         // non-critical
@@ -123,7 +123,7 @@ export default defineComponent({
     },
 
     formatDate(iso: string): string {
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
       return new Date(iso).toLocaleString(locale);
     },
   },

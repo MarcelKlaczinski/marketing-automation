@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { costLogs, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
-import { db, projects, costLogs } from "@marketing-auto/db";
-import { sendEmail, sendMagicLinkEmail, PLATFORM_PROJECT_ID } from "../src/client.ts";
+import { PLATFORM_PROJECT_ID, sendEmail, sendMagicLinkEmail } from "../src/client.ts";
 
 describe("Email adapter (dev fallback)", () => {
   it("returns dev-fallback result when SMTP creds absent", async () => {
@@ -99,10 +99,7 @@ const live = process.env.RUN_LIVE_SMTP === "1";
 
     expect(result.delivered).toBe(true);
 
-    const logs = await db
-      .select()
-      .from(costLogs)
-      .where(eq(costLogs.projectId, projectId));
+    const logs = await db.select().from(costLogs).where(eq(costLogs.projectId, projectId));
     expect(logs.length).toBe(1);
     expect(logs[0]!.operation).toBe("test-attribution");
   }, 30_000);

@@ -31,15 +31,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import SettingsAdaptersPanel from 'src/components/settings/SettingsAdaptersPanel.vue';
-import SettingsSystemPanel from 'src/components/settings/SettingsSystemPanel.vue';
-import SettingsProfilePanel from 'src/components/settings/SettingsProfilePanel.vue';
+import SettingsAdaptersPanel from "src/components/settings/SettingsAdaptersPanel.vue";
+import SettingsProfilePanel from "src/components/settings/SettingsProfilePanel.vue";
+import SettingsSystemPanel from "src/components/settings/SettingsSystemPanel.vue";
+import { defineComponent } from "vue";
 
-type TabName = 'adapters' | 'system' | 'profile';
+type TabName = "adapters" | "system" | "profile";
 
 export default defineComponent({
-  name: 'SettingsPage',
+  name: "SettingsPage",
 
   components: {
     SettingsAdaptersPanel,
@@ -48,20 +48,20 @@ export default defineComponent({
   },
 
   data: () => ({
-    activeTab: 'adapters' as TabName,
+    activeTab: "adapters" as TabName,
   }),
 
   created() {
-    const raw = this.$route.query['tab'];
-    const tabFromQuery = Array.isArray(raw) ? raw[0] ?? '' : raw ?? '';
-    if (['adapters', 'system', 'profile'].includes(tabFromQuery)) {
+    const raw = this.$route.query.tab;
+    const tabFromQuery = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
+    if (["adapters", "system", "profile"].includes(tabFromQuery)) {
       this.activeTab = tabFromQuery as TabName;
     }
   },
 
   methods: {
     onTabChange(newTab: string | number | null): void {
-      if (typeof newTab !== 'string') return;
+      if (typeof newTab !== "string") return;
       void this.$router.replace({ query: { ...this.$route.query, tab: newTab } });
     },
   },

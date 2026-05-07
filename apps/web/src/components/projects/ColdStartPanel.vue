@@ -55,17 +55,17 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useColdStartStore } from 'src/stores/cold-start';
-import PhaseSection from 'src/components/cold-start/PhaseSection.vue';
-import Phase1VoiceRefinement from 'src/components/cold-start/Phase1VoiceRefinement.vue';
-import Phase2CompetitorAnalysis from 'src/components/cold-start/Phase2CompetitorAnalysis.vue';
-import Phase3ClusterPlan from 'src/components/cold-start/Phase3ClusterPlan.vue';
-import Phase4Cornerstones from 'src/components/cold-start/Phase4Cornerstones.vue';
-import Phase5GoLive from 'src/components/cold-start/Phase5GoLive.vue';
+import Phase1VoiceRefinement from "src/components/cold-start/Phase1VoiceRefinement.vue";
+import Phase2CompetitorAnalysis from "src/components/cold-start/Phase2CompetitorAnalysis.vue";
+import Phase3ClusterPlan from "src/components/cold-start/Phase3ClusterPlan.vue";
+import Phase4Cornerstones from "src/components/cold-start/Phase4Cornerstones.vue";
+import Phase5GoLive from "src/components/cold-start/Phase5GoLive.vue";
+import PhaseSection from "src/components/cold-start/PhaseSection.vue";
+import { useColdStartStore } from "src/stores/cold-start";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ColdStartPanel',
+  name: "ColdStartPanel",
 
   components: {
     PhaseSection,
@@ -88,11 +88,21 @@ export default defineComponent({
     status() {
       return this.coldStartStore.statusByProject[this.slug];
     },
-    voiceStatus() { return this.status?.voice.status ?? 'pending'; },
-    competitorStatus() { return this.status?.competitors.status ?? 'pending'; },
-    clusterStatus() { return this.status?.clusters.status ?? 'pending'; },
-    cornerstoneStatus() { return this.status?.cornerstones.status ?? 'pending'; },
-    goLiveStatus() { return this.status?.goLive.status ?? 'pending'; },
+    voiceStatus() {
+      return this.status?.voice.status ?? "pending";
+    },
+    competitorStatus() {
+      return this.status?.competitors.status ?? "pending";
+    },
+    clusterStatus() {
+      return this.status?.clusters.status ?? "pending";
+    },
+    cornerstoneStatus() {
+      return this.status?.cornerstones.status ?? "pending";
+    },
+    goLiveStatus() {
+      return this.status?.goLive.status ?? "pending";
+    },
   },
 
   async created() {

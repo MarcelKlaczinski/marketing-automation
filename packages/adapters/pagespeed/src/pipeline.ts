@@ -1,13 +1,13 @@
-import { z } from "zod";
 import { Pipeline } from "@marketing-auto/pipelines/engine";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
-import { LoadArticleStep } from "./steps/load-article.ts";
-import { CloneOrUpdateAstroRepoStep } from "./steps/clone-or-update.ts";
+import { z } from "zod";
 import { AstroBuildStep } from "./steps/astro-build.ts";
-import { AstroPreviewServerStep } from "./steps/preview-server.ts";
-import { LighthouseStep } from "./steps/lighthouse.ts";
+import { CloneOrUpdateAstroRepoStep } from "./steps/clone-or-update.ts";
 import { EvaluateAndPersistStep } from "./steps/evaluate-and-persist.ts";
+import { LighthouseStep } from "./steps/lighthouse.ts";
+import { LoadArticleStep } from "./steps/load-article.ts";
+import { AstroPreviewServerStep } from "./steps/preview-server.ts";
 
 const log = createLogger("pagespeed:pipeline");
 
@@ -46,7 +46,7 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
     toStep: BaseStep<unknown, unknown>,
     output: unknown,
     pipelineInput: PipelineInput,
-    getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     if (fromStep.name === "load-article" && toStep.name === "clone-or-update") {
       const out = output as {

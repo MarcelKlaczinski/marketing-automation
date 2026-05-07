@@ -17,7 +17,7 @@ export async function verifyDataForSeo(login: string, password: string): Promise
     if (!res.ok) {
       return { ok: false, message: `HTTP ${res.status}: ${res.statusText}` };
     }
-    const body = await res.json() as { status_code?: number; status_message?: string };
+    const body = (await res.json()) as { status_code?: number; status_message?: string };
     if (body.status_code !== 20000) {
       return { ok: false, message: body.status_message ?? "DataForSEO API error" };
     }

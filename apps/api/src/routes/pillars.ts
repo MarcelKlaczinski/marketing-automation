@@ -1,8 +1,8 @@
-import { Hono } from "hono";
-import { eq, and, asc, desc, sql } from "drizzle-orm";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { db, contentPillars, clusters, projects } from "@marketing-auto/db";
+import { clusters, contentPillars, db, projects } from "@marketing-auto/db";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
 
 export const pillarRoutes = new Hono();
@@ -139,11 +139,7 @@ pillarRoutes.post("/:id/move", zValidator("json", movePillarSchema), async (c) =
   const id = c.req.param("id");
   const { direction } = c.req.valid("json");
 
-  const [pillar] = await db
-    .select()
-    .from(contentPillars)
-    .where(eq(contentPillars.id, id))
-    .limit(1);
+  const [pillar] = await db.select().from(contentPillars).where(eq(contentPillars.id, id)).limit(1);
   if (!pillar) return c.json({ ok: false, error: "Pillar not found" }, 404);
 
   const neighbour =
@@ -154,8 +150,8 @@ pillarRoutes.post("/:id/move", zValidator("json", movePillarSchema), async (c) =
           .where(
             and(
               eq(contentPillars.projectId, pillar.projectId),
-              sql`${contentPillars.position} < ${pillar.position}`,
-            ),
+              sql`${contentPillars.position} < ${pillar.position}`
+            )
           )
           .orderBy(desc(contentPillars.position))
           .limit(1)
@@ -165,8 +161,8 @@ pillarRoutes.post("/:id/move", zValidator("json", movePillarSchema), async (c) =
           .where(
             and(
               eq(contentPillars.projectId, pillar.projectId),
-              sql`${contentPillars.position} > ${pillar.position}`,
-            ),
+              sql`${contentPillars.position} > ${pillar.position}`
+            )
           )
           .orderBy(asc(contentPillars.position))
           .limit(1);

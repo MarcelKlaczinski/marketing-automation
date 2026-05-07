@@ -31,20 +31,20 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { useColdStartStore } from 'src/stores/cold-start';
-import { usePipelineRunPolling } from 'src/composables/usePipelineRunPolling';
+import { usePipelineRunPolling } from "src/composables/usePipelineRunPolling";
+import { useColdStartStore } from "src/stores/cold-start";
+import { defineComponent, ref } from "vue";
 
-type Phase = 'idle' | 'running' | 'complete';
+type Phase = "idle" | "running" | "complete";
 
 export default defineComponent({
-  name: 'Phase3ClusterPlan',
+  name: "Phase3ClusterPlan",
 
   props: {
     slug: { type: String, required: true },
   },
 
-  emits: ['done'],
+  emits: ["done"],
 
   setup() {
     const runId = ref<string | null>(null);
@@ -57,28 +57,30 @@ export default defineComponent({
 
   data: () => ({
     triggering: false,
-    errorMsg: '',
+    errorMsg: "",
   }),
 
   computed: {
-    currentRun() { return this.polling.run.value; },
+    currentRun() {
+      return this.polling.run.value;
+    },
 
     phase(): Phase {
       const r = this.currentRun;
-      if (r?.status === 'completed') return 'complete';
-      if (r?.status === 'running' || r?.status === 'queued') return 'running';
-      return 'idle';
+      if (r?.status === "completed") return "complete";
+      if (r?.status === "running" || r?.status === "queued") return "running";
+      return "idle";
     },
   },
 
   watch: {
-    'polling.terminal.value'(isTerminal: boolean) {
+    "polling.terminal.value"(isTerminal: boolean) {
       if (!isTerminal) return;
       const r = this.currentRun;
-      if (r?.status === 'completed') {
-        this.$emit('done');
-      } else if (r?.status === 'failed') {
-        this.errorMsg = r.error ?? (this.$t('coldStart.phase3.failed') as string);
+      if (r?.status === "completed") {
+        this.$emit("done");
+      } else if (r?.status === "failed") {
+        this.errorMsg = r.error ?? (this.$t("coldStart.phase3.failed") as string);
       }
     },
   },
@@ -86,7 +88,7 @@ export default defineComponent({
   methods: {
     async onStart(): Promise<void> {
       this.triggering = true;
-      this.errorMsg = '';
+      this.errorMsg = "";
       try {
         const { runId } = await this.coldStartStore.triggerClusterPlan(this.slug);
         this.runId = runId;

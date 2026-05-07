@@ -46,26 +46,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ClusterCreateDialog',
+  name: "ClusterCreateDialog",
 
   props: {
     modelValue: { type: Boolean, default: false },
     title: { type: String, required: true },
     nameLabel: { type: String, required: true },
-    extraFieldLabel: { type: String, default: '' },
+    extraFieldLabel: { type: String, default: "" },
     extraFieldOptional: { type: Boolean, default: false },
     descriptionField: { type: Boolean, default: false },
   },
 
-  emits: ['update:modelValue', 'confirm'],
+  emits: ["update:modelValue", "confirm"],
 
   data: () => ({
-    name: '',
-    extra: '',
-    description: '',
+    name: "",
+    extra: "",
+    description: "",
   }),
 
   computed: {
@@ -77,9 +77,9 @@ export default defineComponent({
   watch: {
     modelValue(open: boolean): void {
       if (open) {
-        this.name = '';
-        this.extra = '';
-        this.description = '';
+        this.name = "";
+        this.extra = "";
+        this.description = "";
       }
     },
   },
@@ -92,7 +92,7 @@ export default defineComponent({
       };
       if (this.extra.trim()) payload.extra = this.extra.trim();
       if (this.description.trim()) payload.description = this.description.trim();
-      this.$emit('confirm', payload);
+      this.$emit("confirm", payload);
     },
   },
 });

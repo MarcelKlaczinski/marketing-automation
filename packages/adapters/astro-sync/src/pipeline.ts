@@ -1,16 +1,16 @@
-import { z } from "zod";
-import { eq, and, desc } from "drizzle-orm";
-import { Pipeline } from "@marketing-auto/pipelines/engine";
+import { articles, astroSyncRuns, db } from "@marketing-auto/db";
 import { enqueueClusterLinkRebuild } from "@marketing-auto/pipelines";
-import { db, articles, astroSyncRuns } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
-import { LoadArticleStep } from "./steps/load-article.ts";
-import { ResolveSchemaStep } from "./steps/resolve-schema.ts";
-import { DownloadHeroStep } from "./steps/download-hero.ts";
-import { RenderMdxStep } from "./steps/render-mdx.ts";
-import { CommitToGitHubStep } from "./steps/commit-to-github.ts";
-import { UpdateDbStatusStep } from "./steps/update-db-status.ts";
+import { Pipeline } from "@marketing-auto/pipelines/engine";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
+import { createLogger } from "@marketing-auto/shared";
+import { and, desc, eq } from "drizzle-orm";
+import { z } from "zod";
+import { CommitToGitHubStep } from "./steps/commit-to-github.ts";
+import { DownloadHeroStep } from "./steps/download-hero.ts";
+import { LoadArticleStep } from "./steps/load-article.ts";
+import { RenderMdxStep } from "./steps/render-mdx.ts";
+import { ResolveSchemaStep } from "./steps/resolve-schema.ts";
+import { UpdateDbStatusStep } from "./steps/update-db-status.ts";
 import { AstroSyncError } from "./types.ts";
 
 const log = createLogger("astro-sync:pipeline");
@@ -45,7 +45,7 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
     toStep: BaseStep<unknown, unknown>,
     output: unknown,
     pipelineInput: PipelineInput,
-    getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     if (fromStep.name === "load-article" && toStep.name === "resolve-schema") {
       const out = output as { astroRepo: unknown };
@@ -53,7 +53,9 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
     }
 
     if (fromStep.name === "resolve-schema" && toStep.name === "download-hero") {
-      const load = getStepOutput<{ article: { heroImagePublicUrl: string; slug: string } }>("load-article")!;
+      const load = getStepOutput<{ article: { heroImagePublicUrl: string; slug: string } }>(
+        "load-article"
+      )!;
       return {
         heroImagePublicUrl: load.article.heroImagePublicUrl,
         articleSlug: load.article.slug,
@@ -90,11 +92,7 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
           { path: render.mdxPath, contentType: "text" as const, content: render.mdxContent },
           { path: hero.astroAssetPath, contentType: "base64" as const, content: hero.base64 },
         ],
-        commitMessage:
-          `feat(blog): publish "${load.article.title}"\n\n` +
-          `Auto-generated from Marketing Automation Platform.\n` +
-          `Cornerstone keyword: ${load.article.cornerstoneKeyword}\n` +
-          `Article slug: ${load.article.slug}`,
+        commitMessage: `feat(blog): publish "${load.article.title}"\n\nAuto-generated from Marketing Automation Platform.\nCornerstone keyword: ${load.article.cornerstoneKeyword}\nArticle slug: ${load.article.slug}`,
       };
     }
 
@@ -102,7 +100,11 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
       const load = getStepOutput<{ article: { id: string } }>("load-article")!;
       const render = getStepOutput<{ frontmatter: Record<string, unknown> }>("render-mdx")!;
       const hero = getStepOutput<{ astroAssetPath: string }>("download-hero")!;
-      const commit = output as { commitSha: string; filesCommitted: string[]; bytesCommitted: number };
+      const commit = output as {
+        commitSha: string;
+        filesCommitted: string[];
+        bytesCommitted: number;
+      };
       return {
         articleId: load.article.id,
         projectId: pipelineInput.projectId,
@@ -125,22 +127,35 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
         .where(
           and(
             eq(astroSyncRuns.articleId, pipelineInput.articleId),
-            eq(astroSyncRuns.status, "pending"),
-          ),
+            eq(astroSyncRuns.status, "pending")
+          )
         )
         .orderBy(desc(astroSyncRuns.startedAt))
         .limit(1);
 
       if (pendingRun) {
         const message = error instanceof Error ? error.message : String(error);
-        const updateBase = { status: "failed" as const, errorMessage: message, finishedAt: new Date() };
+        const updateBase = {
+          status: "failed" as const,
+          errorMessage: message,
+          finishedAt: new Date(),
+        };
         // Only persist stages that exist on the DB column type (auth/config are error types, not DB stages)
-        const validStages = ["load", "schema", "image", "render", "commit", "db_update", "stale_read"] as const;
-        type ValidStage = typeof validStages[number];
+        const validStages = [
+          "load",
+          "schema",
+          "image",
+          "render",
+          "commit",
+          "db_update",
+          "stale_read",
+        ] as const;
+        type ValidStage = (typeof validStages)[number];
         const rawStage = error instanceof AstroSyncError ? error.stage : undefined;
-        const errorStage = rawStage !== undefined && (validStages as readonly string[]).includes(rawStage)
-          ? rawStage as ValidStage
-          : undefined;
+        const errorStage =
+          rawStage !== undefined && (validStages as readonly string[]).includes(rawStage)
+            ? (rawStage as ValidStage)
+            : undefined;
         const updateSet = errorStage !== undefined ? { ...updateBase, errorStage } : updateBase;
         await db.update(astroSyncRuns).set(updateSet).where(eq(astroSyncRuns.id, pendingRun.id));
       }
@@ -151,7 +166,7 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
 
   override async afterComplete(
     _output: z.infer<typeof OutputSchema>,
-    pipelineInput: PipelineInput,
+    pipelineInput: PipelineInput
   ): Promise<void> {
     try {
       const [article] = await db
@@ -168,11 +183,14 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
         });
         log.info(
           { articleId: pipelineInput.articleId, clusterId: article.clusterId },
-          "Cluster link rebuild enqueued after article sync",
+          "Cluster link rebuild enqueued after article sync"
         );
       }
     } catch (e) {
-      log.warn({ articleId: pipelineInput.articleId, err: e }, "Failed to enqueue link rebuild after sync");
+      log.warn(
+        { articleId: pipelineInput.articleId, err: e },
+        "Failed to enqueue link rebuild after sync"
+      );
     }
   }
 }

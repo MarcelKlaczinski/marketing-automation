@@ -101,26 +101,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, defineAsyncComponent } from 'vue';
-import { useSystemStatusStore } from 'src/stores/system-status';
-import { api } from 'src/lib/api-client';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
+import { useNotify } from "src/composables/useNotify";
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineAsyncComponent, defineComponent } from "vue";
 
 const allStepDefs = [
-  { id: 'intro' },
-  { id: 'core' },
-  { id: 'smtp' },
-  { id: 'anthropic' },
-  { id: 'replicate' },
-  { id: 'r2' },
-  { id: 'dataforseo' },
-  { id: 'githubApp' },
-  { id: 'summary' },
+  { id: "intro" },
+  { id: "core" },
+  { id: "smtp" },
+  { id: "anthropic" },
+  { id: "replicate" },
+  { id: "r2" },
+  { id: "dataforseo" },
+  { id: "githubApp" },
+  { id: "summary" },
 ] as const;
 
-type StepId = (typeof allStepDefs)[number]['id'];
-type StepStatus = 'pending' | 'configured' | 'failed' | 'skipped';
+type StepId = (typeof allStepDefs)[number]["id"];
+type StepStatus = "pending" | "configured" | "failed" | "skipped";
 
 interface StepState {
   id: StepId;
@@ -130,19 +130,19 @@ interface StepState {
 type ComponentMapType = Record<StepId, ReturnType<typeof defineAsyncComponent>>;
 
 const COMPONENT_MAP: ComponentMapType = {
-  intro: defineAsyncComponent(() => import('src/components/installer/StepIntro.vue')),
-  core: defineAsyncComponent(() => import('src/components/installer/StepCore.vue')),
-  smtp: defineAsyncComponent(() => import('src/components/installer/StepSmtp.vue')),
-  anthropic: defineAsyncComponent(() => import('src/components/installer/StepAnthropic.vue')),
-  replicate: defineAsyncComponent(() => import('src/components/installer/StepReplicate.vue')),
-  r2: defineAsyncComponent(() => import('src/components/installer/StepR2.vue')),
-  dataforseo: defineAsyncComponent(() => import('src/components/installer/StepDataforseo.vue')),
-  githubApp: defineAsyncComponent(() => import('src/components/installer/StepGithubApp.vue')),
-  summary: defineAsyncComponent(() => import('src/components/installer/InstallerSummary.vue')),
+  intro: defineAsyncComponent(() => import("src/components/installer/StepIntro.vue")),
+  core: defineAsyncComponent(() => import("src/components/installer/StepCore.vue")),
+  smtp: defineAsyncComponent(() => import("src/components/installer/StepSmtp.vue")),
+  anthropic: defineAsyncComponent(() => import("src/components/installer/StepAnthropic.vue")),
+  replicate: defineAsyncComponent(() => import("src/components/installer/StepReplicate.vue")),
+  r2: defineAsyncComponent(() => import("src/components/installer/StepR2.vue")),
+  dataforseo: defineAsyncComponent(() => import("src/components/installer/StepDataforseo.vue")),
+  githubApp: defineAsyncComponent(() => import("src/components/installer/StepGithubApp.vue")),
+  summary: defineAsyncComponent(() => import("src/components/installer/InstallerSummary.vue")),
 };
 
 export default defineComponent({
-  name: 'InstallerPage',
+  name: "InstallerPage",
 
   components: { ...COMPONENT_MAP },
 
@@ -155,7 +155,7 @@ export default defineComponent({
   },
 
   data: () => ({
-    currentStep: 'intro' as StepId,
+    currentStep: "intro" as StepId,
     skippedSteps: new Set<string>(),
     finishing: false,
   }),
@@ -165,7 +165,7 @@ export default defineComponent({
       const store = this.systemStatusStore;
 
       const adapterStatus = (id: string): StepStatus => {
-        if (this.skippedSteps.has(id)) return 'skipped';
+        if (this.skippedSteps.has(id)) return "skipped";
         const map: Record<string, { configured: boolean; verified: boolean | null }> = {
           smtp: store.adapters.smtp,
           anthropic: store.adapters.anthropic,
@@ -175,18 +175,18 @@ export default defineComponent({
           githubApp: store.adapters.githubApp,
         };
         const s = map[id];
-        if (!s) return 'pending';
-        if (!s.configured) return 'pending';
-        if (s.verified === false) return 'failed';
-        return 'configured';
+        if (!s) return "pending";
+        if (!s.configured) return "pending";
+        if (s.verified === false) return "failed";
+        return "configured";
       };
 
       return allStepDefs.map((def) => {
         let status: StepStatus;
-        if (def.id === 'intro' || def.id === 'summary') {
-          status = 'configured';
-        } else if (def.id === 'core') {
-          status = store.requiredCoreReady ? 'configured' : 'pending';
+        if (def.id === "intro" || def.id === "summary") {
+          status = "configured";
+        } else if (def.id === "core") {
+          status = store.requiredCoreReady ? "configured" : "pending";
         } else {
           status = adapterStatus(def.id);
         }
@@ -203,15 +203,15 @@ export default defineComponent({
     },
 
     isOnSummary(): boolean {
-      return this.currentStep === 'summary';
+      return this.currentStep === "summary";
     },
 
     canContinue(): boolean {
-      if (this.currentStep === 'intro') return true;
-      if (this.currentStep === 'core') return this.systemStatusStore.requiredCoreReady;
+      if (this.currentStep === "intro") return true;
+      if (this.currentStep === "core") return this.systemStatusStore.requiredCoreReady;
       const step = this.steps.find((s) => s.id === this.currentStep);
       if (!step) return false;
-      return step.status === 'configured' || step.status === 'skipped';
+      return step.status === "configured" || step.status === "skipped";
     },
 
     currentComponent(): ReturnType<typeof defineAsyncComponent> | undefined {
@@ -223,7 +223,7 @@ export default defineComponent({
     await this.systemStatusStore.fetchStatus();
     await this.systemStatusStore.fetchDeploymentMode();
     const firstPending = this.steps.find(
-      (s) => s.id !== 'summary' && (s.status === 'pending' || s.status === 'failed'),
+      (s) => s.id !== "summary" && (s.status === "pending" || s.status === "failed")
     );
     if (firstPending) this.currentStep = firstPending.id;
   },
@@ -253,9 +253,9 @@ export default defineComponent({
     async onFinish(): Promise<void> {
       this.finishing = true;
       try {
-        await api.post('/system/initialize');
+        await api.post("/system/initialize");
         await this.systemStatusStore.fetchStatus();
-        void this.$router.push({ name: 'inbox' });
+        void this.$router.push({ name: "inbox" });
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {

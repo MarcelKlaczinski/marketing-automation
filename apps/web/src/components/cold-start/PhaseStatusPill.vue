@@ -8,11 +8,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { PhaseStatusLabel } from 'src/stores/cold-start';
+import type { PhaseStatusLabel } from "src/stores/cold-start";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'PhaseStatusPill',
+  name: "PhaseStatusPill",
   props: {
     status: { type: String as PropType<PhaseStatusLabel>, required: true },
   },

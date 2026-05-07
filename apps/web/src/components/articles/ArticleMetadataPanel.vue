@@ -91,19 +91,29 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useArticlesStore } from 'src/stores/articles';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import type { ArticleDetail } from 'src/stores/articles';
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { useArticlesStore } from "src/stores/articles";
+import type { ArticleDetail } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
 
 const ALL_STATUSES = [
-  'proposed', 'approved', 'generating', 'outline_review', 'drafting',
-  'final_review', 'schema_extending', 'ready_to_publish', 'validating',
-  'published', 'blocked_by_pagespeed', 'failed', 'rejected',
+  "proposed",
+  "approved",
+  "generating",
+  "outline_review",
+  "drafting",
+  "final_review",
+  "schema_extending",
+  "ready_to_publish",
+  "validating",
+  "published",
+  "blocked_by_pagespeed",
+  "failed",
+  "rejected",
 ] as const;
 
-type ArticleStatus = typeof ALL_STATUSES[number];
+type ArticleStatus = (typeof ALL_STATUSES)[number];
 
 interface MetadataForm {
   title: string;
@@ -114,13 +124,13 @@ interface MetadataForm {
 }
 
 export default defineComponent({
-  name: 'ArticleMetadataPanel',
+  name: "ArticleMetadataPanel",
 
   props: {
     detail: { type: Object as PropType<ArticleDetail>, required: true },
   },
 
-  emits: ['updated'],
+  emits: ["updated"],
 
   setup() {
     return {
@@ -139,10 +149,10 @@ export default defineComponent({
     };
     return {
       form: {
-        title: a.title ?? '',
-        slug: a.slug ?? '',
-        cornerstoneKeyword: a.cornerstoneKeyword ?? '',
-        metaDescription: a.metaDescription ?? '',
+        title: a.title ?? "",
+        slug: a.slug ?? "",
+        cornerstoneKeyword: a.cornerstoneKeyword ?? "",
+        metaDescription: a.metaDescription ?? "",
         status: a.status,
       } as MetadataForm,
       dirty: false,
@@ -171,7 +181,7 @@ export default defineComponent({
   },
 
   watch: {
-    'detail.article'(): void {
+    "detail.article"(): void {
       if (!this.dirty) {
         this.form = this.buildForm();
       }
@@ -188,10 +198,10 @@ export default defineComponent({
         status: ArticleStatus;
       };
       return {
-        title: a.title ?? '',
-        slug: a.slug ?? '',
-        cornerstoneKeyword: a.cornerstoneKeyword ?? '',
-        metaDescription: a.metaDescription ?? '',
+        title: a.title ?? "",
+        slug: a.slug ?? "",
+        cornerstoneKeyword: a.cornerstoneKeyword ?? "",
+        metaDescription: a.metaDescription ?? "",
         status: a.status,
       };
     },
@@ -203,14 +213,15 @@ export default defineComponent({
 
     slugRule(v: string): true | string {
       if (/^[a-z0-9-]+$/.test(v)) return true;
-      return this.$t('articles.metadata.slugHint') as string;
+      return this.$t("articles.metadata.slugHint") as string;
     },
 
     async onSave(): Promise<void> {
       const patch: Record<string, unknown> = {};
       if (this.form.title.trim()) patch.title = this.form.title.trim();
       if (this.form.slug.trim()) patch.slug = this.form.slug.trim();
-      if (this.form.cornerstoneKeyword.trim()) patch.cornerstoneKeyword = this.form.cornerstoneKeyword.trim();
+      if (this.form.cornerstoneKeyword.trim())
+        patch.cornerstoneKeyword = this.form.cornerstoneKeyword.trim();
       patch.metaDescription = this.form.metaDescription.trim() || null;
       patch.status = this.form.status;
 
@@ -218,8 +229,8 @@ export default defineComponent({
       try {
         await this.articlesStore.updateMetadata(this.article.id, patch);
         this.dirty = false;
-        this.notify.success(this.$t('articles.metadata.saveSuccess') as string);
-        this.$emit('updated');
+        this.notify.success(this.$t("articles.metadata.saveSuccess") as string);
+        this.$emit("updated");
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {

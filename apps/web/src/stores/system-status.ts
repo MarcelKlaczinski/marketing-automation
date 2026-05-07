@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import { api } from 'src/lib/api-client';
+import { defineStore } from "pinia";
+import { api } from "src/lib/api-client";
 
 export interface AdapterStatus {
   configured: boolean;
@@ -11,7 +11,7 @@ export interface AdapterStatus {
 interface SystemStatusState {
   loading: boolean;
   initialized: boolean;
-  deploymentMode: 'lokal' | 'self_hosted';
+  deploymentMode: "lokal" | "self_hosted";
   adapters: {
     anthropic: AdapterStatus;
     replicate: AdapterStatus;
@@ -26,7 +26,7 @@ interface SystemStatusState {
 
 interface StatusApiResponse {
   ok: boolean;
-  data: Omit<SystemStatusState, 'loading' | 'deploymentMode'>;
+  data: Omit<SystemStatusState, "loading" | "deploymentMode">;
 }
 
 const unknownStatus: AdapterStatus = {
@@ -35,11 +35,11 @@ const unknownStatus: AdapterStatus = {
   lastVerifiedAt: null,
 };
 
-export const useSystemStatusStore = defineStore('systemStatus', {
+export const useSystemStatusStore = defineStore("systemStatus", {
   state: (): SystemStatusState => ({
     loading: false,
     initialized: false,
-    deploymentMode: 'lokal',
+    deploymentMode: "lokal",
     adapters: {
       anthropic: { ...unknownStatus },
       replicate: { ...unknownStatus },
@@ -80,7 +80,7 @@ export const useSystemStatusStore = defineStore('systemStatus', {
     async fetchStatus(): Promise<void> {
       this.loading = true;
       try {
-        const res = await api.get<StatusApiResponse>('/system/status');
+        const res = await api.get<StatusApiResponse>("/system/status");
         const payload = res.data.data;
         this.initialized = payload.initialized;
         this.adapters = payload.adapters;
@@ -95,7 +95,10 @@ export const useSystemStatusStore = defineStore('systemStatus', {
 
     async fetchDeploymentMode(): Promise<void> {
       try {
-        const res = await api.get<{ ok: boolean; data: { deploymentMode: 'lokal' | 'self_hosted' } }>('/system/info');
+        const res = await api.get<{
+          ok: boolean;
+          data: { deploymentMode: "lokal" | "self_hosted" };
+        }>("/system/info");
         this.deploymentMode = res.data.data.deploymentMode;
       } catch {
         // Default to lokal

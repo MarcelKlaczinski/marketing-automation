@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
 import { db, projectPauseStates } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("cost-enforcement");
 
@@ -17,7 +17,7 @@ let _queueResumeFn: ((projectId: string) => Promise<void>) | null = null;
 
 export function registerQueuePauser(
   pauseFn: (projectId: string) => Promise<void>,
-  resumeFn: (projectId: string) => Promise<void>,
+  resumeFn: (projectId: string) => Promise<void>
 ): void {
   _queuePauseFn = pauseFn;
   _queueResumeFn = resumeFn;
@@ -28,7 +28,7 @@ export async function pauseProjectQueues(
   reason: string,
   reasonDetails: Record<string, unknown>,
   service: string | null,
-  pausedBy?: string,
+  pausedBy?: string
 ): Promise<void> {
   // Build insert and update objects conditionally (exactOptionalPropertyTypes:
   // nullable columns require null not undefined)
@@ -40,9 +40,8 @@ export async function pauseProjectQueues(
     createdAt: new Date(),
     pausedAt: new Date(),
   };
-  const insertRow: typeof projectPauseStates.$inferInsert = pausedBy !== undefined
-    ? { ...insertBase, pausedBy }
-    : insertBase;
+  const insertRow: typeof projectPauseStates.$inferInsert =
+    pausedBy !== undefined ? { ...insertBase, pausedBy } : insertBase;
 
   const updateBase = {
     reason,
@@ -50,9 +49,8 @@ export async function pauseProjectQueues(
     service,
     pausedAt: new Date(),
   };
-  const updateSet: Partial<typeof projectPauseStates.$inferInsert> = pausedBy !== undefined
-    ? { ...updateBase, pausedBy }
-    : updateBase;
+  const updateSet: Partial<typeof projectPauseStates.$inferInsert> =
+    pausedBy !== undefined ? { ...updateBase, pausedBy } : updateBase;
 
   await db.insert(projectPauseStates).values(insertRow).onConflictDoUpdate({
     target: projectPauseStates.projectId,
@@ -61,7 +59,10 @@ export async function pauseProjectQueues(
 
   if (_queuePauseFn) {
     await _queuePauseFn(projectId).catch((err: unknown) => {
-      log.warn({ err, projectId }, "Queue pause failed — DB pause state saved, manual resume required");
+      log.warn(
+        { err, projectId },
+        "Queue pause failed — DB pause state saved, manual resume required"
+      );
     });
   }
 
@@ -73,7 +74,10 @@ export async function resumeProjectQueues(projectId: string, resumedBy?: string)
 
   if (_queueResumeFn) {
     await _queueResumeFn(projectId).catch((err: unknown) => {
-      log.warn({ err, projectId }, "Queue resume failed — DB pause state already cleared, retry queue.resume() manually");
+      log.warn(
+        { err, projectId },
+        "Queue resume failed — DB pause state already cleared, retry queue.resume() manually"
+      );
     });
   }
 

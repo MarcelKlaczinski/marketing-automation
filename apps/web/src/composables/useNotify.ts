@@ -1,9 +1,9 @@
-import { Notify, type QNotifyCreateOptions } from 'quasar';
+import { Notify, type QNotifyCreateOptions } from "quasar";
 
 interface NotifyOptions {
   message: string;
   caption?: string;
-  type?: 'positive' | 'negative' | 'warning' | 'info';
+  type?: "positive" | "negative" | "warning" | "info";
   timeout?: number;
 }
 
@@ -16,7 +16,7 @@ export function useNotify(): {
 } {
   function notify(opts: NotifyOptions): void {
     const config: QNotifyCreateOptions = {
-      type: opts.type ?? 'info',
+      type: opts.type ?? "info",
       message: opts.message,
       timeout: opts.timeout ?? 4000,
     };
@@ -28,22 +28,22 @@ export function useNotify(): {
 
   return {
     success: (msg, caption) => {
-      const opts: NotifyOptions = { message: msg, type: 'positive' };
+      const opts: NotifyOptions = { message: msg, type: "positive" };
       if (caption) opts.caption = caption;
       notify(opts);
     },
     error: (msg, caption) => {
-      const opts: NotifyOptions = { message: msg, type: 'negative' };
+      const opts: NotifyOptions = { message: msg, type: "negative" };
       if (caption) opts.caption = caption;
       notify(opts);
     },
     warn: (msg, caption) => {
-      const opts: NotifyOptions = { message: msg, type: 'warning' };
+      const opts: NotifyOptions = { message: msg, type: "warning" };
       if (caption) opts.caption = caption;
       notify(opts);
     },
     info: (msg, caption) => {
-      const opts: NotifyOptions = { message: msg, type: 'info' };
+      const opts: NotifyOptions = { message: msg, type: "info" };
       if (caption) opts.caption = caption;
       notify(opts);
     },

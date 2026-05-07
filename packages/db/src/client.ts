@@ -1,6 +1,6 @@
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { getEnv, createLogger } from "@marketing-auto/shared";
 import * as schema from "./schema/index.ts";
 
 const log = createLogger("db");

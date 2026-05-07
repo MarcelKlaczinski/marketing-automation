@@ -33,45 +33,45 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { Project } from 'src/stores/projects';
+import type { Project } from "src/stores/projects";
+import { type PropType, defineComponent } from "vue";
 
 const INDUSTRY_ICONS: Record<string, string> = {
-  ai_education: 'school',
-  automotive_dealer: 'directions_car',
-  renewable_affiliate: 'solar_power',
-  music_school: 'music_note',
-  other: 'business',
+  ai_education: "school",
+  automotive_dealer: "directions_car",
+  renewable_affiliate: "solar_power",
+  music_school: "music_note",
+  other: "business",
 };
 
 const INDUSTRY_COLORS: Record<string, string> = {
-  ai_education: 'rgba(0, 188, 212, 0.12)',
-  automotive_dealer: 'rgba(63, 81, 181, 0.12)',
-  renewable_affiliate: 'rgba(76, 175, 80, 0.12)',
-  music_school: 'rgba(156, 39, 176, 0.12)',
-  other: 'rgba(158, 158, 158, 0.18)',
+  ai_education: "rgba(0, 188, 212, 0.12)",
+  automotive_dealer: "rgba(63, 81, 181, 0.12)",
+  renewable_affiliate: "rgba(76, 175, 80, 0.12)",
+  music_school: "rgba(156, 39, 176, 0.12)",
+  other: "rgba(158, 158, 158, 0.18)",
 };
 
 export default defineComponent({
-  name: 'ProjectListCard',
+  name: "ProjectListCard",
 
   props: {
     project: { type: Object as PropType<Project>, required: true },
   },
 
-  emits: ['click'],
+  emits: ["click"],
 
   computed: {
     industryIcon(): string {
-      return INDUSTRY_ICONS[this.project.industry] ?? 'business';
+      return INDUSTRY_ICONS[this.project.industry] ?? "business";
     },
 
     iconBg(): string {
-      return INDUSTRY_COLORS[this.project.industry] ?? 'rgba(158, 158, 158, 0.18)';
+      return INDUSTRY_COLORS[this.project.industry] ?? "rgba(158, 158, 158, 0.18)";
     },
 
     publishedCount(): number {
-      return this.project.stats?.articleCounts['published'] ?? 0;
+      return this.project.stats?.articleCounts.published ?? 0;
     },
   },
 });

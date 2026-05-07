@@ -1,7 +1,7 @@
 export const REPLICATE_MODELS = {
   "flux-1.1-pro": "black-forest-labs/flux-1.1-pro",
-  "flux-schnell":  "black-forest-labs/flux-schnell",
-  "ideogram-v3":   "ideogram-ai/ideogram-v3",
+  "flux-schnell": "black-forest-labs/flux-schnell",
+  "ideogram-v3": "ideogram-ai/ideogram-v3",
 } as const;
 
 export type ReplicateModel = keyof typeof REPLICATE_MODELS;
@@ -57,7 +57,10 @@ export type GenerateImageResult = {
 };
 
 export class ReplicateGenerationError extends Error {
-  constructor(message: string, public readonly originalCause?: unknown) {
+  constructor(
+    message: string,
+    public readonly originalCause?: unknown
+  ) {
     super(message);
     this.name = "ReplicateGenerationError";
   }

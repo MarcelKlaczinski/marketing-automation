@@ -1,31 +1,32 @@
-import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { z } from "zod";
-import { recalcPillarArticleId } from "./clusters.ts";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { COST_OPS, estimateCostEur } from "@marketing-auto/core";
 import {
-  db,
-  projects,
+  articleVersions,
   articles,
+  astroSyncRuns,
   clusters,
   contentPillars,
-  astroSyncRuns,
+  db,
   pagespeedRuns,
+  projects,
   schemaExtensionRuns,
-  articleVersions,
 } from "@marketing-auto/db";
 import {
-  enqueueArticleGeneration,
   continueArticleGeneration,
-  enqueueArticleOutlinePipeline,
   enqueueArticleDraftPipeline,
+  enqueueArticleGeneration,
+  enqueueArticleOutlinePipeline,
   enqueueArticleSyncPipeline,
   enqueuePagespeedValidationPipeline,
   enqueueSchemaExtensionPipeline,
 } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
-import { triggerWithPreRunId, triggerResultToResponse } from "./_lib/trigger-helpers.ts";
+import { triggerResultToResponse, triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
+import { recalcPillarArticleId } from "./clusters.ts";
 
 const log = createLogger("routes:articles");
 
@@ -39,28 +40,32 @@ articleRoutes.get("/", async (c) => {
   const projectSlug = c.req.query("projectSlug");
   if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
 
-  const [project] = await db.select({ id: projects.id })
-    .from(projects).where(eq(projects.slug, projectSlug)).limit(1);
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, projectSlug))
+    .limit(1);
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
-  const rows = await db.select({
-    id: articles.id,
-    slug: articles.slug,
-    title: articles.title,
-    cornerstoneKeyword: articles.cornerstoneKeyword,
-    status: articles.status,
-    cornerstoneSpecId: articles.cornerstoneSpecId,
-    clusterId: articles.clusterId,
-    clusterName: clusters.name,
-    pillarId: clusters.pillarId,
-    pillarName: contentPillars.name,
-    pillarPosition: contentPillars.position,
-    wordCount: articles.wordCount,
-    publishedAt: articles.publishedAt,
-    astroSyncedAt: articles.astroSyncedAt,
-    createdAt: articles.createdAt,
-    updatedAt: articles.updatedAt,
-  })
+  const rows = await db
+    .select({
+      id: articles.id,
+      slug: articles.slug,
+      title: articles.title,
+      cornerstoneKeyword: articles.cornerstoneKeyword,
+      status: articles.status,
+      cornerstoneSpecId: articles.cornerstoneSpecId,
+      clusterId: articles.clusterId,
+      clusterName: clusters.name,
+      pillarId: clusters.pillarId,
+      pillarName: contentPillars.name,
+      pillarPosition: contentPillars.position,
+      wordCount: articles.wordCount,
+      publishedAt: articles.publishedAt,
+      astroSyncedAt: articles.astroSyncedAt,
+      createdAt: articles.createdAt,
+      updatedAt: articles.updatedAt,
+    })
     .from(articles)
     .leftJoin(clusters, eq(articles.clusterId, clusters.id))
     .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
@@ -87,15 +92,21 @@ articleRoutes.get("/:id", async (c) => {
     : [null];
 
   const [recentSync, recentPagespeed, recentSchema] = await Promise.all([
-    db.select().from(astroSyncRuns)
+    db
+      .select()
+      .from(astroSyncRuns)
       .where(eq(astroSyncRuns.articleId, id))
       .orderBy(desc(astroSyncRuns.startedAt))
       .limit(5),
-    db.select().from(pagespeedRuns)
+    db
+      .select()
+      .from(pagespeedRuns)
       .where(eq(pagespeedRuns.articleId, id))
       .orderBy(desc(pagespeedRuns.startedAt))
       .limit(5),
-    db.select().from(schemaExtensionRuns)
+    db
+      .select()
+      .from(schemaExtensionRuns)
       .where(eq(schemaExtensionRuns.articleId, id))
       .orderBy(desc(schemaExtensionRuns.startedAt))
       .limit(5),
@@ -122,20 +133,40 @@ const ArticleUpdateSchema = z.object({
   title: z.string().min(2).max(300).optional(),
   metaDescription: z.string().max(500).optional(),
   cornerstoneKeyword: z.string().min(2).max(200).optional(),
-  slug: z.string().min(2).max(200).regex(/^[a-z0-9-]+$/).optional(),
-  status: z.enum([
-    "proposed", "approved", "generating", "outline_review", "drafting",
-    "final_review", "schema_extending", "ready_to_publish", "validating",
-    "published", "blocked_by_pagespeed", "failed", "rejected",
-  ]).optional(),
+  slug: z
+    .string()
+    .min(2)
+    .max(200)
+    .regex(/^[a-z0-9-]+$/)
+    .optional(),
+  status: z
+    .enum([
+      "proposed",
+      "approved",
+      "generating",
+      "outline_review",
+      "drafting",
+      "final_review",
+      "schema_extending",
+      "ready_to_publish",
+      "validating",
+      "published",
+      "blocked_by_pagespeed",
+      "failed",
+      "rejected",
+    ])
+    .optional(),
 });
 
 articleRoutes.patch("/:id", zValidator("json", ArticleUpdateSchema), async (c) => {
   const id = c.req.param("id");
   const input = c.req.valid("json");
 
-  const [existing] = await db.select({ id: articles.id, clusterId: articles.clusterId })
-    .from(articles).where(eq(articles.id, id)).limit(1);
+  const [existing] = await db
+    .select({ id: articles.id, clusterId: articles.clusterId })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!existing) return c.json({ ok: false, error: "Article not found" }, 404);
 
   // Build update object conditionally — required by exactOptionalPropertyTypes
@@ -186,7 +217,8 @@ articleRoutes.post("/:id/body", zValidator("json", BodyUpdateSchema), async (c) 
 
   await db.insert(articleVersions).values(values);
 
-  await db.update(articles)
+  await db
+    .update(articles)
     .set({
       bodyMd: input.bodyMd,
       wordCount: input.bodyMd.trim().split(/\s+/).filter(Boolean).length,
@@ -202,15 +234,20 @@ articleRoutes.post("/:id/body", zValidator("json", BodyUpdateSchema), async (c) 
 articleRoutes.get("/:id/versions", async (c) => {
   const id = c.req.param("id");
 
-  const [exists] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id)).limit(1);
+  const [exists] = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!exists) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  const versions = await db.select({
-    id: articleVersions.id,
-    version: articleVersions.version,
-    changeReason: articleVersions.changeReason,
-    createdAt: articleVersions.createdAt,
-  })
+  const versions = await db
+    .select({
+      id: articleVersions.id,
+      version: articleVersions.version,
+      changeReason: articleVersions.changeReason,
+      createdAt: articleVersions.createdAt,
+    })
     .from(articleVersions)
     .where(eq(articleVersions.articleId, id))
     .orderBy(desc(articleVersions.version));
@@ -222,10 +259,12 @@ articleRoutes.get("/:id/versions", async (c) => {
 
 articleRoutes.get("/:id/versions/:version", async (c) => {
   const id = c.req.param("id");
-  const version = parseInt(c.req.param("version"), 10);
-  if (isNaN(version)) return c.json({ ok: false, error: "Invalid version number" }, 400);
+  const version = Number.parseInt(c.req.param("version"), 10);
+  if (Number.isNaN(version)) return c.json({ ok: false, error: "Invalid version number" }, 400);
 
-  const [row] = await db.select().from(articleVersions)
+  const [row] = await db
+    .select()
+    .from(articleVersions)
     .where(and(eq(articleVersions.articleId, id), eq(articleVersions.version, version)))
     .limit(1);
   if (!row) return c.json({ ok: false, error: "Version not found" }, 404);
@@ -237,15 +276,18 @@ articleRoutes.get("/:id/versions/:version", async (c) => {
 
 articleRoutes.post("/:id/generate-outline", async (c) => {
   const id = c.req.param("id");
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
-    .from(articles).where(eq(articles.id, id)).limit(1);
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
   const result = await triggerWithPreRunId({
     pipelineName: "article:outline",
     projectId: article.projectId,
     uniqueKey: { field: "articleId", value: article.id },
-    costEstimate: { service: "anthropic", operation: "outline-generation" },
+    costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
     extraInput: { articleId: article.id },
     enqueue: enqueueArticleOutlinePipeline,
   });
@@ -255,15 +297,18 @@ articleRoutes.post("/:id/generate-outline", async (c) => {
 
 articleRoutes.post("/:id/generate-draft", async (c) => {
   const id = c.req.param("id");
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
-    .from(articles).where(eq(articles.id, id)).limit(1);
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
   const result = await triggerWithPreRunId({
     pipelineName: "article:draft",
     projectId: article.projectId,
     uniqueKey: { field: "articleId", value: article.id },
-    costEstimate: { service: "anthropic", operation: "draft-generation" },
+    costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_DRAFT },
     extraInput: { articleId: article.id },
     enqueue: enqueueArticleDraftPipeline,
   });
@@ -273,8 +318,11 @@ articleRoutes.post("/:id/generate-draft", async (c) => {
 
 articleRoutes.post("/:id/sync", async (c) => {
   const id = c.req.param("id");
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
-    .from(articles).where(eq(articles.id, id)).limit(1);
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
   const result = await triggerWithPreRunId({
@@ -291,8 +339,14 @@ articleRoutes.post("/:id/sync", async (c) => {
 articleRoutes.post("/:id/validate-pagespeed", async (c) => {
   const id = c.req.param("id");
   const [article] = await db
-    .select({ id: articles.id, projectId: articles.projectId, astroCommitSha: articles.astroCommitSha })
-    .from(articles).where(eq(articles.id, id)).limit(1);
+    .select({
+      id: articles.id,
+      projectId: articles.projectId,
+      astroCommitSha: articles.astroCommitSha,
+    })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
   // Cooldown: reject if a run exists within the last 5 minutes with the same commit SHA
@@ -304,13 +358,17 @@ articleRoutes.post("/:id/validate-pagespeed", async (c) => {
     .orderBy(desc(pagespeedRuns.startedAt))
     .limit(1);
 
-  if (recentRun && recentRun.astroCommitSha && recentRun.astroCommitSha === article.astroCommitSha) {
-    return c.json({
-      ok: false,
-      error: "pagespeed_cooldown",
-      message: "PageSpeed run too recent for unchanged content. Wait 5 minutes or sync new changes first.",
-      data: { lastRunAt: recentRun.startedAt.toISOString() },
-    }, 429);
+  if (recentRun?.astroCommitSha && recentRun.astroCommitSha === article.astroCommitSha) {
+    return c.json(
+      {
+        ok: false,
+        error: "pagespeed_cooldown",
+        message:
+          "PageSpeed run too recent for unchanged content. Wait 5 minutes or sync new changes first.",
+        data: { lastRunAt: recentRun.startedAt.toISOString() },
+      },
+      429
+    );
   }
 
   const result = await triggerWithPreRunId({
@@ -326,15 +384,24 @@ articleRoutes.post("/:id/validate-pagespeed", async (c) => {
 
 articleRoutes.post("/:id/extend-schema", async (c) => {
   const id = c.req.param("id");
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
-    .from(articles).where(eq(articles.id, id)).limit(1);
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
   const result = await triggerWithPreRunId({
     pipelineName: "article:schema-extension",
     projectId: article.projectId,
     uniqueKey: { field: "articleId", value: article.id },
-    costEstimate: { service: "anthropic", operation: "schema-extension" },
+    costEstimate: {
+      service: "anthropic",
+      estimatedCostEur:
+        estimateCostEur("anthropic", COST_OPS.SCHEMA_RICH_DETECTION) +
+        estimateCostEur("anthropic", COST_OPS.SCHEMA_FAQ_BUILD) +
+        estimateCostEur("anthropic", COST_OPS.SCHEMA_HOWTO_BUILD),
+    },
     extraInput: { articleId: article.id },
     enqueue: enqueueSchemaExtensionPipeline,
   });
@@ -354,15 +421,21 @@ articleRoutes.post("/:articleId/continue", async (c) => {
   const bodyResult = ContinueBodySchema.safeParse(rawBody);
   const body = bodyResult.success ? bodyResult.data : {};
 
-  const [article] = await db.select({ id: articles.id, projectId: articles.projectId })
-    .from(articles).where(eq(articles.id, articleId)).limit(1);
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId })
+    .from(articles)
+    .where(eq(articles.id, articleId))
+    .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
   try {
     const base = { articleId: article.id, projectId: article.projectId };
     const input = body.modelOverride ? { ...base, modelOverride: body.modelOverride } : base;
     const result = await continueArticleGeneration(input);
-    log.info({ articleId, draftJobId: result.draftJobId }, "Article continuation enqueued via HTTP");
+    log.info(
+      { articleId, draftJobId: result.draftJobId },
+      "Article continuation enqueued via HTTP"
+    );
     return c.json({ ok: true, data: result }, 202);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -393,19 +466,33 @@ legacyArticleRoutes.post(
     const projectSlug = c.req.param("projectSlug");
     const body = c.req.valid("json");
 
-    const [project] = await db.select().from(projects).where(eq(projects.slug, projectSlug)).limit(1);
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.slug, projectSlug))
+      .limit(1);
     if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
     try {
-      const base = { cornerstoneSlug: body.cornerstoneSlug, projectId: project.id, approvalMode: body.approvalMode };
+      const base = {
+        cornerstoneSlug: body.cornerstoneSlug,
+        projectId: project.id,
+        approvalMode: body.approvalMode,
+      };
       const input = body.modelOverride ? { ...base, modelOverride: body.modelOverride } : base;
       const result = await enqueueArticleGeneration(input);
-      log.info({ projectSlug, cornerstoneSlug: body.cornerstoneSlug, articleId: result.articleId }, "Article generation enqueued via HTTP");
+      log.info(
+        { projectSlug, cornerstoneSlug: body.cornerstoneSlug, articleId: result.articleId },
+        "Article generation enqueued via HTTP"
+      );
       return c.json({ ok: true, data: result }, 202);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      log.warn({ err: e, projectSlug, cornerstoneSlug: body.cornerstoneSlug }, "Article generation enqueue failed");
+      log.warn(
+        { err: e, projectSlug, cornerstoneSlug: body.cornerstoneSlug },
+        "Article generation enqueue failed"
+      );
       return c.json({ ok: false, error: msg }, 400);
     }
-  },
+  }
 );

@@ -84,11 +84,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useArticlesStore, type ArticleVersion } from 'src/stores/articles';
+import { type ArticleVersion, useArticlesStore } from "src/stores/articles";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ArticleHistoryPanel',
+  name: "ArticleHistoryPanel",
 
   props: {
     articleId: { type: String, required: true },
@@ -113,7 +113,7 @@ export default defineComponent({
 
     currentBody(): string {
       const detail = this.articlesStore.detailById[this.articleId];
-      return (detail?.article as { bodyMd?: string })?.bodyMd ?? '';
+      return (detail?.article as { bodyMd?: string })?.bodyMd ?? "";
     },
   },
 
@@ -133,15 +133,18 @@ export default defineComponent({
       this.diffBodyLoading = true;
       this.diffOpen = true;
       try {
-        this.selectedBody = await this.articlesStore.fetchVersionBody(this.articleId, version.version);
+        this.selectedBody = await this.articlesStore.fetchVersionBody(
+          this.articleId,
+          version.version
+        );
       } finally {
         this.diffBodyLoading = false;
       }
     },
 
     formatDate(iso: string): string {
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
-      return new Date(iso).toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
+      return new Date(iso).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" });
     },
   },
 });

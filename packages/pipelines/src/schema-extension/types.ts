@@ -26,7 +26,7 @@ export class SchemaExtensionError extends Error {
   constructor(
     message: string,
     public readonly stage: "load" | "detect" | "build" | "persist",
-    public readonly originalCause?: unknown,
+    public readonly originalCause?: unknown
   ) {
     super(message);
     this.name = "SchemaExtensionError";

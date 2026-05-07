@@ -94,21 +94,21 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useAuthStore } from 'src/stores/auth';
-import { useUiStore } from 'src/stores/ui';
-import { useSystemStatusStore } from 'src/stores/system-status';
+import { useAuthStore } from "src/stores/auth";
+import { useSystemStatusStore } from "src/stores/system-status";
+import { useUiStore } from "src/stores/ui";
+import { defineComponent } from "vue";
 
 const navLinks = [
-  { routeName: 'inbox', icon: 'inbox', labelKey: 'nav.inbox' },
-  { routeName: 'projects', icon: 'folder', labelKey: 'nav.projects' },
-  { routeName: 'cost-dashboard', icon: 'payments', labelKey: 'nav.cost' },
-  { routeName: 'activity', icon: 'history', labelKey: 'nav.activity' },
-  { routeName: 'settings', icon: 'settings', labelKey: 'nav.settings' },
+  { routeName: "inbox", icon: "inbox", labelKey: "nav.inbox" },
+  { routeName: "projects", icon: "folder", labelKey: "nav.projects" },
+  { routeName: "cost-dashboard", icon: "payments", labelKey: "nav.cost" },
+  { routeName: "activity", icon: "history", labelKey: "nav.activity" },
+  { routeName: "settings", icon: "settings", labelKey: "nav.settings" },
 ];
 
 export default defineComponent({
-  name: 'MainLayout',
+  name: "MainLayout",
 
   setup() {
     return {
@@ -145,12 +145,12 @@ export default defineComponent({
     },
 
     goToSettings(): void {
-      void this.$router.push({ name: 'settings' });
+      void this.$router.push({ name: "settings" });
     },
 
     async logout(): Promise<void> {
       await this.authStore.logout();
-      void this.$router.push({ name: 'login' });
+      void this.$router.push({ name: "login" });
     },
   },
 });

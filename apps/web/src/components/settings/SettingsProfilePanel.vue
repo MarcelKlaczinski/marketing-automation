@@ -29,11 +29,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore } from "src/stores/auth";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'SettingsProfilePanel',
+  name: "SettingsProfilePanel",
 
   setup() {
     return { authStore: useAuthStore() };
@@ -42,7 +42,7 @@ export default defineComponent({
   methods: {
     async onLogout(): Promise<void> {
       await this.authStore.logout();
-      void this.$router.push({ name: 'login' });
+      void this.$router.push({ name: "login" });
     },
   },
 });

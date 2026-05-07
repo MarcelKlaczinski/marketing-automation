@@ -20,57 +20,57 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, defineAsyncComponent } from 'vue';
-import { useSystemStatusStore } from 'src/stores/system-status';
-import SettingsAdapterCard from './SettingsAdapterCard.vue';
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineAsyncComponent, defineComponent } from "vue";
+import SettingsAdapterCard from "./SettingsAdapterCard.vue";
 
 const adapterList = [
   {
-    service: 'smtp',
-    statusKey: 'smtp' as const,
-    stepKey: 'smtp',
-    icon: 'mail',
-    component: defineAsyncComponent(() => import('src/components/installer/StepSmtp.vue')),
+    service: "smtp",
+    statusKey: "smtp" as const,
+    stepKey: "smtp",
+    icon: "mail",
+    component: defineAsyncComponent(() => import("src/components/installer/StepSmtp.vue")),
   },
   {
-    service: 'anthropic',
-    statusKey: 'anthropic' as const,
-    stepKey: 'anthropic',
-    icon: 'psychology',
-    component: defineAsyncComponent(() => import('src/components/installer/StepAnthropic.vue')),
+    service: "anthropic",
+    statusKey: "anthropic" as const,
+    stepKey: "anthropic",
+    icon: "psychology",
+    component: defineAsyncComponent(() => import("src/components/installer/StepAnthropic.vue")),
   },
   {
-    service: 'replicate',
-    statusKey: 'replicate' as const,
-    stepKey: 'replicate',
-    icon: 'image',
-    component: defineAsyncComponent(() => import('src/components/installer/StepReplicate.vue')),
+    service: "replicate",
+    statusKey: "replicate" as const,
+    stepKey: "replicate",
+    icon: "image",
+    component: defineAsyncComponent(() => import("src/components/installer/StepReplicate.vue")),
   },
   {
-    service: 'r2',
-    statusKey: 'r2' as const,
-    stepKey: 'r2',
-    icon: 'cloud',
-    component: defineAsyncComponent(() => import('src/components/installer/StepR2.vue')),
+    service: "r2",
+    statusKey: "r2" as const,
+    stepKey: "r2",
+    icon: "cloud",
+    component: defineAsyncComponent(() => import("src/components/installer/StepR2.vue")),
   },
   {
-    service: 'dataforseo',
-    statusKey: 'dataforseo' as const,
-    stepKey: 'dataforseo',
-    icon: 'search',
-    component: defineAsyncComponent(() => import('src/components/installer/StepDataforseo.vue')),
+    service: "dataforseo",
+    statusKey: "dataforseo" as const,
+    stepKey: "dataforseo",
+    icon: "search",
+    component: defineAsyncComponent(() => import("src/components/installer/StepDataforseo.vue")),
   },
   {
-    service: 'github_app',
-    statusKey: 'githubApp' as const,
-    stepKey: 'githubApp',
-    icon: 'code',
-    component: defineAsyncComponent(() => import('src/components/installer/StepGithubApp.vue')),
+    service: "github_app",
+    statusKey: "githubApp" as const,
+    stepKey: "githubApp",
+    icon: "code",
+    component: defineAsyncComponent(() => import("src/components/installer/StepGithubApp.vue")),
   },
 ];
 
 export default defineComponent({
-  name: 'SettingsAdaptersPanel',
+  name: "SettingsAdaptersPanel",
 
   components: {
     SettingsAdapterCard,

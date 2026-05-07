@@ -1,9 +1,9 @@
-import { z } from "zod";
 import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger, getEnv } from "@marketing-auto/shared";
-import { PagespeedError, PagespeedScoresSchema, CoreWebVitalsSchema } from "../types.ts";
+import { z } from "zod";
+import { CoreWebVitalsSchema, PagespeedError, PagespeedScoresSchema } from "../types.ts";
 
 const log = createLogger("pagespeed:lighthouse");
 
@@ -28,9 +28,14 @@ export class LighthouseStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
-  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
+  async execute(
+    input: z.infer<typeof InputSchema>,
+    _ctx: StepContext
+  ): Promise<z.infer<typeof OutputSchema>> {
     const env = getEnv();
     const baseUrl = input.serverUrl.replace(/\/$/, "");
     const testedUrl = `${baseUrl}/blog/${input.articleSlug}`;
@@ -55,7 +60,7 @@ export class LighthouseStep extends BaseStep<
       throw new PagespeedError(
         `Chrome not found at ${cacheDir}. Run: bun --filter @marketing-auto/adapter-pagespeed install-chrome`,
         "lighthouse",
-        err,
+        err
       );
     }
 
@@ -94,8 +99,9 @@ export class LighthouseStep extends BaseStep<
         }),
         new Promise<never>((_, reject) =>
           setTimeout(
-            () => reject(new PagespeedError(`Lighthouse timed out after ${timeoutMs}ms`, "lighthouse")),
-            timeoutMs,
+            () =>
+              reject(new PagespeedError(`Lighthouse timed out after ${timeoutMs}ms`, "lighthouse")),
+            timeoutMs
           )
         ),
       ]);
@@ -108,10 +114,10 @@ export class LighthouseStep extends BaseStep<
 
       // Lighthouse scores are 0-1; expose 0-100
       const scores = {
-        performance: Math.round((lhr.categories["performance"]?.score ?? 0) * 100),
-        accessibility: Math.round((lhr.categories["accessibility"]?.score ?? 0) * 100),
+        performance: Math.round((lhr.categories.performance?.score ?? 0) * 100),
+        accessibility: Math.round((lhr.categories.accessibility?.score ?? 0) * 100),
         bestPractices: Math.round((lhr.categories["best-practices"]?.score ?? 0) * 100),
-        seo: Math.round((lhr.categories["seo"]?.score ?? 0) * 100),
+        seo: Math.round((lhr.categories.seo?.score ?? 0) * 100),
       };
 
       const lcp = lhr.audits["largest-contentful-paint"]?.numericValue ?? 0;
@@ -123,9 +129,8 @@ export class LighthouseStep extends BaseStep<
 
       await mkdir(input.workDir, { recursive: true });
       const reportPath = `${input.workDir}/lighthouse-report.json`;
-      const reportContent = typeof result.report === "string"
-        ? result.report
-        : JSON.stringify(result.report);
+      const reportContent =
+        typeof result.report === "string" ? result.report : JSON.stringify(result.report);
       await writeFile(reportPath, reportContent, "utf-8");
 
       log.info({ scores, coreWebVitals, reportPath }, "Lighthouse complete");

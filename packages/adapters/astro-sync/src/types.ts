@@ -17,8 +17,14 @@ export type AstroRepoConfig = z.infer<typeof AstroRepoConfigSchema>;
 export const FrontmatterFieldSchema = z.object({
   name: z.string(),
   type: z.enum([
-    "string", "number", "boolean", "date", "image",
-    "string_array", "object", "unknown",
+    "string",
+    "number",
+    "boolean",
+    "date",
+    "image",
+    "string_array",
+    "object",
+    "unknown",
   ]),
   required: z.boolean(),
   hasDefault: z.boolean(),
@@ -46,8 +52,17 @@ export type SyncResult = {
 export class AstroSyncError extends Error {
   constructor(
     message: string,
-    public readonly stage: "load" | "schema" | "image" | "render" | "commit" | "db_update" | "auth" | "config" | "stale_read",
-    public readonly originalCause?: unknown,
+    public readonly stage:
+      | "load"
+      | "schema"
+      | "image"
+      | "render"
+      | "commit"
+      | "db_update"
+      | "auth"
+      | "config"
+      | "stale_read",
+    public readonly originalCause?: unknown
   ) {
     super(message);
     this.name = "AstroSyncError";

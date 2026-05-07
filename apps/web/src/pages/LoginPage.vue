@@ -64,14 +64,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { api } from 'src/lib/api-client';
-import { useSystemStatusStore } from 'src/stores/system-status';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
+import { useNotify } from "src/composables/useNotify";
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'LoginPage',
+  name: "LoginPage",
 
   setup() {
     return {
@@ -81,7 +81,7 @@ export default defineComponent({
   },
 
   data: () => ({
-    email: '',
+    email: "",
     loading: false,
     sent: false,
   }),
@@ -93,10 +93,9 @@ export default defineComponent({
 
     emailRules(): Array<(v: string) => true | string> {
       return [
-        (v: string) => !!v || (this.$t('auth.login.emailRequired') as string),
+        (v: string) => !!v || (this.$t("auth.login.emailRequired") as string),
         (v: string) =>
-          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ||
-          (this.$t('auth.login.emailInvalid') as string),
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || (this.$t("auth.login.emailInvalid") as string),
       ];
     },
   },
@@ -105,7 +104,7 @@ export default defineComponent({
     async onSubmit(): Promise<void> {
       this.loading = true;
       try {
-        await api.post('/auth/magic-link/request', { email: this.email });
+        await api.post("/auth/magic-link/request", { email: this.email });
         this.sent = true;
       } catch (e) {
         if (e instanceof HttpError) {
@@ -118,7 +117,7 @@ export default defineComponent({
 
     onReset(): void {
       this.sent = false;
-      this.email = '';
+      this.email = "";
     },
   },
 });

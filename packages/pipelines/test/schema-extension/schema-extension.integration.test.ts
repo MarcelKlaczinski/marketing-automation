@@ -15,16 +15,23 @@
  * Run DB-only:
  *   bun --filter @marketing-auto/pipelines test schema-extension
  */
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db, projects, clusters, articles, schemaExtensionRuns, contentPillars } from "@marketing-auto/db";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import {
+  articles,
+  clusters,
+  contentPillars,
+  db,
+  projects,
+  schemaExtensionRuns,
+} from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 import { runPipeline } from "../../src/engine/runner.ts";
+import type { StepContext } from "../../src/engine/step.ts";
 import { SchemaExtensionPipeline } from "../../src/schema-extension/pipeline.ts";
 import { LoadArticleStep } from "../../src/schema-extension/steps/load-article.ts";
 import { PersistSchemaStep } from "../../src/schema-extension/steps/persist-schema.ts";
 import { SchemaExtensionError } from "../../src/schema-extension/types.ts";
-import type { StepContext } from "../../src/engine/step.ts";
 
 const LIVE = process.env.RUN_LIVE_SCHEMA_EXTENSION === "1";
 
@@ -50,30 +57,39 @@ const EXISTING_ARTICLE_SCHEMA = {
 };
 
 beforeAll(async () => {
-  const [p] = await db.insert(projects).values({
-    slug: `schema-ext-test-${Date.now()}`,
-    name: "Schema Extension Test Project",
-    industry: "ai_education",
-    pipelineTemplate: "educational",
-    domain: "ki-wissensraum.de",
-  }).returning();
+  const [p] = await db
+    .insert(projects)
+    .values({
+      slug: `schema-ext-test-${Date.now()}`,
+      name: "Schema Extension Test Project",
+      industry: "ai_education",
+      pipelineTemplate: "educational",
+      domain: "ki-wissensraum.de",
+    })
+    .returning();
   projectId = p!.id;
 
-  const [pillar] = await db.insert(contentPillars).values({
-    projectId,
-    name: "AI Tools",
-    position: 0,
-  }).returning();
+  const [pillar] = await db
+    .insert(contentPillars)
+    .values({
+      projectId,
+      name: "AI Tools",
+      position: 0,
+    })
+    .returning();
 
-  const [c] = await db.insert(clusters).values({
-    projectId,
-    pillarId: pillar!.id,
-    name: "Claude AI",
-    pillar: "AI Tools",
-    cornerstoneKeywords: ["claude-ai"],
-    satelliteKeywords: [],
-    status: "approved",
-  }).returning();
+  const [c] = await db
+    .insert(clusters)
+    .values({
+      projectId,
+      pillarId: pillar!.id,
+      name: "Claude AI",
+      pillar: "AI Tools",
+      cornerstoneKeywords: ["claude-ai"],
+      satelliteKeywords: [],
+      status: "approved",
+    })
+    .returning();
   clusterId = c!.id;
 });
 
@@ -85,19 +101,22 @@ afterAll(async () => {
 
 describe("LoadArticleStep (DB)", () => {
   it("loads article, project, and cluster successfully", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `load-test-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      title: "Was ist Claude AI?",
-      metaDescription: "Claude AI erklärt.",
-      bodyMd: "# Claude AI\n\nClaude ist ein KI-Assistent von Anthropic.",
-      heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-      schemaJsonLd: [EXISTING_ARTICLE_SCHEMA],
-      status: "schema_extending",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `load-test-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        title: "Was ist Claude AI?",
+        metaDescription: "Claude AI erklärt.",
+        bodyMd: "# Claude AI\n\nClaude ist ein KI-Assistent von Anthropic.",
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        schemaJsonLd: [EXISTING_ARTICLE_SCHEMA],
+        status: "schema_extending",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
@@ -118,18 +137,21 @@ describe("LoadArticleStep (DB)", () => {
   });
 
   it("loads without cluster when article has no clusterId", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId: null,
-      slug: `load-nocluster-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      title: "Claude ohne Cluster",
-      bodyMd: "Kein Cluster.",
-      heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-      schemaJsonLd: [],
-      status: "schema_extending",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId: null,
+        slug: `load-nocluster-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        title: "Claude ohne Cluster",
+        bodyMd: "Kein Cluster.",
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        schemaJsonLd: [],
+        status: "schema_extending",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
@@ -142,39 +164,45 @@ describe("LoadArticleStep (DB)", () => {
   });
 
   it("throws SchemaExtensionError when article is in wrong status", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `load-wrong-status-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      status: "generating",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `load-wrong-status-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        status: "generating",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
       const step = new LoadArticleStep();
-      await expect(
-        step.execute({ articleId }, mockCtx(projectId)),
-      ).rejects.toThrow(SchemaExtensionError);
+      await expect(step.execute({ articleId }, mockCtx(projectId))).rejects.toThrow(
+        SchemaExtensionError
+      );
     } finally {
       await db.delete(articles).where(eq(articles.id, articleId));
     }
   });
 
   it("accepts article in final_review status (manual re-run path)", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `load-final-review-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      title: "Final Review Article",
-      bodyMd: "Body.",
-      heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-      schemaJsonLd: [],
-      status: "final_review",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `load-final-review-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        title: "Final Review Article",
+        bodyMd: "Body.",
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        schemaJsonLd: [],
+        status: "final_review",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
@@ -189,14 +217,17 @@ describe("LoadArticleStep (DB)", () => {
 
 describe("PersistSchemaStep (DB)", () => {
   it("updates article schemaJsonLd and status, inserts schema_extension_runs row", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `persist-test-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      status: "schema_extending",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `persist-test-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        status: "schema_extending",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     const ctx = mockCtx(projectId);
@@ -208,31 +239,37 @@ describe("PersistSchemaStep (DB)", () => {
 
     try {
       const step = new PersistSchemaStep();
-      const out = await step.execute({
-        articleId,
-        projectId,
-        schemaJsonLd: newSchema,
-        detection: {
-          hasFaq: true,
-          hasHowTo: false,
-          faqQuestions: [{ q: 1 }, { q: 2 }, { q: 3 }],
-          howToSteps: [],
+      const out = await step.execute(
+        {
+          articleId,
+          projectId,
+          schemaJsonLd: newSchema,
+          detection: {
+            hasFaq: true,
+            hasHowTo: false,
+            faqQuestions: [{ q: 1 }, { q: 2 }, { q: 3 }],
+            howToSteps: [],
+          },
+          addedTypes: ["BreadcrumbList", "FAQPage"],
         },
-        addedTypes: ["BreadcrumbList", "FAQPage"],
-      }, ctx);
+        ctx
+      );
 
       expect(out.articleId).toBe(articleId);
       expect(out.schemaCount).toBe(3);
       expect(out.schemaExtensionRunId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
       );
 
       const [saved] = await db.select().from(articles).where(eq(articles.id, articleId)).limit(1);
       expect(saved!.status).toBe("final_review");
       expect(saved!.schemaJsonLd).toHaveLength(3);
 
-      const [run] = await db.select().from(schemaExtensionRuns)
-        .where(eq(schemaExtensionRuns.id, out.schemaExtensionRunId)).limit(1);
+      const [run] = await db
+        .select()
+        .from(schemaExtensionRuns)
+        .where(eq(schemaExtensionRuns.id, out.schemaExtensionRunId))
+        .limit(1);
       expect(run!.status).toBe("succeeded");
       expect(run!.detectedTypes!.faq).toBe(true);
       expect(run!.detectedTypes!.breadcrumb).toBe(true);
@@ -248,24 +285,27 @@ describe("SchemaExtensionPipeline — graceful degradation (DB)", () => {
   it("reverts article to final_review when pipeline fails (afterError hook)", async () => {
     // Article with schema_extending status but no bodyMd or heroImagePublicUrl —
     // LoadArticleStep's Zod output validation will fail (z.string() rejects null).
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `degrade-test-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      title: "Degradation Test Article",
-      // bodyMd intentionally null to trigger step output validation failure
-      // heroImagePublicUrl intentionally null — z.string().url() rejects null
-      status: "schema_extending",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `degrade-test-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        title: "Degradation Test Article",
+        // bodyMd intentionally null to trigger step output validation failure
+        // heroImagePublicUrl intentionally null — z.string().url() rejects null
+        status: "schema_extending",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
       const result = await runPipeline(
         new SchemaExtensionPipeline(),
         { articleId, projectId },
-        { projectId },
+        { projectId }
       );
 
       expect(result.ok).toBe(false);
@@ -320,19 +360,23 @@ describe.skipIf(!LIVE)("SchemaExtensionPipeline — full pipeline (live, ~€0.0
   let liveArticleId: string;
 
   beforeAll(async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `live-schema-ext-${Date.now()}`,
-      cornerstoneKeyword: "claude-ai",
-      title: "Was ist Claude AI? Der vollständige Leitfaden",
-      metaDescription: "Claude AI erklärt: Was ist es, wer hat es entwickelt und wie nutzt man es?",
-      bodyMd: FAQ_BODY,
-      heroImagePublicUrl: "https://cdn.example.com/claude-hero.jpg",
-      schemaJsonLd: [EXISTING_ARTICLE_SCHEMA],
-      status: "schema_extending",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `live-schema-ext-${Date.now()}`,
+        cornerstoneKeyword: "claude-ai",
+        title: "Was ist Claude AI? Der vollständige Leitfaden",
+        metaDescription:
+          "Claude AI erklärt: Was ist es, wer hat es entwickelt und wie nutzt man es?",
+        bodyMd: FAQ_BODY,
+        heroImagePublicUrl: "https://cdn.example.com/claude-hero.jpg",
+        schemaJsonLd: [EXISTING_ARTICLE_SCHEMA],
+        status: "schema_extending",
+        approvalMode: "manual",
+      })
+      .returning();
     liveArticleId = a!.id;
   });
 
@@ -344,7 +388,7 @@ describe.skipIf(!LIVE)("SchemaExtensionPipeline — full pipeline (live, ~€0.0
     const result = await runPipeline(
       new SchemaExtensionPipeline(),
       { articleId: liveArticleId, projectId },
-      { projectId },
+      { projectId }
     );
 
     expect(result.ok).toBe(true);
@@ -385,7 +429,8 @@ describe.skipIf(!LIVE)("SchemaExtensionPipeline — full pipeline (live, ~€0.0
   });
 
   it("schema_extension_runs row has succeeded status", async () => {
-    const runs = await db.select()
+    const runs = await db
+      .select()
       .from(schemaExtensionRuns)
       .where(eq(schemaExtensionRuns.articleId, liveArticleId));
 
@@ -416,7 +461,7 @@ describe.skipIf(!LIVE)("SchemaExtensionPipeline — full pipeline (live, ~€0.0
     const result = await runPipeline(
       new SchemaExtensionPipeline(),
       { articleId: liveArticleId, projectId },
-      { projectId },
+      { projectId }
     );
     expect(result.ok).toBe(true);
 

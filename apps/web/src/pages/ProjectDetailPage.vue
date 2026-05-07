@@ -71,21 +71,33 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useProjectsStore } from 'src/stores/projects';
-import ProjectOverviewPanel from 'src/components/projects/ProjectOverviewPanel.vue';
-import ProjectSettingsPanel from 'src/components/projects/ProjectSettingsPanel.vue';
-import ColdStartPanel from 'src/components/projects/ColdStartPanel.vue';
-import ArticlesPanel from 'src/components/projects/ArticlesPanel.vue';
-import ProjectPauseBanner from 'src/components/common/ProjectPauseBanner.vue';
+import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
+import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
+import ColdStartPanel from "src/components/projects/ColdStartPanel.vue";
+import ProjectOverviewPanel from "src/components/projects/ProjectOverviewPanel.vue";
+import ProjectSettingsPanel from "src/components/projects/ProjectSettingsPanel.vue";
+import { useProjectsStore } from "src/stores/projects";
+import { defineComponent } from "vue";
 
-type TabName = 'overview' | 'cold-start' | 'articles' | 'clusters' | 'settings';
-const VALID_TABS: ReadonlyArray<TabName> = ['overview', 'cold-start', 'articles', 'clusters', 'settings'];
+type TabName = "overview" | "cold-start" | "articles" | "clusters" | "settings";
+const VALID_TABS: ReadonlyArray<TabName> = [
+  "overview",
+  "cold-start",
+  "articles",
+  "clusters",
+  "settings",
+];
 
 export default defineComponent({
-  name: 'ProjectDetailPage',
+  name: "ProjectDetailPage",
 
-  components: { ProjectOverviewPanel, ProjectSettingsPanel, ColdStartPanel, ArticlesPanel, ProjectPauseBanner },
+  components: {
+    ProjectOverviewPanel,
+    ProjectSettingsPanel,
+    ColdStartPanel,
+    ArticlesPanel,
+    ProjectPauseBanner,
+  },
 
   props: {
     slug: { type: String, required: true },
@@ -96,7 +108,7 @@ export default defineComponent({
   },
 
   data: () => ({
-    activeTab: 'overview' as TabName,
+    activeTab: "overview" as TabName,
   }),
 
   computed: {
@@ -106,9 +118,12 @@ export default defineComponent({
   },
 
   async created() {
-    const raw = this.$route.query['tab'];
-    const tabFromQuery = Array.isArray(raw) ? raw[0] ?? '' : raw ?? '';
-    if (typeof tabFromQuery === 'string' && (VALID_TABS as ReadonlyArray<string>).includes(tabFromQuery)) {
+    const raw = this.$route.query.tab;
+    const tabFromQuery = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
+    if (
+      typeof tabFromQuery === "string" &&
+      (VALID_TABS as ReadonlyArray<string>).includes(tabFromQuery)
+    ) {
       this.activeTab = tabFromQuery as TabName;
     }
     await this.projectsStore.fetchOne(this.slug);
@@ -116,7 +131,7 @@ export default defineComponent({
 
   methods: {
     onTabChange(newTab: string | number | null): void {
-      if (typeof newTab !== 'string') return;
+      if (typeof newTab !== "string") return;
       void this.$router.replace({ query: { ...this.$route.query, tab: newTab } });
     },
 

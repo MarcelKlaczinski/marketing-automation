@@ -1,18 +1,20 @@
-import { z } from "zod";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { getInstallationOctokit } from "../github-auth.ts";
-import { AstroSyncError, type AstroRepoConfig } from "../types.ts";
 import { createLogger } from "@marketing-auto/shared";
+import { z } from "zod";
+import { getInstallationOctokit } from "../github-auth.ts";
+import { type AstroRepoConfig, AstroSyncError } from "../types.ts";
 
 const log = createLogger("astro-sync:commit");
 
 const InputSchema = z.object({
   astroRepo: z.unknown(),
-  files: z.array(z.object({
-    path: z.string(),
-    contentType: z.enum(["text", "base64"]),
-    content: z.string(),
-  })),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      contentType: z.enum(["text", "base64"]),
+      content: z.string(),
+    })
+  ),
   commitMessage: z.string(),
 });
 
@@ -31,7 +33,9 @@ export class CommitToGitHubStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     const repo = input.astroRepo as AstroRepoConfig;
@@ -40,16 +44,17 @@ export class CommitToGitHubStep extends BaseStep<
 
     try {
       // 1. Get current ref (SHA of branch tip)
-      const { data: ref } = await octokit.request(
-        "GET /repos/{owner}/{repo}/git/ref/{ref}",
-        { owner, repo: repoName, ref: `heads/${defaultBranch}` },
-      );
+      const { data: ref } = await octokit.request("GET /repos/{owner}/{repo}/git/ref/{ref}", {
+        owner,
+        repo: repoName,
+        ref: `heads/${defaultBranch}`,
+      });
       const baseCommitSha = ref.object.sha;
 
       // 2. Get base tree SHA
       const { data: baseCommit } = await octokit.request(
         "GET /repos/{owner}/{repo}/git/commits/{commit_sha}",
-        { owner, repo: repoName, commit_sha: baseCommitSha },
+        { owner, repo: repoName, commit_sha: baseCommitSha }
       );
       const baseTreeSha = baseCommit.tree.sha;
 
@@ -57,63 +62,59 @@ export class CommitToGitHubStep extends BaseStep<
       log.debug({ count: input.files.length }, "Creating blobs");
       const blobs = await Promise.all(
         input.files.map(async (file) => {
-          const { data } = await octokit.request(
-            "POST /repos/{owner}/{repo}/git/blobs",
-            {
-              owner, repo: repoName,
-              content: file.content,
-              encoding: file.contentType === "text" ? "utf-8" : "base64",
-            },
-          );
+          const { data } = await octokit.request("POST /repos/{owner}/{repo}/git/blobs", {
+            owner,
+            repo: repoName,
+            content: file.content,
+            encoding: file.contentType === "text" ? "utf-8" : "base64",
+          });
           // GitHub doesn't return size in blob create response; compute from content
-          const byteSize = file.contentType === "text"
-            ? Buffer.byteLength(file.content, "utf-8")
-            : Buffer.from(file.content, "base64").length;
+          const byteSize =
+            file.contentType === "text"
+              ? Buffer.byteLength(file.content, "utf-8")
+              : Buffer.from(file.content, "base64").length;
           return { path: file.path, sha: data.sha, size: byteSize };
-        }),
+        })
       );
 
       // 4. Create tree
-      const { data: tree } = await octokit.request(
-        "POST /repos/{owner}/{repo}/git/trees",
-        {
-          owner, repo: repoName,
-          base_tree: baseTreeSha,
-          tree: blobs.map((b) => ({
-            path: b.path,
-            mode: "100644" as const,
-            type: "blob" as const,
-            sha: b.sha,
-          })),
-        },
-      );
+      const { data: tree } = await octokit.request("POST /repos/{owner}/{repo}/git/trees", {
+        owner,
+        repo: repoName,
+        base_tree: baseTreeSha,
+        tree: blobs.map((b) => ({
+          path: b.path,
+          mode: "100644" as const,
+          type: "blob" as const,
+          sha: b.sha,
+        })),
+      });
 
       // 5. Create commit
-      const { data: newCommit } = await octokit.request(
-        "POST /repos/{owner}/{repo}/git/commits",
-        {
-          owner, repo: repoName,
-          message: input.commitMessage,
-          tree: tree.sha,
-          parents: [baseCommitSha],
-        },
-      );
+      const { data: newCommit } = await octokit.request("POST /repos/{owner}/{repo}/git/commits", {
+        owner,
+        repo: repoName,
+        message: input.commitMessage,
+        tree: tree.sha,
+        parents: [baseCommitSha],
+      });
 
       // 6. Update ref to point at new commit
-      await octokit.request(
-        "PATCH /repos/{owner}/{repo}/git/refs/{ref}",
-        {
-          owner, repo: repoName,
-          ref: `heads/${defaultBranch}`,
-          sha: newCommit.sha,
-          force: false,
-        },
-      );
+      await octokit.request("PATCH /repos/{owner}/{repo}/git/refs/{ref}", {
+        owner,
+        repo: repoName,
+        ref: `heads/${defaultBranch}`,
+        sha: newCommit.sha,
+        force: false,
+      });
 
       const bytesCommitted = blobs.reduce((sum, b) => sum + b.size, 0);
       const commitUrl = `https://github.com/${owner}/${repoName}/commit/${newCommit.sha}`;
 
-      log.info({ commitSha: newCommit.sha, filesCommitted: input.files.length, bytesCommitted }, "Astro repo commit successful");
+      log.info(
+        { commitSha: newCommit.sha, filesCommitted: input.files.length, bytesCommitted },
+        "Astro repo commit successful"
+      );
 
       return {
         commitSha: newCommit.sha,
@@ -126,7 +127,7 @@ export class CommitToGitHubStep extends BaseStep<
       throw new AstroSyncError(
         `GitHub API error: ${e instanceof Error ? e.message : String(e)}`,
         "commit",
-        e,
+        e
       );
     }
   }

@@ -1,12 +1,12 @@
-import { Hono } from "hono";
-import { setCookie, deleteCookie, getCookie } from "hono/cookie";
 import { zValidator } from "@hono/zod-validator";
+import { db, magicLinkTokens, sessions, users } from "@marketing-auto/db";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { Hono } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
-import { eq, and, isNull, gt } from "drizzle-orm";
-import { db, users, magicLinkTokens, sessions } from "@marketing-auto/db";
-import { getEnv, createLogger } from "@marketing-auto/shared";
 import { sendMagicLinkEmail } from "../lib/email.ts";
-import { hashToken, generateToken } from "../lib/tokens.ts";
+import { generateToken, hashToken } from "../lib/tokens.ts";
 
 const log = createLogger("auth");
 
@@ -44,10 +44,17 @@ async function issueMagicLink(emailAddress: string): Promise<void> {
   await db.insert(magicLinkTokens).values({ email: emailAddress, tokenHash, expiresAt });
 
   const verifyUrl = `${env.APP_BASE_URL}/auth/verify?token=${rawToken}`;
-  const result = await sendMagicLinkEmail({ to: emailAddress, verifyUrl, expiresInMinutes: MAGIC_LINK_TTL_MIN });
+  const result = await sendMagicLinkEmail({
+    to: emailAddress,
+    verifyUrl,
+    expiresInMinutes: MAGIC_LINK_TTL_MIN,
+  });
 
   if (!result.delivered) {
-    log.info({ email: emailAddress, verifyUrl }, "Magic link generated (SMTP not configured — link in this log)");
+    log.info(
+      { email: emailAddress, verifyUrl },
+      "Magic link generated (SMTP not configured — link in this log)"
+    );
   } else {
     log.info({ email: emailAddress }, "Magic link sent");
   }
@@ -95,8 +102,8 @@ authRoutes.post(
         and(
           eq(magicLinkTokens.tokenHash, tokenHash),
           isNull(magicLinkTokens.consumedAt),
-          gt(magicLinkTokens.expiresAt, new Date()),
-        ),
+          gt(magicLinkTokens.expiresAt, new Date())
+        )
       )
       .limit(1)
       .then((rows) => rows[0]);
@@ -129,9 +136,7 @@ authRoutes.post(
 
     const userAgent = c.req.header("user-agent") ?? null;
     const ipAddress =
-      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-      c.req.header("x-real-ip") ??
-      null;
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? c.req.header("x-real-ip") ?? null;
 
     await db.insert(sessions).values({
       userId: user.id,
@@ -156,7 +161,7 @@ authRoutes.post(
 
     log.info({ userId: user.id }, "Session created via magic-link/verify");
     return c.json({ ok: true, data: { user: { id: user.id, email: user.email } } });
-  },
+  }
 );
 
 /**
@@ -178,8 +183,8 @@ authRoutes.get(
         and(
           eq(magicLinkTokens.tokenHash, tokenHash),
           isNull(magicLinkTokens.consumedAt),
-          gt(magicLinkTokens.expiresAt, new Date()),
-        ),
+          gt(magicLinkTokens.expiresAt, new Date())
+        )
       )
       .limit(1)
       .then((rows) => rows[0]);
@@ -212,9 +217,7 @@ authRoutes.get(
 
     const userAgent = c.req.header("user-agent") ?? null;
     const ipAddress =
-      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-      c.req.header("x-real-ip") ??
-      null;
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? c.req.header("x-real-ip") ?? null;
 
     await db.insert(sessions).values({
       userId: user.id,
@@ -239,7 +242,7 @@ authRoutes.get(
 
     log.info({ userId: user.id }, "Session created via GET verify (redirect flow)");
     return c.redirect(`${env.APP_BASE_URL}/inbox`, 302);
-  },
+  }
 );
 
 /**

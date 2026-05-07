@@ -1,6 +1,6 @@
-import { eq, and, gte, sql } from "drizzle-orm";
-import { db, projects, costLogs, costAlerts } from "@marketing-auto/db";
+import { costAlerts, costLogs, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { pauseProjectQueues } from "./pause.ts";
 
 const log = createLogger("cost-enforcement");
@@ -17,9 +17,11 @@ export class CostLimitExceededError extends Error {
     thresholdType: "daily" | "monthly",
     limitEur: number,
     spentEur: number,
-    projectId: string,
+    projectId: string
   ) {
-    super(`cost_limit_exceeded: ${service} ${thresholdType} limit ${limitEur} EUR, spent ${spentEur} EUR`);
+    super(
+      `cost_limit_exceeded: ${service} ${thresholdType} limit ${limitEur} EUR, spent ${spentEur} EUR`
+    );
     this.name = "CostLimitExceededError";
     this.service = service;
     this.thresholdType = thresholdType;
@@ -53,7 +55,7 @@ export interface CostBudgetExceeded {
 export async function checkCostBudget(
   projectId: string,
   service: string,
-  estimatedCostEur: number,
+  estimatedCostEur: number
 ): Promise<CostBudgetOk | CostBudgetExceeded> {
   const [project] = await db
     .select({ costLimits: projects.costLimits })
@@ -85,12 +87,12 @@ export async function checkCostBudget(
         // costServiceEnum only accepts its literal values; cast service through sql to avoid runtime error
         // when the service string is a valid enum value — Drizzle enforces the enum on insert, not select
         sql`${costLogs.service} = ${service}`,
-        gte(costLogs.createdAt, startOfMonth),
-      ),
+        gte(costLogs.createdAt, startOfMonth)
+      )
     );
 
-  const daySpend = parseFloat(spendRow?.daySpend ?? "0");
-  const monthSpend = parseFloat(spendRow?.monthSpend ?? "0");
+  const daySpend = Number.parseFloat(spendRow?.daySpend ?? "0");
+  const monthSpend = Number.parseFloat(spendRow?.monthSpend ?? "0");
 
   // Check daily limit
   const dailyLimit = limits.daily?.[service];
@@ -99,11 +101,25 @@ export async function checkCostBudget(
     const projectedDayPct = (projectedDay / dailyLimit) * 100;
 
     if (projectedDayPct >= killPercent) {
-      return { ok: false, service, thresholdType: "daily", limitEur: dailyLimit, spentEur: daySpend, projectedSpendEur: projectedDay };
+      return {
+        ok: false,
+        service,
+        thresholdType: "daily",
+        limitEur: dailyLimit,
+        spentEur: daySpend,
+        projectedSpendEur: projectedDay,
+      };
     }
 
     if (projectedDayPct >= alertPercent) {
-      await maybeRecordAlert(projectId, service, "daily", dailyLimit, projectedDay, projectedDayPct);
+      await maybeRecordAlert(
+        projectId,
+        service,
+        "daily",
+        dailyLimit,
+        projectedDay,
+        projectedDayPct
+      );
     }
   }
 
@@ -114,11 +130,25 @@ export async function checkCostBudget(
     const projectedMonthPct = (projectedMonth / monthlyLimit) * 100;
 
     if (projectedMonthPct >= killPercent) {
-      return { ok: false, service, thresholdType: "monthly", limitEur: monthlyLimit, spentEur: monthSpend, projectedSpendEur: projectedMonth };
+      return {
+        ok: false,
+        service,
+        thresholdType: "monthly",
+        limitEur: monthlyLimit,
+        spentEur: monthSpend,
+        projectedSpendEur: projectedMonth,
+      };
     }
 
     if (projectedMonthPct >= alertPercent) {
-      await maybeRecordAlert(projectId, service, "monthly", monthlyLimit, projectedMonth, projectedMonthPct);
+      await maybeRecordAlert(
+        projectId,
+        service,
+        "monthly",
+        monthlyLimit,
+        projectedMonth,
+        projectedMonthPct
+      );
     }
   }
 
@@ -132,7 +162,7 @@ export async function checkCostBudget(
 export async function assertCostBudget(
   projectId: string,
   service: string,
-  estimatedCostEur: number,
+  estimatedCostEur: number
 ): Promise<void> {
   const result = await checkCostBudget(projectId, service, estimatedCostEur);
   if (!result.ok) {
@@ -145,14 +175,14 @@ export async function assertCostBudget(
         limitEur: result.limitEur,
         spentEur: result.spentEur,
       },
-      result.service,
+      result.service
     );
     throw new CostLimitExceededError(
       result.service,
       result.thresholdType,
       result.limitEur,
       result.spentEur,
-      projectId,
+      projectId
     );
   }
 }
@@ -164,7 +194,7 @@ async function maybeRecordAlert(
   thresholdType: "daily" | "monthly",
   limitEur: number,
   spentEur: number,
-  percent: number,
+  percent: number
 ): Promise<void> {
   const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
 
@@ -176,8 +206,8 @@ async function maybeRecordAlert(
         eq(costAlerts.projectId, projectId),
         sql`${costAlerts.service} = ${service}`,
         sql`${costAlerts.thresholdType} = ${thresholdType}`,
-        gte(costAlerts.createdAt, sixHoursAgo),
-      ),
+        gte(costAlerts.createdAt, sixHoursAgo)
+      )
     )
     .limit(1);
 
@@ -192,5 +222,8 @@ async function maybeRecordAlert(
     percent: Math.round(percent),
   });
 
-  log.warn({ projectId, service, thresholdType, percent: Math.round(percent) }, "Cost alert recorded");
+  log.warn(
+    { projectId, service, thresholdType, percent: Math.round(percent) },
+    "Cost alert recorded"
+  );
 }

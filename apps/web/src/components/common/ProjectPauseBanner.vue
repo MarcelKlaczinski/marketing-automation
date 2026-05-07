@@ -24,13 +24,13 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useProjectPauseState } from 'src/composables/useProjectPauseState';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
+import { useNotify } from "src/composables/useNotify";
+import { useProjectPauseState } from "src/composables/useProjectPauseState";
+import { HttpError } from "src/lib/http-error";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ProjectPauseBanner',
+  name: "ProjectPauseBanner",
 
   props: {
     slug: { type: String, required: true },
@@ -47,7 +47,7 @@ export default defineComponent({
 
   methods: {
     formatTime(iso: string): string {
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
       return new Date(iso).toLocaleString(locale);
     },
 
@@ -55,7 +55,7 @@ export default defineComponent({
       this.resuming = true;
       try {
         await this.resume();
-        this.notify.success(this.$t('projectPause.resumeSuccess') as string);
+        this.notify.success(this.$t("projectPause.resumeSuccess") as string);
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {

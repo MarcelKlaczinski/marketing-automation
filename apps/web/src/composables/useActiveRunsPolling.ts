@@ -1,18 +1,18 @@
-import { ref, type Ref, onMounted, onBeforeUnmount, watch } from 'vue';
-import { api } from 'src/lib/api-client';
-import { HttpError } from 'src/lib/http-error';
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { type Ref, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 export type ActivityType =
-  | 'cold_start'
-  | 'article_outline'
-  | 'article_draft'
-  | 'astro_sync'
-  | 'pagespeed'
-  | 'schema_extension'
-  | 'link_rebuild'
-  | 'other';
+  | "cold_start"
+  | "article_outline"
+  | "article_draft"
+  | "astro_sync"
+  | "pagespeed"
+  | "schema_extension"
+  | "link_rebuild"
+  | "other";
 
-export type NormalizedStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type NormalizedStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
 export interface ActivityEntry {
   id: string;
@@ -56,7 +56,9 @@ export interface UseActiveRunsPollingResult {
   stop: () => void;
 }
 
-export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): UseActiveRunsPollingResult {
+export function useActiveRunsPolling(
+  opts: UseActiveRunsPollingOptions = {}
+): UseActiveRunsPollingResult {
   const entries = ref<ActivityEntry[]>([]);
   const activeCount = ref<number>(0);
   const loading = ref<boolean>(false);
@@ -76,10 +78,10 @@ export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): Us
       const ROUND_TO = 5 * 60 * 1000;
       const since = new Date(Math.floor(rawSince / ROUND_TO) * ROUND_TO).toISOString();
       const params = new URLSearchParams({ since });
-      if (opts.projectId?.value) params.set('projectId', opts.projectId.value);
+      if (opts.projectId?.value) params.set("projectId", opts.projectId.value);
 
       const res = await api.get<{ ok: boolean; data: ActiveRunsResponse }>(
-        `/pipeline-runs/active?${params.toString()}`,
+        `/pipeline-runs/active?${params.toString()}`
       );
       entries.value = res.data.data.entries;
       activeCount.value = res.data.data.activeCount;
@@ -89,7 +91,7 @@ export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): Us
         stop();
         return;
       }
-      error.value = e instanceof Error ? e.message : 'fetch_failed';
+      error.value = e instanceof Error ? e.message : "fetch_failed";
     } finally {
       loading.value = false;
     }
@@ -101,7 +103,7 @@ export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): Us
 
   function scheduleNext(): void {
     if (stopped) return;
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== "visible") return;
     timer = setTimeout(() => {
       void fetchOnce().then(() => scheduleNext());
     }, intervalMs);
@@ -123,18 +125,18 @@ export function useActiveRunsPolling(opts: UseActiveRunsPollingOptions = {}): Us
   }
 
   function onVisibilityChange(): void {
-    if (document.visibilityState === 'visible' && isPolling.value && !timer) {
+    if (document.visibilityState === "visible" && isPolling.value && !timer) {
       void fetchOnce().then(() => scheduleNext());
     }
   }
 
   onMounted(() => {
-    document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     start();
   });
 
   onBeforeUnmount(() => {
-    document.removeEventListener('visibilitychange', onVisibilityChange);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
     stop();
   });
 

@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import { api } from 'src/lib/api-client';
+import { defineStore } from "pinia";
+import { api } from "src/lib/api-client";
 
 export interface AstroRepoConfig {
   owner: string;
@@ -50,7 +50,7 @@ interface ProjectsState {
   loading: boolean;
 }
 
-export const useProjectsStore = defineStore('projects', {
+export const useProjectsStore = defineStore("projects", {
   state: (): ProjectsState => ({
     list: [],
     current: null,
@@ -61,7 +61,7 @@ export const useProjectsStore = defineStore('projects', {
     async fetchList(): Promise<void> {
       this.loading = true;
       try {
-        const res = await api.get<{ ok: boolean; data: Project[] }>('/projects');
+        const res = await api.get<{ ok: boolean; data: Project[] }>("/projects");
         this.list = res.data.data;
       } finally {
         this.loading = false;
@@ -86,7 +86,7 @@ export const useProjectsStore = defineStore('projects', {
       pipelineTemplate: string;
       marketingContextMd?: string;
     }): Promise<Project> {
-      const res = await api.post<{ ok: boolean; data: Project }>('/projects', input);
+      const res = await api.post<{ ok: boolean; data: Project }>("/projects", input);
       const created = res.data.data;
       this.list.push(created);
       return created;

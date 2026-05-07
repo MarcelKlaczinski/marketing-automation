@@ -11,24 +11,24 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { Chart, ArcElement, Tooltip, Legend } from 'chart.js';
-import type { ChartOptions } from 'chart.js';
-import { Doughnut } from 'vue-chartjs';
-import { formatEur } from 'src/lib/format-eur';
-import type { CostAggregations } from 'src/stores/cost';
+import { ArcElement, Chart, Legend, Tooltip } from "chart.js";
+import type { ChartOptions } from "chart.js";
+import { formatEur } from "src/lib/format-eur";
+import type { CostAggregations } from "src/stores/cost";
+import { type PropType, defineComponent } from "vue";
+import { Doughnut } from "vue-chartjs";
 
 Chart.register(ArcElement, Tooltip, Legend);
 
 const SERVICE_COLORS: Record<string, string> = {
-  anthropic: '#3f51b5',
-  replicate: '#7c4dff',
-  dataforseo: '#26a69a',
-  smtp: '#f2c037',
+  anthropic: "#3f51b5",
+  replicate: "#7c4dff",
+  dataforseo: "#26a69a",
+  smtp: "#f2c037",
 };
 
 export default defineComponent({
-  name: 'CostByServiceChart',
+  name: "CostByServiceChart",
 
   components: { Doughnut },
 
@@ -41,26 +41,28 @@ export default defineComponent({
       const services = this.aggregations?.thisMonth.byService ?? [];
       return {
         labels: services.map((s) => s.service),
-        datasets: [{
-          backgroundColor: services.map((s) => SERVICE_COLORS[s.service] ?? '#999999'),
-          data: services.map((s) => parseFloat(s.totalEur ?? '0')),
-        }],
+        datasets: [
+          {
+            backgroundColor: services.map((s) => SERVICE_COLORS[s.service] ?? "#999999"),
+            data: services.map((s) => Number.parseFloat(s.totalEur ?? "0")),
+          },
+        ],
       };
     },
 
-    chartOptions(): ChartOptions<'doughnut'> {
+    chartOptions(): ChartOptions<"doughnut"> {
       return {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'right',
+            position: "right",
             labels: { boxWidth: 12, padding: 12 },
           },
           tooltip: {
             callbacks: {
               label: (ctx) => {
-                const label = ctx.label ?? '';
+                const label = ctx.label ?? "";
                 const value = ctx.parsed;
                 return `${label}: € ${formatEur(value)}`;
               },

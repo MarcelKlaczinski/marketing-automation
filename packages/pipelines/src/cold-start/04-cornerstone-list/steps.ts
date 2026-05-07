@@ -1,6 +1,7 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
@@ -12,11 +13,13 @@ export const ApprovedClusterSchema = z.object({
   cornerstone_keyword: z.string(),
   cornerstone_search_volume: z.number().nullable(),
   cornerstone_difficulty: z.number().nullable(),
-  satellite_keywords: z.array(z.object({
-    keyword: z.string(),
-    search_volume: z.number().nullable(),
-    difficulty: z.number().nullable(),
-  })),
+  satellite_keywords: z.array(
+    z.object({
+      keyword: z.string(),
+      search_volume: z.number().nullable(),
+      difficulty: z.number().nullable(),
+    })
+  ),
 });
 
 export type ApprovedCluster = z.infer<typeof ApprovedClusterSchema>;
@@ -60,7 +63,7 @@ export class GenerateCornerstoneSpecsStep extends BaseStep<
 
   async execute(
     input: { projectSlug: string; approvedClusters: ApprovedCluster[] },
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<GenerateCornerstoneSpecsOutput> {
     const prompt = await buildSystemPrompt({
       skills: ["copywriting", "content-strategy", "ai-seo"],
@@ -90,20 +93,22 @@ Each element: { cluster, cornerstone_keyword, proposed_title, proposed_slug, met
     });
 
     const clustersSummary = input.approvedClusters
-      .map((c, i) => [
-        `## Cluster ${i + 1}: ${c.name}`,
-        `- cornerstone_keyword: "${c.cornerstone_keyword}"`,
-        `- pillar: "${c.pillar}"`,
-        `- cornerstone_search_volume: ${c.cornerstone_search_volume ?? "unknown"}`,
-        `- cornerstone_difficulty: ${c.cornerstone_difficulty ?? "unknown"}`,
-        `- satellite_keywords: ${c.satellite_keywords.map((s) => `"${s.keyword}"`).join(", ")}`,
-      ].join("\n"))
+      .map((c, i) =>
+        [
+          `## Cluster ${i + 1}: ${c.name}`,
+          `- cornerstone_keyword: "${c.cornerstone_keyword}"`,
+          `- pillar: "${c.pillar}"`,
+          `- cornerstone_search_volume: ${c.cornerstone_search_volume ?? "unknown"}`,
+          `- cornerstone_difficulty: ${c.cornerstone_difficulty ?? "unknown"}`,
+          `- satellite_keywords: ${c.satellite_keywords.map((s) => `"${s.keyword}"`).join(", ")}`,
+        ].join("\n")
+      )
       .join("\n\n");
 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "cornerstone-specs-generation",
+      operation: COST_OPS.COLD_START_CORNERSTONE_SPECS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

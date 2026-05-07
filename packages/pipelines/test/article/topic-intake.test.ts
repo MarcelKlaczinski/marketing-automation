@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db, projects, clusters, articles, contentPillars } from "@marketing-auto/db";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 import { TopicIntakeStep } from "../../src/article/steps/topic-intake.ts";
 import { ArticlePipelineError } from "../../src/article/types.ts";
 import type { StepContext } from "../../src/engine/step.ts";
@@ -22,47 +22,56 @@ describe("TopicIntakeStep", () => {
   let articleId: string;
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `topic-intake-test-${Date.now()}`,
-      name: "Topic Intake Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `topic-intake-test-${Date.now()}`,
+        name: "Topic Intake Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
     projectId = p!.id;
 
-    const [pillar] = await db.insert(contentPillars).values({
-      projectId,
-      name: "AI Tools",
-      position: 0,
-    }).returning();
+    const [pillar] = await db
+      .insert(contentPillars)
+      .values({
+        projectId,
+        name: "AI Tools",
+        position: 0,
+      })
+      .returning();
 
-    const [c] = await db.insert(clusters).values({
-      projectId,
-      pillarId: pillar!.id,
-      name: "AI Writing Tools",
-      pillar: "AI Tools",
-      cornerstoneKeywords: ["ki-schreibtools"],
-      satelliteKeywords: [
-        {
-          cornerstoneKeyword: "ki-schreibtools",
-          keywords: [
-            { keyword: "chatgpt schreiben" },
-            { keyword: "ki text generator" },
-          ],
-        },
-      ],
-      status: "approved",
-    }).returning();
+    const [c] = await db
+      .insert(clusters)
+      .values({
+        projectId,
+        pillarId: pillar!.id,
+        name: "AI Writing Tools",
+        pillar: "AI Tools",
+        cornerstoneKeywords: ["ki-schreibtools"],
+        satelliteKeywords: [
+          {
+            cornerstoneKeyword: "ki-schreibtools",
+            keywords: [{ keyword: "chatgpt schreiben" }, { keyword: "ki text generator" }],
+          },
+        ],
+        status: "approved",
+      })
+      .returning();
     clusterId = c!.id;
 
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: "ki-schreibtools",
-      cornerstoneKeyword: "ki-schreibtools",
-      status: "generating",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "ki-schreibtools",
+        cornerstoneKeyword: "ki-schreibtools",
+        status: "generating",
+        approvalMode: "manual",
+      })
+      .returning();
     articleId = a!.id;
   });
 
@@ -91,14 +100,17 @@ describe("TopicIntakeStep", () => {
   });
 
   it("returns empty satellite keywords when cornerstone not in cluster", async () => {
-    const [a2] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: "other-keyword",
-      cornerstoneKeyword: "other-keyword",
-      status: "generating",
-      approvalMode: "manual",
-    }).returning();
+    const [a2] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "other-keyword",
+        cornerstoneKeyword: "other-keyword",
+        status: "generating",
+        approvalMode: "manual",
+      })
+      .returning();
 
     const step = new TopicIntakeStep();
     const out = await step.execute({ articleId: a2!.id, projectId }, mockCtx(projectId));
@@ -110,22 +122,25 @@ describe("TopicIntakeStep", () => {
   it("throws ArticlePipelineError for a non-existent article", async () => {
     const step = new TopicIntakeStep();
     await expect(
-      step.execute({ articleId: crypto.randomUUID(), projectId }, mockCtx(projectId)),
+      step.execute({ articleId: crypto.randomUUID(), projectId }, mockCtx(projectId))
     ).rejects.toThrow(ArticlePipelineError);
   });
 
   it("throws ArticlePipelineError when article has no clusterId", async () => {
-    const [noCluster] = await db.insert(articles).values({
-      projectId,
-      slug: "no-cluster",
-      cornerstoneKeyword: "no-cluster",
-      status: "generating",
-      approvalMode: "manual",
-    }).returning();
+    const [noCluster] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        slug: "no-cluster",
+        cornerstoneKeyword: "no-cluster",
+        status: "generating",
+        approvalMode: "manual",
+      })
+      .returning();
 
     const step = new TopicIntakeStep();
     await expect(
-      step.execute({ articleId: noCluster!.id, projectId }, mockCtx(projectId)),
+      step.execute({ articleId: noCluster!.id, projectId }, mockCtx(projectId))
     ).rejects.toThrow(ArticlePipelineError);
 
     await db.delete(articles).where(eq(articles.id, noCluster!.id));

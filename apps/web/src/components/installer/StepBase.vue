@@ -83,10 +83,10 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { api } from 'src/lib/api-client';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
+import { useNotify } from "src/composables/useNotify";
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { type PropType, defineComponent } from "vue";
 
 export interface AdapterStatus {
   configured: boolean;
@@ -95,18 +95,18 @@ export interface AdapterStatus {
 }
 
 export default defineComponent({
-  name: 'StepBase',
+  name: "StepBase",
 
   props: {
     service: { type: String, required: true },
     description: { type: String, required: true },
     consequenceIfSkipped: { type: String, required: true },
-    modeNote: { type: String, default: '' },
+    modeNote: { type: String, default: "" },
     status: { type: Object as PropType<AdapterStatus>, required: true },
     fields: { type: Array as PropType<{ key: string; value: string }[]>, required: true },
   },
 
-  emits: ['configured', 'skipped', 'verify-result'],
+  emits: ["configured", "skipped", "verify-result"],
 
   setup() {
     return { notify: useNotify() };
@@ -116,7 +116,7 @@ export default defineComponent({
     saving: false,
     verifying: false,
     skipDialogOpen: false,
-    lastVerifyMessage: '',
+    lastVerifyMessage: "",
   }),
 
   methods: {
@@ -125,14 +125,14 @@ export default defineComponent({
       try {
         for (const field of this.fields) {
           if (!field.value) continue;
-          await api.post('/system/credentials', {
+          await api.post("/system/credentials", {
             service: this.service,
             key: field.key,
             value: field.value,
           });
         }
-        this.notify.success(this.$t('installer.save.saved') as string);
-        this.$emit('configured');
+        this.notify.success(this.$t("installer.save.saved") as string);
+        this.$emit("configured");
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {
@@ -144,18 +144,18 @@ export default defineComponent({
       this.verifying = true;
       try {
         const res = await api.post<{ ok: boolean; data: { ok: boolean; message: string } }>(
-          `/system/verify/${this.service}`,
+          `/system/verify/${this.service}`
         );
         const result = res.data.data;
         this.lastVerifyMessage = result.message;
         if (result.ok) {
-          this.notify.success(this.$t('installer.verify.success') as string);
+          this.notify.success(this.$t("installer.verify.success") as string);
         } else {
           this.notify.error(
-            this.$t('installer.verify.failure', { message: result.message }) as string,
+            this.$t("installer.verify.failure", { message: result.message }) as string
           );
         }
-        this.$emit('verify-result', result);
+        this.$emit("verify-result", result);
       } catch (e) {
         if (e instanceof HttpError) {
           this.lastVerifyMessage = e.userMessage;
@@ -172,11 +172,11 @@ export default defineComponent({
 
     confirmSkip(): void {
       this.skipDialogOpen = false;
-      this.$emit('skipped');
+      this.$emit("skipped");
     },
 
     formatDate(iso: string): string {
-      return new Date(iso).toLocaleString(this.$i18n.locale === 'de' ? 'de-DE' : 'en-US');
+      return new Date(iso).toLocaleString(this.$i18n.locale === "de" ? "de-DE" : "en-US");
     },
   },
 });

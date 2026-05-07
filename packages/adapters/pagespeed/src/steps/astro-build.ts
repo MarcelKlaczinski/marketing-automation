@@ -1,7 +1,7 @@
-import { z } from "zod";
 import { access } from "node:fs/promises";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger, getEnv } from "@marketing-auto/shared";
+import { z } from "zod";
 import { runCmd } from "./clone-or-update.ts";
 
 const log = createLogger("pagespeed:build");
@@ -23,9 +23,14 @@ export class AstroBuildStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
-  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
+  async execute(
+    input: z.infer<typeof InputSchema>,
+    _ctx: StepContext
+  ): Promise<z.infer<typeof OutputSchema>> {
     const env = getEnv();
     const timeoutMs = env.PAGESPEED_BUILD_TIMEOUT_MS;
 

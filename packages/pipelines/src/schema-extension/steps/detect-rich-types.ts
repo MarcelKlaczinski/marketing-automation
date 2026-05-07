@@ -1,6 +1,7 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { DetectionResultSchema } from "../types.ts";
 
@@ -19,7 +20,9 @@ export class DetectRichTypesStep extends BaseStep<
   // ZodType cast — DetectionResultSchema has .default([]) on arrays (Spec 21 lesson #6)
   readonly outputSchema = DetectionResultSchema as z.ZodType<z.infer<typeof DetectionResultSchema>>;
 
-  override estimatedCostEur(): number { return 0.05; }
+  override estimatedCostEur(): number {
+    return 0.05;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const prompt = await buildSystemPrompt({
@@ -73,18 +76,18 @@ Rules:
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "schema-rich-detection",
+      operation: COST_OPS.SCHEMA_RICH_DETECTION,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
       userMessage: [
-        `# Article title`,
+        "# Article title",
         input.title,
-        ``,
-        `# Article body`,
+        "",
+        "# Article body",
         input.bodyMd,
-        ``,
-        `Detect rich-result types per the rules above.`,
+        "",
+        "Detect rich-result types per the rules above.",
       ].join("\n"),
       maxTokens: 4000,
       jsonMode: true,

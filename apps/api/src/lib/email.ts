@@ -1,4 +1,4 @@
-import { email, type SendEmailResult } from "@marketing-auto/adapter-email";
+import { type SendEmailResult, email } from "@marketing-auto/adapter-email";
 
 export type SendMagicLinkEmail = {
   to: string;

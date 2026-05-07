@@ -21,7 +21,7 @@ export class PagespeedError extends Error {
   constructor(
     message: string,
     public readonly stage: "clone" | "build" | "preview" | "lighthouse" | "evaluate" | "config",
-    public readonly originalCause?: unknown,
+    public readonly originalCause?: unknown
   ) {
     super(message);
     this.name = "PagespeedError";

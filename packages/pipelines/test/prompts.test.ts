@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, projects } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
 import { buildSystemPrompt } from "../src/prompts/builder.ts";
 import { _resetProjectContextCache } from "../src/skills/loader.ts";
 
@@ -9,13 +9,16 @@ describe("buildSystemPrompt", () => {
   const slug = `prompt-test-${Date.now()}`;
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug,
-      name: "Prompt Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-      marketingContextMd: "# Test Context\n\nSample content for testing.",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug,
+        name: "Prompt Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+        marketingContextMd: "# Test Context\n\nSample content for testing.",
+      })
+      .returning();
     projectId = p!.id;
   });
 
@@ -53,7 +56,7 @@ describe("buildSystemPrompt", () => {
         skills: "copywriting",
         projectIdOrSlug: "definitely-not-a-real-slug",
         stepInstructions: "x",
-      }),
+      })
     ).rejects.toThrow(/No marketing context/);
   });
 });

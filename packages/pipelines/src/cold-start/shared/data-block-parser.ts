@@ -2,7 +2,7 @@ import yaml from "yaml";
 import type { z } from "zod";
 
 const BLOCK_BEGIN = /<!--\s*DATA:([\w-]+)\s+BEGIN\s*-->/;
-const BLOCK_END   = /<!--\s*DATA:([\w-]+)\s+END\s*-->/;
+const BLOCK_END = /<!--\s*DATA:([\w-]+)\s+END\s*-->/;
 
 export class DataBlockParseError extends Error {
   readonly blockName: string | undefined;
@@ -18,11 +18,7 @@ export class DataBlockParseError extends Error {
  * Extracts a named DATA block from markdown content and parses its YAML body.
  * Throws DataBlockParseError if the block is missing or malformed.
  */
-export function parseDataBlock<T>(
-  markdown: string,
-  blockName: string,
-  schema: z.ZodType<T>,
-): T {
+export function parseDataBlock<T>(markdown: string, blockName: string, schema: z.ZodType<T>): T {
   const lines = markdown.split("\n");
   let inBlock = false;
   let foundBegin = false;
@@ -41,7 +37,7 @@ export function parseDataBlock<T>(
         if (m[1] !== blockName) {
           throw new DataBlockParseError(
             `DATA block "${blockName}" not closed properly — found END for "${m[1]}" instead.`,
-            blockName,
+            blockName
           );
         }
         const yamlText = yamlLines.join("\n").trim();
@@ -51,7 +47,7 @@ export function parseDataBlock<T>(
         } catch (e) {
           throw new DataBlockParseError(
             `DATA block "${blockName}" YAML parse failed: ${e instanceof Error ? e.message : String(e)}`,
-            blockName,
+            blockName
           );
         }
         return schema.parse(parsed);
@@ -63,13 +59,10 @@ export function parseDataBlock<T>(
   if (foundBegin) {
     throw new DataBlockParseError(
       `DATA block "${blockName}" is missing its END marker.`,
-      blockName,
+      blockName
     );
   }
-  throw new DataBlockParseError(
-    `DATA block "${blockName}" not found in markdown.`,
-    blockName,
-  );
+  throw new DataBlockParseError(`DATA block "${blockName}" not found in markdown.`, blockName);
 }
 
 /**
@@ -77,9 +70,5 @@ export function parseDataBlock<T>(
  */
 export function renderDataBlock(name: string, data: unknown): string {
   const yamlText = yaml.stringify(data).trimEnd();
-  return [
-    `<!-- DATA:${name} BEGIN -->`,
-    yamlText,
-    `<!-- DATA:${name} END -->`,
-  ].join("\n");
+  return [`<!-- DATA:${name} BEGIN -->`, yamlText, `<!-- DATA:${name} END -->`].join("\n");
 }

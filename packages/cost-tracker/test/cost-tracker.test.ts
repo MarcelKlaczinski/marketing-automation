@@ -1,16 +1,16 @@
-import { describe, it, expect, beforeEach } from "bun:test";
-import { db, projects, costLogs } from "@marketing-auto/db";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { costLogs, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import {
-  track,
   CostLimitExceeded,
+  EUR_PER_USD,
   anthropicCostEur,
-  replicateImageCostEur,
   dataforseoCostEur,
-  smtpCostEur,
   getCurrentSpend,
   getProjectCostSummary,
-  EUR_PER_USD,
+  replicateImageCostEur,
+  smtpCostEur,
+  track,
 } from "../src/index.ts";
 
 // ─── Pricing ──────────────────────────────────────────────────────────────────
@@ -47,8 +47,16 @@ describe("anthropicCostEur", () => {
   });
 
   it("Haiku is cheaper than Sonnet", () => {
-    const haiku = anthropicCostEur({ model: "claude-haiku-4-5", inputTokens: 1_000_000, outputTokens: 1_000_000 });
-    const sonnet = anthropicCostEur({ model: "claude-sonnet-4-6", inputTokens: 1_000_000, outputTokens: 1_000_000 });
+    const haiku = anthropicCostEur({
+      model: "claude-haiku-4-5",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+    const sonnet = anthropicCostEur({
+      model: "claude-sonnet-4-6",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
     expect(haiku).toBeLessThan(sonnet);
   });
 });
@@ -76,18 +84,21 @@ describe("track()", () => {
   let projectId: string;
 
   beforeEach(async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `cost-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      name: "Cost Test Project",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-      costLimits: {
-        daily: { anthropic: 1.0 },
-        monthly: { anthropic: 10.0 },
-        alertAtPercent: 80,
-        killAtPercent: 100,
-      },
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `cost-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: "Cost Test Project",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+        costLimits: {
+          daily: { anthropic: 1.0 },
+          monthly: { anthropic: 10.0 },
+          alertAtPercent: 80,
+          killAtPercent: 100,
+        },
+      })
+      .returning();
     projectId = p!.id;
   });
 
@@ -132,7 +143,7 @@ describe("track()", () => {
         estimatedCostEur: 2.0, // exceeds €1 daily limit
         fn: async () => "should not run",
         computeCostEur: () => 2.0,
-      }),
+      })
     ).rejects.toBeInstanceOf(CostLimitExceeded);
   });
 
@@ -143,7 +154,10 @@ describe("track()", () => {
       service: "anthropic",
       operation: "test_op",
       estimatedCostEur: 2.0,
-      fn: async () => { called = true; return "ran"; },
+      fn: async () => {
+        called = true;
+        return "ran";
+      },
       computeCostEur: () => 2.0,
     }).catch(() => {});
 
@@ -159,14 +173,14 @@ describe("track()", () => {
         projectId,
         service: "anthropic",
         operation: "small",
-        estimatedCostEur: 0.10,
+        estimatedCostEur: 0.1,
         fn: async () => "ok",
-        computeCostEur: () => 0.10,
+        computeCostEur: () => 0.1,
       });
     }
     const spend = await getCurrentSpend({ projectId, service: "anthropic" });
-    expect(spend.daily).toBeCloseTo(0.30, 4);
-    expect(spend.monthly).toBeCloseTo(0.30, 4);
+    expect(spend.daily).toBeCloseTo(0.3, 4);
+    expect(spend.monthly).toBeCloseTo(0.3, 4);
   });
 
   it("blocks the 4th call when cumulative spend hits daily limit", async () => {
@@ -175,9 +189,9 @@ describe("track()", () => {
         projectId,
         service: "anthropic",
         operation: "medium",
-        estimatedCostEur: 0.30,
+        estimatedCostEur: 0.3,
         fn: async () => "ok",
-        computeCostEur: () => 0.30,
+        computeCostEur: () => 0.3,
       });
     }
     // Current spend: €0.90. estimatedCostEur €0.20 → projected €1.10 > €1 limit
@@ -186,10 +200,10 @@ describe("track()", () => {
         projectId,
         service: "anthropic",
         operation: "medium",
-        estimatedCostEur: 0.20,
+        estimatedCostEur: 0.2,
         fn: async () => "ok",
-        computeCostEur: () => 0.20,
-      }),
+        computeCostEur: () => 0.2,
+      })
     ).rejects.toBeInstanceOf(CostLimitExceeded);
   });
 
@@ -200,7 +214,7 @@ describe("track()", () => {
       operation: "bad_cost",
       estimatedCostEur: 0.05,
       fn: async () => "ok",
-      computeCostEur: () => NaN,
+      computeCostEur: () => Number.NaN,
     });
 
     const [log] = await db.select().from(costLogs).where(eq(costLogs.projectId, projectId));
@@ -208,12 +222,15 @@ describe("track()", () => {
   });
 
   it("project with no costLimits configured never throws", async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `no-limits-${Date.now()}`,
-      name: "No Limits Project",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `no-limits-${Date.now()}`,
+        name: "No Limits Project",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
 
     await expect(
       track({
@@ -223,7 +240,7 @@ describe("track()", () => {
         estimatedCostEur: 9999,
         fn: async () => "ok",
         computeCostEur: () => 9999,
-      }),
+      })
     ).resolves.toBe("ok");
   });
 });
@@ -232,12 +249,15 @@ describe("track()", () => {
 
 describe("getCurrentSpend", () => {
   it("returns zeros for a fresh project", async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `fresh-${Date.now()}`,
-      name: "Fresh Project",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `fresh-${Date.now()}`,
+        name: "Fresh Project",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
 
     const spend = await getCurrentSpend({ projectId: p!.id, service: "anthropic" });
     expect(spend.daily).toBe(0);
@@ -249,21 +269,24 @@ describe("getCurrentSpend", () => {
 
 describe("getProjectCostSummary", () => {
   it("returns correct today/month breakdown grouped by service", async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `summary-test-${Date.now()}`,
-      name: "Summary Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `summary-test-${Date.now()}`,
+        name: "Summary Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
     const pid = p!.id;
 
     await track({
       projectId: pid,
       service: "anthropic",
       operation: "op1",
-      estimatedCostEur: 0.10,
+      estimatedCostEur: 0.1,
       fn: async () => "ok",
-      computeCostEur: () => 0.10,
+      computeCostEur: () => 0.1,
     });
     await track({
       projectId: pid,
@@ -280,6 +303,6 @@ describe("getProjectCostSummary", () => {
     expect(summary.totals.monthEur).toBeCloseTo(0.15, 4);
 
     const anthropicEntry = summary.today.find((s) => s.service === "anthropic");
-    expect(anthropicEntry?.eur).toBeCloseTo(0.10, 4);
+    expect(anthropicEntry?.eur).toBeCloseTo(0.1, 4);
   });
 });

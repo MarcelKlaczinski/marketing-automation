@@ -1,8 +1,9 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { db, articles } from "@marketing-auto/db";
 import { replicate } from "@marketing-auto/adapter-replicate";
+import { COST_OPS } from "@marketing-auto/core/cost";
+import { articles, db } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -25,11 +26,17 @@ export class HeroImageStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0.04; }
+  override estimatedCostEur(): number {
+    return 0.04;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
-    const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
-    if (!article?.outline) throw new ArticlePipelineError(`Article missing outline`, "image");
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, input.articleId))
+      .limit(1);
+    if (!article?.outline) throw new ArticlePipelineError("Article missing outline", "image");
 
     const outline = ArticleOutlineSchema.parse(article.outline);
 
@@ -37,7 +44,7 @@ export class HeroImageStep extends BaseStep<
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       articleId: input.articleId,
-      operation: `article-hero-${article.slug}`.slice(0, 80),
+      operation: COST_OPS.HERO_IMAGE,
       model: "flux-1.1-pro",
       prompt: outline.heroImagePrompt,
       aspectRatio: "16:9",

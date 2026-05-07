@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import { api } from 'src/lib/api-client';
+import { defineStore } from "pinia";
+import { api } from "src/lib/api-client";
 
 export interface CostBucket {
   service: string;
@@ -61,7 +61,7 @@ export interface CostAlert {
   projectId: string;
   projectName: string | null;
   service: string;
-  thresholdType: 'daily' | 'monthly';
+  thresholdType: "daily" | "monthly";
   limitEur: string;
   spentEur: string;
   percent: number;
@@ -85,7 +85,7 @@ interface CostState {
   filters: CostFilters;
 }
 
-export const useCostStore = defineStore('cost', {
+export const useCostStore = defineStore("cost", {
   state: (): CostState => ({
     aggregations: null,
     logs: null,
@@ -94,7 +94,7 @@ export const useCostStore = defineStore('cost', {
     filters: {
       projectId: null,
       service: null,
-      operation: '',
+      operation: "",
       from: null,
       to: null,
     },
@@ -108,7 +108,7 @@ export const useCostStore = defineStore('cost', {
         if (this.filters.projectId) params.projectId = this.filters.projectId;
         const queryString = new URLSearchParams(params).toString();
         const res = await api.get<{ ok: boolean; data: CostAggregations }>(
-          `/cost/aggregations${queryString ? '?' + queryString : ''}`,
+          `/cost/aggregations${queryString ? `?${queryString}` : ""}`
         );
         this.aggregations = res.data.data;
       } finally {
@@ -128,7 +128,9 @@ export const useCostStore = defineStore('cost', {
       if (this.filters.to) params.to = this.filters.to;
 
       const queryString = new URLSearchParams(params).toString();
-      const res = await api.get<{ ok: boolean; data: CostLogsResponse }>(`/cost/logs?${queryString}`);
+      const res = await api.get<{ ok: boolean; data: CostLogsResponse }>(
+        `/cost/logs?${queryString}`
+      );
       this.logs = res.data.data;
     },
 
@@ -137,7 +139,7 @@ export const useCostStore = defineStore('cost', {
     },
 
     async fetchAlerts(): Promise<void> {
-      const res = await api.get<{ ok: boolean; data: CostAlert[] }>('/cost/alerts');
+      const res = await api.get<{ ok: boolean; data: CostAlert[] }>("/cost/alerts");
       this.alerts = res.data.data;
     },
 

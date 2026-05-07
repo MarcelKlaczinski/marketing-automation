@@ -1,5 +1,5 @@
-import { db, projects, costLogs, costServiceEnum, type CostLimits } from "@marketing-auto/db";
-import { eq, and, sql, gte } from "drizzle-orm";
+import { type CostLimits, costLogs, type costServiceEnum, db, projects } from "@marketing-auto/db";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 type CostService = (typeof costServiceEnum.enumValues)[number];
 
@@ -15,12 +15,12 @@ export class CostLimitExceeded extends Error {
       limitEur: number;
       currentSpendEur: number;
       attemptedCostEur: number;
-    },
+    }
   ) {
     super(
       `Cost limit exceeded: ${details.scope} limit of €${details.limitEur} for ${details.service} ` +
-      `on project ${details.projectId} (current: €${details.currentSpendEur.toFixed(4)}, ` +
-      `attempted: €${details.attemptedCostEur.toFixed(4)})`,
+        `on project ${details.projectId} (current: €${details.currentSpendEur.toFixed(4)}, ` +
+        `attempted: €${details.attemptedCostEur.toFixed(4)})`
     );
     this.name = "CostLimitExceeded";
   }
@@ -75,8 +75,8 @@ export async function getCurrentSpend(input: {
       and(
         eq(costLogs.projectId, input.projectId),
         eq(costLogs.service, input.service),
-        gte(costLogs.createdAt, startOfMonth),
-      ),
+        gte(costLogs.createdAt, startOfMonth)
+      )
     );
 
   return {
@@ -104,7 +104,7 @@ export async function checkLimit(input: {
   const checkScope = (
     scope: "daily" | "monthly",
     limitEur: number | null,
-    current: number,
+    current: number
   ): { alertTriggered?: { scope: "daily" | "monthly"; percent: number; limitEur: number } } => {
     if (limitEur === null) return {};
     const projected = current + input.estimatedCostEur;

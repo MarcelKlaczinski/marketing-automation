@@ -1,12 +1,12 @@
-import { ref, watch, onUnmounted, type Ref } from 'vue';
-import { api } from 'src/lib/api-client';
-import { HttpError } from 'src/lib/http-error';
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { type Ref, onUnmounted, ref, watch } from "vue";
 
 export interface PipelineRun {
   id: string;
   pipelineName: string;
   projectId: string;
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
   stepName: string | null;
   input: unknown;
   output: unknown;
@@ -31,11 +31,11 @@ export interface UsePipelineRunPollingResult {
   stop: () => void;
 }
 
-const TERMINAL_STATUSES = new Set<PipelineRun['status']>(['completed', 'failed', 'cancelled']);
+const TERMINAL_STATUSES = new Set<PipelineRun["status"]>(["completed", "failed", "cancelled"]);
 
 export function usePipelineRunPolling(
   runIdRef: Ref<string | null> | string | null = null,
-  options: UsePipelineRunPollingOptions = {},
+  options: UsePipelineRunPollingOptions = {}
 ): UsePipelineRunPollingResult {
   const intervalMs = options.intervalMs ?? 2500;
   const pauseWhenHidden = options.pauseWhenHidden ?? true;
@@ -46,7 +46,8 @@ export function usePipelineRunPolling(
   const terminal = ref(false);
 
   let timer: ReturnType<typeof setInterval> | null = null;
-  let currentRunId: string | null = typeof runIdRef === 'string' ? runIdRef : runIdRef?.value ?? null;
+  let currentRunId: string | null =
+    typeof runIdRef === "string" ? runIdRef : (runIdRef?.value ?? null);
 
   async function fetchOnce(): Promise<void> {
     if (!currentRunId) return;
@@ -54,7 +55,9 @@ export function usePipelineRunPolling(
 
     loading.value = true;
     try {
-      const res = await api.get<{ ok: boolean; data: PipelineRun }>(`/pipeline-runs/${currentRunId}`);
+      const res = await api.get<{ ok: boolean; data: PipelineRun }>(
+        `/pipeline-runs/${currentRunId}`
+      );
       run.value = res.data.data;
       terminal.value = TERMINAL_STATUSES.has(res.data.data.status);
       error.value = null;
@@ -76,7 +79,9 @@ export function usePipelineRunPolling(
     terminal.value = false;
     run.value = null;
     void fetchOnce();
-    timer = setInterval(() => { void fetchOnce(); }, intervalMs);
+    timer = setInterval(() => {
+      void fetchOnce();
+    }, intervalMs);
   }
 
   function stop(): void {
@@ -86,11 +91,15 @@ export function usePipelineRunPolling(
     }
   }
 
-  if (typeof runIdRef !== 'string' && runIdRef !== null) {
-    watch(runIdRef, (newId) => {
-      if (newId) start(newId);
-      else stop();
-    }, { immediate: true });
+  if (typeof runIdRef !== "string" && runIdRef !== null) {
+    watch(
+      runIdRef,
+      (newId) => {
+        if (newId) start(newId);
+        else stop();
+      },
+      { immediate: true }
+    );
   } else if (currentRunId) {
     start(currentRunId);
   }

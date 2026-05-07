@@ -12,7 +12,7 @@ export async function verifySmtp(creds: Record<string, string>): Promise<VerifyR
     return { ok: false, message: "Missing required SMTP credentials (host, port, user, password)" };
   }
 
-  const portNum = parseInt(port, 10);
+  const portNum = Number.parseInt(port, 10);
   const transporter = nodemailer.createTransport({
     host,
     port: portNum,

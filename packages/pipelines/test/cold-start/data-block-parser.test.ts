@@ -1,11 +1,17 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { z } from "zod";
-import { parseDataBlock, renderDataBlock, DataBlockParseError } from "../../src/cold-start/shared/data-block-parser.ts";
+import {
+  DataBlockParseError,
+  parseDataBlock,
+  renderDataBlock,
+} from "../../src/cold-start/shared/data-block-parser.ts";
 
-const ClusterSchema = z.array(z.object({
-  name: z.string(),
-  status: z.string(),
-}));
+const ClusterSchema = z.array(
+  z.object({
+    name: z.string(),
+    status: z.string(),
+  })
+);
 
 const VALID_MARKDOWN = `
 # My Plan
@@ -32,10 +38,12 @@ describe("parseDataBlock", () => {
   });
 
   it("throws DataBlockParseError when block name is not found", () => {
-    expect(() => parseDataBlock(VALID_MARKDOWN, "nonexistent", ClusterSchema))
-      .toThrow(DataBlockParseError);
-    expect(() => parseDataBlock(VALID_MARKDOWN, "nonexistent", ClusterSchema))
-      .toThrow('DATA block "nonexistent" not found');
+    expect(() => parseDataBlock(VALID_MARKDOWN, "nonexistent", ClusterSchema)).toThrow(
+      DataBlockParseError
+    );
+    expect(() => parseDataBlock(VALID_MARKDOWN, "nonexistent", ClusterSchema)).toThrow(
+      'DATA block "nonexistent" not found'
+    );
   });
 
   it("throws DataBlockParseError when BEGIN marker exists but END is missing", () => {
@@ -44,10 +52,10 @@ describe("parseDataBlock", () => {
 - name: "Test"
   status: proposed
 `;
-    expect(() => parseDataBlock(broken, "clusters", ClusterSchema))
-      .toThrow(DataBlockParseError);
-    expect(() => parseDataBlock(broken, "clusters", ClusterSchema))
-      .toThrow("missing its END marker");
+    expect(() => parseDataBlock(broken, "clusters", ClusterSchema)).toThrow(DataBlockParseError);
+    expect(() => parseDataBlock(broken, "clusters", ClusterSchema)).toThrow(
+      "missing its END marker"
+    );
   });
 
   it("throws DataBlockParseError when END marker has a different name", () => {
@@ -57,10 +65,8 @@ describe("parseDataBlock", () => {
   status: proposed
 <!-- DATA:other END -->
 `;
-    expect(() => parseDataBlock(broken, "clusters", ClusterSchema))
-      .toThrow(DataBlockParseError);
-    expect(() => parseDataBlock(broken, "clusters", ClusterSchema))
-      .toThrow('"other"');
+    expect(() => parseDataBlock(broken, "clusters", ClusterSchema)).toThrow(DataBlockParseError);
+    expect(() => parseDataBlock(broken, "clusters", ClusterSchema)).toThrow('"other"');
   });
 
   it("throws DataBlockParseError when YAML is malformed", () => {
@@ -70,10 +76,8 @@ describe("parseDataBlock", () => {
   status: [bad yaml
 <!-- DATA:clusters END -->
 `;
-    expect(() => parseDataBlock(broken, "clusters", ClusterSchema))
-      .toThrow(DataBlockParseError);
-    expect(() => parseDataBlock(broken, "clusters", ClusterSchema))
-      .toThrow("YAML parse failed");
+    expect(() => parseDataBlock(broken, "clusters", ClusterSchema)).toThrow(DataBlockParseError);
+    expect(() => parseDataBlock(broken, "clusters", ClusterSchema)).toThrow("YAML parse failed");
   });
 
   it("throws ZodError when schema validation fails", () => {
@@ -125,10 +129,12 @@ describe("renderDataBlock", () => {
   });
 
   it("handles nested objects", () => {
-    const NestedSchema = z.array(z.object({
-      name: z.string(),
-      keywords: z.array(z.string()),
-    }));
+    const NestedSchema = z.array(
+      z.object({
+        name: z.string(),
+        keywords: z.array(z.string()),
+      })
+    );
     const data = [{ name: "Test", keywords: ["kw1", "kw2"] }];
     const block = renderDataBlock("nested", data);
     const parsed = parseDataBlock(`\n${block}\n`, "nested", NestedSchema);

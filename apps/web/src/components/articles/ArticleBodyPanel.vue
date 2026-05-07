@@ -67,15 +67,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useArticlesStore } from 'src/stores/articles';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import MarkdownEditor from 'src/components/common/MarkdownEditor.vue';
-import type { ArticleDetail } from 'src/stores/articles';
+import MarkdownEditor from "src/components/common/MarkdownEditor.vue";
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { useArticlesStore } from "src/stores/articles";
+import type { ArticleDetail } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ArticleBodyPanel',
+  name: "ArticleBodyPanel",
 
   components: { MarkdownEditor },
 
@@ -83,7 +83,7 @@ export default defineComponent({
     detail: { type: Object as PropType<ArticleDetail>, required: true },
   },
 
-  emits: ['saved'],
+  emits: ["saved"],
 
   setup() {
     return {
@@ -95,11 +95,11 @@ export default defineComponent({
   data() {
     const article = this.detail.article as { bodyMd?: string };
     return {
-      bodyDraft: article.bodyMd ?? '',
-      lastSaved: article.bodyMd ?? '',
+      bodyDraft: article.bodyMd ?? "",
+      lastSaved: article.bodyMd ?? "",
       saveDialogOpen: false,
       saving: false,
-      changeReason: '',
+      changeReason: "",
       resyncAfterSave: true,
     };
   },
@@ -114,7 +114,7 @@ export default defineComponent({
   },
 
   watch: {
-    'detail.article.bodyMd'(newVal: string | undefined): void {
+    "detail.article.bodyMd"(newVal: string | undefined): void {
       if (newVal !== undefined && newVal !== this.lastSaved) {
         this.bodyDraft = newVal;
         this.lastSaved = newVal;
@@ -137,19 +137,19 @@ export default defineComponent({
         await this.articlesStore.saveBody(
           this.article.id,
           this.bodyDraft,
-          this.changeReason.trim() || undefined,
+          this.changeReason.trim() || undefined
         );
         this.lastSaved = this.bodyDraft;
         this.saveDialogOpen = false;
-        this.notify.success(this.$t('articles.body.saveSuccess') as string);
+        this.notify.success(this.$t("articles.body.saveSuccess") as string);
 
         if (this.resyncAfterSave && this.canResync()) {
           await this.articlesStore.triggerSync(this.article.id);
-          this.notify.info(this.$t('articles.body.resyncTriggered') as string);
+          this.notify.info(this.$t("articles.body.resyncTriggered") as string);
         }
 
-        this.changeReason = '';
-        this.$emit('saved');
+        this.changeReason = "";
+        this.$emit("saved");
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {
@@ -158,7 +158,9 @@ export default defineComponent({
     },
 
     canResync(): boolean {
-      return ['ready_to_publish', 'published', 'blocked_by_pagespeed'].includes(this.article.status);
+      return ["ready_to_publish", "published", "blocked_by_pagespeed"].includes(
+        this.article.status
+      );
     },
   },
 });

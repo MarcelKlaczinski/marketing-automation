@@ -3,7 +3,7 @@
 **Phase:** Hardening (zwischen Spec 41 und Welle 4)
 **Estimated Effort:** 1-1.5 days (2 sessions)
 **Dependencies:** Spec 41 (cost enforcement)
-**Status:** Ready for implementation
+**Status:** ✅ Complete (Sessions 1 + 2, 2026-05-07)
 **Recommended Model:** Sonnet 4.6 (mostly mechanical fixes + DB-setup; no novel architecture)
 
 ---
@@ -1205,3 +1205,27 @@ If Session 1 reveals additional issues (e.g., the `/api` mount fix surfaces othe
 Spec said: change mount + strip `/articles` prefix from all routes.  
 Actual: also extracted `POST /projects/:projectSlug/articles/generate` into a new `legacyArticleRoutes` Hono instance exported from `articles.ts` and mounted at `/api` in `server.ts`.  
 Why: routes that start with `/projects/` cannot live on a router mounted at `/api/articles` — they become unreachable. All effective URLs are identical from the client's perspective.
+
+---
+
+## Discovered During Implementation (Session 2)
+
+### D-006: `COST_OPS` location deviates from spec
+
+Spec C.1 says to create the module in `packages/cost-tracker/src/operations.ts`. It was placed in **`packages/core/src/cost/operations.ts`** instead — all other cost-enforcement code (`enforcement.ts`, `estimates.ts`, `pause.ts`) already lives there. Exported via `packages/core/src/cost/index.ts` as `@marketing-auto/core/cost`. `packages/cost-tracker` handles cost *logging*; enforcement/budgeting belongs in `packages/core/cost`.
+
+### D-007: `biome check --write` corrupts files via `noNonNullAssertion` safe-fix
+
+`recommended: true` sets `noNonNullAssertion` to `"error"`. The safe-fix rewrites `x!.field` → `x?.field`, changing `string` to `string | undefined` throughout. This produced **147 downstream typecheck errors** after a `--write` pass. Resolution: set `"noNonNullAssertion": "off"` in `biome.json` globally before running any `--write`. See root CLAUDE.md `Common Mistakes`.
+
+### D-008: `biome check --unsafe` removes console.log call bodies
+
+The `noConsoleLog` unsafe fix deletes the entire statement including arguments, leaving empty `if/for` blocks. Corrupted `05-go-live-checklist.ts`, `summary.ts`, and ~12 other script files. All restored from `git restore` + annotated with `biome-ignore lint/suspicious/noConsoleLog: script output`. **Never run `biome --unsafe`**.
+
+### D-009: `ARTICLE_RESEARCH_SERP` constant is defined but unused
+
+The research step uses a dynamic per-keyword string `article-research-serp-${keyword}` (pre-existing). `COST_OPS.ARTICLE_RESEARCH_SERP` therefore has no matching estimate and is never referenced by any pipeline step. Known gap — a future spec should introduce per-keyword SERP cost multipliers.
+
+### D-010: pgvector must be enabled per-database after `brew install`
+
+`brew install pgvector` installs globally but the extension must also be activated: `psql marketing_automation -c "CREATE EXTENSION IF NOT EXISTS vector;"`. The `db:setup` script handles this automatically.

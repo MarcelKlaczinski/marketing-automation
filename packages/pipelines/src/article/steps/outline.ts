@@ -1,8 +1,14 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
-import { ArticleOutlineSchema, ArticleOutlineSchemaOutput, type ArticleOutline, type ResearchResult } from "../types.ts";
+import {
+  type ArticleOutline,
+  ArticleOutlineSchema,
+  ArticleOutlineSchemaOutput,
+  type ResearchResult,
+} from "../types.ts";
 
 const InputSchema = z.object({
   cornerstoneKeyword: z.string(),
@@ -14,19 +20,20 @@ const InputSchema = z.object({
   modelOverride: z.string().optional(),
 });
 
-export class OutlineStep extends BaseStep<
-  z.infer<typeof InputSchema>,
-  ArticleOutline
-> {
+export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOutline> {
   readonly name = "outline";
   readonly inputSchema = InputSchema;
   readonly outputSchema = ArticleOutlineSchemaOutput;
 
-  override estimatedCostEur(): number { return 0.30; }
+  override estimatedCostEur(): number {
+    return 0.3;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const research = input.research as ResearchResult;
-    const model = (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ?? "claude-opus-4-7";
+    const model =
+      (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
+      "claude-opus-4-7";
 
     const prompt = await buildSystemPrompt({
       skills: ["copywriting", "content-strategy", "ai-seo", "schema-markup"],
@@ -65,29 +72,33 @@ Output JSON matching the ArticleOutlineSchema schema EXACTLY.
     });
 
     const userMsg = [
-      `# Article brief`,
+      "# Article brief",
       `**Cornerstone keyword**: ${input.cornerstoneKeyword}`,
       `**Cluster**: ${input.clusterName} (pillar: ${input.clusterPillar})`,
       `**Satellite keywords to weave in**: ${input.satelliteKeywords.join(", ")}`,
-      ``,
-      `# SERP analysis`,
+      "",
+      "# SERP analysis",
       research.competitorSynthesis,
-      ``,
-      `# Top organic competitors (for reference)`,
-      research.serp.organicResults.slice(0, 5).map((r) =>
-        `- ${r.title} (${r.domain})`
-      ).join("\n"),
-      ``,
-      `# People Also Ask (use these to inform reader intent)`,
-      research.serp.peopleAlsoAsk.slice(0, 8).map((q) => `- ${q}`).join("\n") || "(none)",
-      ``,
-      `Now produce the outline.`,
+      "",
+      "# Top organic competitors (for reference)",
+      research.serp.organicResults
+        .slice(0, 5)
+        .map((r) => `- ${r.title} (${r.domain})`)
+        .join("\n"),
+      "",
+      "# People Also Ask (use these to inform reader intent)",
+      research.serp.peopleAlsoAsk
+        .slice(0, 8)
+        .map((q) => `- ${q}`)
+        .join("\n") || "(none)",
+      "",
+      "Now produce the outline.",
     ].join("\n");
 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "article-outline",
+      operation: COST_OPS.ARTICLE_OUTLINE,
       model,
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

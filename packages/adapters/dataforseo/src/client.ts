@@ -1,21 +1,21 @@
-import * as dfs from "dataforseo-client";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { getGlobal } from "@marketing-auto/core/credentials";
 import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
-import { track, dataforseoCostEur, EUR_PER_USD } from "@marketing-auto/cost-tracker";
+import { getGlobal } from "@marketing-auto/core/credentials";
+import { EUR_PER_USD, dataforseoCostEur, track } from "@marketing-auto/cost-tracker";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import * as dfs from "dataforseo-client";
 import {
-  type SerpInput,
-  type SerpResult,
-  type OrganicResult,
-  type KeywordOverviewInput,
-  type KeywordOverviewResult,
-  type KeywordOverviewItem,
+  DataForSeoError,
   type KeywordIntent,
-  type RelatedKeywordsInput,
-  type RelatedKeywordsResult,
+  type KeywordOverviewInput,
+  type KeywordOverviewItem,
+  type KeywordOverviewResult,
+  type OrganicResult,
   type RankedKeywordsInput,
   type RankedKeywordsResult,
-  DataForSeoError,
+  type RelatedKeywordsInput,
+  type RelatedKeywordsResult,
+  type SerpInput,
+  type SerpResult,
 } from "./types.ts";
 
 const log = createLogger("dataforseo");
@@ -33,7 +33,7 @@ async function getCredentials(): Promise<{ username: string; password: string }>
   const password = (await getGlobal("dataforseo", "password")) ?? env.DATAFORSEO_PASSWORD;
   if (!username || !password) {
     throw new DataForSeoError(
-      "DataForSEO credentials not configured (set via installer or DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD env)",
+      "DataForSEO credentials not configured (set via installer or DATAFORSEO_LOGIN/DATAFORSEO_PASSWORD env)"
     );
   }
   return { username, password };
@@ -41,7 +41,7 @@ async function getCredentials(): Promise<{ username: string; password: string }>
 
 function makeAuthHttp(
   username: string,
-  password: string,
+  password: string
 ): { fetch(url: string | URL | Request, init?: RequestInit): Promise<Response> } {
   const token = btoa(`${username}:${password}`);
   return {
@@ -64,10 +64,7 @@ async function getSerpApi(): Promise<dfs.SerpApi> {
 async function getLabsApi(): Promise<dfs.DataforseoLabsApi> {
   if (_labsApi) return _labsApi;
   const { username, password } = await getCredentials();
-  _labsApi = new dfs.DataforseoLabsApi(
-    BASE_URL,
-    makeAuthHttp(username, password),
-  );
+  _labsApi = new dfs.DataforseoLabsApi(BASE_URL, makeAuthHttp(username, password));
   return _labsApi;
 }
 
@@ -77,17 +74,12 @@ function validateTask<
     status_message?: string | undefined;
     result?: unknown;
   },
->(
-  resp: { status_code?: number | undefined; tasks?: T[] | undefined } | null,
-): T {
+>(resp: { status_code?: number | undefined; tasks?: T[] | undefined } | null): T {
   if (!resp) {
     throw new DataForSeoError("DataForSEO returned null response");
   }
   if (resp.status_code !== undefined && resp.status_code !== 20000) {
-    throw new DataForSeoError(
-      `DataForSEO API error: status ${resp.status_code}`,
-      resp.status_code,
-    );
+    throw new DataForSeoError(`DataForSEO API error: status ${resp.status_code}`, resp.status_code);
   }
   const tasks = resp.tasks;
   if (!tasks || tasks.length === 0) {
@@ -97,7 +89,7 @@ function validateTask<
   if (task.status_code !== 20000) {
     throw new DataForSeoError(
       `DataForSEO task error: ${task.status_message ?? "unknown"} (code ${task.status_code})`,
-      task.status_code,
+      task.status_code
     );
   }
   return task;
@@ -189,7 +181,7 @@ export async function serp(input: SerpInput): Promise<SerpResult> {
   await assertCostBudget(
     input.projectId,
     "dataforseo",
-    estimateCostEur("dataforseo", input.operation),
+    estimateCostEur("dataforseo", input.operation)
   );
 
   const mode = input.mode ?? "live";
@@ -197,7 +189,7 @@ export async function serp(input: SerpInput): Promise<SerpResult> {
   if (mode === "standard") {
     throw new DataForSeoError(
       "Standard (queued) SERP mode is not implemented. Use mode: 'live'. " +
-        "For bulk offline analysis, implement task_post + task_get polling.",
+        "For bulk offline analysis, implement task_post + task_get polling."
     );
   }
 
@@ -211,7 +203,7 @@ export async function serp(input: SerpInput): Promise<SerpResult> {
 
   log.debug(
     { projectId: input.projectId, operation: input.operation, keyword: input.keyword, depth },
-    "DataForSEO SERP call",
+    "DataForSEO SERP call"
   );
 
   const task = validateTask(
@@ -242,7 +234,7 @@ export async function serp(input: SerpInput): Promise<SerpResult> {
         return dataforseoCostEur({ operation: "serpLive", count: pricedUnits });
       },
       metadata: () => ({ keyword: input.keyword, locationCode, languageCode, depth, device, mode }),
-    }),
+    })
   );
 
   const taskResult = (task.result as Array<Record<string, unknown>> | undefined)?.[0];
@@ -269,8 +261,7 @@ export async function serp(input: SerpInput): Promise<SerpResult> {
         snippet: String(item.description ?? ""),
       });
     } else if (itemType === "people_also_ask") {
-      const paaItems =
-        (item.items as Array<Record<string, unknown>> | undefined) ?? [];
+      const paaItems = (item.items as Array<Record<string, unknown>> | undefined) ?? [];
       for (const paa of paaItems) {
         if (typeof paa.title === "string") peopleAlsoAsk.push(paa.title);
       }
@@ -302,13 +293,11 @@ const INTENT_MAP: Record<string, KeywordIntent> = {
   transactional: "transactional",
 };
 
-export async function keywordOverview(
-  input: KeywordOverviewInput,
-): Promise<KeywordOverviewResult> {
+export async function keywordOverview(input: KeywordOverviewInput): Promise<KeywordOverviewResult> {
   await assertCostBudget(
     input.projectId,
     "dataforseo",
-    estimateCostEur("dataforseo", input.operation),
+    estimateCostEur("dataforseo", input.operation)
   );
 
   if (input.keywords.length === 0) {
@@ -323,7 +312,7 @@ export async function keywordOverview(
 
   log.debug(
     { projectId: input.projectId, operation: input.operation, keywordCount: input.keywords.length },
-    "DataForSEO Keyword Overview call",
+    "DataForSEO Keyword Overview call"
   );
 
   const task = validateTask(
@@ -361,56 +350,44 @@ export async function keywordOverview(
         includeSerpInfo: input.includeSerpInfo ?? false,
         includeClickstreamData: input.includeClickstreamData ?? false,
       }),
-    }),
+    })
   );
 
-  const taskResults =
-    (task.result as Array<Record<string, unknown>> | undefined) ?? [];
+  const taskResults = (task.result as Array<Record<string, unknown>> | undefined) ?? [];
   const taskResult = taskResults[0];
-  const items = (
-    (taskResult?.items as Array<Record<string, unknown>>) ?? []
-  ).map((item): KeywordOverviewItem => {
-    const ki = item.keyword_info as Record<string, unknown> | undefined;
-    const kp = item.keyword_properties as Record<string, unknown> | undefined;
-    const sii = item.search_intent_info as Record<string, unknown> | undefined;
-    const monthly =
-      (ki?.monthly_searches as
-        | Array<{ year: number; month: number; search_volume: number }>
-        | undefined) ?? [];
+  const items = ((taskResult?.items as Array<Record<string, unknown>>) ?? []).map(
+    (item): KeywordOverviewItem => {
+      const ki = item.keyword_info as Record<string, unknown> | undefined;
+      const kp = item.keyword_properties as Record<string, unknown> | undefined;
+      const sii = item.search_intent_info as Record<string, unknown> | undefined;
+      const monthly =
+        (ki?.monthly_searches as
+          | Array<{ year: number; month: number; search_volume: number }>
+          | undefined) ?? [];
 
-    return {
-      keyword: String(item.keyword ?? ""),
-      searchVolume:
-        typeof ki?.search_volume === "number" ? ki.search_volume : null,
-      monthlySearches: monthly.map((m) => ({
-        year: m.year,
-        month: m.month,
-        searchVolume: m.search_volume,
-      })),
-      cpcUsd: typeof ki?.cpc === "number" ? ki.cpc : null,
-      competition:
-        typeof ki?.competition === "number" ? ki.competition : null,
-      competitionLevel:
-        (ki?.competition_level as "LOW" | "MEDIUM" | "HIGH" | null) ?? null,
-      keywordDifficulty:
-        typeof kp?.keyword_difficulty === "number"
-          ? kp.keyword_difficulty
-          : null,
-      mainIntent: INTENT_MAP[String(sii?.main_intent ?? "")] ?? null,
-      foreignIntent: (
-        (sii?.foreign_intent as string[] | undefined) ?? []
-      )
-        .map((i) => INTENT_MAP[i])
-        .filter((i): i is KeywordIntent => i !== undefined),
-      serpUrls: (
-        (
-          item.serp_info as
-            | { se_results?: Array<{ url: string }> }
-            | undefined
-        )?.se_results ?? []
-      ).map((r) => r.url),
-    };
-  });
+      return {
+        keyword: String(item.keyword ?? ""),
+        searchVolume: typeof ki?.search_volume === "number" ? ki.search_volume : null,
+        monthlySearches: monthly.map((m) => ({
+          year: m.year,
+          month: m.month,
+          searchVolume: m.search_volume,
+        })),
+        cpcUsd: typeof ki?.cpc === "number" ? ki.cpc : null,
+        competition: typeof ki?.competition === "number" ? ki.competition : null,
+        competitionLevel: (ki?.competition_level as "LOW" | "MEDIUM" | "HIGH" | null) ?? null,
+        keywordDifficulty:
+          typeof kp?.keyword_difficulty === "number" ? kp.keyword_difficulty : null,
+        mainIntent: INTENT_MAP[String(sii?.main_intent ?? "")] ?? null,
+        foreignIntent: ((sii?.foreign_intent as string[] | undefined) ?? [])
+          .map((i) => INTENT_MAP[i])
+          .filter((i): i is KeywordIntent => i !== undefined),
+        serpUrls: (
+          (item.serp_info as { se_results?: Array<{ url: string }> } | undefined)?.se_results ?? []
+        ).map((r) => r.url),
+      };
+    }
+  );
 
   return { items };
 }
@@ -419,13 +396,11 @@ export async function keywordOverview(
 // Labs API: Related Keywords
 // ─────────────────────────────────────────────────────────────
 
-export async function relatedKeywords(
-  input: RelatedKeywordsInput,
-): Promise<RelatedKeywordsResult> {
+export async function relatedKeywords(input: RelatedKeywordsInput): Promise<RelatedKeywordsResult> {
   await assertCostBudget(
     input.projectId,
     "dataforseo",
-    estimateCostEur("dataforseo", input.operation),
+    estimateCostEur("dataforseo", input.operation)
   );
 
   const locationCode = input.locationCode ?? DEFAULT_LOCATION;
@@ -435,7 +410,7 @@ export async function relatedKeywords(
 
   log.debug(
     { projectId: input.projectId, operation: input.operation, seed: input.seed, depth, limit },
-    "DataForSEO Related Keywords call",
+    "DataForSEO Related Keywords call"
   );
 
   const task = validateTask(
@@ -446,17 +421,14 @@ export async function relatedKeywords(
       pipelineRunId: input.pipelineRunId,
       articleId: input.articleId,
       fn: async () => {
-        const req =
-          new dfs.DataforseoLabsGoogleRelatedKeywordsLiveRequestInfo();
+        const req = new dfs.DataforseoLabsGoogleRelatedKeywordsLiveRequestInfo();
         req.keyword = input.seed;
         req.location_code = locationCode;
         req.language_code = languageCode;
         req.depth = depth;
         req.limit = limit;
         if (input.minSearchVolume !== undefined) {
-          req.filters = [
-            ["keyword_info.search_volume", ">", input.minSearchVolume],
-          ];
+          req.filters = [["keyword_info.search_volume", ">", input.minSearchVolume]];
         }
         try {
           return await (await getLabsApi()).googleRelatedKeywordsLive([req]);
@@ -472,14 +444,12 @@ export async function relatedKeywords(
         return dataforseoCostEur({ operation: "relatedKeywordsLive", count: 1 });
       },
       metadata: () => ({ seed: input.seed, depth, limit }),
-    }),
+    })
   );
 
-  const taskResults =
-    (task.result as Array<Record<string, unknown>> | undefined) ?? [];
+  const taskResults = (task.result as Array<Record<string, unknown>> | undefined) ?? [];
   const taskResult = taskResults[0];
-  const items =
-    (taskResult?.items as Array<Record<string, unknown>> | undefined) ?? [];
+  const items = (taskResult?.items as Array<Record<string, unknown>> | undefined) ?? [];
 
   return {
     seed: input.seed,
@@ -489,11 +459,9 @@ export async function relatedKeywords(
       return {
         keyword: String(kd?.keyword ?? ""),
         depth: Number(item.depth ?? 0),
-        searchVolume:
-          typeof ki?.search_volume === "number" ? ki.search_volume : null,
+        searchVolume: typeof ki?.search_volume === "number" ? ki.search_volume : null,
         cpcUsd: typeof ki?.cpc === "number" ? ki.cpc : null,
-        competition:
-          typeof ki?.competition === "number" ? ki.competition : null,
+        competition: typeof ki?.competition === "number" ? ki.competition : null,
       };
     }),
   };
@@ -503,13 +471,11 @@ export async function relatedKeywords(
 // Labs API: Ranked Keywords
 // ─────────────────────────────────────────────────────────────
 
-export async function rankedKeywords(
-  input: RankedKeywordsInput,
-): Promise<RankedKeywordsResult> {
+export async function rankedKeywords(input: RankedKeywordsInput): Promise<RankedKeywordsResult> {
   await assertCostBudget(
     input.projectId,
     "dataforseo",
-    estimateCostEur("dataforseo", input.operation),
+    estimateCostEur("dataforseo", input.operation)
   );
 
   const locationCode = input.locationCode ?? DEFAULT_LOCATION;
@@ -519,7 +485,7 @@ export async function rankedKeywords(
 
   log.debug(
     { projectId: input.projectId, operation: input.operation, domain: input.domain, limit },
-    "DataForSEO Ranked Keywords call",
+    "DataForSEO Ranked Keywords call"
   );
 
   const task = validateTask(
@@ -530,15 +496,12 @@ export async function rankedKeywords(
       pipelineRunId: input.pipelineRunId,
       articleId: input.articleId,
       fn: async () => {
-        const req =
-          new dfs.DataforseoLabsGoogleRankedKeywordsLiveRequestInfo();
+        const req = new dfs.DataforseoLabsGoogleRankedKeywordsLiveRequestInfo();
         req.target = input.domain;
         req.location_code = locationCode;
         req.language_code = languageCode;
         req.limit = limit;
-        req.filters = [
-          ["ranked_serp_element.serp_item.rank_absolute", "<=", maxPosition],
-        ];
+        req.filters = [["ranked_serp_element.serp_item.rank_absolute", "<=", maxPosition]];
         try {
           return await (await getLabsApi()).googleRankedKeywordsLive([req]);
         } catch (e) {
@@ -553,14 +516,12 @@ export async function rankedKeywords(
         return dataforseoCostEur({ operation: "rankedKeywordsLive", count: 1 });
       },
       metadata: () => ({ domain: input.domain, limit, maxPosition }),
-    }),
+    })
   );
 
-  const taskResults =
-    (task.result as Array<Record<string, unknown>> | undefined) ?? [];
+  const taskResults = (task.result as Array<Record<string, unknown>> | undefined) ?? [];
   const taskResult = taskResults[0];
-  const items =
-    (taskResult?.items as Array<Record<string, unknown>> | undefined) ?? [];
+  const items = (taskResult?.items as Array<Record<string, unknown>> | undefined) ?? [];
   const totalCount = Number(taskResult?.total_count ?? items.length);
 
   return {
@@ -575,10 +536,8 @@ export async function rankedKeywords(
         keyword: String(kd?.keyword ?? ""),
         position: Number(si?.rank_absolute ?? 0),
         url: String(si?.url ?? ""),
-        searchVolume:
-          typeof ki?.search_volume === "number" ? ki.search_volume : null,
-        estimatedTrafficVolume:
-          typeof si?.etv === "number" ? si.etv : null,
+        searchVolume: typeof ki?.search_volume === "number" ? ki.search_volume : null,
+        estimatedTrafficVolume: typeof si?.etv === "number" ? si.etv : null,
         cpcUsd: typeof ki?.cpc === "number" ? ki.cpc : null,
       };
     }),

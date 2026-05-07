@@ -1,6 +1,7 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { SelfReviewIssueSchema } from "../types.ts";
 
@@ -26,7 +27,9 @@ export class SelfReviewStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0.05; }
+  override estimatedCostEur(): number {
+    return 0.05;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const prompt = await buildSystemPrompt({
@@ -65,23 +68,23 @@ summary = 1-2 sentence overall verdict.
     });
 
     const userMsg = [
-      `# Article under review`,
+      "# Article under review",
       `**Cornerstone keyword**: ${input.cornerstoneKeyword}`,
       `**Word count**: ${input.wordCount}`,
-      ``,
-      `---`,
-      ``,
+      "",
+      "---",
+      "",
       input.bodyMd,
-      ``,
-      `---`,
-      ``,
-      `Now produce your review.`,
+      "",
+      "---",
+      "",
+      "Now produce your review.",
     ].join("\n");
 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "article-self-review",
+      operation: COST_OPS.ARTICLE_SELF_REVIEW,
       model: "claude-haiku-4-5",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

@@ -35,28 +35,28 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useSystemStatusStore, type AdapterStatus } from 'src/stores/system-status';
+import { type AdapterStatus, useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
 
 interface AdapterItem {
   key: string;
   label: string;
   icon: string;
-  state: 'ok' | 'warn' | 'idle';
+  state: "ok" | "warn" | "idle";
   description: string;
 }
 
 const ADAPTER_LABELS: Record<string, string> = {
-  anthropic: 'Anthropic API',
-  replicate: 'Replicate',
-  r2: 'Cloudflare R2',
-  dataforseo: 'DataForSEO',
-  smtp: 'E-Mail (SMTP)',
-  githubApp: 'GitHub App',
+  anthropic: "Anthropic API",
+  replicate: "Replicate",
+  r2: "Cloudflare R2",
+  dataforseo: "DataForSEO",
+  smtp: "E-Mail (SMTP)",
+  githubApp: "GitHub App",
 };
 
 export default defineComponent({
-  name: 'InstallerSummary',
+  name: "InstallerSummary",
 
   setup() {
     return { systemStatusStore: useSystemStatusStore() };
@@ -84,21 +84,21 @@ export default defineComponent({
 
   methods: {
     getIcon(a: AdapterStatus): string {
-      if (a.verified === true) return 'check';
-      if (a.configured) return 'radio_button_unchecked';
-      return 'remove';
+      if (a.verified === true) return "check";
+      if (a.configured) return "radio_button_unchecked";
+      return "remove";
     },
 
-    getState(a: AdapterStatus): 'ok' | 'warn' | 'idle' {
-      if (a.verified === true) return 'ok';
-      if (a.configured) return 'warn';
-      return 'idle';
+    getState(a: AdapterStatus): "ok" | "warn" | "idle" {
+      if (a.verified === true) return "ok";
+      if (a.configured) return "warn";
+      return "idle";
     },
 
     getDescription(a: AdapterStatus): string {
-      if (a.verified === true) return this.$t('installer.adapters.verified') as string;
-      if (a.configured) return this.$t('installer.adapters.configuredNotVerified') as string;
-      return this.$t('installer.adapters.notConfigured') as string;
+      if (a.verified === true) return this.$t("installer.adapters.verified") as string;
+      if (a.configured) return this.$t("installer.adapters.configuredNotVerified") as string;
+      return this.$t("installer.adapters.notConfigured") as string;
     },
   },
 });

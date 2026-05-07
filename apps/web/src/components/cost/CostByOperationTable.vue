@@ -28,12 +28,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { formatEur } from 'src/lib/format-eur';
-import type { CostAggregations } from 'src/stores/cost';
+import { formatEur } from "src/lib/format-eur";
+import type { CostAggregations } from "src/stores/cost";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CostByOperationTable',
+  name: "CostByOperationTable",
 
   props: {
     aggregations: { type: Object as PropType<CostAggregations | null>, default: null },

@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "bun:test";
-import { eq } from "drizzle-orm";
-import { db, projects, clusters, articles, contentPillars } from "@marketing-auto/db";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
+import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 import { PersistOutlineStep } from "../../src/article/steps/persist-outline.ts";
 import type { ArticleOutline } from "../../src/article/types.ts";
 import type { StepContext } from "../../src/engine/step.ts";
@@ -9,8 +9,10 @@ import type { StepContext } from "../../src/engine/step.ts";
 const OUTLINE: ArticleOutline = {
   title: "KI-Schreibtools im Vergleich: Was wirklich hilft",
   slug: "ki-schreibtools-vergleich",
-  metaDescription: "Welches KI-Schreibtool lohnt sich wirklich? Wir vergleichen die bekanntesten Tools nach Leistung, Preis und Anwendungsfall.",
-  introAngle: "KI-Schreibtools versprechen viel — aber was taugen sie im Alltag? Wir haben die wichtigsten Tools getestet und zeigen dir, welches für welchen Zweck taugt.",
+  metaDescription:
+    "Welches KI-Schreibtool lohnt sich wirklich? Wir vergleichen die bekanntesten Tools nach Leistung, Preis und Anwendungsfall.",
+  introAngle:
+    "KI-Schreibtools versprechen viel — aber was taugen sie im Alltag? Wir haben die wichtigsten Tools getestet und zeigen dir, welches für welchen Zweck taugt.",
   sections: [
     {
       h2: "Was KI-Schreibtools leisten",
@@ -41,7 +43,8 @@ const OUTLINE: ArticleOutline = {
       targetKeywords: [],
     },
   ],
-  heroImagePrompt: "Flat illustration of an AI brain with a glowing pen, soft blue palette, minimalist tech aesthetic",
+  heroImagePrompt:
+    "Flat illustration of an AI brain with a glowing pen, soft blue palette, minimalist tech aesthetic",
   heroImageStyle: "illustrated",
   estimatedTotalWords: 1500,
 };
@@ -63,41 +66,53 @@ describe("PersistOutlineStep", () => {
   });
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug: `persist-outline-test-${Date.now()}`,
-      name: "Persist Outline Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: `persist-outline-test-${Date.now()}`,
+        name: "Persist Outline Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning();
     projectId = p!.id;
 
-    const [pillar] = await db.insert(contentPillars).values({
-      projectId,
-      name: "AI Tools",
-      position: 0,
-    }).returning();
+    const [pillar] = await db
+      .insert(contentPillars)
+      .values({
+        projectId,
+        name: "AI Tools",
+        position: 0,
+      })
+      .returning();
 
-    const [c] = await db.insert(clusters).values({
-      projectId,
-      pillarId: pillar!.id,
-      name: "AI Writing",
-      pillar: "AI Tools",
-      cornerstoneKeywords: ["ki-schreibtools"],
-      satelliteKeywords: [],
-      status: "approved",
-    }).returning();
+    const [c] = await db
+      .insert(clusters)
+      .values({
+        projectId,
+        pillarId: pillar!.id,
+        name: "AI Writing",
+        pillar: "AI Tools",
+        cornerstoneKeywords: ["ki-schreibtools"],
+        satelliteKeywords: [],
+        status: "approved",
+      })
+      .returning();
     clusterId = c!.id;
   });
 
   beforeEach(async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: "ki-schreibtools",
-      cornerstoneKeyword: "ki-schreibtools",
-      status: "generating",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "ki-schreibtools",
+        cornerstoneKeyword: "ki-schreibtools",
+        status: "generating",
+        approvalMode: "manual",
+      })
+      .returning();
     articleId = a!.id;
   });
 
@@ -131,7 +146,7 @@ describe("PersistOutlineStep", () => {
     const step = new PersistOutlineStep();
     const out = await step.execute(
       { articleId, projectId, outline: OUTLINE, approvalMode: "manual" },
-      ctx(),
+      ctx()
     );
 
     expect(out.articleId).toBe(articleId);
@@ -142,7 +157,7 @@ describe("PersistOutlineStep", () => {
     const step = new PersistOutlineStep();
     const out = await step.execute(
       { articleId, projectId, outline: OUTLINE, approvalMode: "auto" },
-      ctx(),
+      ctx()
     );
 
     expect(out.nextAction).toBe("auto_continue");

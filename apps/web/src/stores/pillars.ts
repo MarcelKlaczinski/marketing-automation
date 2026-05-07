@@ -1,6 +1,6 @@
-import { defineStore } from 'pinia';
-import { api } from 'src/lib/api-client';
-import { HttpError } from 'src/lib/http-error';
+import { defineStore } from "pinia";
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
 
 export interface Pillar {
   id: string;
@@ -16,7 +16,7 @@ interface PillarsState {
   loading: boolean;
 }
 
-export const usePillarsStore = defineStore('pillars', {
+export const usePillarsStore = defineStore("pillars", {
   state: (): PillarsState => ({
     byProject: {},
     loading: false,
@@ -27,7 +27,7 @@ export const usePillarsStore = defineStore('pillars', {
       this.loading = true;
       try {
         const res = await api.get<{ ok: boolean; data: Pillar[] }>(
-          `/pillars?projectSlug=${encodeURIComponent(slug)}`,
+          `/pillars?projectSlug=${encodeURIComponent(slug)}`
         );
         this.byProject[slug] = res.data.data;
       } finally {
@@ -41,7 +41,7 @@ export const usePillarsStore = defineStore('pillars', {
         name,
       };
       if (description !== undefined) body.description = description;
-      const res = await api.post<{ ok: boolean; data: Pillar }>('/pillars', body);
+      const res = await api.post<{ ok: boolean; data: Pillar }>("/pillars", body);
       await this.fetchForProject(slug);
       return res.data.data;
     },
@@ -49,7 +49,7 @@ export const usePillarsStore = defineStore('pillars', {
     async update(
       slug: string,
       id: string,
-      patch: { name?: string; description?: string | null },
+      patch: { name?: string; description?: string | null }
     ): Promise<void> {
       await api.patch(`/pillars/${id}`, patch);
       await this.fetchForProject(slug);
@@ -61,10 +61,10 @@ export const usePillarsStore = defineStore('pillars', {
         await this.fetchForProject(slug);
         return { deleted: true };
       } catch (e) {
-        if (e instanceof HttpError && e.body && typeof e.body === 'object' && 'error' in e.body) {
+        if (e instanceof HttpError && e.body && typeof e.body === "object" && "error" in e.body) {
           // Cast justified: guarded by instanceof HttpError + 'error' in e.body above
           const body = e.body as { error: string; data?: { clusterCount: number } };
-          if (body.error === 'pillar_has_clusters') {
+          if (body.error === "pillar_has_clusters") {
             const clusterCount = body.data?.clusterCount;
             return clusterCount !== undefined
               ? { deleted: false, clusterCount }
@@ -75,7 +75,7 @@ export const usePillarsStore = defineStore('pillars', {
       }
     },
 
-    async move(slug: string, id: string, direction: 'up' | 'down'): Promise<void> {
+    async move(slug: string, id: string, direction: "up" | "down"): Promise<void> {
       await api.post(`/pillars/${id}/move`, { direction });
       await this.fetchForProject(slug);
     },

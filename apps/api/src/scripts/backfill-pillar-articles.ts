@@ -1,4 +1,4 @@
-import { db, clusters } from "@marketing-auto/db";
+import { clusters, db } from "@marketing-auto/db";
 import { recalcPillarArticleId } from "../routes/clusters.ts";
 
 async function main(): Promise<void> {

@@ -15,7 +15,9 @@ for await (const { installation } of app.eachInstallation.iterator()) {
       ? (installation.account as { login: string }).login
       : "?";
 
-  console.log(`Installation ${installation.id}\n  Account: ${accountLogin}\n  Repos: ${repoNames}\n`);
+  console.log(
+    `Installation ${installation.id}\n  Account: ${accountLogin}\n  Repos: ${repoNames}\n`
+  );
 }
 
 process.exit(0);

@@ -1,6 +1,6 @@
-import { lt } from "drizzle-orm";
 import { db, magicLinkTokens, sessions } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { lt } from "drizzle-orm";
 
 const log = createLogger("cleanup");
 
@@ -26,7 +26,7 @@ export async function runAuthCleanup(): Promise<{
 
   log.info(
     { tokensDeleted: tokensResult.length, sessionsDeleted: sessionsResult.length },
-    "Auth cleanup ran",
+    "Auth cleanup ran"
   );
 
   return {

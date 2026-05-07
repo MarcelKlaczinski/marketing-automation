@@ -1,20 +1,23 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, projects } from "@marketing-auto/db";
-import { loadProjectContext, _resetProjectContextCache } from "../src/skills/loader.ts";
+import { eq } from "drizzle-orm";
+import { _resetProjectContextCache, loadProjectContext } from "../src/skills/loader.ts";
 
 describe("loadProjectContext", () => {
   const slug = `loader-test-${Date.now()}`;
   let projectId: string;
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug,
-      name: "Loader Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-      marketingContextMd: "# Hello",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug,
+        name: "Loader Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+        marketingContextMd: "# Hello",
+      })
+      .returning();
     projectId = p!.id;
   });
 

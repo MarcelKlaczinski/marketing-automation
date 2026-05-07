@@ -1,28 +1,28 @@
+import { zValidator } from "@hono/zod-validator";
+import { encrypt } from "@marketing-auto/core";
+import { db, globalCredentials, projects, systemSettings } from "@marketing-auto/db";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { zValidator } from "@hono/zod-validator";
-import { eq, and } from "drizzle-orm";
-import { db, systemSettings, globalCredentials, projects } from "@marketing-auto/db";
-import { encrypt } from "@marketing-auto/core";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { requireAuth } from "../middleware/auth.ts";
 import {
-  getAllAdapterStatuses,
   checkPostgres,
   checkRedis,
+  getAllAdapterStatuses,
   getInitializedFlag,
   readAdapterCreds,
 } from "../lib/system-service.ts";
+import { requireAuth } from "../middleware/auth.ts";
 
 // Spec 32: adapter verify functions are called from routes rather than via core services.
 // Justified by spec Decision 10: each adapter owns its verify logic; the installer has no
 // pipeline/worker context, so there is no core service abstraction to route through.
 import { verifyAnthropic } from "@marketing-auto/adapter-anthropic/verify";
-import { verifyReplicate } from "@marketing-auto/adapter-replicate/verify";
-import { verifyR2 } from "@marketing-auto/adapter-storage/verify";
+import { verifyGitHubApp } from "@marketing-auto/adapter-astro-sync/verify";
 import { verifyDataForSeo } from "@marketing-auto/adapter-dataforseo/verify";
 import { verifySmtp } from "@marketing-auto/adapter-email/verify";
-import { verifyGitHubApp } from "@marketing-auto/adapter-astro-sync/verify";
+import { verifyReplicate } from "@marketing-auto/adapter-replicate/verify";
+import { verifyR2 } from "@marketing-auto/adapter-storage/verify";
 
 export const systemRoutes = new Hono();
 
@@ -198,7 +198,7 @@ systemRoutes.post("/initialize", async (c) => {
 
 async function runVerifyByAdapter(
   adapter: z.infer<typeof adapterEnum>,
-  creds: Record<string, string>,
+  creds: Record<string, string>
 ) {
   switch (adapter) {
     case "anthropic":
@@ -210,7 +210,8 @@ async function runVerifyByAdapter(
     case "r2":
       return verifyR2(creds);
     case "dataforseo":
-      if (!creds.login || !creds.password) return { ok: false, message: "Login or password missing" };
+      if (!creds.login || !creds.password)
+        return { ok: false, message: "Login or password missing" };
       return verifyDataForSeo(creds.login, creds.password);
     case "smtp":
       return verifySmtp(creds);

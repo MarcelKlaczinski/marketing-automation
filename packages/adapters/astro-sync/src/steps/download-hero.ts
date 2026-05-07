@@ -1,7 +1,7 @@
-import { z } from "zod";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { AstroSyncError } from "../types.ts";
 import { createLogger } from "@marketing-auto/shared";
+import { z } from "zod";
+import { AstroSyncError } from "../types.ts";
 
 const log = createLogger("astro-sync:hero");
 
@@ -25,17 +25,16 @@ export class DownloadHeroStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     log.debug({ url: input.heroImagePublicUrl }, "Downloading hero image");
 
     const res = await fetch(input.heroImagePublicUrl);
     if (!res.ok) {
-      throw new AstroSyncError(
-        `Failed to download hero image: HTTP ${res.status}`,
-        "image",
-      );
+      throw new AstroSyncError(`Failed to download hero image: HTTP ${res.status}`, "image");
     }
 
     const contentType = res.headers.get("content-type") ?? "image/png";

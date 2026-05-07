@@ -21,14 +21,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useArticlesStore } from 'src/stores/articles';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import PipelineActionRow from './PipelineActionRow.vue';
-import ArticleRecentRunsList from './ArticleRecentRunsList.vue';
-import type { ArticleDetail } from 'src/stores/articles';
-import type { ActionDef } from './PipelineActionRow.vue';
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { useArticlesStore } from "src/stores/articles";
+import type { ArticleDetail } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
+import ArticleRecentRunsList from "./ArticleRecentRunsList.vue";
+import PipelineActionRow from "./PipelineActionRow.vue";
+import type { ActionDef } from "./PipelineActionRow.vue";
 
 interface PipelineAction extends ActionDef {
   enabledWhen: (status: string) => boolean;
@@ -36,7 +36,7 @@ interface PipelineAction extends ActionDef {
 }
 
 export default defineComponent({
-  name: 'ArticleActionPanel',
+  name: "ArticleActionPanel",
 
   components: { PipelineActionRow, ArticleRecentRunsList },
 
@@ -44,7 +44,7 @@ export default defineComponent({
     detail: { type: Object as PropType<ArticleDetail>, required: true },
   },
 
-  emits: ['action-triggered'],
+  emits: ["action-triggered"],
 
   setup() {
     return {
@@ -58,43 +58,45 @@ export default defineComponent({
     const s = () => useArticlesStore();
     const actions: PipelineAction[] = [
       {
-        id: 'outline',
-        i18nKey: 'articles.actions.generateOutline',
-        icon: 'list',
+        id: "outline",
+        i18nKey: "articles.actions.generateOutline",
+        icon: "list",
         enabled: false,
-        enabledWhen: (status) => ['proposed', 'approved', 'failed'].includes(status),
+        enabledWhen: (status) => ["proposed", "approved", "failed"].includes(status),
         triggerFn: (id) => s().triggerOutline(id),
       },
       {
-        id: 'draft',
-        i18nKey: 'articles.actions.generateDraft',
-        icon: 'description',
+        id: "draft",
+        i18nKey: "articles.actions.generateDraft",
+        icon: "description",
         enabled: false,
-        enabledWhen: (status) => status === 'outline_review',
+        enabledWhen: (status) => status === "outline_review",
         triggerFn: (id) => s().triggerDraft(id),
       },
       {
-        id: 'sync',
-        i18nKey: 'articles.actions.syncToAstro',
-        icon: 'cloud_upload',
+        id: "sync",
+        i18nKey: "articles.actions.syncToAstro",
+        icon: "cloud_upload",
         enabled: false,
-        enabledWhen: (status) => ['ready_to_publish', 'published', 'blocked_by_pagespeed'].includes(status),
+        enabledWhen: (status) =>
+          ["ready_to_publish", "published", "blocked_by_pagespeed"].includes(status),
         triggerFn: (id) => s().triggerSync(id),
       },
       {
-        id: 'validate-pagespeed',
-        i18nKey: 'articles.actions.validatePagespeed',
-        icon: 'speed',
+        id: "validate-pagespeed",
+        i18nKey: "articles.actions.validatePagespeed",
+        icon: "speed",
         enabled: false,
-        enabledWhen: (status) => ['published', 'blocked_by_pagespeed', 'ready_to_publish'].includes(status),
+        enabledWhen: (status) =>
+          ["published", "blocked_by_pagespeed", "ready_to_publish"].includes(status),
         triggerFn: (id) => s().triggerPagespeedValidation(id),
       },
       {
-        id: 'extend-schema',
-        i18nKey: 'articles.actions.extendSchema',
-        icon: 'data_object',
+        id: "extend-schema",
+        i18nKey: "articles.actions.extendSchema",
+        icon: "data_object",
         enabled: false,
-        enabledWhen: (status) => ['final_review', 'ready_to_publish', 'published'].includes(status),
+        enabledWhen: (status) => ["final_review", "ready_to_publish", "published"].includes(status),
         triggerFn: (id) => s().triggerSchemaExtension(id),
       },
     ];
@@ -128,17 +130,19 @@ export default defineComponent({
       try {
         const result = await action.triggerFn(this.articleId);
         if (result.deduped) {
-          this.notify.info(this.$t('articles.actions.alreadyRunning') as string);
+          this.notify.info(this.$t("articles.actions.alreadyRunning") as string);
           return;
         }
-        this.notify.success(this.$t('articles.actions.triggered', { action: this.$t(action.i18nKey) }) as string);
-        this.$emit('action-triggered', { actionId: action.id, runId: result.runId });
+        this.notify.success(
+          this.$t("articles.actions.triggered", { action: this.$t(action.i18nKey) }) as string
+        );
+        this.$emit("action-triggered", { actionId: action.id, runId: result.runId });
       } catch (e) {
         if (e instanceof HttpError) {
           if (e.status === 402) {
-            this.notify.error(this.$t('cost.errors.limitExceeded') as string);
+            this.notify.error(this.$t("cost.errors.limitExceeded") as string);
           } else if (e.status === 423) {
-            this.notify.error(this.$t('projectPause.errors.queuePaused') as string);
+            this.notify.error(this.$t("projectPause.errors.queuePaused") as string);
           } else {
             this.notify.error(e.userMessage);
           }

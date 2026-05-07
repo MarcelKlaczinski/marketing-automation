@@ -1,7 +1,11 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { createLogger } from "@marketing-auto/shared";
-import { ApplyLinksStep, findValidAnchorPositions, isValidAnchorPosition } from "../../src/internal-linking/steps/apply-links.ts";
 import type { StepContext } from "../../src/engine/step.ts";
+import {
+  ApplyLinksStep,
+  findValidAnchorPositions,
+  isValidAnchorPosition,
+} from "../../src/internal-linking/steps/apply-links.ts";
 
 const mockCtx = (): StepContext => ({
   projectId: crypto.randomUUID(),
@@ -105,12 +109,14 @@ describe("ApplyLinksStep", () => {
   it("applies a single suggestion", async () => {
     const input = {
       bodyMd: BODY,
-      suggestions: [{
-        targetSlug: "claude-api-guide",
-        anchorText: "Claude API",
-        sectionHint: "Claude für Anfänger",
-        reasoning: "Direkter Verweis auf den Leitfaden",
-      }],
+      suggestions: [
+        {
+          targetSlug: "claude-api-guide",
+          anchorText: "Claude API",
+          sectionHint: "Claude für Anfänger",
+          reasoning: "Direkter Verweis auf den Leitfaden",
+        },
+      ],
       existingLinkSlugs: [],
     };
     const result = await step.execute(input, mockCtx());
@@ -123,12 +129,14 @@ describe("ApplyLinksStep", () => {
   it("rejects suggestion for already-linked target slug", async () => {
     const input = {
       bodyMd: BODY,
-      suggestions: [{
-        targetSlug: "claude-api-guide",
-        anchorText: "Claude API",
-        sectionHint: "Claude für Anfänger",
-        reasoning: "Test",
-      }],
+      suggestions: [
+        {
+          targetSlug: "claude-api-guide",
+          anchorText: "Claude API",
+          sectionHint: "Claude für Anfänger",
+          reasoning: "Test",
+        },
+      ],
       existingLinkSlugs: ["claude-api-guide"],
     };
     const result = await step.execute(input, mockCtx());
@@ -140,12 +148,14 @@ describe("ApplyLinksStep", () => {
   it("rejects suggestion when anchor text not found in body", async () => {
     const input = {
       bodyMd: BODY,
-      suggestions: [{
-        targetSlug: "nonexistent",
-        anchorText: "Phrase die nicht existiert",
-        sectionHint: "Irgendwo",
-        reasoning: "Test",
-      }],
+      suggestions: [
+        {
+          targetSlug: "nonexistent",
+          anchorText: "Phrase die nicht existiert",
+          sectionHint: "Irgendwo",
+          reasoning: "Test",
+        },
+      ],
       existingLinkSlugs: [],
     };
     const result = await step.execute(input, mockCtx());
@@ -207,12 +217,14 @@ describe("ApplyLinksStep", () => {
     const bodyWithAnchorInHeading = "## Lokale LLMs verstehen\n\nLokale LLMs sind sicher.";
     const input = {
       bodyMd: bodyWithAnchorInHeading,
-      suggestions: [{
-        targetSlug: "lokale-llms",
-        anchorText: "Lokale LLMs verstehen",
-        sectionHint: "Lokale LLMs",
-        reasoning: "Heading anchor — should be rejected",
-      }],
+      suggestions: [
+        {
+          targetSlug: "lokale-llms",
+          anchorText: "Lokale LLMs verstehen",
+          sectionHint: "Lokale LLMs",
+          reasoning: "Heading anchor — should be rejected",
+        },
+      ],
       existingLinkSlugs: [],
     };
     const result = await step.execute(input, mockCtx());
@@ -263,16 +275,18 @@ describe("ApplyLinksStep", () => {
   it("does not double-link an anchor already wrapped in a markdown link", async () => {
     const bodyWithLink = BODY.replace(
       "Claude API ist einfach zu nutzen",
-      "[Claude API](/blog/existing) ist einfach zu nutzen",
+      "[Claude API](/blog/existing) ist einfach zu nutzen"
     );
     const input = {
       bodyMd: bodyWithLink,
-      suggestions: [{
-        targetSlug: "new-guide",
-        anchorText: "Claude API",
-        sectionHint: "Claude für Anfänger",
-        reasoning: "Should be rejected — already inside a link",
-      }],
+      suggestions: [
+        {
+          targetSlug: "new-guide",
+          anchorText: "Claude API",
+          sectionHint: "Claude für Anfänger",
+          reasoning: "Should be rejected — already inside a link",
+        },
+      ],
       existingLinkSlugs: [],
     };
     const result = await step.execute(input, mockCtx());

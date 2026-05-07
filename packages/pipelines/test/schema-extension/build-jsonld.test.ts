@@ -1,7 +1,7 @@
-import { describe, it, expect } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { createLogger } from "@marketing-auto/shared";
-import { BuildJsonLdStep } from "../../src/schema-extension/steps/build-jsonld.ts";
 import type { StepContext } from "../../src/engine/step.ts";
+import { BuildJsonLdStep } from "../../src/schema-extension/steps/build-jsonld.ts";
 
 const mockCtx = (): StepContext => ({
   projectId: crypto.randomUUID(),
@@ -17,7 +17,9 @@ const BASE_ARTICLE = {
   title: "KI-Tools im Vergleich",
   slug: "ki-tools-vergleich",
   metaDescription: "Die besten KI-Tools für Content Creator.",
-  schemaJsonLd: [{ "@context": "https://schema.org", "@type": "Article", headline: "KI-Tools im Vergleich" }],
+  schemaJsonLd: [
+    { "@context": "https://schema.org", "@type": "Article", headline: "KI-Tools im Vergleich" },
+  ],
   heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
 };
 
@@ -32,8 +34,14 @@ const FAQ_DETECTION = {
   hasHowTo: false,
   faqQuestions: [
     { question: "Was ist ChatGPT?", answer: "ChatGPT ist ein KI-Chatbot von OpenAI." },
-    { question: "Ist ChatGPT kostenlos?", answer: "Es gibt eine kostenlose Version und ChatGPT Plus." },
-    { question: "Wie nutze ich ChatGPT?", answer: "Einfach auf chat.openai.com gehen und loslegen." },
+    {
+      question: "Ist ChatGPT kostenlos?",
+      answer: "Es gibt eine kostenlose Version und ChatGPT Plus.",
+    },
+    {
+      question: "Wie nutze ich ChatGPT?",
+      answer: "Einfach auf chat.openai.com gehen und loslegen.",
+    },
   ],
   howToSteps: [],
   howToName: null,
@@ -46,8 +54,14 @@ const HOWTO_DETECTION = {
   faqQuestions: [],
   howToSteps: [
     { name: "Account erstellen", text: "Gehe auf die Website und klicke auf Registrieren." },
-    { name: "API-Key generieren", text: "Navigiere zu Einstellungen und erstelle einen neuen Schlüssel." },
-    { name: "Erste Anfrage senden", text: "Nutze den Key im Authorization-Header deiner HTTP-Anfrage." },
+    {
+      name: "API-Key generieren",
+      text: "Navigiere zu Einstellungen und erstelle einen neuen Schlüssel.",
+    },
+    {
+      name: "Erste Anfrage senden",
+      text: "Nutze den Key im Authorization-Header deiner HTTP-Anfrage.",
+    },
   ],
   howToName: "Claude API einrichten",
   howToTotalTime: "PT15M",
@@ -68,12 +82,15 @@ describe("BuildJsonLdStep", () => {
   // ───── BreadcrumbList ─────────────────────────────────────────────────────
 
   it("always emits BreadcrumbList even when no FAQ or HowTo detected", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     expect(out.addedTypes).toContain("BreadcrumbList");
     const bc = out.schemaJsonLd.find((s) => s["@type"] === "BreadcrumbList");
@@ -82,12 +99,15 @@ describe("BuildJsonLdStep", () => {
   });
 
   it("BreadcrumbList without cluster has 3 items: Home → Blog → Article", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     const bc = out.schemaJsonLd.find((s) => s["@type"] === "BreadcrumbList")!;
     const items = bc["itemListElement"] as Array<Record<string, unknown>>;
@@ -99,12 +119,15 @@ describe("BuildJsonLdStep", () => {
   });
 
   it("BreadcrumbList with cluster has 4 items: Home → Blog → Cluster → Article", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: { name: "KI-Grundlagen", pillar: "AI Education" },
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: { name: "KI-Grundlagen", pillar: "AI Education" },
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     const bc = out.schemaJsonLd.find((s) => s["@type"] === "BreadcrumbList")!;
     const items = bc["itemListElement"] as Array<Record<string, unknown>>;
@@ -115,46 +138,53 @@ describe("BuildJsonLdStep", () => {
   });
 
   it("cluster URL slugifies German characters correctly", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: { name: "Künstliche Intelligenz & Überblick", pillar: "AI" },
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: { name: "Künstliche Intelligenz & Überblick", pillar: "AI" },
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     const bc = out.schemaJsonLd.find((s) => s["@type"] === "BreadcrumbList")!;
     const items = bc["itemListElement"] as Array<Record<string, unknown>>;
     const clusterItem = items[2]!;
     // ü→ue before NFD, ä→ae, ß→ss; & and spaces become dashes
     expect(clusterItem["item"]).toBe(
-      "https://ki-wissensraum.de/cluster/kuenstliche-intelligenz-ueberblick",
+      "https://ki-wissensraum.de/cluster/kuenstliche-intelligenz-ueberblick"
     );
   });
 
   it("slugify: ä→ae, ö→oe, ü→ue, ß→ss, strips diacritics, collapses non-alphanumerics", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: { name: "Größte Übersicht — Café", pillar: "x" },
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: { name: "Größte Übersicht — Café", pillar: "x" },
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     const bc = out.schemaJsonLd.find((s) => s["@type"] === "BreadcrumbList")!;
     const items = bc["itemListElement"] as Array<Record<string, unknown>>;
-    expect(items[2]!["item"]).toBe(
-      "https://ki-wissensraum.de/cluster/groesste-uebersicht-cafe",
-    );
+    expect(items[2]!["item"]).toBe("https://ki-wissensraum.de/cluster/groesste-uebersicht-cafe");
   });
 
   // ───── FAQPage ───────────────────────────────────────────────────────────
 
   it("adds FAQPage when hasFaq=true and 3+ questions", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: FAQ_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: FAQ_DETECTION,
+      },
+      mockCtx()
+    );
 
     expect(out.addedTypes).toContain("FAQPage");
     const faq = out.schemaJsonLd.find((s) => s["@type"] === "FAQPage")!;
@@ -169,30 +199,36 @@ describe("BuildJsonLdStep", () => {
   });
 
   it("does NOT add FAQPage when hasFaq=false", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     expect(out.addedTypes).not.toContain("FAQPage");
     expect(out.schemaJsonLd.find((s) => s["@type"] === "FAQPage")).toBeUndefined();
   });
 
   it("does NOT add FAQPage when hasFaq=true but fewer than 3 questions", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: {
-        ...FAQ_DETECTION,
-        faqQuestions: [
-          { question: "Frage 1?", answer: "Antwort 1." },
-          { question: "Frage 2?", answer: "Antwort 2." },
-        ],
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: {
+          ...FAQ_DETECTION,
+          faqQuestions: [
+            { question: "Frage 1?", answer: "Antwort 1." },
+            { question: "Frage 2?", answer: "Antwort 2." },
+          ],
+        },
       },
-    }, mockCtx());
+      mockCtx()
+    );
 
     expect(out.addedTypes).not.toContain("FAQPage");
   });
@@ -200,12 +236,15 @@ describe("BuildJsonLdStep", () => {
   // ───── HowTo ─────────────────────────────────────────────────────────────
 
   it("adds HowTo when hasHowTo=true, 3+ steps, and howToName set", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: HOWTO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: HOWTO_DETECTION,
+      },
+      mockCtx()
+    );
 
     expect(out.addedTypes).toContain("HowTo");
     const howto = out.schemaJsonLd.find((s) => s["@type"] === "HowTo")!;
@@ -221,52 +260,64 @@ describe("BuildJsonLdStep", () => {
   });
 
   it("does NOT add HowTo when hasHowTo=false", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: NO_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: NO_DETECTION,
+      },
+      mockCtx()
+    );
 
     expect(out.addedTypes).not.toContain("HowTo");
     expect(out.schemaJsonLd.find((s) => s["@type"] === "HowTo")).toBeUndefined();
   });
 
   it("does NOT add HowTo when howToName is null (even if steps exist)", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: { ...HOWTO_DETECTION, howToName: null },
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: { ...HOWTO_DETECTION, howToName: null },
+      },
+      mockCtx()
+    );
 
     expect(out.addedTypes).not.toContain("HowTo");
   });
 
   it("does NOT add HowTo when fewer than 3 steps", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: {
-        ...HOWTO_DETECTION,
-        howToSteps: [
-          { name: "Schritt 1", text: "Erster Schritt." },
-          { name: "Schritt 2", text: "Zweiter Schritt." },
-        ],
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: {
+          ...HOWTO_DETECTION,
+          howToSteps: [
+            { name: "Schritt 1", text: "Erster Schritt." },
+            { name: "Schritt 2", text: "Zweiter Schritt." },
+          ],
+        },
       },
-    }, mockCtx());
+      mockCtx()
+    );
 
     expect(out.addedTypes).not.toContain("HowTo");
   });
 
   it("omits totalTime field when howToTotalTime is null", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: { ...HOWTO_DETECTION, howToTotalTime: null },
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: { ...HOWTO_DETECTION, howToTotalTime: null },
+      },
+      mockCtx()
+    );
 
     const howto = out.schemaJsonLd.find((s) => s["@type"] === "HowTo")!;
     expect(howto).toBeDefined();
@@ -276,19 +327,22 @@ describe("BuildJsonLdStep", () => {
   // ───── All three types together ───────────────────────────────────────────
 
   it("emits BreadcrumbList + FAQPage + HowTo when both detected", async () => {
-    const out = await step.execute({
-      article: BASE_ARTICLE,
-      project: BASE_PROJECT,
-      cluster: { name: "Claude API", pillar: "AI Tools" },
-      detection: {
-        hasFaq: true,
-        hasHowTo: true,
-        faqQuestions: FAQ_DETECTION.faqQuestions,
-        howToSteps: HOWTO_DETECTION.howToSteps,
-        howToName: HOWTO_DETECTION.howToName,
-        howToTotalTime: HOWTO_DETECTION.howToTotalTime,
+    const out = await step.execute(
+      {
+        article: BASE_ARTICLE,
+        project: BASE_PROJECT,
+        cluster: { name: "Claude API", pillar: "AI Tools" },
+        detection: {
+          hasFaq: true,
+          hasHowTo: true,
+          faqQuestions: FAQ_DETECTION.faqQuestions,
+          howToSteps: HOWTO_DETECTION.howToSteps,
+          howToName: HOWTO_DETECTION.howToName,
+          howToTotalTime: HOWTO_DETECTION.howToTotalTime,
+        },
       },
-    }, mockCtx());
+      mockCtx()
+    );
 
     expect(out.addedTypes).toContain("BreadcrumbList");
     expect(out.addedTypes).toContain("FAQPage");
@@ -300,22 +354,29 @@ describe("BuildJsonLdStep", () => {
   // ───── Idempotency ────────────────────────────────────────────────────────
 
   it("replaces existing BreadcrumbList/FAQPage/HowTo entries on re-run (no duplicates)", async () => {
-    const existingBreadcrumb = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [] };
+    const existingBreadcrumb = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [],
+    };
     const existingFaq = { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: [] };
 
-    const out = await step.execute({
-      article: {
-        ...BASE_ARTICLE,
-        schemaJsonLd: [
-          { "@context": "https://schema.org", "@type": "Article", headline: "old" },
-          existingBreadcrumb,
-          existingFaq,
-        ],
+    const out = await step.execute(
+      {
+        article: {
+          ...BASE_ARTICLE,
+          schemaJsonLd: [
+            { "@context": "https://schema.org", "@type": "Article", headline: "old" },
+            existingBreadcrumb,
+            existingFaq,
+          ],
+        },
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: FAQ_DETECTION,
       },
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: FAQ_DETECTION,
-    }, mockCtx());
+      mockCtx()
+    );
 
     const breadcrumbs = out.schemaJsonLd.filter((s) => s["@type"] === "BreadcrumbList");
     const faqs = out.schemaJsonLd.filter((s) => s["@type"] === "FAQPage");
@@ -327,14 +388,21 @@ describe("BuildJsonLdStep", () => {
   });
 
   it("preserves existing Article JSON-LD from Spec 20 when adding new types", async () => {
-    const articleSchema = { "@context": "https://schema.org", "@type": "Article", headline: "KI-Tools im Vergleich" };
+    const articleSchema = {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: "KI-Tools im Vergleich",
+    };
 
-    const out = await step.execute({
-      article: { ...BASE_ARTICLE, schemaJsonLd: [articleSchema] },
-      project: BASE_PROJECT,
-      cluster: null,
-      detection: FAQ_DETECTION,
-    }, mockCtx());
+    const out = await step.execute(
+      {
+        article: { ...BASE_ARTICLE, schemaJsonLd: [articleSchema] },
+        project: BASE_PROJECT,
+        cluster: null,
+        detection: FAQ_DETECTION,
+      },
+      mockCtx()
+    );
 
     const articles = out.schemaJsonLd.filter((s) => s["@type"] === "Article");
     expect(articles).toHaveLength(1);

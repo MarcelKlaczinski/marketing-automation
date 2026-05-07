@@ -47,13 +47,13 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useProjectsStore } from 'src/stores/projects';
-import ProjectListCard from 'src/components/projects/ProjectListCard.vue';
-import ProjectCreateDialog from 'src/components/projects/ProjectCreateDialog.vue';
+import ProjectCreateDialog from "src/components/projects/ProjectCreateDialog.vue";
+import ProjectListCard from "src/components/projects/ProjectListCard.vue";
+import { useProjectsStore } from "src/stores/projects";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ProjectsPage',
+  name: "ProjectsPage",
 
   components: {
     ProjectListCard,
@@ -74,7 +74,7 @@ export default defineComponent({
 
   methods: {
     goToProject(slug: string): void {
-      void this.$router.push({ name: 'project-detail', params: { slug } });
+      void this.$router.push({ name: "project-detail", params: { slug } });
     },
 
     onProjectCreated(slug: string): void {

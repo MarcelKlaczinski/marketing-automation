@@ -1,6 +1,6 @@
-import { ref, type Ref } from 'vue';
-import { api } from 'src/lib/api-client';
-import { HttpError } from 'src/lib/http-error';
+import { api } from "src/lib/api-client";
+import { HttpError } from "src/lib/http-error";
+import { type Ref, ref } from "vue";
 
 interface UseApiResult<T> {
   data: Ref<T | null>;

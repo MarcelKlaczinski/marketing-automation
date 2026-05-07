@@ -1,7 +1,7 @@
-import { defineBoot } from '#q-app/wrappers';
-import { api } from 'src/lib/api-client';
+import { api } from "src/lib/api-client";
+import { defineBoot } from "#q-app/wrappers";
 
-declare module 'vue' {
+declare module "vue" {
   interface ComponentCustomProperties {
     $api: typeof api;
   }

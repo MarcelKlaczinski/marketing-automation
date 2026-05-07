@@ -140,75 +140,77 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, markRaw } from 'vue';
-import { Codemirror } from 'vue-codemirror';
-import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { EditorView, keymap } from '@codemirror/view';
-import { defaultKeymap, historyKeymap, history } from '@codemirror/commands';
-import { marked } from 'marked';
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { markdown } from "@codemirror/lang-markdown";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { EditorView, keymap } from "@codemirror/view";
+import { marked } from "marked";
+import { defineComponent, markRaw } from "vue";
+import { Codemirror } from "vue-codemirror";
 import {
   TOOLBAR_ITEMS,
+  type ToolbarItem,
   insertLink,
   insertTable,
-  type ToolbarItem,
-} from './markdown-editor-toolbar-config';
+} from "./markdown-editor-toolbar-config";
 
 export default defineComponent({
-  name: 'MarkdownEditor',
+  name: "MarkdownEditor",
 
   components: { Codemirror },
 
   props: {
-    modelValue: { type: String, default: '' },
+    modelValue: { type: String, default: "" },
     height: { type: Number, default: 320 },
   },
 
-  emits: ['update:modelValue', 'blur'],
+  emits: ["update:modelValue", "blur"],
 
   data() {
-    const isDark = document.body.classList.contains('body--dark');
+    const isDark = document.body.classList.contains("body--dark");
 
     const baseTheme = EditorView.theme({
-      '&': {
-        fontSize: '14px',
-        height: '100%',
+      "&": {
+        fontSize: "14px",
+        height: "100%",
       },
-      '.cm-content': {
+      ".cm-content": {
         fontFamily: '"JetBrains Mono", "SF Mono", Menlo, Consolas, monospace',
       },
-      '.cm-scroller': {
-        lineHeight: '1.55',
-        overflow: 'auto',
+      ".cm-scroller": {
+        lineHeight: "1.55",
+        overflow: "auto",
       },
-      '.cm-editor': {
-        height: '100%',
+      ".cm-editor": {
+        height: "100%",
       },
-      '.cm-editor.cm-focused': {
-        outline: 'none',
+      ".cm-editor.cm-focused": {
+        outline: "none",
       },
     });
 
     const toolbarKeymap = TOOLBAR_ITEMS.filter((it) => it.shortcut).map((it) => ({
       key: it.shortcut!,
       run: (view: EditorView) => {
-        const dispatch = (kind: 'table' | 'link') => {
+        const dispatch = (kind: "table" | "link") => {
           // data() properties aren't in scope at keymap-build time; cast is safe — these keys are defined in the return below
-          if (kind === 'link') (this as unknown as { linkDialogOpen: boolean }).linkDialogOpen = true;
-          if (kind === 'table') (this as unknown as { tableDialogOpen: boolean }).tableDialogOpen = true;
+          if (kind === "link")
+            (this as unknown as { linkDialogOpen: boolean }).linkDialogOpen = true;
+          if (kind === "table")
+            (this as unknown as { tableDialogOpen: boolean }).tableDialogOpen = true;
         };
         return it.action(view, dispatch);
       },
     }));
 
     return {
-      mode: 'edit' as 'edit' | 'preview' | 'split',
+      mode: "edit" as "edit" | "preview" | "split",
       localValue: this.modelValue,
       editorView: null as EditorView | null,
       toolbarItems: TOOLBAR_ITEMS,
       linkDialogOpen: false,
       tableDialogOpen: false,
-      linkDialog: { text: '', url: '' },
+      linkDialog: { text: "", url: "" },
       tableDialog: { rows: 3, cols: 3 },
       isMac: /Mac|iPod|iPhone|iPad/.test(navigator.platform),
       extensions: markRaw([
@@ -225,7 +227,7 @@ export default defineComponent({
   computed: {
     rendered(): string {
       const r = marked.parse(this.localValue);
-      return typeof r === 'string' ? r : '';
+      return typeof r === "string" ? r : "";
     },
   },
 
@@ -239,20 +241,24 @@ export default defineComponent({
 
   methods: {
     formatShortcut(shortcut: string): string {
-      const modKey = this.isMac ? 'Cmd' : 'Ctrl';
-      return shortcut.replace('Mod', modKey).replace('-', '+').toUpperCase();
+      const modKey = this.isMac ? "Cmd" : "Ctrl";
+      return shortcut.replace("Mod", modKey).replace("-", "+").toUpperCase();
     },
 
     onChange(value: string): void {
       this.localValue = value;
-      this.$emit('update:modelValue', value);
+      this.$emit("update:modelValue", value);
     },
 
     onCmReady(payload: { view: EditorView }): void {
       this.editorView = markRaw(payload.view) as EditorView;
-      payload.view.dom.addEventListener('blur', () => {
-        this.$emit('blur');
-      }, true);
+      payload.view.dom.addEventListener(
+        "blur",
+        () => {
+          this.$emit("blur");
+        },
+        true
+      );
     },
 
     onToolbarClick(item: ToolbarItem): void {
@@ -260,16 +266,16 @@ export default defineComponent({
       // markRaw prevents deep proxying at runtime, but Vue's reactive typing still wraps the stored value
       const view = this.editorView as unknown as EditorView;
       item.action(view, (kind) => {
-        if (kind === 'link') {
+        if (kind === "link") {
           const selected = view.state.sliceDoc(
             view.state.selection.main.from,
-            view.state.selection.main.to,
+            view.state.selection.main.to
           );
           this.linkDialog.text = selected;
-          this.linkDialog.url = '';
+          this.linkDialog.url = "";
           this.linkDialogOpen = true;
         }
-        if (kind === 'table') {
+        if (kind === "table") {
           this.tableDialogOpen = true;
         }
       });
@@ -278,9 +284,13 @@ export default defineComponent({
     confirmLinkInsert(): void {
       if (!this.editorView) return;
       // same markRaw proxy-typing issue as onToolbarClick
-      insertLink(this.editorView as unknown as EditorView, this.linkDialog.text, this.linkDialog.url);
+      insertLink(
+        this.editorView as unknown as EditorView,
+        this.linkDialog.text,
+        this.linkDialog.url
+      );
       this.linkDialogOpen = false;
-      this.linkDialog = { text: '', url: '' };
+      this.linkDialog = { text: "", url: "" };
     },
 
     confirmTableInsert(): void {

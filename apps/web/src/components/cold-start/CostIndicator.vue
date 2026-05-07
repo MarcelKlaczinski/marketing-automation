@@ -6,17 +6,17 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CostIndicator',
+  name: "CostIndicator",
   props: {
     costEur: { type: String, default: null },
   },
   computed: {
     formattedCost(): string {
-      const num = parseFloat(this.costEur ?? '0');
-      return isNaN(num) ? '0.00' : num.toFixed(2);
+      const num = Number.parseFloat(this.costEur ?? "0");
+      return Number.isNaN(num) ? "0.00" : num.toFixed(2);
     },
   },
 });

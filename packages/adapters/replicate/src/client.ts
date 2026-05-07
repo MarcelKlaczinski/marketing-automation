@@ -1,19 +1,19 @@
+import { randomUUID } from "node:crypto";
+import { putObject } from "@marketing-auto/adapter-storage";
+import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
+import { getGlobal } from "@marketing-auto/core/credentials";
+import { replicateImageCostEur, track } from "@marketing-auto/cost-tracker";
+import type { ReplicateModel as CostReplicateModel } from "@marketing-auto/cost-tracker";
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import Replicate from "replicate";
 import type { Prediction } from "replicate";
-import { randomUUID } from "node:crypto";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { getGlobal } from "@marketing-auto/core/credentials";
-import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
-import { track, replicateImageCostEur } from "@marketing-auto/cost-tracker";
-import type { ReplicateModel as CostReplicateModel } from "@marketing-auto/cost-tracker";
-import { putObject } from "@marketing-auto/adapter-storage";
+import { buildModelInput } from "./model-inputs.ts";
 import {
-  REPLICATE_MODELS,
   type GenerateImageInput,
   type GenerateImageResult,
+  REPLICATE_MODELS,
   ReplicateGenerationError,
 } from "./types.ts";
-import { buildModelInput } from "./model-inputs.ts";
 
 const log = createLogger("replicate");
 
@@ -24,7 +24,9 @@ async function getApiToken(): Promise<string> {
   if (fromVault) return fromVault;
   const fromEnv = getEnv().REPLICATE_API_TOKEN;
   if (fromEnv) return fromEnv;
-  throw new Error("Replicate API token not configured (set via installer or REPLICATE_API_TOKEN env)");
+  throw new Error(
+    "Replicate API token not configured (set via installer or REPLICATE_API_TOKEN env)"
+  );
 }
 
 async function getClient(): Promise<Replicate> {
@@ -39,14 +41,14 @@ async function getClient(): Promise<Replicate> {
 
 const COST_MODEL_MAP: Record<keyof typeof REPLICATE_MODELS, CostReplicateModel> = {
   "flux-1.1-pro": "black-forest-labs/flux-1.1-pro",
-  "flux-schnell":  "black-forest-labs/flux-schnell",
-  "ideogram-v3":   "ideogram-ai/ideogram-v3",
+  "flux-schnell": "black-forest-labs/flux-schnell",
+  "ideogram-v3": "ideogram-ai/ideogram-v3",
 };
 
 const FORMAT_TO_MIME: Record<string, string> = {
   webp: "image/webp",
-  jpg:  "image/jpeg",
-  png:  "image/png",
+  jpg: "image/jpeg",
+  png: "image/png",
 };
 
 /**
@@ -73,7 +75,7 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   await assertCostBudget(
     input.projectId,
     "replicate",
-    estimateCostEur("replicate", input.operation),
+    estimateCostEur("replicate", input.operation)
   );
 
   const client = await getClient();
@@ -82,14 +84,17 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   const ext = input.outputFormat ?? "webp";
   const mime = FORMAT_TO_MIME[ext] ?? "application/octet-stream";
 
-  log.debug({
-    projectId: input.projectId,
-    operation: input.operation,
-    model: input.model,
-    promptLen: input.prompt.length,
-    aspectRatio: input.aspectRatio,
-    storagePrefix: input.storagePrefix,
-  }, "Generating image");
+  log.debug(
+    {
+      projectId: input.projectId,
+      operation: input.operation,
+      model: input.model,
+      promptLen: input.prompt.length,
+      aspectRatio: input.aspectRatio,
+      storagePrefix: input.storagePrefix,
+    },
+    "Generating image"
+  );
 
   const trackInput = {
     projectId: input.projectId,
@@ -107,12 +112,12 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
 
         if (prediction.status === "failed" || prediction.status === "canceled") {
           throw new ReplicateGenerationError(
-            `Replicate prediction ${prediction.status}: ${String(prediction.error ?? "unknown error")}`,
+            `Replicate prediction ${prediction.status}: ${String(prediction.error ?? "unknown error")}`
           );
         }
         if (prediction.status !== "succeeded") {
           throw new ReplicateGenerationError(
-            `Replicate prediction unexpected status: ${prediction.status}`,
+            `Replicate prediction unexpected status: ${prediction.status}`
           );
         }
       } catch (e) {
@@ -123,14 +128,14 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
       const replicateUrl = extractImageUrl(prediction.output);
       if (!replicateUrl) {
         throw new ReplicateGenerationError(
-          `Replicate output did not contain a URL. Got: ${JSON.stringify(prediction.output).slice(0, 200)}`,
+          `Replicate output did not contain a URL. Got: ${JSON.stringify(prediction.output).slice(0, 200)}`
         );
       }
 
       const downloadResp = await fetch(replicateUrl);
       if (!downloadResp.ok) {
         throw new ReplicateGenerationError(
-          `Failed to download Replicate output: ${downloadResp.status} ${downloadResp.statusText}`,
+          `Failed to download Replicate output: ${downloadResp.status} ${downloadResp.statusText}`
         );
       }
       const bodyBuffer = new Uint8Array(await downloadResp.arrayBuffer());
@@ -156,8 +161,7 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
         prediction,
       };
     },
-    computeCostEur: () =>
-      replicateImageCostEur({ model: COST_MODEL_MAP[input.model], count: 1 }),
+    computeCostEur: () => replicateImageCostEur({ model: COST_MODEL_MAP[input.model], count: 1 }),
     metadata: (r: TrackResult) => ({
       model: input.model,
       modelSlug,
@@ -178,13 +182,16 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
         ? track({ ...trackInput, articleId: input.articleId })
         : track(trackInput));
 
-  log.info({
-    projectId: input.projectId,
-    operation: input.operation,
-    model: input.model,
-    publicUrl: result.publicUrl,
-    bytesStored: result.bytesStored,
-  }, "Image generated and stored");
+  log.info(
+    {
+      projectId: input.projectId,
+      operation: input.operation,
+      model: input.model,
+      publicUrl: result.publicUrl,
+      bytesStored: result.bytesStored,
+    },
+    "Image generated and stored"
+  );
 
   return {
     publicUrl: result.publicUrl,

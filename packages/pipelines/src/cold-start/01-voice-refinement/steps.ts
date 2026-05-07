@@ -1,18 +1,31 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 
 // ─── Step 1: Generate questions ──────────────────────────────────────────────
 
 const VoiceQuestionsOutputSchema = z.object({
-  questions: z.array(z.object({
-    id: z.string(),
-    category: z.enum(["voice", "audience", "pillar", "tone", "differentiation", "monetization"]),
-    question: z.string(),
-    why_it_matters: z.string(),
-    suggested_starter: z.string(),
-  })).min(8).max(15),
+  questions: z
+    .array(
+      z.object({
+        id: z.string(),
+        category: z.enum([
+          "voice",
+          "audience",
+          "pillar",
+          "tone",
+          "differentiation",
+          "monetization",
+        ]),
+        question: z.string(),
+        why_it_matters: z.string(),
+        suggested_starter: z.string(),
+      })
+    )
+    .min(8)
+    .max(15),
 });
 
 export type VoiceQuestionsOutput = z.infer<typeof VoiceQuestionsOutputSchema>;
@@ -31,12 +44,12 @@ export class GenerateVoiceQuestionsStep extends BaseStep<
   readonly outputSchema = VoiceQuestionsOutputSchema;
 
   override estimatedCostEur(_input: z.infer<typeof VoiceQuestionsInputSchema>): number {
-    return 0.10;
+    return 0.1;
   }
 
   async execute(
     input: z.infer<typeof VoiceQuestionsInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<VoiceQuestionsOutput> {
     const prompt = await buildSystemPrompt({
       skills: ["copywriting", "content-strategy"],
@@ -64,7 +77,7 @@ Rules:
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "voice-questions-generation",
+      operation: COST_OPS.COLD_START_VOICE_QUESTIONS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
@@ -102,12 +115,12 @@ export class SynthesizeVoiceContextStep extends BaseStep<
   readonly outputSchema = VoiceSynthesisOutputSchema;
 
   override estimatedCostEur(_input: z.infer<typeof VoiceSynthesisInputSchema>): number {
-    return 0.30;
+    return 0.3;
   }
 
   async execute(
     input: z.infer<typeof VoiceSynthesisInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<VoiceSynthesisOutput> {
     const prompt = await buildSystemPrompt({
       skills: ["copywriting", "content-strategy"],
@@ -131,7 +144,7 @@ Output strict JSON: { updatedMarketingContextMd, changesSummary }
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "voice-synthesis",
+      operation: COST_OPS.COLD_START_VOICE_SYNTHESIS,
       model: "claude-opus-4-7",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

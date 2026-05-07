@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { Pipeline } from "../engine/pipeline.ts";
-import { LoadArticleStep } from "./steps/load-article.ts";
-import { DetectRichTypesStep } from "./steps/detect-rich-types.ts";
 import { BuildJsonLdStep } from "./steps/build-jsonld.ts";
+import { DetectRichTypesStep } from "./steps/detect-rich-types.ts";
+import { LoadArticleStep } from "./steps/load-article.ts";
 import { PersistSchemaStep } from "./steps/persist-schema.ts";
 
 const InputSchema = z.object({
@@ -55,7 +55,7 @@ export class SchemaExtensionPipeline extends Pipeline<
     toStep: { name: string },
     output: unknown,
     pipelineInput: z.infer<typeof InputSchema>,
-    getStepOutput: <T = unknown>(name: string) => T | undefined,
+    getStepOutput: <T = unknown>(name: string) => T | undefined
   ): unknown {
     if (fromStep.name === "load-article" && toStep.name === "detect-rich-types") {
       const out = output as LoadArticleOutput;
@@ -101,14 +101,20 @@ export class SchemaExtensionPipeline extends Pipeline<
    * On failure: revert article status from schema_extending back to final_review so Marcel
    * can still sync. Graceful degradation — article gets published without rich types this round.
    */
-  override async afterError(_error: unknown, pipelineInput: z.infer<typeof InputSchema>): Promise<void> {
+  override async afterError(
+    _error: unknown,
+    pipelineInput: z.infer<typeof InputSchema>
+  ): Promise<void> {
     try {
       const { db, articles } = await import("@marketing-auto/db");
       const { eq } = await import("drizzle-orm");
-      await db.update(articles).set({
-        status: "final_review",
-        updatedAt: new Date(),
-      }).where(eq(articles.id, pipelineInput.articleId));
+      await db
+        .update(articles)
+        .set({
+          status: "final_review",
+          updatedAt: new Date(),
+        })
+        .where(eq(articles.id, pipelineInput.articleId));
     } catch {
       // Cleanup failure must not affect BullMQ retry behavior (Spec 20 lesson #6)
     }

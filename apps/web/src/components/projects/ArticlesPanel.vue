@@ -58,12 +58,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { LocalStorage } from 'quasar';
-import { useArticlesStore, type ArticleListItem } from 'src/stores/articles';
-import ArticleKanbanLane from 'src/components/articles/ArticleKanbanLane.vue';
+import { LocalStorage } from "quasar";
+import ArticleKanbanLane from "src/components/articles/ArticleKanbanLane.vue";
+import { type ArticleListItem, useArticlesStore } from "src/stores/articles";
+import { defineComponent } from "vue";
 
-type GroupBy = 'pillar' | 'cluster';
+type GroupBy = "pillar" | "cluster";
 
 interface KanbanLane {
   id: string;
@@ -73,10 +73,10 @@ interface KanbanLane {
   articles: ArticleListItem[];
 }
 
-const STORAGE_KEY_GROUP_BY = 'articles.groupBy';
+const STORAGE_KEY_GROUP_BY = "articles.groupBy";
 
 export default defineComponent({
-  name: 'ArticlesPanel',
+  name: "ArticlesPanel",
 
   components: { ArticleKanbanLane },
 
@@ -89,7 +89,8 @@ export default defineComponent({
   },
 
   data: () => ({
-    groupBy: (LocalStorage.getItem(STORAGE_KEY_GROUP_BY) as GroupBy | null) ?? 'pillar' as GroupBy,
+    groupBy:
+      (LocalStorage.getItem(STORAGE_KEY_GROUP_BY) as GroupBy | null) ?? ("pillar" as GroupBy),
   }),
 
   computed: {
@@ -98,7 +99,7 @@ export default defineComponent({
     },
 
     lanes(): KanbanLane[] {
-      if (this.groupBy === 'pillar') {
+      if (this.groupBy === "pillar") {
         return this.computeLanesByPillar();
       }
       return this.computeLanesByCluster();
@@ -126,7 +127,7 @@ export default defineComponent({
       >();
 
       for (const article of this.articles) {
-        const pillarKey = article.pillarId ?? '__no_pillar__';
+        const pillarKey = article.pillarId ?? "__no_pillar__";
         if (!byPillarThenCluster.has(pillarKey)) {
           byPillarThenCluster.set(pillarKey, {
             pillarName: article.pillarName,
@@ -135,24 +136,26 @@ export default defineComponent({
           });
         }
         const pillarBucket = byPillarThenCluster.get(pillarKey)!;
-        const clusterKey = article.clusterId ?? '__no_cluster__';
+        const clusterKey = article.clusterId ?? "__no_cluster__";
         if (!pillarBucket.clusters.has(clusterKey)) {
           pillarBucket.clusters.set(clusterKey, { name: article.clusterName, articles: [] });
         }
-        pillarBucket.clusters.get(clusterKey)!.articles.push(article);
+        pillarBucket.clusters.get(clusterKey)?.articles.push(article);
       }
 
       const lanes: KanbanLane[] = [];
-      const sortedPillars = Array.from(byPillarThenCluster.entries())
-        .sort((a, b) => a[1].pillarPosition - b[1].pillarPosition);
+      const sortedPillars = Array.from(byPillarThenCluster.entries()).sort(
+        (a, b) => a[1].pillarPosition - b[1].pillarPosition
+      );
 
       for (const [pillarKey, pillarBucket] of sortedPillars) {
-        const sortedClusters = Array.from(pillarBucket.clusters.entries())
-          .sort((a, b) => (a[1].name ?? 'zzz').localeCompare(b[1].name ?? 'zzz'));
+        const sortedClusters = Array.from(pillarBucket.clusters.entries()).sort((a, b) =>
+          (a[1].name ?? "zzz").localeCompare(b[1].name ?? "zzz")
+        );
         for (const [clusterKey, clusterBucket] of sortedClusters) {
           lanes.push({
             id: `${pillarKey}::${clusterKey}`,
-            type: 'pillar',
+            type: "pillar",
             pillarName: pillarBucket.pillarName,
             clusterName: clusterBucket.name,
             articles: clusterBucket.articles,
@@ -163,20 +166,24 @@ export default defineComponent({
     },
 
     computeLanesByCluster(): KanbanLane[] {
-      const byCluster = new Map<string, { clusterName: string | null; articles: ArticleListItem[] }>();
+      const byCluster = new Map<
+        string,
+        { clusterName: string | null; articles: ArticleListItem[] }
+      >();
       for (const article of this.articles) {
-        const clusterKey = article.clusterId ?? '__no_cluster__';
+        const clusterKey = article.clusterId ?? "__no_cluster__";
         if (!byCluster.has(clusterKey)) {
           byCluster.set(clusterKey, { clusterName: article.clusterName, articles: [] });
         }
-        byCluster.get(clusterKey)!.articles.push(article);
+        byCluster.get(clusterKey)?.articles.push(article);
       }
 
-      const sorted = Array.from(byCluster.entries())
-        .sort((a, b) => (a[1].clusterName ?? 'zzz').localeCompare(b[1].clusterName ?? 'zzz'));
+      const sorted = Array.from(byCluster.entries()).sort((a, b) =>
+        (a[1].clusterName ?? "zzz").localeCompare(b[1].clusterName ?? "zzz")
+      );
       return sorted.map(([key, bucket]) => ({
         id: key,
-        type: 'cluster' as const,
+        type: "cluster" as const,
         clusterName: bucket.clusterName,
         articles: bucket.articles,
       }));

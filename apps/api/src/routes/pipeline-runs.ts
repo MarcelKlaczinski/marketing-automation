@@ -1,16 +1,16 @@
-import { Hono } from "hono";
-import { eq, desc, like, and, gte, inArray, or } from "drizzle-orm";
 import {
-  db,
-  pipelineRuns,
-  astroSyncRuns,
-  pagespeedRuns,
-  schemaExtensionRuns,
-  linkRebuildRuns,
-  projects,
   articles,
+  astroSyncRuns,
   clusters,
+  db,
+  linkRebuildRuns,
+  pagespeedRuns,
+  pipelineRuns,
+  projects,
+  schemaExtensionRuns,
 } from "@marketing-auto/db";
+import { and, desc, eq, gte, inArray, like, or } from "drizzle-orm";
+import { Hono } from "hono";
 import { requireAuth } from "../middleware/auth.ts";
 
 export type ActivityType =
@@ -27,7 +27,12 @@ export type NormalizedStatus = "queued" | "running" | "completed" | "failed" | "
 
 export interface ActivityEntry {
   id: string;
-  source: "pipeline_runs" | "astro_sync_runs" | "pagespeed_runs" | "schema_extension_runs" | "link_rebuild_runs";
+  source:
+    | "pipeline_runs"
+    | "astro_sync_runs"
+    | "pagespeed_runs"
+    | "schema_extension_runs"
+    | "link_rebuild_runs";
   type: ActivityType;
   status: NormalizedStatus;
   projectId: string;
@@ -72,7 +77,7 @@ function normalizeStatus(raw: string): NormalizedStatus {
 
 function buildPipelineTitle(
   pipelineName: string,
-  articleInfo: { title: string | null; cornerstoneKeyword: string } | null | undefined,
+  articleInfo: { title: string | null; cornerstoneKeyword: string } | null | undefined
 ): string {
   if (articleInfo) return articleInfo.title ?? articleInfo.cornerstoneKeyword;
   if (pipelineName.startsWith("cold-start:")) {
@@ -83,7 +88,7 @@ function buildPipelineTitle(
 
 function buildPipelineSubtitle(
   pipelineName: string,
-  articleInfo: { title: string | null; cornerstoneKeyword: string } | null | undefined,
+  articleInfo: { title: string | null; cornerstoneKeyword: string } | null | undefined
 ): string | null {
   if (articleInfo) {
     if (pipelineName === "article:outline") return "Outline generation";
@@ -107,7 +112,7 @@ pipelineRunsRoutes.get("/active", async (c) => {
   const sinceParam = c.req.query("since");
   const since = sinceParam ? new Date(sinceParam) : new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  if (isNaN(since.getTime())) {
+  if (Number.isNaN(since.getTime())) {
     return c.json({ ok: false, error: "Invalid `since` parameter" }, 400);
   }
 
@@ -139,12 +144,14 @@ pipelineRunsRoutes.get("/active", async (c) => {
         or(
           inArray(pipelineRuns.status, ["queued", "running"] as Array<"queued" | "running">),
           and(
-            inArray(pipelineRuns.status, ["completed", "failed", "cancelled"] as Array<"completed" | "failed" | "cancelled">),
-            gte(pipelineRuns.createdAt, since),
-          ),
+            inArray(pipelineRuns.status, ["completed", "failed", "cancelled"] as Array<
+              "completed" | "failed" | "cancelled"
+            >),
+            gte(pipelineRuns.createdAt, since)
+          )
         ),
-        maybeProjectFilter(pipelineRuns.projectId),
-      ),
+        maybeProjectFilter(pipelineRuns.projectId)
+      )
     )
     .orderBy(desc(pipelineRuns.createdAt));
 
@@ -155,10 +162,18 @@ pipelineRunsRoutes.get("/active", async (c) => {
     .map((r) => (r.input as { articleId?: string } | null)?.articleId)
     .filter((id): id is string => typeof id === "string");
 
-  const articleInfoMap = new Map<string, { id: string; slug: string; title: string | null; cornerstoneKeyword: string }>();
+  const articleInfoMap = new Map<
+    string,
+    { id: string; slug: string; title: string | null; cornerstoneKeyword: string }
+  >();
   if (articleIdsFromPR.length > 0) {
     const rows = await db
-      .select({ id: articles.id, slug: articles.slug, title: articles.title, cornerstoneKeyword: articles.cornerstoneKeyword })
+      .select({
+        id: articles.id,
+        slug: articles.slug,
+        title: articles.title,
+        cornerstoneKeyword: articles.cornerstoneKeyword,
+      })
       .from(articles)
       .where(inArray(articles.id, articleIdsFromPR));
     for (const r of rows) articleInfoMap.set(r.id, r);
@@ -180,12 +195,9 @@ pipelineRunsRoutes.get("/active", async (c) => {
     .leftJoin(articles, eq(astroSyncRuns.articleId, articles.id))
     .where(
       and(
-        or(
-          eq(astroSyncRuns.status, "pending"),
-          gte(astroSyncRuns.startedAt, since),
-        ),
-        maybeProjectFilter(astroSyncRuns.projectId),
-      ),
+        or(eq(astroSyncRuns.status, "pending"), gte(astroSyncRuns.startedAt, since)),
+        maybeProjectFilter(astroSyncRuns.projectId)
+      )
     )
     .orderBy(desc(astroSyncRuns.startedAt));
 
@@ -205,12 +217,9 @@ pipelineRunsRoutes.get("/active", async (c) => {
     .leftJoin(articles, eq(pagespeedRuns.articleId, articles.id))
     .where(
       and(
-        or(
-          eq(pagespeedRuns.status, "pending"),
-          gte(pagespeedRuns.startedAt, since),
-        ),
-        maybeProjectFilter(pagespeedRuns.projectId),
-      ),
+        or(eq(pagespeedRuns.status, "pending"), gte(pagespeedRuns.startedAt, since)),
+        maybeProjectFilter(pagespeedRuns.projectId)
+      )
     )
     .orderBy(desc(pagespeedRuns.startedAt));
 
@@ -230,12 +239,9 @@ pipelineRunsRoutes.get("/active", async (c) => {
     .leftJoin(articles, eq(schemaExtensionRuns.articleId, articles.id))
     .where(
       and(
-        or(
-          eq(schemaExtensionRuns.status, "pending"),
-          gte(schemaExtensionRuns.startedAt, since),
-        ),
-        maybeProjectFilter(schemaExtensionRuns.projectId),
-      ),
+        or(eq(schemaExtensionRuns.status, "pending"), gte(schemaExtensionRuns.startedAt, since)),
+        maybeProjectFilter(schemaExtensionRuns.projectId)
+      )
     )
     .orderBy(desc(schemaExtensionRuns.startedAt));
 
@@ -253,12 +259,9 @@ pipelineRunsRoutes.get("/active", async (c) => {
     .leftJoin(clusters, eq(linkRebuildRuns.clusterId, clusters.id))
     .where(
       and(
-        or(
-          eq(linkRebuildRuns.status, "pending"),
-          gte(linkRebuildRuns.startedAt, since),
-        ),
-        maybeProjectFilter(linkRebuildRuns.projectId),
-      ),
+        or(eq(linkRebuildRuns.status, "pending"), gte(linkRebuildRuns.startedAt, since)),
+        maybeProjectFilter(linkRebuildRuns.projectId)
+      )
     )
     .orderBy(desc(linkRebuildRuns.startedAt));
 
@@ -353,9 +356,10 @@ pipelineRunsRoutes.get("/active", async (c) => {
 
   for (const row of linkRows) {
     const processed = row.run.articlesProcessed ?? 0;
-    const subtitle = processed > 0
-      ? `${row.run.articlesModified ?? 0} of ${processed} articles modified`
-      : "Internal linking rebuild";
+    const subtitle =
+      processed > 0
+        ? `${row.run.articlesModified ?? 0} of ${processed} articles modified`
+        : "Internal linking rebuild";
     entries.push({
       id: row.run.id,
       source: "link_rebuild_runs",
@@ -382,7 +386,10 @@ pipelineRunsRoutes.get("/active", async (c) => {
     const bActive = b.status === "queued" || b.status === "running";
     if (aActive && !bActive) return -1;
     if (!aActive && bActive) return 1;
-    return new Date(b.startedAt ?? b.createdAt).getTime() - new Date(a.startedAt ?? a.createdAt).getTime();
+    return (
+      new Date(b.startedAt ?? b.createdAt).getTime() -
+      new Date(a.startedAt ?? a.createdAt).getTime()
+    );
   });
 
   const activeCount = entries.filter((e) => e.status === "queued" || e.status === "running").length;

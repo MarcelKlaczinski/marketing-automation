@@ -1,7 +1,8 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { type RankedKeywordItem, dataforseo } from "@marketing-auto/adapter-dataforseo";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
-import { dataforseo, type RankedKeywordItem } from "@marketing-auto/adapter-dataforseo";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
@@ -18,11 +19,16 @@ export type Competitor = z.infer<typeof CompetitorSchema>;
 
 const CompetitorListSchema = z.object({
   competitors: z.array(CompetitorSchema).min(3).max(5),
-  review_questions: z.array(z.object({
-    id: z.string(),
-    question: z.string(),
-    why_it_matters: z.string(),
-  })).min(2).max(6),
+  review_questions: z
+    .array(
+      z.object({
+        id: z.string(),
+        question: z.string(),
+        why_it_matters: z.string(),
+      })
+    )
+    .min(2)
+    .max(6),
 });
 
 export type CompetitorListOutput = z.infer<typeof CompetitorListSchema>;
@@ -45,7 +51,7 @@ export class IdentifyCompetitorsStep extends BaseStep<
 
   async execute(
     input: z.infer<typeof IdentifyCompetitorsInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<CompetitorListOutput> {
     const prompt = await buildSystemPrompt({
       skills: ["competitor-profiling", "ai-seo"],
@@ -79,7 +85,7 @@ Output strict JSON:
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "competitor-identification",
+      operation: COST_OPS.COLD_START_COMPETITOR_IDENTIFICATION,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
@@ -96,23 +102,30 @@ Output strict JSON:
 // ─── Step 2: Fetch ranked keywords per competitor (DataForSEO) ────────────────
 
 const CompetitorKeywordsSchema = z.object({
-  competitorData: z.array(z.object({
-    domain: z.string(),
-    totalRankedKeywords: z.number(),
-    topKeywords: z.array(z.object({
-      keyword: z.string(),
-      position: z.number(),
-      url: z.string(),
-      searchVolume: z.number().nullable(),
-      etv: z.number().nullable(),
-    })),
-  })),
+  competitorData: z.array(
+    z.object({
+      domain: z.string(),
+      totalRankedKeywords: z.number(),
+      topKeywords: z.array(
+        z.object({
+          keyword: z.string(),
+          position: z.number(),
+          url: z.string(),
+          searchVolume: z.number().nullable(),
+          etv: z.number().nullable(),
+        })
+      ),
+    })
+  ),
 });
 
 export type CompetitorKeywordsOutput = z.infer<typeof CompetitorKeywordsSchema>;
 
 const FetchCompetitorKeywordsInputSchema = z.object({
-  competitors: z.array(z.object({ domain: z.string() })).min(1).max(5),
+  competitors: z
+    .array(z.object({ domain: z.string() }))
+    .min(1)
+    .max(5),
 });
 
 export class FetchCompetitorKeywordsStep extends BaseStep<
@@ -129,7 +142,7 @@ export class FetchCompetitorKeywordsStep extends BaseStep<
 
   async execute(
     input: z.infer<typeof FetchCompetitorKeywordsInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<CompetitorKeywordsOutput> {
     const competitorData = await Promise.all(
       input.competitors.map(async (c) => {
@@ -154,7 +167,7 @@ export class FetchCompetitorKeywordsStep extends BaseStep<
             etv: k.estimatedTrafficVolume,
           })),
         };
-      }),
+      })
     );
 
     return { competitorData };
@@ -186,12 +199,12 @@ export class SynthesizeCompetitorReportStep extends BaseStep<
   readonly outputSchema = CompetitorReportSchema;
 
   override estimatedCostEur(_input: z.infer<typeof SynthesizeCompetitorReportInputSchema>): number {
-    return 0.20;
+    return 0.2;
   }
 
   async execute(
     input: z.infer<typeof SynthesizeCompetitorReportInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<CompetitorReportOutput> {
     const prompt = await buildSystemPrompt({
       skills: ["competitor-profiling", "content-strategy", "ai-seo"],
@@ -234,10 +247,13 @@ Output strict JSON: { "reportMd": "...", "contentGaps": [...], "topicsToAvoid": 
           `- Why relevant: ${c.why_relevant}`,
           `- Expected strengths: ${c.expected_strengths.join(", ")}`,
           `- Total ranked keywords (top 30): ${data?.totalRankedKeywords ?? "?"}`,
-          `- Sample top keywords:`,
-          ...(data?.topKeywords.slice(0, 30).map(
-            (k) => `  - "${k.keyword}" (pos ${k.position}, vol ${k.searchVolume ?? "?"}, ETV ${k.etv ?? "?"})`,
-          ) ?? []),
+          "- Sample top keywords:",
+          ...(data?.topKeywords
+            .slice(0, 30)
+            .map(
+              (k) =>
+                `  - "${k.keyword}" (pos ${k.position}, vol ${k.searchVolume ?? "?"}, ETV ${k.etv ?? "?"})`
+            ) ?? []),
           "",
         ].join("\n");
       }),
@@ -246,7 +262,7 @@ Output strict JSON: { "reportMd": "...", "contentGaps": [...], "topicsToAvoid": 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "competitor-report-synthesis",
+      operation: COST_OPS.COLD_START_COMPETITOR_ANALYSIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

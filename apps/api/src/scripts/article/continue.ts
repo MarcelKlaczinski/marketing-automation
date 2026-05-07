@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-import { eq, and } from "drizzle-orm";
-import { db, articles } from "@marketing-auto/db";
+import { articles, db } from "@marketing-auto/db";
 import { continueArticleGeneration } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
+import { and, eq } from "drizzle-orm";
 
 const log = createLogger("cli:article-continue");
 
@@ -15,10 +15,7 @@ if (!cornerstone) {
 const [article] = await db
   .select({ id: articles.id, projectId: articles.projectId, status: articles.status })
   .from(articles)
-  .where(and(
-    eq(articles.cornerstoneKeyword, cornerstone),
-    eq(articles.status, "outline_review"),
-  ))
+  .where(and(eq(articles.cornerstoneKeyword, cornerstone), eq(articles.status, "outline_review")))
   .limit(1);
 
 if (!article) {

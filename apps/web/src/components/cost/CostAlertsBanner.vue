@@ -32,21 +32,21 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import type { CostAlert } from 'src/stores/cost';
+import type { CostAlert } from "src/stores/cost";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CostAlertsBanner',
+  name: "CostAlertsBanner",
 
   props: {
     alerts: { type: Array as PropType<CostAlert[]>, required: true },
   },
 
-  emits: ['acknowledge'],
+  emits: ["acknowledge"],
 
   methods: {
     formatEur(value: string): string {
-      return parseFloat(value).toFixed(2);
+      return Number.parseFloat(value).toFixed(2);
     },
   },
 });

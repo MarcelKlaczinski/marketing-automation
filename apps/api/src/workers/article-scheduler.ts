@@ -1,20 +1,15 @@
-import { eq, and, inArray } from "drizzle-orm";
-import { db, projects, clusters, articles } from "@marketing-auto/db";
+import { articles, clusters, db, projects } from "@marketing-auto/db";
 import { enqueueArticleGeneration } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
+import { and, eq, inArray } from "drizzle-orm";
 
 const log = createLogger("article-scheduler");
 
 const PER_PROJECT_DAILY_LIMIT = 2;
 
-const ACTIVE_STATUSES: Array<"generating" | "outline_review" | "drafting" | "final_review" | "ready_to_publish" | "published"> = [
-  "generating",
-  "outline_review",
-  "drafting",
-  "final_review",
-  "ready_to_publish",
-  "published",
-];
+const ACTIVE_STATUSES: Array<
+  "generating" | "outline_review" | "drafting" | "final_review" | "ready_to_publish" | "published"
+> = ["generating", "outline_review", "drafting", "final_review", "ready_to_publish", "published"];
 
 export async function runArticleSchedulerTick(): Promise<{
   projectsProcessed: number;
@@ -42,7 +37,10 @@ export async function runArticleSchedulerTick(): Promise<{
           log.info({ project: project.slug, cornerstone: kw }, "Auto-enqueued by scheduler");
         } catch (e) {
           errors++;
-          log.error({ err: e, project: project.slug, cornerstone: kw }, "Failed to enqueue article");
+          log.error(
+            { err: e, project: project.slug, cornerstone: kw },
+            "Failed to enqueue article"
+          );
         }
       }
     } catch (e) {

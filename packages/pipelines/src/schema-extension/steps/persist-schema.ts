@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { articles, db, schemaExtensionRuns } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { db, articles, schemaExtensionRuns } from "@marketing-auto/db";
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),
@@ -30,31 +30,39 @@ export class PersistSchemaStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const now = new Date();
 
-    await db.update(articles).set({
-      schemaJsonLd: input.schemaJsonLd,
-      status: "final_review",
-      updatedAt: now,
-    }).where(eq(articles.id, input.articleId));
+    await db
+      .update(articles)
+      .set({
+        schemaJsonLd: input.schemaJsonLd,
+        status: "final_review",
+        updatedAt: now,
+      })
+      .where(eq(articles.id, input.articleId));
 
-    const [run] = await db.insert(schemaExtensionRuns).values({
-      projectId: input.projectId,
-      articleId: input.articleId,
-      pipelineRunId: ctx.pipelineRunId ?? null,
-      status: "succeeded",
-      detectedTypes: {
-        breadcrumb: true,
-        faq: input.detection.hasFaq,
-        howto: input.detection.hasHowTo,
-      },
-      faqQuestionCount: input.detection.faqQuestions.length,
-      howtoStepCount: input.detection.howToSteps.length,
-      finishedAt: now,
-    }).returning();
+    const [run] = await db
+      .insert(schemaExtensionRuns)
+      .values({
+        projectId: input.projectId,
+        articleId: input.articleId,
+        pipelineRunId: ctx.pipelineRunId ?? null,
+        status: "succeeded",
+        detectedTypes: {
+          breadcrumb: true,
+          faq: input.detection.hasFaq,
+          howto: input.detection.hasHowTo,
+        },
+        faqQuestionCount: input.detection.faqQuestions.length,
+        howtoStepCount: input.detection.howToSteps.length,
+        finishedAt: now,
+      })
+      .returning();
 
     return {
       articleId: input.articleId,

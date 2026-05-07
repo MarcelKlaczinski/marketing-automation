@@ -1,4 +1,4 @@
-import type { AxiosError } from 'axios';
+import type { AxiosError } from "axios";
 
 interface ApiErrorBody {
   error?: string;
@@ -23,7 +23,7 @@ export class HttpError extends Error {
     originalCause?: AxiosError;
   }) {
     super(args.message);
-    this.name = 'HttpError';
+    this.name = "HttpError";
     this.status = args.status;
     this.code = args.code;
     this.body = args.body;
@@ -46,11 +46,11 @@ export class HttpError extends Error {
   get userMessage(): string {
     if (this.body?.message) return this.body.message;
     if (this.body?.error) return this.body.error;
-    if (this.isNetworkError) return 'Network error — check your connection';
-    if (this.isServerError) return 'Server error — please try again later';
-    if (this.status === 401) return 'Not authenticated';
-    if (this.status === 403) return 'Permission denied';
-    if (this.status === 404) return 'Not found';
+    if (this.isNetworkError) return "Network error — check your connection";
+    if (this.isServerError) return "Server error — please try again later";
+    if (this.status === 401) return "Not authenticated";
+    if (this.status === 403) return "Permission denied";
+    if (this.status === 404) return "Not found";
     return this.message;
   }
 

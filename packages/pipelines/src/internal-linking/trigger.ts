@@ -7,13 +7,16 @@ export async function enqueueClusterLinkRebuild(input: {
   triggerType: "auto_after_sync" | "manual_cli" | "manual_http";
   triggeringArticleId?: string;
 }): Promise<{ jobId: string; runId: string }> {
-  const [run] = await db.insert(linkRebuildRuns).values({
-    projectId: input.projectId,
-    clusterId: input.clusterId,
-    triggeringArticleId: input.triggeringArticleId ?? null,
-    triggerType: input.triggerType,
-    status: "pending",
-  }).returning();
+  const [run] = await db
+    .insert(linkRebuildRuns)
+    .values({
+      projectId: input.projectId,
+      clusterId: input.clusterId,
+      triggeringArticleId: input.triggeringArticleId ?? null,
+      triggerType: input.triggerType,
+      status: "pending",
+    })
+    .returning();
 
   const { jobId } = await enqueuePipeline({
     pipelineName: "cluster:link-rebuild",

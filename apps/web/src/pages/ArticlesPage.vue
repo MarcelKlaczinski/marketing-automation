@@ -5,11 +5,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import ArticlesPanel from 'src/components/projects/ArticlesPanel.vue';
+import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ArticlesPage',
+  name: "ArticlesPage",
 
   components: { ArticlesPanel },
 

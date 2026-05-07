@@ -1,7 +1,7 @@
-import { z } from "zod";
+import { articles, db } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { db, articles } from "@marketing-auto/db";
 import { ArticleOutlineSchemaOutput } from "../types.ts";
 
 const InputSchema = z.object({
@@ -25,18 +25,23 @@ export class PersistOutlineStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
-    await db.update(articles).set({
-      title: input.outline.title,
-      slug: input.outline.slug,
-      metaDescription: input.outline.metaDescription,
-      outline: input.outline,
-      status: "outline_review",
-      outlinePipelineRunId: ctx.pipelineRunId,
-      updatedAt: new Date(),
-    }).where(eq(articles.id, input.articleId));
+    await db
+      .update(articles)
+      .set({
+        title: input.outline.title,
+        slug: input.outline.slug,
+        metaDescription: input.outline.metaDescription,
+        outline: input.outline,
+        status: "outline_review",
+        outlinePipelineRunId: ctx.pipelineRunId,
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, input.articleId));
 
     const nextAction: "auto_continue" | "wait_for_review" =
       input.approvalMode === "auto" ? "auto_continue" : "wait_for_review";

@@ -11,10 +11,12 @@ const InputSchema = z.object({
 const OutputSchema = z.object({
   newBodyMd: z.string(),
   appliedSuggestions: z.array(LinkSuggestionSchema),
-  rejectedSuggestions: z.array(z.object({
-    suggestion: LinkSuggestionSchema,
-    reason: z.string(),
-  })),
+  rejectedSuggestions: z.array(
+    z.object({
+      suggestion: LinkSuggestionSchema,
+      reason: z.string(),
+    })
+  ),
   linksAdded: z.number().int().min(0),
 });
 
@@ -26,7 +28,9 @@ export class ApplyLinksStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     type Edit = {
@@ -64,13 +68,13 @@ export class ApplyLinksStep extends BaseStep<
       const start = anchorIndices[0]!;
       const end = start + suggestion.anchorText.length;
 
-      const overlapping = edits.find((e) =>
-        (start >= e.start && start < e.end) || (end > e.start && end <= e.end)
+      const overlapping = edits.find(
+        (e) => (start >= e.start && start < e.end) || (end > e.start && end <= e.end)
       );
       if (overlapping) {
         rejectedSuggestions.push({
           suggestion,
-          reason: `Overlaps with another link placement`,
+          reason: "Overlaps with another link placement",
         });
         continue;
       }

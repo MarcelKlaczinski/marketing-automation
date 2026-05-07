@@ -24,9 +24,9 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useArticlesStore } from 'src/stores/articles';
-import type { ArticleDetail } from 'src/stores/articles';
+import { useArticlesStore } from "src/stores/articles";
+import type { ArticleDetail } from "src/stores/articles";
+import { type PropType, defineComponent } from "vue";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -40,15 +40,15 @@ interface RunRow {
 }
 
 const STATUS_I18N: Record<string, string> = {
-  pending: 'articles.runs.status.pending',
-  succeeded: 'articles.runs.status.succeeded',
-  failed: 'articles.runs.status.failed',
-  errored: 'articles.runs.status.errored',
-  budget_exceeded: 'articles.runs.status.budgetExceeded',
+  pending: "articles.runs.status.pending",
+  succeeded: "articles.runs.status.succeeded",
+  failed: "articles.runs.status.failed",
+  errored: "articles.runs.status.errored",
+  budget_exceeded: "articles.runs.status.budgetExceeded",
 };
 
 export default defineComponent({
-  name: 'ArticleRecentRunsList',
+  name: "ArticleRecentRunsList",
 
   props: {
     detail: { type: Object as PropType<ArticleDetail>, required: true },
@@ -74,9 +74,9 @@ export default defineComponent({
         const r = raw as Record<string, unknown>;
         rows.push({
           key: `sync-${r.id as string}`,
-          icon: 'cloud_upload',
-          iconColor: 'primary',
-          labelKey: 'articles.runs.type.sync',
+          icon: "cloud_upload",
+          iconColor: "primary",
+          labelKey: "articles.runs.type.sync",
           status: r.status as string,
           startedAt: r.startedAt as string | null,
         });
@@ -86,9 +86,9 @@ export default defineComponent({
         const r = raw as Record<string, unknown>;
         rows.push({
           key: `pagespeed-${r.id as string}`,
-          icon: 'speed',
-          iconColor: 'secondary',
-          labelKey: 'articles.runs.type.pagespeed',
+          icon: "speed",
+          iconColor: "secondary",
+          labelKey: "articles.runs.type.pagespeed",
           status: r.status as string,
           startedAt: r.startedAt as string | null,
         });
@@ -98,9 +98,9 @@ export default defineComponent({
         const r = raw as Record<string, unknown>;
         rows.push({
           key: `schema-${r.id as string}`,
-          icon: 'data_object',
-          iconColor: 'accent',
-          labelKey: 'articles.runs.type.schema',
+          icon: "data_object",
+          iconColor: "accent",
+          labelKey: "articles.runs.type.schema",
           status: r.status as string,
           startedAt: r.startedAt as string | null,
         });
@@ -116,7 +116,7 @@ export default defineComponent({
     },
 
     hasInFlightRuns(): boolean {
-      return this.combinedRuns.some((r) => r.status === 'pending');
+      return this.combinedRuns.some((r) => r.status === "pending");
     },
   },
 
@@ -153,17 +153,17 @@ export default defineComponent({
     },
 
     statusI18nKey(status: string): string {
-      return STATUS_I18N[status] ?? 'articles.runs.status.unknown';
+      return STATUS_I18N[status] ?? "articles.runs.status.unknown";
     },
 
     formatTime(isoStr: string | null): string {
-      if (!isoStr) return this.$t('articles.lane.empty') as string;
+      if (!isoStr) return this.$t("articles.lane.empty") as string;
       const d = new Date(isoStr);
-      return d.toLocaleString(this.$i18n.locale === 'de' ? 'de-DE' : 'en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
+      return d.toLocaleString(this.$i18n.locale === "de" ? "de-DE" : "en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     },
   },

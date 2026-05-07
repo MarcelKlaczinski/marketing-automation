@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterAll } from "bun:test";
-import app from "../src/server.ts";
-import { db, users, magicLinkTokens } from "@marketing-auto/db";
+import { afterAll, beforeEach, describe, expect, it } from "bun:test";
+import { db, magicLinkTokens, users } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
+import app from "../src/server.ts";
 
 describe("Magic Link Auth", () => {
   const testEmail = `test-${Date.now()}@example.com`;
@@ -24,10 +24,10 @@ describe("Magic Link Auth", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: testEmail }),
-      }),
+      })
     );
-    expect(res.status).toBe(200);
-    const body = await res.json() as { ok: boolean };
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(true);
 
     const tokens = await db
@@ -45,10 +45,10 @@ describe("Magic Link Auth", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: fakeEmail }),
-      }),
+      })
     );
-    expect(res.status).toBe(200);
-    const body = await res.json() as { ok: boolean };
+    expect(res.status).toBe(202);
+    const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(true);
 
     const tokens = await db
@@ -60,7 +60,7 @@ describe("Magic Link Auth", () => {
 
   it("verify with invalid token redirects with error=invalid_link", async () => {
     const res = await app.fetch(
-      new Request("http://localhost/api/auth/verify?token=" + "x".repeat(48)),
+      new Request("http://localhost/api/auth/verify?token=" + "x".repeat(48))
     );
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("error=invalid_link");
@@ -69,16 +69,16 @@ describe("Magic Link Auth", () => {
   it("/me without cookie returns 401", async () => {
     const res = await app.fetch(new Request("http://localhost/api/auth/me"));
     expect(res.status).toBe(401);
-    const body = await res.json() as { ok: boolean };
+    const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(false);
   });
 
   it("logout without cookie still returns ok", async () => {
     const res = await app.fetch(
-      new Request("http://localhost/api/auth/logout", { method: "POST" }),
+      new Request("http://localhost/api/auth/logout", { method: "POST" })
     );
     expect(res.status).toBe(200);
-    const body = await res.json() as { ok: boolean };
+    const body = (await res.json()) as { ok: boolean };
     expect(body.ok).toBe(true);
   });
 
@@ -88,7 +88,7 @@ describe("Magic Link Auth", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "not-an-email" }),
-      }),
+      })
     );
     expect(res.status).toBe(400);
   });

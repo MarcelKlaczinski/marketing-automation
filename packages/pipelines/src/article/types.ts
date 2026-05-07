@@ -4,21 +4,29 @@ import { z } from "zod";
 
 export const ArticleOutlineSchema = z.object({
   title: z.string().min(20).max(120),
-  slug: z.string().regex(/^[a-z0-9-]+$/).max(100),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]+$/)
+    .max(100),
   metaDescription: z.string().min(80).max(180),
 
   /** Opening angle — ~150 words of intro guidance for the draft step. */
   introAngle: z.string().min(100).max(2000),
 
   /** H2 sections in writing order. */
-  sections: z.array(z.object({
-    h2: z.string().min(5).max(150),
-    intent: z.string().min(20).max(500),
-    keyPoints: z.array(z.string().min(10)).min(2).max(10),
-    estimatedWords: z.number().int().min(100).max(800),
-    // .default([]) makes _input optional; LLM may omit when no satellites apply.
-    targetKeywords: z.array(z.string()).default([]),
-  })).min(4).max(12),
+  sections: z
+    .array(
+      z.object({
+        h2: z.string().min(5).max(150),
+        intent: z.string().min(20).max(500),
+        keyPoints: z.array(z.string().min(10)).min(2).max(10),
+        estimatedWords: z.number().int().min(100).max(800),
+        // .default([]) makes _input optional; LLM may omit when no satellites apply.
+        targetKeywords: z.array(z.string()).default([]),
+      })
+    )
+    .min(4)
+    .max(12),
 
   /** Hero image direction for Flux 1.1 Pro. */
   heroImagePrompt: z.string().min(30).max(500),
@@ -63,13 +71,15 @@ export type SelfReviewIssue = z.infer<typeof SelfReviewIssueSchema>;
 export const ResearchResultSchema = z.object({
   serp: z.object({
     keyword: z.string(),
-    organicResults: z.array(z.object({
-      position: z.number(),
-      url: z.string(),
-      title: z.string(),
-      snippet: z.string(),
-      domain: z.string(),
-    })),
+    organicResults: z.array(
+      z.object({
+        position: z.number(),
+        url: z.string(),
+        title: z.string(),
+        snippet: z.string(),
+        domain: z.string(),
+      })
+    ),
     peopleAlsoAsk: z.array(z.string()),
     relatedSearches: z.array(z.string()),
     serpFeatures: z.array(z.string()),
@@ -88,8 +98,15 @@ export type ResearchResult = z.infer<typeof ResearchResultSchema>;
 export class ArticlePipelineError extends Error {
   constructor(
     message: string,
-    public readonly stage: "topic_intake" | "research" | "outline" | "draft" | "review" | "image" | "assembly",
-    public readonly originalCause?: unknown,
+    public readonly stage:
+      | "topic_intake"
+      | "research"
+      | "outline"
+      | "draft"
+      | "review"
+      | "image"
+      | "assembly",
+    public readonly originalCause?: unknown
   ) {
     super(message);
     this.name = "ArticlePipelineError";

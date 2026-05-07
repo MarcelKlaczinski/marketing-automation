@@ -1,22 +1,22 @@
 #!/usr/bin/env bun
-import { z } from "zod";
-import { eq } from "drizzle-orm";
 import { db, projects } from "@marketing-auto/db";
 import { runPipeline } from "@marketing-auto/pipelines";
 import {
-  CompetitorQuestionsPipeline,
   CompetitorAnalysisPipeline,
+  CompetitorQuestionsPipeline,
 } from "@marketing-auto/pipelines/cold-start";
 import {
-  coldStartFile,
   COLD_START_FILES,
-  readMarkdownIfExists,
-  writeMarkdownAtomic,
-  parseDataBlock,
-  renderDataBlock,
   DataBlockParseError,
+  coldStartFile,
+  parseDataBlock,
+  readMarkdownIfExists,
+  renderDataBlock,
+  writeMarkdownAtomic,
 } from "@marketing-auto/pipelines/cold-start/shared";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 const log = createLogger("cold-start:competitor");
 
@@ -26,16 +26,12 @@ const force = process.argv.includes("--force");
 
 if (!slug) {
   console.error(
-    'Usage: bun src/scripts/cold-start/02-competitor-analysis.ts <slug> [questions|analyze] [--force]',
+    "Usage: bun src/scripts/cold-start/02-competitor-analysis.ts <slug> [questions|analyze] [--force]"
   );
   process.exit(1);
 }
 
-const [project] = await db
-  .select()
-  .from(projects)
-  .where(eq(projects.slug, slug))
-  .limit(1);
+const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
 
 if (!project) {
   console.error(`Project not found: ${slug}. Create it via 'add-project' first.`);
@@ -49,7 +45,9 @@ const outputPath = coldStartFile(slug, COLD_START_FILES.competitorAnalysis);
 if (mode === "questions") {
   const existing = await readMarkdownIfExists(outputPath);
   if (existing && !force) {
-    console.error(`${outputPath} already exists. Use --force to overwrite (your edits will be lost).`);
+    console.error(
+      `${outputPath} already exists. Use --force to overwrite (your edits will be lost).`
+    );
     process.exit(1);
   }
 
@@ -58,7 +56,7 @@ if (mode === "questions") {
   const result = await runPipeline(
     new CompetitorQuestionsPipeline(),
     { projectSlug: slug },
-    { projectId: project.id },
+    { projectId: project.id }
   );
 
   if (!result.ok) {
@@ -66,13 +64,23 @@ if (mode === "questions") {
     process.exit(1);
   }
 
-  const md = renderQuestionsMarkdown(slug, result.output.competitors, result.output.review_questions);
+  const md = renderQuestionsMarkdown(
+    slug,
+    result.output.competitors,
+    result.output.review_questions
+  );
   await writeMarkdownAtomic(outputPath, md);
 
-  console.log(`Written ${result.output.competitors.length} suggested competitors to:\n   ${outputPath}\n`);
+  console.log(
+    `Written ${result.output.competitors.length} suggested competitors to:\n   ${outputPath}\n`
+  );
   console.log(`Next:`);
-  console.log(`  1. Edit the file — correct domains, add/remove competitors, answer the review questions`);
-  console.log(`  2. Run analyze: bun --filter @marketing-auto/api cold-start:competitor-analysis ${slug} analyze`);
+  console.log(
+    `  1. Edit the file — correct domains, add/remove competitors, answer the review questions`
+  );
+  console.log(
+    `  2. Run analyze: bun --filter @marketing-auto/api cold-start:competitor-analysis ${slug} analyze`
+  );
   process.exit(0);
 }
 
@@ -97,7 +105,7 @@ if (mode === "analyze") {
     competitors = parseDataBlock(
       questionsFile,
       "competitors",
-      z.array(CompetitorSchema).min(1).max(5),
+      z.array(CompetitorSchema).min(1).max(5)
     );
   } catch (e) {
     if (e instanceof DataBlockParseError) {
@@ -120,7 +128,7 @@ if (mode === "analyze") {
   const result = await runPipeline(
     new CompetitorAnalysisPipeline(),
     { projectSlug: slug, competitors },
-    { projectId: project.id },
+    { projectId: project.id }
   );
 
   if (!result.ok) {
@@ -151,7 +159,9 @@ if (mode === "analyze") {
   console.log(`Topics to avoid: ${result.output.topicsToAvoid.length}`);
   console.log(`\nNext:`);
   console.log(`  1. Review ${outputPath}`);
-  console.log(`  2. Then run phase 3: bun --filter @marketing-auto/api cold-start:cluster-plan ${slug}`);
+  console.log(
+    `  2. Then run phase 3: bun --filter @marketing-auto/api cold-start:cluster-plan ${slug}`
+  );
   process.exit(0);
 }
 
@@ -171,7 +181,7 @@ function renderQuestionsMarkdown(
     id: string;
     question: string;
     why_it_matters: string;
-  }>,
+  }>
 ): string {
   const sections: string[] = [
     `# Competitor Analysis: ${projectSlug}`,
@@ -182,7 +192,9 @@ function renderQuestionsMarkdown(
     "1. Review each competitor in the DATA block — correct domains, add missing ones, or remove irrelevant ones",
     "2. Keep the total between 1 and 5 competitors",
     "3. Answer the review questions at the bottom",
-    "4. Run analyze: `bun --filter @marketing-auto/api cold-start:competitor-analysis " + projectSlug + " analyze`",
+    "4. Run analyze: `bun --filter @marketing-auto/api cold-start:competitor-analysis " +
+      projectSlug +
+      " analyze`",
     "",
     "> **Important:** Only edit the YAML inside the DATA block. The `<!-- DATA:competitors BEGIN/END -->` markers must stay intact.",
     "",

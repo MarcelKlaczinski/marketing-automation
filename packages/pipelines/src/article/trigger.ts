@@ -1,7 +1,7 @@
-import { eq, and } from "drizzle-orm";
-import { db, articles, clusters, astroSyncRuns, pagespeedRuns } from "@marketing-auto/db";
-import { enqueuePipeline } from "../engine/queue.ts";
+import { articles, astroSyncRuns, clusters, db, pagespeedRuns } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { and, eq } from "drizzle-orm";
+import { enqueuePipeline } from "../engine/queue.ts";
 
 const log = createLogger("article-trigger");
 
@@ -25,15 +25,17 @@ export type EnqueueArticleGenerationResult = {
  * Creates an articles row in "generating" state and enqueues Job 1 (outline pipeline).
  */
 export async function enqueueArticleGeneration(
-  input: EnqueueArticleGenerationInput,
+  input: EnqueueArticleGenerationInput
 ): Promise<EnqueueArticleGenerationResult> {
   const existing = await db
     .select()
     .from(articles)
-    .where(and(
-      eq(articles.projectId, input.projectId),
-      eq(articles.cornerstoneKeyword, input.cornerstoneSlug),
-    ))
+    .where(
+      and(
+        eq(articles.projectId, input.projectId),
+        eq(articles.cornerstoneKeyword, input.cornerstoneSlug)
+      )
+    )
     .limit(1);
 
   let articleId: string;
@@ -43,37 +45,43 @@ export async function enqueueArticleGeneration(
     if (e.status === "generating" || e.status === "drafting") {
       throw new Error(
         `Article for "${input.cornerstoneSlug}" is already in progress (status: ${e.status}). ` +
-        `Wait for it to complete or fail.`,
+          `Wait for it to complete or fail.`
       );
     }
     if (e.status === "published") {
       throw new Error(
         `Article for "${input.cornerstoneSlug}" is already published. ` +
-        `To regenerate, set its status to "approved" first.`,
+          `To regenerate, set its status to "approved" first.`
       );
     }
     articleId = e.id;
-    await db.update(articles).set({
-      status: "generating",
-      approvalMode: input.approvalMode ?? "manual",
-      updatedAt: new Date(),
-    }).where(eq(articles.id, articleId));
+    await db
+      .update(articles)
+      .set({
+        status: "generating",
+        approvalMode: input.approvalMode ?? "manual",
+        updatedAt: new Date(),
+      })
+      .where(eq(articles.id, articleId));
   } else {
     const cluster = await findClusterByCornerstone(input.projectId, input.cornerstoneSlug);
     if (!cluster) {
       throw new Error(
         `No cluster found containing cornerstone keyword "${input.cornerstoneSlug}" for project. ` +
-        `Run cold-start cluster-plan first.`,
+          `Run cold-start cluster-plan first.`
       );
     }
-    const [created] = await db.insert(articles).values({
-      projectId: input.projectId,
-      clusterId: cluster.id,
-      slug: slugify(input.cornerstoneSlug),
-      cornerstoneKeyword: input.cornerstoneSlug,
-      status: "generating",
-      approvalMode: input.approvalMode ?? "manual",
-    }).returning();
+    const [created] = await db
+      .insert(articles)
+      .values({
+        projectId: input.projectId,
+        clusterId: cluster.id,
+        slug: slugify(input.cornerstoneSlug),
+        cornerstoneKeyword: input.cornerstoneSlug,
+        status: "generating",
+        approvalMode: input.approvalMode ?? "manual",
+      })
+      .returning();
     articleId = created!.id;
   }
 
@@ -89,8 +97,13 @@ export async function enqueueArticleGeneration(
   });
 
   log.info(
-    { articleId, cornerstoneSlug: input.cornerstoneSlug, approvalMode: input.approvalMode ?? "manual", outlineJobId },
-    "Article generation enqueued (Job 1)",
+    {
+      articleId,
+      cornerstoneSlug: input.cornerstoneSlug,
+      approvalMode: input.approvalMode ?? "manual",
+      outlineJobId,
+    },
+    "Article generation enqueued (Job 1)"
   );
 
   return { articleId, outlineJobId, status: "outline_enqueued" };
@@ -114,17 +127,20 @@ export async function continueArticleGeneration(input: {
   if (!article) throw new Error(`Article ${input.articleId} not found`);
   if (article.status !== "outline_review") {
     throw new Error(
-      `Article status is "${article.status}", expected "outline_review". Cannot continue.`,
+      `Article status is "${article.status}", expected "outline_review". Cannot continue.`
     );
   }
   if (!article.outline) {
     throw new Error(`Article has no outline persisted; Job 1 incomplete.`);
   }
 
-  await db.update(articles).set({
-    status: "drafting",
-    updatedAt: new Date(),
-  }).where(eq(articles.id, input.articleId));
+  await db
+    .update(articles)
+    .set({
+      status: "drafting",
+      updatedAt: new Date(),
+    })
+    .where(eq(articles.id, input.articleId));
 
   const { jobId: draftJobId } = await enqueuePipeline({
     pipelineName: "article:draft",
@@ -145,25 +161,30 @@ export async function continueArticleGeneration(input: {
 // ───── Helpers ────────────────────────────────────────────────────────────────
 
 async function findClusterByCornerstone(projectId: string, cornerstoneKeyword: string) {
-  const allClusters = await db
-    .select()
-    .from(clusters)
-    .where(eq(clusters.projectId, projectId));
+  const allClusters = await db.select().from(clusters).where(eq(clusters.projectId, projectId));
 
-  return allClusters.find((c) => {
-    const keywords = (c.cornerstoneKeywords as string[]) ?? [];
-    return keywords.includes(cornerstoneKeyword);
-  }) ?? null;
+  return (
+    allClusters.find((c) => {
+      const keywords = (c.cornerstoneKeywords as string[]) ?? [];
+      return keywords.includes(cornerstoneKeyword);
+    }) ?? null
+  );
 }
 
 export function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    // Expand German umlauts before NFD so they don't collapse to a/o/u
-    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
+  return (
+    input
+      .toLowerCase()
+      // Expand German umlauts before NFD so they don't collapse to a/o/u
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+  );
 }
 
 // ─── preRunId-aware wrappers (Spec 36) ───────────────────────────────────────
@@ -175,7 +196,7 @@ export function slugify(input: string): string {
 export type PreRunInput = { preRunId: string; articleId: string; projectId: string };
 
 export async function enqueueArticleOutlinePipeline(
-  input: PreRunInput,
+  input: PreRunInput
 ): Promise<{ jobId: string }> {
   const { jobId } = await enqueuePipeline({
     pipelineName: "article:outline",
@@ -186,9 +207,7 @@ export async function enqueueArticleOutlinePipeline(
   return { jobId };
 }
 
-export async function enqueueArticleDraftPipeline(
-  input: PreRunInput,
-): Promise<{ jobId: string }> {
+export async function enqueueArticleDraftPipeline(input: PreRunInput): Promise<{ jobId: string }> {
   const { jobId } = await enqueuePipeline({
     pipelineName: "article:draft",
     projectId: input.projectId,
@@ -198,9 +217,7 @@ export async function enqueueArticleDraftPipeline(
   return { jobId };
 }
 
-export async function enqueueArticleSyncPipeline(
-  input: PreRunInput,
-): Promise<{ jobId: string }> {
+export async function enqueueArticleSyncPipeline(input: PreRunInput): Promise<{ jobId: string }> {
   // Pre-create the astroSyncRuns row so the pipeline's afterError hook can
   // find and settle it even if the worker crashes before UpdateDbStatusStep.
   await db.insert(astroSyncRuns).values({
@@ -220,7 +237,7 @@ export async function enqueueArticleSyncPipeline(
 }
 
 export async function enqueuePagespeedValidationPipeline(
-  input: PreRunInput,
+  input: PreRunInput
 ): Promise<{ jobId: string }> {
   await db.insert(pagespeedRuns).values({
     projectId: input.projectId,
@@ -229,7 +246,8 @@ export async function enqueuePagespeedValidationPipeline(
     status: "pending",
   });
 
-  await db.update(articles)
+  await db
+    .update(articles)
     .set({ status: "validating", updatedAt: new Date() })
     .where(eq(articles.id, input.articleId));
 
@@ -243,7 +261,7 @@ export async function enqueuePagespeedValidationPipeline(
 }
 
 export async function enqueueSchemaExtensionPipeline(
-  input: PreRunInput,
+  input: PreRunInput
 ): Promise<{ jobId: string }> {
   const { jobId } = await enqueuePipeline({
     pipelineName: "article:schema-extension",

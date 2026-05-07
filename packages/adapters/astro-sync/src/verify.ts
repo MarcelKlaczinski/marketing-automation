@@ -1,5 +1,5 @@
-import { App } from "octokit";
 import { readFile } from "node:fs/promises";
+import { App } from "octokit";
 
 export interface VerifyResult {
   ok: boolean;

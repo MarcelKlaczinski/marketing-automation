@@ -1,5 +1,5 @@
-import { db, costLogs, projects } from "@marketing-auto/db";
-import { eq, sql, and, gte } from "drizzle-orm";
+import { costLogs, db, projects } from "@marketing-auto/db";
+import { and, eq, gte, sql } from "drizzle-orm";
 
 /**
  * Returns a per-service spend breakdown for a project for today and current month.
@@ -21,12 +21,7 @@ export async function getProjectCostSummary(projectId: string): Promise<{
       monthEur: sql<string>`COALESCE(SUM(${costLogs.costEur}), 0)`,
     })
     .from(costLogs)
-    .where(
-      and(
-        eq(costLogs.projectId, projectId),
-        gte(costLogs.createdAt, startOfMonth),
-      ),
-    )
+    .where(and(eq(costLogs.projectId, projectId), gte(costLogs.createdAt, startOfMonth)))
     .groupBy(costLogs.service);
 
   const today: Array<{ service: string; eur: number }> = [];
@@ -58,16 +53,22 @@ export async function printAllProjectsReport(): Promise<void> {
     .select({ id: projects.id, name: projects.name, slug: projects.slug })
     .from(projects);
 
+  // biome-ignore lint/suspicious/noConsoleLog: intentional CLI report output — pino JSON would be unreadable in terminal
   console.log("\n📊 Cost Report - " + new Date().toISOString().split("T")[0] + "\n");
 
   for (const p of allProjects) {
     const summary = await getProjectCostSummary(p.id);
+    // biome-ignore lint/suspicious/noConsoleLog: intentional CLI report output
     console.log(`\n=== ${p.name} (${p.slug}) ===`);
+    // biome-ignore lint/suspicious/noConsoleLog: intentional CLI report output
     console.log(`Today:  €${summary.totals.todayEur.toFixed(4)}`);
+    // biome-ignore lint/suspicious/noConsoleLog: intentional CLI report output
     console.log(`Month:  €${summary.totals.monthEur.toFixed(4)}`);
     if (summary.today.length > 0) {
+      // biome-ignore lint/suspicious/noConsoleLog: intentional CLI report output
       console.log("  Today by service:");
       for (const s of summary.today) {
+        // biome-ignore lint/suspicious/noConsoleLog: intentional CLI report output
         console.log(`    ${s.service.padEnd(20)} €${s.eur.toFixed(4)}`);
       }
     }

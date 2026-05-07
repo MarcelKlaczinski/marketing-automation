@@ -121,19 +121,19 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useProjectsStore } from 'src/stores/projects';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import type { Project, AstroRepoConfig, PagespeedThresholds } from 'src/stores/projects';
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { useProjectsStore } from "src/stores/projects";
+import type { AstroRepoConfig, PagespeedThresholds, Project } from "src/stores/projects";
+import { type PropType, defineComponent } from "vue";
 
 const DEFAULT_ASTRO_REPO: AstroRepoConfig = {
-  owner: '',
-  name: '',
+  owner: "",
+  name: "",
   installationId: 0,
-  defaultBranch: 'main',
-  contentRoot: 'src/content',
-  assetsRoot: 'src/assets',
+  defaultBranch: "main",
+  contentRoot: "src/content",
+  assetsRoot: "src/assets",
 };
 
 const DEFAULT_PAGESPEED: PagespeedThresholds = {
@@ -144,16 +144,21 @@ const DEFAULT_PAGESPEED: PagespeedThresholds = {
 };
 
 type PagespeedMetric = keyof PagespeedThresholds;
-const PAGESPEED_METRICS: PagespeedMetric[] = ['performance', 'accessibility', 'bestPractices', 'seo'];
+const PAGESPEED_METRICS: PagespeedMetric[] = [
+  "performance",
+  "accessibility",
+  "bestPractices",
+  "seo",
+];
 
 export default defineComponent({
-  name: 'ProjectSettingsPanel',
+  name: "ProjectSettingsPanel",
 
   props: {
     project: { type: Object as PropType<Project>, required: true },
   },
 
-  emits: ['updated'],
+  emits: ["updated"],
 
   setup() {
     return {
@@ -167,10 +172,13 @@ export default defineComponent({
       saving: false,
       pagespeedMetrics: PAGESPEED_METRICS,
       astroRepo: { ...DEFAULT_ASTRO_REPO, ...(this.project.astroRepo ?? {}) } as AstroRepoConfig,
-      domain: this.project.domain ?? '',
-      pagespeedThresholds: { ...DEFAULT_PAGESPEED, ...(this.project.pagespeedThresholds ?? {}) } as PagespeedThresholds,
-      linkRebuildBudgetMonthly: this.project.linkRebuildBudgetMonthly ?? '30.00',
-      _initialSnapshot: '',
+      domain: this.project.domain ?? "",
+      pagespeedThresholds: {
+        ...DEFAULT_PAGESPEED,
+        ...(this.project.pagespeedThresholds ?? {}),
+      } as PagespeedThresholds,
+      linkRebuildBudgetMonthly: this.project.linkRebuildBudgetMonthly ?? "30.00",
+      _initialSnapshot: "",
     };
   },
 
@@ -198,9 +206,7 @@ export default defineComponent({
       this.saving = true;
       try {
         const repoComplete =
-          !!this.astroRepo.owner &&
-          !!this.astroRepo.name &&
-          this.astroRepo.installationId > 0;
+          !!this.astroRepo.owner && !!this.astroRepo.name && this.astroRepo.installationId > 0;
 
         await this.projectsStore.update(this.project.slug, {
           astroRepo: repoComplete ? this.astroRepo : null,
@@ -210,8 +216,8 @@ export default defineComponent({
         });
 
         this._initialSnapshot = this.snapshot();
-        this.notify.success(this.$t('projects.settings.saveSuccess'));
-        this.$emit('updated');
+        this.notify.success(this.$t("projects.settings.saveSuccess"));
+        this.$emit("updated");
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {

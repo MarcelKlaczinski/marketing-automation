@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { spawn } from "node:child_process";
+import { z } from "zod";
 
 /**
  * Structural type describing the subset of Node.js ChildProcess used here.
@@ -7,9 +7,9 @@ import { spawn } from "node:child_process";
  * an EventEmitter, omitting .on() from the inferred return type of spawn().
  */
 interface SpawnResult {
-  readonly stdout: { on(event: 'data', cb: (d: Buffer) => void): void };
-  readonly stderr: { on(event: 'data', cb: (d: Buffer) => void): void };
-  on(event: 'error', cb: (err: Error) => void): void;
+  readonly stdout: { on(event: "data", cb: (d: Buffer) => void): void };
+  readonly stderr: { on(event: "data", cb: (d: Buffer) => void): void };
+  on(event: "error", cb: (err: Error) => void): void;
   kill(signal?: string): boolean;
   readonly pid?: number;
 }
@@ -43,9 +43,14 @@ export class AstroPreviewServerStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
-  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
+  async execute(
+    input: z.infer<typeof InputSchema>,
+    _ctx: StepContext
+  ): Promise<z.infer<typeof OutputSchema>> {
     const port = 14321;
 
     // Bun's node:child_process types don't model ChildProcess as an EventEmitter,
@@ -88,7 +93,7 @@ export class AstroPreviewServerStep extends BaseStep<
         proc.kill("SIGKILL");
         throw new PagespeedError(
           `Astro preview server did not start within ${START_TIMEOUT_MS}ms.\nstderr: ${stderr}\nstdout: ${stdout}`,
-          "preview",
+          "preview"
         );
       }
       await sleep(200);

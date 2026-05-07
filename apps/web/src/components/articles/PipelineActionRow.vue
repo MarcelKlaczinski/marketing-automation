@@ -16,7 +16,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
+import { type PropType, defineComponent } from "vue";
 
 export interface ActionDef {
   id: string;
@@ -26,14 +26,14 @@ export interface ActionDef {
 }
 
 export default defineComponent({
-  name: 'PipelineActionRow',
+  name: "PipelineActionRow",
 
   props: {
     action: { type: Object as PropType<ActionDef>, required: true },
     loading: { type: Boolean, default: false },
   },
 
-  emits: ['click'],
+  emits: ["click"],
 });
 </script>
 

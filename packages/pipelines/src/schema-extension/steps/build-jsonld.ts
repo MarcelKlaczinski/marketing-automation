@@ -14,10 +14,12 @@ const InputSchema = z.object({
     name: z.string(),
     domain: z.string(),
   }),
-  cluster: z.object({
-    name: z.string(),
-    pillar: z.string(),
-  }).nullable(),
+  cluster: z
+    .object({
+      name: z.string(),
+      pillar: z.string(),
+    })
+    .nullable(),
   detection: z.object({
     hasFaq: z.boolean(),
     hasHowTo: z.boolean(),
@@ -41,7 +43,9 @@ export class BuildJsonLdStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     const baseUrl = `https://${input.project.domain}`;
@@ -51,12 +55,14 @@ export class BuildJsonLdStep extends BaseStep<
     const addedTypes: Array<"BreadcrumbList" | "FAQPage" | "HowTo"> = [];
 
     // BreadcrumbList — always emitted
-    additions.push(buildBreadcrumb({
-      baseUrl,
-      articleTitle: input.article.title,
-      articleUrl,
-      cluster: input.cluster,
-    }));
+    additions.push(
+      buildBreadcrumb({
+        baseUrl,
+        articleTitle: input.article.title,
+        articleUrl,
+        cluster: input.cluster,
+      })
+    );
     addedTypes.push("BreadcrumbList");
 
     // FAQPage — if ≥3 questions detected
@@ -71,12 +77,14 @@ export class BuildJsonLdStep extends BaseStep<
       input.detection.howToSteps.length >= 3 &&
       input.detection.howToName
     ) {
-      additions.push(buildHowTo({
-        name: input.detection.howToName,
-        steps: input.detection.howToSteps,
-        totalTime: input.detection.howToTotalTime,
-        heroImageUrl: input.article.heroImagePublicUrl,
-      }));
+      additions.push(
+        buildHowTo({
+          name: input.detection.howToName,
+          steps: input.detection.howToSteps,
+          totalTime: input.detection.howToTotalTime,
+          heroImageUrl: input.article.heroImagePublicUrl,
+        })
+      );
       addedTypes.push("HowTo");
     }
 
@@ -129,7 +137,9 @@ function buildBreadcrumb(input: {
   };
 }
 
-function buildFaqPage(questions: Array<{ question: string; answer: string }>): Record<string, unknown> {
+function buildFaqPage(
+  questions: Array<{ question: string; answer: string }>
+): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -170,8 +180,12 @@ function buildHowTo(input: {
 function slugify(input: string): string {
   return input
     .toLowerCase()
-    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/ä/g, "ae")
+    .replace(/ö/g, "oe")
+    .replace(/ü/g, "ue")
+    .replace(/ß/g, "ss")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }

@@ -66,12 +66,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { useArticlesStore, type ArticleListItem } from 'src/stores/articles';
-import type { Cluster } from 'src/stores/clusters';
+import { type ArticleListItem, useArticlesStore } from "src/stores/articles";
+import type { Cluster } from "src/stores/clusters";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ArticleMoveDialog',
+  name: "ArticleMoveDialog",
 
   props: {
     modelValue: { type: Boolean, default: false },
@@ -80,7 +80,7 @@ export default defineComponent({
     allClusters: { type: Array as PropType<Cluster[]>, required: true },
   },
 
-  emits: ['update:modelValue', 'confirm'],
+  emits: ["update:modelValue", "confirm"],
 
   setup() {
     return { articlesStore: useArticlesStore() };
@@ -104,9 +104,9 @@ export default defineComponent({
     targetOptions(): Array<{ label: string; value: string | null }> {
       const otherClusters = this.allClusters.filter((c) => c.id !== this.fromCluster?.id);
       return [
-        { label: this.$t('clusters.dialogs.uncategorized') as string, value: null },
+        { label: this.$t("clusters.dialogs.uncategorized") as string, value: null },
         ...otherClusters.map((c) => ({
-          label: `${c.pillarName ? c.pillarName + ' › ' : ''}${c.name}`,
+          label: `${c.pillarName ? c.pillarName + " › " : ""}${c.name}`,
           value: c.id,
         })),
       ];
@@ -130,13 +130,9 @@ export default defineComponent({
 
   methods: {
     onConfirm(): void {
-      if (
-        !this.fromCluster ||
-        this.selected.length === 0 ||
-        this.targetClusterId === undefined
-      )
+      if (!this.fromCluster || this.selected.length === 0 || this.targetClusterId === undefined)
         return;
-      this.$emit('confirm', {
+      this.$emit("confirm", {
         fromClusterId: this.fromCluster.id,
         articleIds: this.selected,
         toClusterId: this.targetClusterId,

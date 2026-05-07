@@ -1,13 +1,13 @@
-import { Queue, Worker, type JobsOptions } from "bullmq";
+import { registerQueuePauser } from "@marketing-auto/core/cost";
+import { db, pipelineRuns } from "@marketing-auto/db";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import { type JobsOptions, Queue, Worker } from "bullmq";
+import { eq } from "drizzle-orm";
 import IORedis from "ioredis";
 import { z } from "zod";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { eq } from "drizzle-orm";
-import { db, pipelineRuns } from "@marketing-auto/db";
-import { registerQueuePauser } from "@marketing-auto/core/cost";
-import { runPipeline } from "./runner.ts";
 import type { Pipeline } from "./pipeline.ts";
 import { pipelineRegistry } from "./registry.ts";
+import { runPipeline } from "./runner.ts";
 
 const jobDataSchema = z.object({
   pipelineName: z.string(),
@@ -48,8 +48,12 @@ export function getPipelineQueue(): Queue {
   // Single global queue — pausing it is acceptable for the single-tenant setup.
   // Multi-tenant deployments would need per-project queues (out of scope).
   registerQueuePauser(
-    async (_projectId: string) => { await _queue!.pause(); },
-    async (_projectId: string) => { await _queue!.resume(); },
+    async (_projectId: string) => {
+      await _queue!.pause();
+    },
+    async (_projectId: string) => {
+      await _queue!.resume();
+    }
   );
 
   return _queue;
@@ -77,7 +81,7 @@ export async function enqueuePipeline(input: EnqueuePipelineInput): Promise<{ jo
       input: input.input,
       preRunId: input.preRunId,
     },
-    input.jobOptions,
+    input.jobOptions
   );
   return { jobId: String(job.id) };
 }
@@ -105,9 +109,10 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         throw new Error(`Pipeline not registered: ${pipelineName}`);
       }
 
-      const runOpts: Parameters<typeof runPipeline>[2] = preRunId !== undefined
-        ? { projectId, jobId: String(job.id), preRunId }
-        : { projectId, jobId: String(job.id) };
+      const runOpts: Parameters<typeof runPipeline>[2] =
+        preRunId !== undefined
+          ? { projectId, jobId: String(job.id), preRunId }
+          : { projectId, jobId: String(job.id) };
 
       const result = await runPipeline(
         pipeline as Pipeline<unknown, unknown>,
@@ -115,7 +120,7 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         runOpts,
         async (percent) => {
           await job.updateProgress(percent);
-        },
+        }
       );
 
       if (!result.ok) {
@@ -127,7 +132,7 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
     {
       connection: getConnection(),
       concurrency,
-    },
+    }
   );
 
   worker.on("ready", () => log.info({ concurrency }, "Pipeline worker started"));
@@ -143,7 +148,8 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
     if (isCostError && job?.data?.preRunId) {
       // pipelineRuns.output is $type<Record<string,unknown>>; literal needs cast to match
       const costOutput: Record<string, unknown> = { errorType: "cost_limit_exceeded" };
-      await db.update(pipelineRuns)
+      await db
+        .update(pipelineRuns)
         .set({ output: costOutput })
         .where(eq(pipelineRuns.id, String(job.data.preRunId)))
         .catch((updateErr: unknown) => {

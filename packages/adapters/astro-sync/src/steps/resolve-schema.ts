@@ -1,12 +1,8 @@
-import { z } from "zod";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { getInstallationOctokit } from "../github-auth.ts";
-import {
-  AstroSyncError,
-  type AstroRepoConfig,
-  type FrontmatterField,
-} from "../types.ts";
 import { createLogger } from "@marketing-auto/shared";
+import { z } from "zod";
+import { getInstallationOctokit } from "../github-auth.ts";
+import { type AstroRepoConfig, AstroSyncError, type FrontmatterField } from "../types.ts";
 
 const log = createLogger("astro-sync:schema");
 
@@ -17,12 +13,14 @@ const InputSchema = z.object({
 const OutputSchema = z.object({
   collectionInfo: z.object({
     collectionName: z.literal("blog"),
-    fields: z.array(z.object({
-      name: z.string(),
-      type: z.string(),
-      required: z.boolean(),
-      hasDefault: z.boolean(),
-    })),
+    fields: z.array(
+      z.object({
+        name: z.string(),
+        type: z.string(),
+        required: z.boolean(),
+        hasDefault: z.boolean(),
+      })
+    ),
   }),
   configFileSha: z.string(),
 });
@@ -35,7 +33,9 @@ export class ResolveSchemaStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     const repo = input.astroRepo as AstroRepoConfig;
@@ -53,10 +53,12 @@ export class ResolveSchemaStep extends BaseStep<
 
     for (const path of configPaths) {
       try {
-        const res = await octokit.request(
-          "GET /repos/{owner}/{repo}/contents/{path}",
-          { owner: repo.owner, repo: repo.name, path, ref: repo.defaultBranch },
-        );
+        const res = await octokit.request("GET /repos/{owner}/{repo}/contents/{path}", {
+          owner: repo.owner,
+          repo: repo.name,
+          path,
+          ref: repo.defaultBranch,
+        });
         if (Array.isArray(res.data)) continue;
         if (res.data.type !== "file" || !res.data.content) continue;
 
@@ -75,7 +77,7 @@ export class ResolveSchemaStep extends BaseStep<
     if (!content || !sha || !foundPath) {
       throw new AstroSyncError(
         `Could not find Astro content config in ${repo.contentRoot}/. Tried: ${configPaths.join(", ")}`,
-        "schema",
+        "schema"
       );
     }
 
@@ -117,9 +119,7 @@ export function parseBlogSchema(configSource: string): FrontmatterField[] {
 
 function extractBlogSchemaBody(source: string): string | null {
   // Find the blog collection reference (any of the common patterns)
-  const blogIdx = source.search(
-    /(?:const|let|var)\s+blog\s*=|blog\s*:\s*defineCollection/,
-  );
+  const blogIdx = source.search(/(?:const|let|var)\s+blog\s*=|blog\s*:\s*defineCollection/);
   const searchFrom = blogIdx >= 0 ? blogIdx : source.indexOf("blog");
   if (searchFrom < 0) return null;
 
@@ -130,8 +130,7 @@ function extractBlogSchemaBody(source: string): string | null {
   if (!relMatch?.index) return null;
 
   // Position of the opening `{` of z.object({
-  const openBraceIdx =
-    searchFrom + relMatch.index + relMatch[0].length - 1;
+  const openBraceIdx = searchFrom + relMatch.index + relMatch[0].length - 1;
 
   // Walk forward counting braces to find the balanced closing `}`
   return bracketBalanced(source, openBraceIdx);

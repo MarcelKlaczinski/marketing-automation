@@ -87,20 +87,20 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { useColdStartStore } from 'src/stores/cold-start';
-import { usePipelineRunPolling } from 'src/composables/usePipelineRunPolling';
+import { usePipelineRunPolling } from "src/composables/usePipelineRunPolling";
+import { useColdStartStore } from "src/stores/cold-start";
+import { defineComponent, ref } from "vue";
 
-type Phase = 'idle' | 'questions-running' | 'questions-ready' | 'synthesize-running' | 'complete';
+type Phase = "idle" | "questions-running" | "questions-ready" | "synthesize-running" | "complete";
 
 export default defineComponent({
-  name: 'Phase1VoiceRefinement',
+  name: "Phase1VoiceRefinement",
 
   props: {
     slug: { type: String, required: true },
   },
 
-  emits: ['done'],
+  emits: ["done"],
 
   setup() {
     const questionsRunId = ref<string | null>(null);
@@ -118,23 +118,27 @@ export default defineComponent({
     triggering: false,
     questions: [] as { question: string }[],
     answers: [] as string[],
-    errorMsg: '',
+    errorMsg: "",
   }),
 
   computed: {
-    questionsRun() { return this.questionsPolling.run.value; },
-    synthesizeRun() { return this.synthesizePolling.run.value; },
+    questionsRun() {
+      return this.questionsPolling.run.value;
+    },
+    synthesizeRun() {
+      return this.synthesizePolling.run.value;
+    },
 
     phase(): Phase {
       const sRun = this.synthesizeRun;
-      if (sRun?.status === 'running' || sRun?.status === 'queued') return 'synthesize-running';
-      if (sRun?.status === 'completed') return 'complete';
+      if (sRun?.status === "running" || sRun?.status === "queued") return "synthesize-running";
+      if (sRun?.status === "completed") return "complete";
 
       const qRun = this.questionsRun;
-      if (qRun?.status === 'running' || qRun?.status === 'queued') return 'questions-running';
-      if (qRun?.status === 'completed' && this.questions.length > 0) return 'questions-ready';
+      if (qRun?.status === "running" || qRun?.status === "queued") return "questions-running";
+      if (qRun?.status === "completed" && this.questions.length > 0) return "questions-ready";
 
-      return 'idle';
+      return "idle";
     },
 
     allAnswered(): boolean {
@@ -143,25 +147,25 @@ export default defineComponent({
   },
 
   watch: {
-    'questionsPolling.terminal.value'(isTerminal: boolean) {
+    "questionsPolling.terminal.value"(isTerminal: boolean) {
       if (!isTerminal) return;
       const qRun = this.questionsRun;
-      if (qRun?.status === 'completed' && qRun.output) {
+      if (qRun?.status === "completed" && qRun.output) {
         const out = qRun.output as { questions?: { question: string }[] };
         this.questions = out.questions ?? [];
-        this.answers = this.questions.map(() => '');
-      } else if (qRun?.status === 'failed') {
-        this.errorMsg = qRun.error ?? (this.$t('coldStart.phase1.questionsFailed') as string);
+        this.answers = this.questions.map(() => "");
+      } else if (qRun?.status === "failed") {
+        this.errorMsg = qRun.error ?? (this.$t("coldStart.phase1.questionsFailed") as string);
       }
     },
 
-    'synthesizePolling.terminal.value'(isTerminal: boolean) {
+    "synthesizePolling.terminal.value"(isTerminal: boolean) {
       if (!isTerminal) return;
       const sRun = this.synthesizeRun;
-      if (sRun?.status === 'completed') {
-        this.$emit('done');
-      } else if (sRun?.status === 'failed') {
-        this.errorMsg = sRun.error ?? (this.$t('coldStart.phase1.synthesizeFailed') as string);
+      if (sRun?.status === "completed") {
+        this.$emit("done");
+      } else if (sRun?.status === "failed") {
+        this.errorMsg = sRun.error ?? (this.$t("coldStart.phase1.synthesizeFailed") as string);
       }
     },
   },
@@ -169,7 +173,7 @@ export default defineComponent({
   methods: {
     async onGenerateQuestions(): Promise<void> {
       this.triggering = true;
-      this.errorMsg = '';
+      this.errorMsg = "";
       try {
         const { runId } = await this.coldStartStore.triggerVoiceQuestions(this.slug);
         this.synthesizeRunId = null;
@@ -184,10 +188,16 @@ export default defineComponent({
 
     async onSynthesize(): Promise<void> {
       this.triggering = true;
-      this.errorMsg = '';
+      this.errorMsg = "";
       try {
-        const answersWithIdx = this.answers.map((answer, questionIndex) => ({ questionIndex, answer }));
-        const { runId } = await this.coldStartStore.triggerVoiceSynthesize(this.slug, answersWithIdx);
+        const answersWithIdx = this.answers.map((answer, questionIndex) => ({
+          questionIndex,
+          answer,
+        }));
+        const { runId } = await this.coldStartStore.triggerVoiceSynthesize(
+          this.slug,
+          answersWithIdx
+        );
         this.synthesizeRunId = runId;
       } catch {
         // http error already shown by api interceptor

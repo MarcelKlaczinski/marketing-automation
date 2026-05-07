@@ -77,12 +77,8 @@
           "name": "project_credentials_project_id_projects_id_fk",
           "tableFrom": "project_credentials",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -92,10 +88,7 @@
         "project_credentials_project_service_unique": {
           "name": "project_credentials_project_service_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "project_id",
-            "service"
-          ]
+          "columns": ["project_id", "service"]
         }
       },
       "policies": {},
@@ -233,9 +226,7 @@
         "projects_slug_unique": {
           "name": "projects_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -336,12 +327,8 @@
           "name": "brand_voices_project_id_projects_id_fk",
           "tableFrom": "brand_voices",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -445,12 +432,8 @@
           "name": "clusters_project_id_projects_id_fk",
           "tableFrom": "clusters",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -458,12 +441,8 @@
           "name": "clusters_pillar_id_content_pillars_id_fk",
           "tableFrom": "clusters",
           "tableTo": "content_pillars",
-          "columnsFrom": [
-            "pillar_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["pillar_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -540,12 +519,8 @@
           "name": "content_pillars_project_id_projects_id_fk",
           "tableFrom": "content_pillars",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -628,12 +603,8 @@
           "name": "article_versions_article_id_articles_id_fk",
           "tableFrom": "article_versions",
           "tableTo": "articles",
-          "columnsFrom": [
-            "article_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["article_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -878,12 +849,8 @@
           "name": "articles_project_id_projects_id_fk",
           "tableFrom": "articles",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -891,12 +858,8 @@
           "name": "articles_cluster_id_clusters_id_fk",
           "tableFrom": "articles",
           "tableTo": "clusters",
-          "columnsFrom": [
-            "cluster_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cluster_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1070,12 +1033,8 @@
           "name": "social_posts_project_id_projects_id_fk",
           "tableFrom": "social_posts",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1083,12 +1042,8 @@
           "name": "social_posts_article_id_articles_id_fk",
           "tableFrom": "social_posts",
           "tableTo": "articles",
-          "columnsFrom": [
-            "article_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["article_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1207,12 +1162,8 @@
           "name": "approvals_project_id_projects_id_fk",
           "tableFrom": "approvals",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1220,12 +1171,8 @@
           "name": "approvals_article_id_articles_id_fk",
           "tableFrom": "approvals",
           "tableTo": "articles",
-          "columnsFrom": [
-            "article_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["article_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1233,12 +1180,8 @@
           "name": "approvals_social_post_id_social_posts_id_fk",
           "tableFrom": "approvals",
           "tableTo": "social_posts",
-          "columnsFrom": [
-            "social_post_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["social_post_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1321,12 +1264,8 @@
           "name": "briefings_project_id_projects_id_fk",
           "tableFrom": "briefings",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1470,12 +1409,8 @@
           "name": "cost_logs_project_id_projects_id_fk",
           "tableFrom": "cost_logs",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1631,12 +1566,8 @@
           "name": "pipeline_runs_project_id_projects_id_fk",
           "tableFrom": "pipeline_runs",
           "tableTo": "projects",
-          "columnsFrom": [
-            "project_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["project_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1815,12 +1746,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1830,9 +1757,7 @@
         "sessions_token_hash_unique": {
           "name": "sessions_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -1914,9 +1839,7 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -2000,12 +1923,8 @@
           "name": "push_subscriptions_user_id_users_id_fk",
           "tableFrom": "push_subscriptions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2015,9 +1934,7 @@
         "push_subscriptions_endpoint_unique": {
           "name": "push_subscriptions_endpoint_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "endpoint"
-          ]
+          "columns": ["endpoint"]
         }
       },
       "policies": {},
@@ -2029,12 +1946,7 @@
     "public.approval_action": {
       "name": "approval_action",
       "schema": "public",
-      "values": [
-        "requested",
-        "approved",
-        "rejected",
-        "changes_requested"
-      ]
+      "values": ["requested", "approved", "rejected", "changes_requested"]
     },
     "public.article_status": {
       "name": "article_status",
@@ -2054,13 +1966,7 @@
     "public.cost_service": {
       "name": "cost_service",
       "schema": "public",
-      "values": [
-        "anthropic",
-        "replicate",
-        "dataforseo",
-        "elevenlabs",
-        "resend"
-      ]
+      "values": ["anthropic", "replicate", "dataforseo", "elevenlabs", "resend"]
     },
     "public.credential_service": {
       "name": "credential_service",
@@ -2088,74 +1994,37 @@
     "public.lifecycle_stage": {
       "name": "lifecycle_stage",
       "schema": "public",
-      "values": [
-        "cold_start",
-        "pre_launch",
-        "launch",
-        "growth",
-        "mature"
-      ]
+      "values": ["cold_start", "pre_launch", "launch", "growth", "mature"]
     },
     "public.pipeline_run_status": {
       "name": "pipeline_run_status",
       "schema": "public",
-      "values": [
-        "queued",
-        "running",
-        "completed",
-        "failed",
-        "cancelled"
-      ]
+      "values": ["queued", "running", "completed", "failed", "cancelled"]
     },
     "public.pipeline_template": {
       "name": "pipeline_template",
       "schema": "public",
-      "values": [
-        "educational",
-        "affiliate_review",
-        "local_business",
-        "programmatic_seo"
-      ]
+      "values": ["educational", "affiliate_review", "local_business", "programmatic_seo"]
     },
     "public.social_format": {
       "name": "social_format",
       "schema": "public",
-      "values": [
-        "carousel",
-        "reel",
-        "single_image",
-        "story"
-      ]
+      "values": ["carousel", "reel", "single_image", "story"]
     },
     "public.social_platform": {
       "name": "social_platform",
       "schema": "public",
-      "values": [
-        "instagram",
-        "tiktok",
-        "linkedin",
-        "twitter"
-      ]
+      "values": ["instagram", "tiktok", "linkedin", "twitter"]
     },
     "public.social_status": {
       "name": "social_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "in_review",
-        "approved",
-        "scheduled",
-        "published",
-        "failed"
-      ]
+      "values": ["draft", "in_review", "approved", "scheduled", "published", "failed"]
     },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "owner",
-        "editor"
-      ]
+      "values": ["owner", "editor"]
     }
   },
   "schemas": {},

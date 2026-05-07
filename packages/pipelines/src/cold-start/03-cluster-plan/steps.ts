@@ -1,7 +1,8 @@
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { type RelatedKeywordItem, dataforseo } from "@marketing-auto/adapter-dataforseo";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
-import { dataforseo, type RelatedKeywordItem } from "@marketing-auto/adapter-dataforseo";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
@@ -92,7 +93,7 @@ export class GenerateClusterCandidatesStep extends BaseStep<
 
   async execute(
     input: z.infer<typeof GenerateCandidatesInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<z.infer<typeof CandidatesOutputSchema>> {
     const prompt = await buildSystemPrompt({
       skills: ["ai-seo", "content-strategy"],
@@ -126,7 +127,7 @@ Output strict JSON: { "candidates": [{ "name", "pillar", "cornerstone_keyword", 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "cluster-candidates-generation",
+      operation: COST_OPS.COLD_START_CLUSTER_CANDIDATES,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
@@ -168,19 +169,22 @@ export class ValidateKeywordsStep extends BaseStep<
 
   async execute(
     input: z.infer<typeof ValidateKeywordsInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<z.infer<typeof ValidateKeywordsOutputSchema>> {
     const keywords = input.candidates.map((c) => c.cornerstone_keyword);
 
     const overviewResult = await dataforseo.keywordOverview({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "cluster-keyword-overview",
+      operation: COST_OPS.COLD_START_CLUSTER_KEYWORD_OVERVIEW,
       keywords,
       estimatedCostEur: this.estimatedCostEur(input),
     });
 
-    const volumeMap = new Map<string, { searchVolume: number | null; keywordDifficulty: number | null }>();
+    const volumeMap = new Map<
+      string,
+      { searchVolume: number | null; keywordDifficulty: number | null }
+    >();
     for (const item of overviewResult.items) {
       volumeMap.set(item.keyword.toLowerCase(), {
         searchVolume: item.searchVolume,
@@ -240,11 +244,13 @@ export class ExpandWithSatellitesStep extends BaseStep<
 
   async execute(
     input: z.infer<typeof ExpandWithSatellitesInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<z.infer<typeof ExpandWithSatellitesOutputSchema>> {
     const expandedClusters = await Promise.all(
       input.confirmedClusters.map(async (cluster) => {
-        const operationKey = cluster.cornerstone_keyword.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9-]/g, "");
+        const operationKey = cluster.cornerstone_keyword
+          .replace(/\s+/g, "-")
+          .replace(/[^a-zA-Z0-9-]/g, "");
         const result = await dataforseo.relatedKeywords({
           projectId: ctx.projectId,
           pipelineRunId: ctx.pipelineRunId,
@@ -256,7 +262,10 @@ export class ExpandWithSatellitesStep extends BaseStep<
         });
 
         const satelliteKeywords = result.items
-          .filter((k: RelatedKeywordItem) => k.keyword.toLowerCase() !== cluster.cornerstone_keyword.toLowerCase())
+          .filter(
+            (k: RelatedKeywordItem) =>
+              k.keyword.toLowerCase() !== cluster.cornerstone_keyword.toLowerCase()
+          )
           .slice(0, 10)
           .map((k: RelatedKeywordItem) => ({
             keyword: k.keyword,
@@ -272,7 +281,7 @@ export class ExpandWithSatellitesStep extends BaseStep<
           keyword_difficulty: cluster.keyword_difficulty,
           satellite_keywords: satelliteKeywords,
         };
-      }),
+      })
     );
 
     return { expandedClusters };
@@ -307,7 +316,7 @@ export class SynthesizeClusterPlanStep extends BaseStep<
 
   async execute(
     input: z.infer<typeof SynthesizeClusterPlanInputSchema>,
-    ctx: StepContext,
+    ctx: StepContext
   ): Promise<z.infer<typeof SynthesizeClusterPlanOutputSchema>> {
     const prompt = await buildSystemPrompt({
       skills: ["ai-seo", "content-strategy"],
@@ -358,14 +367,20 @@ Output strict JSON:
 }`,
     });
 
-    const clusterSummary = input.expandedClusters.map((c) => [
-      `Cluster: ${c.name} (pillar: ${c.pillar})`,
-      `  Cornerstone keyword: "${c.cornerstone_keyword}"`,
-      `  Search volume: ${c.search_volume ?? "unknown"}`,
-      `  Keyword difficulty: ${c.keyword_difficulty ?? "unknown"}`,
-      `  Satellites (${c.satellite_keywords.length}):`,
-      ...c.satellite_keywords.map((s) => `    - "${s.keyword}" (vol: ${s.search_volume ?? "?"})`),
-    ].join("\n")).join("\n\n");
+    const clusterSummary = input.expandedClusters
+      .map((c) =>
+        [
+          `Cluster: ${c.name} (pillar: ${c.pillar})`,
+          `  Cornerstone keyword: "${c.cornerstone_keyword}"`,
+          `  Search volume: ${c.search_volume ?? "unknown"}`,
+          `  Keyword difficulty: ${c.keyword_difficulty ?? "unknown"}`,
+          `  Satellites (${c.satellite_keywords.length}):`,
+          ...c.satellite_keywords.map(
+            (s) => `    - "${s.keyword}" (vol: ${s.search_volume ?? "?"})`
+          ),
+        ].join("\n")
+      )
+      .join("\n\n");
 
     const userMsg = [
       "# Validated Clusters with Satellite Keywords",
@@ -384,7 +399,7 @@ Output strict JSON:
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "cluster-plan-synthesis",
+      operation: COST_OPS.COLD_START_CLUSTER_SYNTHESIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,

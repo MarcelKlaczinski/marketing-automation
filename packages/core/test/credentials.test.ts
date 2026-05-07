@@ -1,15 +1,15 @@
-import { describe, it, expect, beforeAll } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { beforeAll, describe, expect, it } from "bun:test";
+import { db, projectCredentials, projects } from "@marketing-auto/db";
 import { resetEnvCache } from "@marketing-auto/shared";
+import { and, eq } from "drizzle-orm";
 import {
-  encrypt,
-  decrypt,
-  encryptJson,
-  decryptJson,
   _resetKeyCache,
+  decrypt,
+  decryptJson,
+  encrypt,
+  encryptJson,
 } from "../src/credentials/crypto.ts";
 import { credentialVault } from "../src/credentials/vault.ts";
-import { db, projects, projectCredentials } from "@marketing-auto/db";
 
 // Pin a deterministic test key. .env may also have one, but we override for predictability.
 const TEST_KEY = "0".repeat(64);
@@ -117,7 +117,7 @@ describe("CredentialVault", () => {
     if (got.ok) {
       expect(got.value.payload.propertyId).toBe("properties/123456789");
       expect(got.value.payload.serviceAccount.client_email).toBe(
-        "test@test.iam.gserviceaccount.com",
+        "test@test.iam.gserviceaccount.com"
       );
       expect(got.value.expiresAt).toBeNull();
     }
@@ -221,8 +221,8 @@ describe("CredentialVault", () => {
       .where(
         and(
           eq(projectCredentials.projectId, projectId),
-          eq(projectCredentials.service, "instagram_graph"),
-        ),
+          eq(projectCredentials.service, "instagram_graph")
+        )
       );
 
     expect(row).toBeDefined();

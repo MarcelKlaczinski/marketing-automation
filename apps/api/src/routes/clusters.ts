@@ -1,8 +1,8 @@
-import { Hono } from "hono";
-import { eq, and, asc, desc, inArray, sql } from "drizzle-orm";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { db, clusters, contentPillars, articles, projects } from "@marketing-auto/db";
+import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
 
 export const clusterRoutes = new Hono();
@@ -52,7 +52,11 @@ clusterRoutes.get("/", async (c) => {
   const titleMap = new Map<string, string>();
   if (pillarArticleIds.length > 0) {
     const titles = await db
-      .select({ id: articles.id, title: articles.title, cornerstoneKeyword: articles.cornerstoneKeyword })
+      .select({
+        id: articles.id,
+        title: articles.title,
+        cornerstoneKeyword: articles.cornerstoneKeyword,
+      })
       .from(articles)
       .where(inArray(articles.id, pillarArticleIds));
     for (const t of titles) {
@@ -130,17 +134,15 @@ clusterRoutes.patch("/:id", zValidator("json", updateClusterSchema), async (c) =
 
   const updates: Record<string, unknown> = {};
   if (input.name !== undefined) updates.name = input.name.trim();
-  if (input.primaryKeyword !== undefined) updates.primaryKeyword = input.primaryKeyword?.trim() || null;
+  if (input.primaryKeyword !== undefined)
+    updates.primaryKeyword = input.primaryKeyword?.trim() || null;
 
   if (input.pillarId && input.pillarId !== existing.pillarId) {
     const [newPillar] = await db
       .select({ name: contentPillars.name })
       .from(contentPillars)
       .where(
-        and(
-          eq(contentPillars.id, input.pillarId),
-          eq(contentPillars.projectId, existing.projectId),
-        ),
+        and(eq(contentPillars.id, input.pillarId), eq(contentPillars.projectId, existing.projectId))
       )
       .limit(1);
     if (!newPillar) {
@@ -209,8 +211,8 @@ clusterRoutes.post("/:id/move", zValidator("json", moveClusterSchema), async (c)
           .where(
             and(
               eq(clusters.pillarId, cluster.pillarId),
-              sql`${clusters.position} < ${cluster.position}`,
-            ),
+              sql`${clusters.position} < ${cluster.position}`
+            )
           )
           .orderBy(desc(clusters.position))
           .limit(1)
@@ -220,8 +222,8 @@ clusterRoutes.post("/:id/move", zValidator("json", moveClusterSchema), async (c)
           .where(
             and(
               eq(clusters.pillarId, cluster.pillarId),
-              sql`${clusters.position} > ${cluster.position}`,
-            ),
+              sql`${clusters.position} > ${cluster.position}`
+            )
           )
           .orderBy(asc(clusters.position))
           .limit(1);
@@ -230,19 +232,17 @@ clusterRoutes.post("/:id/move", zValidator("json", moveClusterSchema), async (c)
     return c.json({ ok: true, data: { changed: false } });
   }
 
-  const targetPos = neighbour[0]!.position;
+  const neighbourRow = neighbour[0];
+  if (neighbourRow === undefined) {
+    return c.json({ ok: true, data: { changed: false } });
+  }
+  const targetPos = neighbourRow.position;
   const sourcePos = cluster.position;
 
   await db.transaction(async (tx) => {
     await tx.update(clusters).set({ position: -1 }).where(eq(clusters.id, cluster.id));
-    await tx
-      .update(clusters)
-      .set({ position: sourcePos })
-      .where(eq(clusters.id, neighbour[0]!.id));
-    await tx
-      .update(clusters)
-      .set({ position: targetPos })
-      .where(eq(clusters.id, cluster.id));
+    await tx.update(clusters).set({ position: sourcePos }).where(eq(clusters.id, neighbourRow.id));
+    await tx.update(clusters).set({ position: targetPos }).where(eq(clusters.id, cluster.id));
   });
 
   return c.json({ ok: true, data: { changed: true } });
@@ -302,12 +302,7 @@ export async function recalcPillarArticleId(clusterId: string): Promise<void> {
   const [first] = await db
     .select({ id: articles.id })
     .from(articles)
-    .where(
-      and(
-        eq(articles.clusterId, clusterId),
-        sql`${articles.cornerstoneSpecId} IS NOT NULL`,
-      ),
-    )
+    .where(and(eq(articles.clusterId, clusterId), sql`${articles.cornerstoneSpecId} IS NOT NULL`))
     .orderBy(asc(articles.createdAt))
     .limit(1);
 

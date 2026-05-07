@@ -1,6 +1,6 @@
-import { eq, and } from "drizzle-orm";
 import { db, globalCredentials } from "@marketing-auto/db";
-import { encrypt, decrypt } from "./crypto.ts";
+import { and, eq } from "drizzle-orm";
+import { decrypt, encrypt } from "./crypto.ts";
 
 export async function getGlobal(service: string, key: string): Promise<string | null> {
   const rows = await db
@@ -18,7 +18,7 @@ export async function setGlobal(
   service: string,
   key: string,
   value: string,
-  metadata?: Record<string, unknown>,
+  metadata?: Record<string, unknown>
 ): Promise<void> {
   const encryptedValue = encrypt(value);
   await db
@@ -37,8 +37,10 @@ export async function deleteGlobal(service: string, key: string): Promise<void> 
 }
 
 export async function listGlobal(
-  service?: string,
-): Promise<Array<{ service: string; key: string; metadata: Record<string, unknown> | null; updatedAt: Date }>> {
+  service?: string
+): Promise<
+  Array<{ service: string; key: string; metadata: Record<string, unknown> | null; updatedAt: Date }>
+> {
   const query = db
     .select({
       service: globalCredentials.service,

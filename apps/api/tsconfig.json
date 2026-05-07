@@ -14,17 +14,25 @@
       "@marketing-auto/core": ["../../packages/core/src/index.ts"],
       "@marketing-auto/core/*": ["../../packages/core/src/*.ts"],
       "@marketing-auto/adapter-anthropic": ["../../packages/adapters/anthropic/src/index.ts"],
-      "@marketing-auto/adapter-anthropic/verify": ["../../packages/adapters/anthropic/src/verify.ts"],
+      "@marketing-auto/adapter-anthropic/verify": [
+        "../../packages/adapters/anthropic/src/verify.ts"
+      ],
       "@marketing-auto/adapter-replicate": ["../../packages/adapters/replicate/src/index.ts"],
-      "@marketing-auto/adapter-replicate/verify": ["../../packages/adapters/replicate/src/verify.ts"],
+      "@marketing-auto/adapter-replicate/verify": [
+        "../../packages/adapters/replicate/src/verify.ts"
+      ],
       "@marketing-auto/adapter-storage": ["../../packages/adapters/storage/src/index.ts"],
       "@marketing-auto/adapter-storage/verify": ["../../packages/adapters/storage/src/verify.ts"],
       "@marketing-auto/adapter-dataforseo": ["../../packages/adapters/dataforseo/src/index.ts"],
-      "@marketing-auto/adapter-dataforseo/verify": ["../../packages/adapters/dataforseo/src/verify.ts"],
+      "@marketing-auto/adapter-dataforseo/verify": [
+        "../../packages/adapters/dataforseo/src/verify.ts"
+      ],
       "@marketing-auto/adapter-email": ["../../packages/adapters/email/src/index.ts"],
       "@marketing-auto/adapter-email/verify": ["../../packages/adapters/email/src/verify.ts"],
       "@marketing-auto/adapter-astro-sync": ["../../packages/adapters/astro-sync/src/index.ts"],
-      "@marketing-auto/adapter-astro-sync/verify": ["../../packages/adapters/astro-sync/src/verify.ts"]
+      "@marketing-auto/adapter-astro-sync/verify": [
+        "../../packages/adapters/astro-sync/src/verify.ts"
+      ]
     }
   },
   "include": ["src/**/*", "test/**/*"]

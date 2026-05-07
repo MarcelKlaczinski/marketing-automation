@@ -3,11 +3,11 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useThemeInit } from 'src/composables/useTheme';
+import { useThemeInit } from "src/composables/useTheme";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'App',
+  name: "App",
   setup() {
     useThemeInit();
   },

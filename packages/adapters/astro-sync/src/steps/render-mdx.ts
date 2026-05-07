@@ -1,8 +1,8 @@
-import { z } from "zod";
-import yaml from "yaml";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import type { FrontmatterField } from "../types.ts";
 import { createLogger } from "@marketing-auto/shared";
+import yaml from "yaml";
+import { z } from "zod";
+import type { FrontmatterField } from "../types.ts";
 
 const log = createLogger("astro-sync:render");
 
@@ -17,18 +17,22 @@ const InputSchema = z.object({
     schemaJsonLd: z.array(z.record(z.unknown())),
     wordCount: z.number(),
   }),
-  cluster: z.object({
-    name: z.string(),
-    pillar: z.string(),
-  }).nullable(),
+  cluster: z
+    .object({
+      name: z.string(),
+      pillar: z.string(),
+    })
+    .nullable(),
   collectionInfo: z.object({
     collectionName: z.literal("blog"),
-    fields: z.array(z.object({
-      name: z.string(),
-      type: z.string(),
-      required: z.boolean(),
-      hasDefault: z.boolean(),
-    })),
+    fields: z.array(
+      z.object({
+        name: z.string(),
+        type: z.string(),
+        required: z.boolean(),
+        hasDefault: z.boolean(),
+      })
+    ),
   }),
   heroAstroAssetPath: z.string(),
   astroRepoRoot: z.string(),
@@ -55,7 +59,9 @@ export class RenderMdxStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number {
+    return 0;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     const mdxPath = `${input.astroRepoRoot}/blog/${input.article.slug}.mdx`;
@@ -69,7 +75,7 @@ export class RenderMdxStep extends BaseStep<
       log.warn(
         { unpopulatedRequired },
         "Could not populate some required schema fields. " +
-        "Astro build may fail. Add values via projects.astroFrontmatterDefaults.",
+          "Astro build may fail. Add values via projects.astroFrontmatterDefaults."
       );
     }
 
@@ -77,13 +83,15 @@ export class RenderMdxStep extends BaseStep<
       fm,
       input.collectionInfo.fields as FrontmatterField[],
       mdxPath,
-      input.heroAstroAssetPath,
+      input.heroAstroAssetPath
     );
 
-    const yamlBody = yaml.stringify(fmWithImagePaths, {
-      lineWidth: -1,
-      defaultStringType: "QUOTE_DOUBLE",
-    }).trimEnd();
+    const yamlBody = yaml
+      .stringify(fmWithImagePaths, {
+        lineWidth: -1,
+        defaultStringType: "QUOTE_DOUBLE",
+      })
+      .trimEnd();
 
     const fullContent = [
       "---",
@@ -145,12 +153,10 @@ function transformImageFields(
   fm: Record<string, unknown>,
   fields: FrontmatterField[],
   mdxPath: string,
-  assetPath: string,
+  assetPath: string
 ): Record<string, unknown> {
   const out = { ...fm };
-  const imageFieldNames = new Set(
-    fields.filter((f) => f.type === "image").map((f) => f.name),
-  );
+  const imageFieldNames = new Set(fields.filter((f) => f.type === "image").map((f) => f.name));
 
   const heroImageCandidates = ["heroImage", "hero_image", "image", "cover"];
   if (imageFieldNames.size === 0) {

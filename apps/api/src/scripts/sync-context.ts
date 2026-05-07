@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 import { readFile, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { eq } from "drizzle-orm";
 import { db, projects } from "@marketing-auto/db";
-import { z } from "zod";
-import matter from "gray-matter";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import matter from "gray-matter";
+import { z } from "zod";
 
 const log = createLogger("sync-context");
 
@@ -36,7 +36,11 @@ async function syncOne(slug: string): Promise<void> {
   const md = parsed.content.trim();
 
   const rows = await db
-    .select({ id: projects.id, brandIdentity: projects.brandIdentity, targetAudience: projects.targetAudience })
+    .select({
+      id: projects.id,
+      brandIdentity: projects.brandIdentity,
+      targetAudience: projects.targetAudience,
+    })
     .from(projects)
     .where(eq(projects.slug, fm.data.slug))
     .limit(1);

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { eq } from "drizzle-orm";
-import { db, clusters } from "@marketing-auto/db";
+import { clusters, db } from "@marketing-auto/db";
 import { enqueueClusterLinkRebuild } from "@marketing-auto/pipelines";
+import { eq } from "drizzle-orm";
 
 const clusterName = process.argv[2];
 if (!clusterName) {

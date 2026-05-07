@@ -1,17 +1,17 @@
+import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../engine/pipeline.ts";
-import { TopicIntakeStep } from "./steps/topic-intake.ts";
-import { ResearchStep } from "./steps/research.ts";
-import { OutlineStep } from "./steps/outline.ts";
-import { PersistOutlineStep } from "./steps/persist-outline.ts";
-import { DraftStep } from "./steps/draft.ts";
-import { SelfReviewStep } from "./steps/self-review.ts";
-import { HeroImageStep } from "./steps/hero-image.ts";
-import { AssemblyStep } from "./steps/assembly.ts";
-import { PersistArticleStep } from "./steps/persist-article.ts";
-import { continueArticleGeneration } from "./trigger.ts";
 import { enqueueSchemaExtension } from "../schema-extension/trigger.ts";
-import { createLogger } from "@marketing-auto/shared";
+import { AssemblyStep } from "./steps/assembly.ts";
+import { DraftStep } from "./steps/draft.ts";
+import { HeroImageStep } from "./steps/hero-image.ts";
+import { OutlineStep } from "./steps/outline.ts";
+import { PersistArticleStep } from "./steps/persist-article.ts";
+import { PersistOutlineStep } from "./steps/persist-outline.ts";
+import { ResearchStep } from "./steps/research.ts";
+import { SelfReviewStep } from "./steps/self-review.ts";
+import { TopicIntakeStep } from "./steps/topic-intake.ts";
+import { continueArticleGeneration } from "./trigger.ts";
 
 const log = createLogger("pipelines:article-draft");
 
@@ -57,7 +57,7 @@ export class ArticleOutlinePipeline extends Pipeline<
     toStep: { name: string },
     output: unknown,
     pipelineInput: z.infer<typeof OutlineInputSchema>,
-    getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     // topic-intake → research: pass cornerstone keyword, satellites, project slug
     if (fromStep.name === "topic-intake" && toStep.name === "research") {
@@ -103,14 +103,17 @@ export class ArticleOutlinePipeline extends Pipeline<
    */
   override async afterComplete(
     output: z.infer<typeof OutlineOutputSchema>,
-    pipelineInput: z.infer<typeof OutlineInputSchema>,
+    pipelineInput: z.infer<typeof OutlineInputSchema>
   ): Promise<void> {
     if (output.nextAction === "auto_continue") {
       const continueInput: Parameters<typeof continueArticleGeneration>[0] = {
         articleId: pipelineInput.articleId,
         projectId: pipelineInput.projectId,
       };
-      if (pipelineInput.modelOverride === "claude-opus-4-7" || pipelineInput.modelOverride === "claude-sonnet-4-6") {
+      if (
+        pipelineInput.modelOverride === "claude-opus-4-7" ||
+        pipelineInput.modelOverride === "claude-sonnet-4-6"
+      ) {
         continueInput.modelOverride = pipelineInput.modelOverride;
       }
       await continueArticleGeneration(continueInput);
@@ -184,7 +187,7 @@ export class ArticleDraftPipeline extends Pipeline<
     toStep: { name: string },
     output: unknown,
     pipelineInput: z.infer<typeof DraftInputSchema>,
-    getStepOutput: <T = unknown>(stepName: string) => T | undefined,
+    getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
     // topic-intake → draft: pass articleId, projectId, projectSlug + optional modelOverride
     if (fromStep.name === "topic-intake" && toStep.name === "draft") {
@@ -194,7 +197,10 @@ export class ArticleDraftPipeline extends Pipeline<
         projectId: pipelineInput.projectId,
         projectSlug: t.projectSlug,
       };
-      if (pipelineInput.modelOverride === "claude-opus-4-7" || pipelineInput.modelOverride === "claude-sonnet-4-6") {
+      if (
+        pipelineInput.modelOverride === "claude-opus-4-7" ||
+        pipelineInput.modelOverride === "claude-sonnet-4-6"
+      ) {
         return { ...base, modelOverride: pipelineInput.modelOverride };
       }
       return base;
@@ -254,7 +260,7 @@ export class ArticleDraftPipeline extends Pipeline<
 
   override async afterComplete(
     _output: z.infer<typeof DraftOutputSchema>,
-    pipelineInput: z.infer<typeof DraftInputSchema>,
+    pipelineInput: z.infer<typeof DraftInputSchema>
   ): Promise<void> {
     try {
       await enqueueSchemaExtension({

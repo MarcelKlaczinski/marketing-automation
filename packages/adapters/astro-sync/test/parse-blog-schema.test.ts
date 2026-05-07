@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { parseBlogSchema } from "../src/steps/resolve-schema.ts";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -108,33 +108,33 @@ describe("parseBlogSchema()", () => {
       const fields = parseBlogSchema(STANDARD_BLOG_CONFIG);
       const title = fields.find((f) => f.name === "title");
       expect(title).toBeDefined();
-      expect(title!.type).toBe("string");
-      expect(title!.required).toBe(true);
-      expect(title!.hasDefault).toBe(false);
+      expect(title?.type).toBe("string");
+      expect(title?.required).toBe(true);
+      expect(title?.hasDefault).toBe(false);
     });
 
     test("identifies updatedDate as optional date", () => {
       const fields = parseBlogSchema(STANDARD_BLOG_CONFIG);
       const f = fields.find((f) => f.name === "updatedDate");
       expect(f).toBeDefined();
-      expect(f!.type).toBe("date");
-      expect(f!.required).toBe(false);
+      expect(f?.type).toBe("date");
+      expect(f?.required).toBe(false);
     });
 
     test("identifies draft as non-required (has default)", () => {
       const fields = parseBlogSchema(STANDARD_BLOG_CONFIG);
       const f = fields.find((f) => f.name === "draft");
       expect(f).toBeDefined();
-      expect(f!.type).toBe("boolean");
-      expect(f!.required).toBe(false);
-      expect(f!.hasDefault).toBe(true);
+      expect(f?.type).toBe("boolean");
+      expect(f?.required).toBe(false);
+      expect(f?.hasDefault).toBe(true);
     });
 
     test("identifies tags as string_array", () => {
       const fields = parseBlogSchema(STANDARD_BLOG_CONFIG);
       const f = fields.find((f) => f.name === "tags");
       expect(f).toBeDefined();
-      expect(f!.type).toBe("string_array");
+      expect(f?.type).toBe("string_array");
     });
   });
 
@@ -143,23 +143,23 @@ describe("parseBlogSchema()", () => {
       const fields = parseBlogSchema(IMAGE_HELPER_CONFIG);
       const f = fields.find((f) => f.name === "heroImage");
       expect(f).toBeDefined();
-      expect(f!.type).toBe("image");
+      expect(f?.type).toBe("image");
     });
 
     test("identifies heroImageAlt with default as non-required", () => {
       const fields = parseBlogSchema(IMAGE_HELPER_CONFIG);
       const f = fields.find((f) => f.name === "heroImageAlt");
       expect(f).toBeDefined();
-      expect(f!.required).toBe(false);
-      expect(f!.hasDefault).toBe(true);
+      expect(f?.required).toBe(false);
+      expect(f?.hasDefault).toBe(true);
     });
 
     test("identifies category as optional string", () => {
       const fields = parseBlogSchema(IMAGE_HELPER_CONFIG);
       const f = fields.find((f) => f.name === "category");
       expect(f).toBeDefined();
-      expect(f!.type).toBe("string");
-      expect(f!.required).toBe(false);
+      expect(f?.type).toBe("string");
+      expect(f?.required).toBe(false);
     });
   });
 

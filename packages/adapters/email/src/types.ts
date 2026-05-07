@@ -55,7 +55,7 @@ export type SendMagicLinkInput = {
 export class EmailError extends Error {
   constructor(
     message: string,
-    public readonly originalCause?: unknown,
+    public readonly originalCause?: unknown
   ) {
     super(message);
     this.name = "EmailError";

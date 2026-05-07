@@ -36,12 +36,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useAuthStore } from 'src/stores/auth';
-import { useSystemStatusStore } from 'src/stores/system-status';
+import { useAuthStore } from "src/stores/auth";
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'InboxPage',
+  name: "InboxPage",
 
   setup() {
     return {

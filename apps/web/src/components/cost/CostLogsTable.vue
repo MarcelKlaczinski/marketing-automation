@@ -80,12 +80,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useCostStore } from 'src/stores/cost';
-import { formatEur } from 'src/lib/format-eur';
+import { formatEur } from "src/lib/format-eur";
+import { useCostStore } from "src/stores/cost";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CostLogsTable',
+  name: "CostLogsTable",
 
   setup() {
     return { costStore: useCostStore() };
@@ -96,17 +96,17 @@ export default defineComponent({
     offset: 0,
     localFilters: {
       service: null as string | null,
-      operation: '',
+      operation: "",
     },
   }),
 
   computed: {
     serviceOptions() {
       return [
-        { label: this.$t('cost.services.anthropic') as string, value: 'anthropic' },
-        { label: this.$t('cost.services.replicate') as string, value: 'replicate' },
-        { label: this.$t('cost.services.dataforseo') as string, value: 'dataforseo' },
-        { label: this.$t('cost.services.smtp') as string, value: 'smtp' },
+        { label: this.$t("cost.services.anthropic") as string, value: "anthropic" },
+        { label: this.$t("cost.services.replicate") as string, value: "replicate" },
+        { label: this.$t("cost.services.dataforseo") as string, value: "dataforseo" },
+        { label: this.$t("cost.services.smtp") as string, value: "smtp" },
       ];
     },
   },
@@ -116,10 +116,13 @@ export default defineComponent({
 
     formatDateTime(iso: string): string {
       const d = new Date(iso);
-      const locale = this.$i18n.locale === 'de' ? 'de-DE' : 'en-US';
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
       return d.toLocaleString(locale, {
-        year: 'numeric', month: '2-digit', day: '2-digit',
-        hour: '2-digit', minute: '2-digit',
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
       });
     },
 

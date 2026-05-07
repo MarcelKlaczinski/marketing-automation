@@ -29,7 +29,8 @@ export function buildModelInput(input: GenerateImageInput): Record<string, unkno
     case "ideogram-v3":
       return {
         prompt: input.prompt,
-        ...(input.negativePrompt !== undefined && input.negativePrompt !== "" && { negative_prompt: input.negativePrompt }),
+        ...(input.negativePrompt !== undefined &&
+          input.negativePrompt !== "" && { negative_prompt: input.negativePrompt }),
         aspect_ratio: input.aspectRatio ?? "16:9",
         magic_prompt_option: "Auto",
         ...(input.seed !== undefined && { seed: input.seed }),

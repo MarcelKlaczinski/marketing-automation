@@ -1,23 +1,23 @@
 #!/usr/bin/env bun
-import { z } from "zod";
-import { eq } from "drizzle-orm";
 import { db, projects } from "@marketing-auto/db";
 import { runPipeline } from "@marketing-auto/pipelines";
 import {
-  CornerstoneListPipeline,
   ApprovedClusterSchema,
-  CornerstoneSpecSchema,
+  CornerstoneListPipeline,
+  type CornerstoneSpecSchema,
 } from "@marketing-auto/pipelines/cold-start";
 import {
-  coldStartFile,
   COLD_START_FILES,
-  readMarkdownIfExists,
-  writeMarkdownAtomic,
-  parseDataBlock,
-  renderDataBlock,
   DataBlockParseError,
+  coldStartFile,
+  parseDataBlock,
+  readMarkdownIfExists,
+  renderDataBlock,
+  writeMarkdownAtomic,
 } from "@marketing-auto/pipelines/cold-start/shared";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 const log = createLogger("cold-start:cornerstone");
 
@@ -25,17 +25,11 @@ const slug = process.argv[2];
 const force = process.argv.includes("--force");
 
 if (!slug) {
-  console.error(
-    "Usage: bun src/scripts/cold-start/04-cornerstone-list.ts <slug> [--force]",
-  );
+  console.error("Usage: bun src/scripts/cold-start/04-cornerstone-list.ts <slug> [--force]");
   process.exit(1);
 }
 
-const [project] = await db
-  .select()
-  .from(projects)
-  .where(eq(projects.slug, slug))
-  .limit(1);
+const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
 
 if (!project) {
   console.error(`Project not found: ${slug}. Create it via 'add-project' first.`);
@@ -47,7 +41,9 @@ if (!project) {
 const outputPath = coldStartFile(slug, COLD_START_FILES.cornerstoneList);
 const existing = await readMarkdownIfExists(outputPath);
 if (existing && !force) {
-  console.error(`${outputPath} already exists. Use --force to overwrite (your edits will be lost).`);
+  console.error(
+    `${outputPath} already exists. Use --force to overwrite (your edits will be lost).`
+  );
   process.exit(1);
 }
 
@@ -57,22 +53,24 @@ const clusterPlanPath = coldStartFile(slug, COLD_START_FILES.clusterPlan);
 const clusterPlanMd = await readMarkdownIfExists(clusterPlanPath);
 if (!clusterPlanMd) {
   console.error(`${clusterPlanPath} not found.`);
-  console.error(`Run phase 3 first: bun --filter @marketing-auto/api cold-start:cluster-plan ${slug} expand`);
+  console.error(
+    `Run phase 3 first: bun --filter @marketing-auto/api cold-start:cluster-plan ${slug} expand`
+  );
   process.exit(1);
 }
 
 let allClusters: z.infer<typeof ApprovedClusterSchema>[];
 try {
-  allClusters = parseDataBlock(
-    clusterPlanMd,
-    "clusters",
-    z.array(ApprovedClusterSchema).min(1),
-  );
+  allClusters = parseDataBlock(clusterPlanMd, "clusters", z.array(ApprovedClusterSchema).min(1));
 } catch (e) {
   if (e instanceof DataBlockParseError) {
     console.error(`Could not parse clusters from ${clusterPlanPath}:\n  ${e.message}`);
     console.error("Make sure the <!-- DATA:clusters BEGIN/END --> block is intact.");
-    console.error("If you only have the proposal file, run: bun --filter @marketing-auto/api cold-start:cluster-plan " + slug + " expand");
+    console.error(
+      "If you only have the proposal file, run: bun --filter @marketing-auto/api cold-start:cluster-plan " +
+        slug +
+        " expand"
+    );
   } else {
     console.error(e);
   }
@@ -83,7 +81,9 @@ const approvedClusters = allClusters.filter((c) => c.status === "approved");
 
 if (approvedClusters.length === 0) {
   console.error(`No approved clusters found in ${clusterPlanPath}.`);
-  console.error(`Open the file and set "status: approved" on the clusters you want cornerstone articles for.`);
+  console.error(
+    `Open the file and set "status: approved" on the clusters you want cornerstone articles for.`
+  );
   console.error(`Total clusters in file: ${allClusters.length}`);
   process.exit(1);
 }
@@ -95,12 +95,15 @@ console.log(`  Approved clusters: ${approvedClusters.length}`);
 console.log(`  Cluster names: ${approvedClusters.map((c) => c.name).join(", ")}`);
 console.log();
 
-log.info({ slug, approvedClusterCount: approvedClusters.length }, "Running cornerstone-list pipeline");
+log.info(
+  { slug, approvedClusterCount: approvedClusters.length },
+  "Running cornerstone-list pipeline"
+);
 
 const result = await runPipeline(
   new CornerstoneListPipeline(),
   { projectSlug: slug, approvedClusters },
-  { projectId: project.id },
+  { projectId: project.id }
 );
 
 if (!result.ok) {
@@ -128,7 +131,7 @@ process.exit(0);
 function renderCornerstoneMarkdown(
   projectSlug: string,
   cornerstones: z.infer<typeof CornerstoneSpecSchema>[],
-  totalApprovedClusters: number,
+  totalApprovedClusters: number
 ): string {
   const sections: string[] = [
     `# Cornerstone List: ${projectSlug}`,

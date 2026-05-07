@@ -34,26 +34,26 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useSystemStatusStore } from 'src/stores/system-status';
-import StepBase from './StepBase.vue';
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
+import StepBase from "./StepBase.vue";
 
 export default defineComponent({
-  name: 'StepDataforseo',
+  name: "StepDataforseo",
   components: { StepBase },
-  emits: ['configured', 'skipped'],
+  emits: ["configured", "skipped"],
   setup() {
     return { systemStatusStore: useSystemStatusStore() };
   },
   data: () => ({
-    login: '',
-    password: '',
+    login: "",
+    password: "",
   }),
   computed: {
     fields(): { key: string; value: string }[] {
       return [
-        { key: 'login', value: this.login },
-        { key: 'password', value: this.password },
+        { key: "login", value: this.login },
+        { key: "password", value: this.password },
       ];
     },
   },

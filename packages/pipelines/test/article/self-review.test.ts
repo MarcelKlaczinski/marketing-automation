@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 import { SelfReviewStep } from "../../src/article/steps/self-review.ts";
 import type { StepContext } from "../../src/engine/step.ts";
 
@@ -58,13 +58,17 @@ describe.skipIf(!LIVE)("SelfReviewStep (live — requires ANTHROPIC_API_KEY)", (
 
   beforeAll(async () => {
     projectSlug = `self-review-test-${Date.now()}`;
-    const [p] = await db.insert(projects).values({
-      slug: projectSlug,
-      name: "Self Review Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-      marketingContextMd: "# KI-Wissensraum\nVoice: friendly expert. Audience: German-speaking AI enthusiasts.",
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug: projectSlug,
+        name: "Self Review Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+        marketingContextMd:
+          "# KI-Wissensraum\nVoice: friendly expert. Audience: German-speaking AI enthusiasts.",
+      })
+      .returning();
     projectId = p!.id;
   });
 
@@ -81,7 +85,7 @@ describe.skipIf(!LIVE)("SelfReviewStep (live — requires ANTHROPIC_API_KEY)", (
         cornerstoneKeyword: "ki-schreibtools",
         projectSlug,
       },
-      mockCtx(projectId),
+      mockCtx(projectId)
     );
 
     expect(typeof out.score).toBe("number");
@@ -103,7 +107,7 @@ describe.skipIf(!LIVE)("SelfReviewStep (live — requires ANTHROPIC_API_KEY)", (
         cornerstoneKeyword: "ki-schreibtools",
         projectSlug,
       },
-      mockCtx(projectId),
+      mockCtx(projectId)
     );
 
     if (out.score < 70) {

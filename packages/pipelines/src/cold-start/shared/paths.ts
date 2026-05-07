@@ -1,4 +1,4 @@
-import { resolve, join } from "node:path";
+import { join, resolve } from "node:path";
 
 const PROJECT_CONTEXTS_ROOT = resolve(import.meta.dir, "../../../../../project-contexts");
 
@@ -15,9 +15,9 @@ export function coldStartFile(slug: string, filename: string): string {
 }
 
 export const COLD_START_FILES = {
-  voiceRefinement:    "01-voice-refinement.md",
+  voiceRefinement: "01-voice-refinement.md",
   competitorAnalysis: "02-competitor-analysis.md",
-  clusterPlan:        "03-cluster-plan.md",
-  cornerstoneList:    "04-cornerstone-list.md",
-  goLiveChecklist:    "05-go-live-checklist.md",
+  clusterPlan: "03-cluster-plan.md",
+  cornerstoneList: "04-cornerstone-list.md",
+  goLiveChecklist: "05-go-live-checklist.md",
 } as const;

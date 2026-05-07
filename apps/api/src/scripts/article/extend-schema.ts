@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { eq } from "drizzle-orm";
-import { db, articles } from "@marketing-auto/db";
+import { articles, db } from "@marketing-auto/db";
 import { enqueueSchemaExtension } from "@marketing-auto/pipelines";
+import { eq } from "drizzle-orm";
 
 const slug = process.argv[2];
 if (!slug) {
@@ -9,11 +9,14 @@ if (!slug) {
   process.exit(1);
 }
 
-const all = await db.select({
-  id: articles.id,
-  projectId: articles.projectId,
-  status: articles.status,
-}).from(articles).where(eq(articles.slug, slug));
+const all = await db
+  .select({
+    id: articles.id,
+    projectId: articles.projectId,
+    status: articles.status,
+  })
+  .from(articles)
+  .where(eq(articles.slug, slug));
 
 if (all.length === 0) {
   console.error(`No article found with slug "${slug}"`);

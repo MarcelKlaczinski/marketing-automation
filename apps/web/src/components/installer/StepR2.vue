@@ -58,32 +58,32 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useSystemStatusStore } from 'src/stores/system-status';
-import StepBase from './StepBase.vue';
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
+import StepBase from "./StepBase.vue";
 
 export default defineComponent({
-  name: 'StepR2',
+  name: "StepR2",
   components: { StepBase },
-  emits: ['configured', 'skipped'],
+  emits: ["configured", "skipped"],
   setup() {
     return { systemStatusStore: useSystemStatusStore() };
   },
   data: () => ({
-    accountId: '',
-    accessKeyId: '',
-    secretAccessKey: '',
-    bucket: '',
-    publicBaseUrl: '',
+    accountId: "",
+    accessKeyId: "",
+    secretAccessKey: "",
+    bucket: "",
+    publicBaseUrl: "",
   }),
   computed: {
     fields(): { key: string; value: string }[] {
       return [
-        { key: 'account_id', value: this.accountId },
-        { key: 'access_key_id', value: this.accessKeyId },
-        { key: 'secret_access_key', value: this.secretAccessKey },
-        { key: 'bucket', value: this.bucket },
-        { key: 'public_base_url', value: this.publicBaseUrl },
+        { key: "account_id", value: this.accountId },
+        { key: "access_key_id", value: this.accessKeyId },
+        { key: "secret_access_key", value: this.secretAccessKey },
+        { key: "bucket", value: this.bucket },
+        { key: "public_base_url", value: this.publicBaseUrl },
       ];
     },
   },

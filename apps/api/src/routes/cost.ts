@@ -1,8 +1,8 @@
-import { Hono } from "hono";
-import { eq, and, gte, lte, desc, sql, like, isNull } from "drizzle-orm";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
-import { db, costLogs, projects, costAlerts } from "@marketing-auto/db";
+import { costAlerts, costLogs, db, projects } from "@marketing-auto/db";
+import { and, desc, eq, gte, isNull, like, lte, sql } from "drizzle-orm";
+import { Hono } from "hono";
+import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
 
 export const costRoutes = new Hono();
@@ -53,9 +53,19 @@ costRoutes.get("/aggregations", zValidator("query", aggregationsQuerySchema), as
   const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
   const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-  const baseThisMonth = [gte(costLogs.createdAt, startOfThisMonth), ...(projectFilter ? [projectFilter] : [])];
-  const baseLastMonth = [gte(costLogs.createdAt, startOfLastMonth), lte(costLogs.createdAt, endOfLastMonth), ...(projectFilter ? [projectFilter] : [])];
-  const baseThisYear = [gte(costLogs.createdAt, startOfYear), ...(projectFilter ? [projectFilter] : [])];
+  const baseThisMonth = [
+    gte(costLogs.createdAt, startOfThisMonth),
+    ...(projectFilter ? [projectFilter] : []),
+  ];
+  const baseLastMonth = [
+    gte(costLogs.createdAt, startOfLastMonth),
+    lte(costLogs.createdAt, endOfLastMonth),
+    ...(projectFilter ? [projectFilter] : []),
+  ];
+  const baseThisYear = [
+    gte(costLogs.createdAt, startOfYear),
+    ...(projectFilter ? [projectFilter] : []),
+  ];
 
   const [
     thisMonthTotalRow,
@@ -67,47 +77,70 @@ costRoutes.get("/aggregations", zValidator("query", aggregationsQuerySchema), as
     thisYearTotalRow,
     thisYearByMonth,
   ] = await Promise.all([
-    db.select({ totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text` })
-      .from(costLogs).where(and(...baseThisMonth)),
+    db
+      .select({ totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text` })
+      .from(costLogs)
+      .where(and(...baseThisMonth)),
 
-    db.select({
-      service: costLogs.service,
-      totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
-      callCount: sql<number>`count(*)::int`,
-    }).from(costLogs).where(and(...baseThisMonth)).groupBy(costLogs.service),
+    db
+      .select({
+        service: costLogs.service,
+        totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
+        callCount: sql<number>`count(*)::int`,
+      })
+      .from(costLogs)
+      .where(and(...baseThisMonth))
+      .groupBy(costLogs.service),
 
-    db.select({
-      service: costLogs.service,
-      operation: costLogs.operation,
-      totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
-      callCount: sql<number>`count(*)::int`,
-    }).from(costLogs).where(and(...baseThisMonth))
+    db
+      .select({
+        service: costLogs.service,
+        operation: costLogs.operation,
+        totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
+        callCount: sql<number>`count(*)::int`,
+      })
+      .from(costLogs)
+      .where(and(...baseThisMonth))
       .groupBy(costLogs.service, costLogs.operation)
       .orderBy(desc(sql`sum(${costLogs.costEur})`)),
 
-    db.select({
-      day: sql<string>`to_char(${costLogs.createdAt}, 'YYYY-MM-DD')`,
-      totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
-    }).from(costLogs).where(and(...baseThisMonth))
+    db
+      .select({
+        day: sql<string>`to_char(${costLogs.createdAt}, 'YYYY-MM-DD')`,
+        totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
+      })
+      .from(costLogs)
+      .where(and(...baseThisMonth))
       .groupBy(sql`to_char(${costLogs.createdAt}, 'YYYY-MM-DD')`)
       .orderBy(sql`to_char(${costLogs.createdAt}, 'YYYY-MM-DD')`),
 
-    db.select({
-      service: costLogs.service,
-      totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
-      callCount: sql<number>`count(*)::int`,
-    }).from(costLogs).where(and(...baseLastMonth)).groupBy(costLogs.service),
+    db
+      .select({
+        service: costLogs.service,
+        totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
+        callCount: sql<number>`count(*)::int`,
+      })
+      .from(costLogs)
+      .where(and(...baseLastMonth))
+      .groupBy(costLogs.service),
 
-    db.select({ totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text` })
-      .from(costLogs).where(and(...baseLastMonth)),
+    db
+      .select({ totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text` })
+      .from(costLogs)
+      .where(and(...baseLastMonth)),
 
-    db.select({ totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text` })
-      .from(costLogs).where(and(...baseThisYear)),
+    db
+      .select({ totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text` })
+      .from(costLogs)
+      .where(and(...baseThisYear)),
 
-    db.select({
-      month: sql<string>`to_char(${costLogs.createdAt}, 'YYYY-MM')`,
-      totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
-    }).from(costLogs).where(and(...baseThisYear))
+    db
+      .select({
+        month: sql<string>`to_char(${costLogs.createdAt}, 'YYYY-MM')`,
+        totalEur: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
+      })
+      .from(costLogs)
+      .where(and(...baseThisYear))
       .groupBy(sql`to_char(${costLogs.createdAt}, 'YYYY-MM')`)
       .orderBy(sql`to_char(${costLogs.createdAt}, 'YYYY-MM')`),
   ]);
@@ -157,19 +190,20 @@ costRoutes.get("/logs", zValidator("query", logsQuerySchema), async (c) => {
   const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
   const [logs, countRows] = await Promise.all([
-    db.select({
-      id: costLogs.id,
-      projectId: costLogs.projectId,
-      projectName: projects.name,
-      projectSlug: projects.slug,
-      service: costLogs.service,
-      operation: costLogs.operation,
-      costEur: costLogs.costEur,
-      metadata: costLogs.metadata,
-      pipelineRunId: costLogs.pipelineRunId,
-      articleId: costLogs.articleId,
-      createdAt: costLogs.createdAt,
-    })
+    db
+      .select({
+        id: costLogs.id,
+        projectId: costLogs.projectId,
+        projectName: projects.name,
+        projectSlug: projects.slug,
+        service: costLogs.service,
+        operation: costLogs.operation,
+        costEur: costLogs.costEur,
+        metadata: costLogs.metadata,
+        pipelineRunId: costLogs.pipelineRunId,
+        articleId: costLogs.articleId,
+        createdAt: costLogs.createdAt,
+      })
       .from(costLogs)
       .leftJoin(projects, eq(costLogs.projectId, projects.id))
       .where(whereClause)
@@ -177,9 +211,7 @@ costRoutes.get("/logs", zValidator("query", logsQuerySchema), async (c) => {
       .limit(q.limit)
       .offset(q.offset),
 
-    db.select({ count: sql<number>`count(*)::int` })
-      .from(costLogs)
-      .where(whereClause),
+    db.select({ count: sql<number>`count(*)::int` }).from(costLogs).where(whereClause),
   ]);
 
   return c.json({

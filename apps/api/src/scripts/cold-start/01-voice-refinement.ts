@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
 import { copyFile } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { eq } from "drizzle-orm";
+import { dirname, join } from "node:path";
 import { db, projects } from "@marketing-auto/db";
 import { runPipeline } from "@marketing-auto/pipelines";
 import {
@@ -9,12 +8,13 @@ import {
   VoiceSynthesisPipeline,
 } from "@marketing-auto/pipelines/cold-start";
 import {
-  coldStartFile,
   COLD_START_FILES,
+  coldStartFile,
   readMarkdownIfExists,
   writeMarkdownAtomic,
 } from "@marketing-auto/pipelines/cold-start/shared";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("cold-start:voice");
 
@@ -23,15 +23,13 @@ const mode = process.argv[3] ?? "questions";
 const force = process.argv.includes("--force");
 
 if (!slug) {
-  console.error("Usage: bun src/scripts/cold-start/01-voice-refinement.ts <slug> [questions|synthesize] [--force]");
+  console.error(
+    "Usage: bun src/scripts/cold-start/01-voice-refinement.ts <slug> [questions|synthesize] [--force]"
+  );
   process.exit(1);
 }
 
-const [project] = await db
-  .select()
-  .from(projects)
-  .where(eq(projects.slug, slug))
-  .limit(1);
+const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
 
 if (!project) {
   console.error(`Project not found: ${slug}. Create it via 'add-project' first.`);
@@ -50,7 +48,9 @@ if (mode === "questions") {
   const existing = await readMarkdownIfExists(outputPath);
 
   if (existing && !force) {
-    console.error(`${outputPath} already exists. Use --force to overwrite (your answers will be lost).`);
+    console.error(
+      `${outputPath} already exists. Use --force to overwrite (your answers will be lost).`
+    );
     process.exit(1);
   }
 
@@ -59,7 +59,7 @@ if (mode === "questions") {
   const result = await runPipeline(
     new VoiceRefinementQuestionsPipeline(),
     { projectSlug: slug, existingContextMd: contextMd },
-    { projectId: project.id },
+    { projectId: project.id }
   );
 
   if (!result.ok) {
@@ -73,7 +73,9 @@ if (mode === "questions") {
   console.log(`Written ${result.output.questions.length} questions to:\n   ${outputPath}\n`);
   console.log(`Next:`);
   console.log(`  1. Edit the file — answer each question under its heading`);
-  console.log(`  2. Run synthesis: bun --filter @marketing-auto/api cold-start:voice-refinement ${slug} synthesize`);
+  console.log(
+    `  2. Run synthesis: bun --filter @marketing-auto/api cold-start:voice-refinement ${slug} synthesize`
+  );
   console.log(`  3. Review the updated marketing-context.md, then run sync-context`);
   process.exit(0);
 }
@@ -96,7 +98,7 @@ if (mode === "synthesize") {
       existingContextMd: contextMd,
       answeredQuestionsMd: answered,
     },
-    { projectId: project.id },
+    { projectId: project.id }
   );
 
   if (!result.ok) {
@@ -135,7 +137,7 @@ function renderQuestionsMarkdown(
     question: string;
     why_it_matters: string;
     suggested_starter: string;
-  }>,
+  }>
 ): string {
   const grouped = new Map<string, typeof questions>();
   for (const q of questions) {

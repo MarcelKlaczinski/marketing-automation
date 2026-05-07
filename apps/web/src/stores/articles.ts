@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia';
-import { api } from 'src/lib/api-client';
+import { defineStore } from "pinia";
+import { api } from "src/lib/api-client";
 
 export interface ArticleListItem {
   id: string;
@@ -45,7 +45,7 @@ interface ArticlesState {
   loading: boolean;
 }
 
-export const useArticlesStore = defineStore('articles', {
+export const useArticlesStore = defineStore("articles", {
   state: (): ArticlesState => ({
     byProject: {},
     detailById: {},
@@ -58,7 +58,7 @@ export const useArticlesStore = defineStore('articles', {
       this.loading = true;
       try {
         const res = await api.get<{ ok: boolean; data: ArticleListItem[] }>(
-          `/articles?projectSlug=${encodeURIComponent(slug)}`,
+          `/articles?projectSlug=${encodeURIComponent(slug)}`
         );
         this.byProject[slug] = res.data.data;
       } finally {
@@ -87,7 +87,7 @@ export const useArticlesStore = defineStore('articles', {
       if (changeReason) payload.changeReason = changeReason;
       const res = await api.post<{ ok: boolean; data: { version: number } }>(
         `/articles/${articleId}/body`,
-        payload,
+        payload
       );
       delete this.detailById[articleId];
       delete this.versionsByArticle[articleId];
@@ -95,7 +95,9 @@ export const useArticlesStore = defineStore('articles', {
     },
 
     async fetchVersions(articleId: string): Promise<ArticleVersion[]> {
-      const res = await api.get<{ ok: boolean; data: ArticleVersion[] }>(`/articles/${articleId}/versions`);
+      const res = await api.get<{ ok: boolean; data: ArticleVersion[] }>(
+        `/articles/${articleId}/versions`
+      );
       this.versionsByArticle[articleId] = res.data.data;
       return res.data.data;
     },
@@ -103,7 +105,7 @@ export const useArticlesStore = defineStore('articles', {
     async fetchVersionBody(articleId: string, version: number): Promise<string | null> {
       try {
         const res = await api.get<{ ok: boolean; data: { bodyMd: string } }>(
-          `/articles/${articleId}/versions/${version}`,
+          `/articles/${articleId}/versions/${version}`
         );
         return res.data.data.bodyMd;
       } catch {
@@ -111,38 +113,53 @@ export const useArticlesStore = defineStore('articles', {
       }
     },
 
-    async triggerOutline(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
-        `/articles/${articleId}/generate-outline`,
-      );
+    async triggerOutline(
+      articleId: string
+    ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{
+        ok: boolean;
+        data: { runId: string; jobId: string; deduped: boolean };
+      }>(`/articles/${articleId}/generate-outline`);
       return res.data.data;
     },
 
-    async triggerDraft(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
-        `/articles/${articleId}/generate-draft`,
-      );
+    async triggerDraft(
+      articleId: string
+    ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{
+        ok: boolean;
+        data: { runId: string; jobId: string; deduped: boolean };
+      }>(`/articles/${articleId}/generate-draft`);
       return res.data.data;
     },
 
-    async triggerSync(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
-        `/articles/${articleId}/sync`,
-      );
+    async triggerSync(
+      articleId: string
+    ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{
+        ok: boolean;
+        data: { runId: string; jobId: string; deduped: boolean };
+      }>(`/articles/${articleId}/sync`);
       return res.data.data;
     },
 
-    async triggerPagespeedValidation(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
-        `/articles/${articleId}/validate-pagespeed`,
-      );
+    async triggerPagespeedValidation(
+      articleId: string
+    ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{
+        ok: boolean;
+        data: { runId: string; jobId: string; deduped: boolean };
+      }>(`/articles/${articleId}/validate-pagespeed`);
       return res.data.data;
     },
 
-    async triggerSchemaExtension(articleId: string): Promise<{ runId: string; jobId: string; deduped: boolean }> {
-      const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string; deduped: boolean } }>(
-        `/articles/${articleId}/extend-schema`,
-      );
+    async triggerSchemaExtension(
+      articleId: string
+    ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{
+        ok: boolean;
+        data: { runId: string; jobId: string; deduped: boolean };
+      }>(`/articles/${articleId}/extend-schema`);
       return res.data.data;
     },
   },

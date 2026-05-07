@@ -1,3 +1,3 @@
 export default {
-  intro: 'Wähle einen Bereich aus der Seitenleiste.',
+  intro: "Wähle einen Bereich aus der Seitenleiste.",
 };

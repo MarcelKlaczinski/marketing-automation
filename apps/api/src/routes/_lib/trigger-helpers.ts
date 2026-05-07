@@ -1,25 +1,30 @@
-import { eq, and, sql, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
-import type { Context } from "hono";
-import { db, pipelineRuns } from "@marketing-auto/db";
 import {
   checkCostBudget,
   estimateCostEur,
-  isProjectPaused,
   getPauseInfo,
+  isProjectPaused,
 } from "@marketing-auto/core";
+import { db, pipelineRuns } from "@marketing-auto/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import type { Context } from "hono";
 
 export interface TriggerOptions {
   pipelineName: string;
   projectId: string;
   /** For idempotency: field name + value used to detect an already-active run */
   uniqueKey: { field: string; value: string };
-  /** Optional cost pre-flight */
-  costEstimate?: { service: string; operation: string; multiplier?: number };
+  /**
+   * Optional cost pre-flight. Two forms:
+   *   - { service, operation, multiplier? } — looks up estimate from COST_OPS table
+   *   - { service, estimatedCostEur }       — uses a raw EUR value (e.g. multi-call sum)
+   */
+  costEstimate?:
+    | { service: string; operation: string; multiplier?: number }
+    | { service: string; estimatedCostEur: number };
   /** Enqueue the actual BullMQ job; receives the full input payload including preRunId */
-  // Function contravariance: enqueue fns like enqueueArticleOutlinePipeline require a concrete input
-  // type (e.g. { articleId: string }) that is incompatible with the generic inputPayload at the type level.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: Function contravariance — enqueue fns like enqueueArticleOutlinePipeline require concrete input types (e.g. PreRunInput with articleId) that are structurally incompatible with the generic Record payload at the type level.
+  // biome-ignore lint/complexity/noBannedTypes: same reason
   enqueue: (input: any) => Promise<{ jobId: string }>;
   /** Additional fields merged into pipeline_runs.input and the enqueue payload */
   extraInput?: Record<string, unknown>;
@@ -46,11 +51,14 @@ export async function triggerWithPreRunId(opts: TriggerOptions): Promise<Trigger
 
   // Step 2: cost pre-flight
   if (opts.costEstimate) {
-    const estimated = estimateCostEur(
-      opts.costEstimate.service,
-      opts.costEstimate.operation,
-      opts.costEstimate.multiplier ?? 1,
-    );
+    const estimated =
+      "estimatedCostEur" in opts.costEstimate
+        ? opts.costEstimate.estimatedCostEur
+        : estimateCostEur(
+            opts.costEstimate.service,
+            opts.costEstimate.operation,
+            opts.costEstimate.multiplier ?? 1
+          );
     const result = await checkCostBudget(opts.projectId, opts.costEstimate.service, estimated);
     if (!result.ok) {
       return { error: "cost_limit_exceeded", details: result };
@@ -67,14 +75,14 @@ export async function triggerWithPreRunId(opts: TriggerOptions): Promise<Trigger
         eq(pipelineRuns.pipelineName, opts.pipelineName),
         eq(pipelineRuns.projectId, opts.projectId),
         sql`${pipelineRuns.input}->>${opts.uniqueKey.field} = ${opts.uniqueKey.value}`,
-        inArray(pipelineRuns.status, activeStatuses),
-      ),
+        inArray(pipelineRuns.status, activeStatuses)
+      )
     )
     .limit(1);
 
-  if (existing.length > 0) {
-    const found = existing[0]!;
-    return { runId: found.id, jobId: found.jobId ?? "", deduped: true };
+  const firstExisting = existing[0];
+  if (firstExisting !== undefined) {
+    return { runId: firstExisting.id, jobId: firstExisting.jobId ?? "", deduped: true };
   }
 
   // Step 4: pre-INSERT pipeline_runs row + enqueue
@@ -110,7 +118,9 @@ export async function checkTriggerAllowed(opts: {
   pipelineName: string;
   projectId: string;
   uniqueKey: { field: string; value: string };
-  costEstimate?: { service: string; operation: string; multiplier?: number };
+  costEstimate?:
+    | { service: string; operation: string; multiplier?: number }
+    | { service: string; estimatedCostEur: number };
 }): Promise<Exclude<TriggerResult, { deduped: false }> | null> {
   if (await isProjectPaused(opts.projectId)) {
     const info = await getPauseInfo(opts.projectId);
@@ -118,11 +128,14 @@ export async function checkTriggerAllowed(opts: {
   }
 
   if (opts.costEstimate) {
-    const estimated = estimateCostEur(
-      opts.costEstimate.service,
-      opts.costEstimate.operation,
-      opts.costEstimate.multiplier ?? 1,
-    );
+    const estimated =
+      "estimatedCostEur" in opts.costEstimate
+        ? opts.costEstimate.estimatedCostEur
+        : estimateCostEur(
+            opts.costEstimate.service,
+            opts.costEstimate.operation,
+            opts.costEstimate.multiplier ?? 1
+          );
     const result = await checkCostBudget(opts.projectId, opts.costEstimate.service, estimated);
     if (!result.ok) {
       return { error: "cost_limit_exceeded", details: result };
@@ -138,14 +151,14 @@ export async function checkTriggerAllowed(opts: {
         eq(pipelineRuns.pipelineName, opts.pipelineName),
         eq(pipelineRuns.projectId, opts.projectId),
         sql`${pipelineRuns.input}->>${opts.uniqueKey.field} = ${opts.uniqueKey.value}`,
-        inArray(pipelineRuns.status, activeStatuses),
-      ),
+        inArray(pipelineRuns.status, activeStatuses)
+      )
     )
     .limit(1);
 
-  if (existing.length > 0) {
-    const found = existing[0]!;
-    return { runId: found.id, jobId: found.jobId ?? "", deduped: true };
+  const firstFound = existing[0];
+  if (firstFound !== undefined) {
+    return { runId: firstFound.id, jobId: firstFound.jobId ?? "", deduped: true };
   }
 
   return null;
@@ -162,13 +175,13 @@ export function triggerResultToResponse(c: Context, result: TriggerResult): Resp
     }
   }
   // Error branches are already handled above; result is safely the success union here
-  return c.json(
-    { ok: true, data: result },
-    (result as { deduped: boolean }).deduped ? 200 : 202,
-  );
+  return c.json({ ok: true, data: result }, (result as { deduped: boolean }).deduped ? 200 : 202);
 }
 
 /** Converts a guard-only check error to an HTTP response */
-export function guardErrorToResponse(c: Context, blocked: Exclude<TriggerResult, { deduped: false }>): Response {
+export function guardErrorToResponse(
+  c: Context,
+  blocked: Exclude<TriggerResult, { deduped: false }>
+): Response {
   return triggerResultToResponse(c, blocked);
 }

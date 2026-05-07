@@ -55,21 +55,21 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useArticlesStore } from 'src/stores/articles';
-import ArticleDetailHeader from 'src/components/articles/ArticleDetailHeader.vue';
-import ArticleBodyPanel from 'src/components/articles/ArticleBodyPanel.vue';
-import ArticleMetadataPanel from 'src/components/articles/ArticleMetadataPanel.vue';
-import ArticleHistoryPanel from 'src/components/articles/ArticleHistoryPanel.vue';
-import ArticleValidationPanel from 'src/components/articles/ArticleValidationPanel.vue';
-import ArticleActionPanel from 'src/components/articles/ArticleActionPanel.vue';
+import ArticleActionPanel from "src/components/articles/ArticleActionPanel.vue";
+import ArticleBodyPanel from "src/components/articles/ArticleBodyPanel.vue";
+import ArticleDetailHeader from "src/components/articles/ArticleDetailHeader.vue";
+import ArticleHistoryPanel from "src/components/articles/ArticleHistoryPanel.vue";
+import ArticleMetadataPanel from "src/components/articles/ArticleMetadataPanel.vue";
+import ArticleValidationPanel from "src/components/articles/ArticleValidationPanel.vue";
+import { useArticlesStore } from "src/stores/articles";
+import { defineComponent } from "vue";
 
-type TabName = 'body' | 'metadata' | 'history' | 'validation';
+type TabName = "body" | "metadata" | "history" | "validation";
 
-const VALID_TABS: TabName[] = ['body', 'metadata', 'history', 'validation'];
+const VALID_TABS: TabName[] = ["body", "metadata", "history", "validation"];
 
 export default defineComponent({
-  name: 'ArticleDetailPage',
+  name: "ArticleDetailPage",
 
   components: {
     ArticleDetailHeader,
@@ -89,7 +89,7 @@ export default defineComponent({
   },
 
   data: () => ({
-    activeTab: 'body' as TabName,
+    activeTab: "body" as TabName,
     loading: false,
   }),
 
@@ -100,9 +100,9 @@ export default defineComponent({
   },
 
   async created() {
-    const rawTab = this.$route.query['tab'];
-    const tabStr = Array.isArray(rawTab) ? rawTab[0] ?? '' : rawTab ?? '';
-    if (typeof tabStr === 'string' && VALID_TABS.includes(tabStr as TabName)) {
+    const rawTab = this.$route.query["tab"];
+    const tabStr = Array.isArray(rawTab) ? (rawTab[0] ?? "") : (rawTab ?? "");
+    if (typeof tabStr === "string" && VALID_TABS.includes(tabStr as TabName)) {
       this.activeTab = tabStr as TabName;
     }
     await this.loadDetail();
@@ -119,7 +119,7 @@ export default defineComponent({
     },
 
     onTabChange(newTab: string | number | null): void {
-      if (typeof newTab !== 'string') return;
+      if (typeof newTab !== "string") return;
       void this.$router.replace({ query: { ...this.$route.query, tab: newTab } });
     },
 

@@ -10,9 +10,9 @@ export const EUR_PER_USD = 0.92;
 const usdToEur = (usd: number) => usd * EUR_PER_USD;
 
 export const ANTHROPIC_PRICING_USD_PER_MTOK = {
-  "claude-haiku-4-5":  { input: 1.0,  output: 5.0,  cacheRead: 0.10, cacheWrite: 1.25 },
-  "claude-sonnet-4-6": { input: 3.0,  output: 15.0, cacheRead: 0.30, cacheWrite: 3.75 },
-  "claude-opus-4-7":   { input: 5.0,  output: 25.0, cacheRead: 0.50, cacheWrite: 6.25 },
+  "claude-haiku-4-5": { input: 1.0, output: 5.0, cacheRead: 0.1, cacheWrite: 1.25 },
+  "claude-sonnet-4-6": { input: 3.0, output: 15.0, cacheRead: 0.3, cacheWrite: 3.75 },
+  "claude-opus-4-7": { input: 5.0, output: 25.0, cacheRead: 0.5, cacheWrite: 6.25 },
 } as const;
 
 export type AnthropicModel = keyof typeof ANTHROPIC_PRICING_USD_PER_MTOK;
@@ -39,7 +39,7 @@ export function anthropicCostEur(input: {
 export const REPLICATE_PRICING_USD_PER_IMAGE = {
   "black-forest-labs/flux-1.1-pro": 0.04,
   "black-forest-labs/flux-schnell": 0.003,
-  "ideogram-ai/ideogram-v3":         0.04,
+  "ideogram-ai/ideogram-v3": 0.04,
 } as const;
 
 export type ReplicateModel = keyof typeof REPLICATE_PRICING_USD_PER_IMAGE;
@@ -50,16 +50,16 @@ export function replicateImageCostEur(input: { model: ReplicateModel; count: num
 }
 
 export const DATAFORSEO_PRICING_USD = {
-  serpStandard:       0.0006,
-  serpPriority:       0.0012,
-  serpLive:           0.002,
+  serpStandard: 0.0006,
+  serpPriority: 0.0012,
+  serpLive: 0.002,
   keywordSuggestions: 0.001,
 
   // Labs API — pre-computed database
-  keywordOverviewLive:    0.0201,
-  relatedKeywordsLive:    0.012,
+  keywordOverviewLive: 0.0201,
+  relatedKeywordsLive: 0.012,
   keywordSuggestionsLive: 0.012,
-  rankedKeywordsLive:     0.012,
+  rankedKeywordsLive: 0.012,
 
   // Keywords Data API
   searchVolumeLive: 0.025,

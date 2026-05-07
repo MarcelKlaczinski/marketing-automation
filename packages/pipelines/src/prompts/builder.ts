@@ -1,4 +1,4 @@
-import { loadSkill, loadSkills, loadProjectContext } from "../skills/loader.ts";
+import { loadProjectContext, loadSkill, loadSkills } from "../skills/loader.ts";
 
 export type SystemPromptInput = {
   /** Skill name(s) from packages/skills. Concatenated in order if array. */
@@ -31,8 +31,7 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
   const projectContext = await loadProjectContext(input.projectIdOrSlug);
   if (!projectContext) {
     throw new Error(
-      `No marketing context found for project "${input.projectIdOrSlug}". ` +
-      `Run sync-context for this project first.`,
+      `No marketing context found for project "${input.projectIdOrSlug}". Run sync-context for this project first.`
     );
   }
 
@@ -46,12 +45,9 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
     projectContext,
   ].join("\n");
 
-  const variableSuffix = [
-    "---",
-    "",
-    "# Task-Specific Instructions",
-    input.stepInstructions,
-  ].join("\n");
+  const variableSuffix = ["---", "", "# Task-Specific Instructions", input.stepInstructions].join(
+    "\n"
+  );
 
   return {
     cacheablePrefix,

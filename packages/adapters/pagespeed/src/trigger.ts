@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
-import { db, articles, pagespeedRuns } from "@marketing-auto/db";
+import { articles, db, pagespeedRuns } from "@marketing-auto/db";
 import { enqueuePipeline } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
 
 const log = createLogger("pagespeed:trigger");
 
@@ -17,12 +17,9 @@ export async function enqueueArticleValidation(input: {
 
   if (!article) throw new Error(`Article ${input.articleId} not found`);
 
-  if (
-    article.status !== "ready_to_publish" &&
-    article.status !== "blocked_by_pagespeed"
-  ) {
+  if (article.status !== "ready_to_publish" && article.status !== "blocked_by_pagespeed") {
     throw new Error(
-      `Article status is "${article.status}", expected "ready_to_publish" or "blocked_by_pagespeed"`,
+      `Article status is "${article.status}", expected "ready_to_publish" or "blocked_by_pagespeed"`
     );
   }
 
@@ -47,10 +44,7 @@ export async function enqueueArticleValidation(input: {
     jobOptions: { jobId: `pagespeed-${input.articleId}` },
   });
 
-  log.info(
-    { articleId: input.articleId, runId: run!.id, jobId },
-    "PageSpeed validation enqueued",
-  );
+  log.info({ articleId: input.articleId, runId: run!.id, jobId }, "PageSpeed validation enqueued");
 
   return { pagespeedRunId: run!.id, jobId };
 }

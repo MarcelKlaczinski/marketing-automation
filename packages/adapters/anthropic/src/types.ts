@@ -81,7 +81,7 @@ export class JsonParseError extends Error {
   constructor(
     message: string,
     public readonly rawOutput: string,
-    public readonly parseError: unknown,
+    public readonly parseError: unknown
   ) {
     super(message);
     this.name = "JsonParseError";
@@ -91,7 +91,7 @@ export class JsonParseError extends Error {
 export class AnthropicClientError extends Error {
   constructor(
     message: string,
-    public readonly status: number,
+    public readonly status: number
   ) {
     super(message);
     this.name = "AnthropicClientError";

@@ -1,17 +1,17 @@
-import { z } from "zod";
-import { eq, and } from "drizzle-orm";
-import { db, projects, brandVoices } from "@marketing-auto/db";
-import { BaseStep, type StepContext } from "../../engine/step.ts";
-import {
-  fileExists,
-  readMarkdownIfExists,
-  parseDataBlock,
-  coldStartFile,
-  COLD_START_FILES,
-  projectContextDir,
-} from "../shared/index.ts";
-import { ApprovedClusterSchema, CornerstoneSpecSchema } from "../04-cornerstone-list/steps.ts";
 import { join } from "node:path";
+import { brandVoices, db, projects } from "@marketing-auto/db";
+import { and, eq } from "drizzle-orm";
+import { z } from "zod";
+import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { ApprovedClusterSchema, CornerstoneSpecSchema } from "../04-cornerstone-list/steps.ts";
+import {
+  COLD_START_FILES,
+  coldStartFile,
+  fileExists,
+  parseDataBlock,
+  projectContextDir,
+  readMarkdownIfExists,
+} from "../shared/index.ts";
 
 // ─── Output schemas ───────────────────────────────────────────────────────────
 
@@ -43,13 +43,10 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
   readonly outputSchema = GoLiveChecklistOutputSchema;
 
   override estimatedCostEur(): number {
-    return 0.00;
+    return 0.0;
   }
 
-  async execute(
-    input: { projectSlug: string },
-    ctx: StepContext,
-  ): Promise<GoLiveChecklistOutput> {
+  async execute(input: { projectSlug: string }, ctx: StepContext): Promise<GoLiveChecklistOutput> {
     const { projectSlug } = input;
     const checks: CheckItem[] = [];
 
@@ -75,9 +72,9 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
       label: "marketing-context.md complete and synced to DB",
       checked: !!contextMd && contextMd.length > 200 && !!project?.marketingContextMd,
       note: !contextMd
-        ? "File missing — create project-contexts/" + projectSlug + "/marketing-context.md"
+        ? `File missing — create project-contexts/${projectSlug}/marketing-context.md`
         : !project?.marketingContextMd
-          ? "File exists but not synced — run: bun --filter @marketing-auto/api sync-context " + projectSlug
+          ? `File exists but not synced — run: bun --filter @marketing-auto/api sync-context ${projectSlug}`
           : undefined,
     });
 
@@ -122,7 +119,7 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
       label: "Voice refinement complete (01-voice-refinement.md exists)",
       checked: voiceExists,
       note: !voiceExists
-        ? "Run: bun --filter @marketing-auto/api cold-start:voice-refinement " + projectSlug
+        ? `Run: bun --filter @marketing-auto/api cold-start:voice-refinement ${projectSlug}`
         : undefined,
     });
 
@@ -133,7 +130,7 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
       label: "Competitor analysis complete (02-competitor-analysis.md exists)",
       checked: competitorExists,
       note: !competitorExists
-        ? "Run: bun --filter @marketing-auto/api cold-start:competitor-analysis " + projectSlug + " analyze"
+        ? `Run: bun --filter @marketing-auto/api cold-start:competitor-analysis ${projectSlug} analyze`
         : undefined,
     });
 
@@ -144,7 +141,7 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
       label: "Cluster plan complete (03-cluster-plan.md exists)",
       checked: !!clusterMd,
       note: !clusterMd
-        ? "Run: bun --filter @marketing-auto/api cold-start:cluster-plan " + projectSlug + " expand"
+        ? `Run: bun --filter @marketing-auto/api cold-start:cluster-plan ${projectSlug} expand`
         : undefined,
     });
 
@@ -155,7 +152,7 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
       label: "Cornerstone list complete (04-cornerstone-list.md exists)",
       checked: !!cornerstoneMd,
       note: !cornerstoneMd
-        ? "Run: bun --filter @marketing-auto/api cold-start:cornerstone-list " + projectSlug
+        ? `Run: bun --filter @marketing-auto/api cold-start:cornerstone-list ${projectSlug}`
         : undefined,
     });
 
@@ -173,9 +170,10 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
           section: "Cluster Plan",
           label: `At least 5 clusters approved (found ${approved.length})`,
           checked: approved.length >= 5,
-          note: approved.length < 5
-            ? `Open ${clusterPath} and set "status: approved" on at least 5 clusters`
-            : undefined,
+          note:
+            approved.length < 5
+              ? `Open ${clusterPath} and set "status: approved" on at least 5 clusters`
+              : undefined,
         });
 
         const satelliteOk = approved.every((c) => c.satellite_keywords.length >= 5);
@@ -232,7 +230,7 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
         const allCornerstones = parseDataBlock(
           cornerstoneMd,
           "cornerstones",
-          z.array(CornerstoneSpecSchema.extend({ status: z.enum(["proposed", "approved"]) })),
+          z.array(CornerstoneSpecSchema.extend({ status: z.enum(["proposed", "approved"]) }))
         );
         const approved = allCornerstones.filter((c) => c.status === "approved");
 
@@ -240,13 +238,18 @@ export class GenerateGoLiveChecklistStep extends BaseStep<
           section: "Cornerstone Articles",
           label: `At least 5 cornerstone articles approved (found ${approved.length})`,
           checked: approved.length >= 5,
-          note: approved.length < 5
-            ? `Open ${cornerstonePath} and set "status: approved" on at least 5 articles`
-            : undefined,
+          note:
+            approved.length < 5
+              ? `Open ${cornerstonePath} and set "status: approved" on at least 5 articles`
+              : undefined,
         });
 
         const hasOutlines = approved.every(
-          (c) => c.proposed_title && c.proposed_slug && Array.isArray(c.h2_outline) && c.h2_outline.length >= 3,
+          (c) =>
+            c.proposed_title &&
+            c.proposed_slug &&
+            Array.isArray(c.h2_outline) &&
+            c.h2_outline.length >= 3
         );
         checks.push({
           section: "Cornerstone Articles",

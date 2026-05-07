@@ -11,17 +11,17 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { Chart, BarElement, CategoryScale, LinearScale, Tooltip } from 'chart.js';
-import type { ChartOptions } from 'chart.js';
-import { Bar } from 'vue-chartjs';
-import { formatEur } from 'src/lib/format-eur';
-import type { CostAggregations } from 'src/stores/cost';
+import { BarElement, CategoryScale, Chart, LinearScale, Tooltip } from "chart.js";
+import type { ChartOptions } from "chart.js";
+import { formatEur } from "src/lib/format-eur";
+import type { CostAggregations } from "src/stores/cost";
+import { type PropType, defineComponent } from "vue";
+import { Bar } from "vue-chartjs";
 
 Chart.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
 export default defineComponent({
-  name: 'CostDailyChart',
+  name: "CostDailyChart",
 
   components: { Bar },
 
@@ -34,15 +34,17 @@ export default defineComponent({
       const daily = this.aggregations?.thisMonth.daily ?? [];
       return {
         labels: daily.map((d) => d.day.slice(8)), // DD only
-        datasets: [{
-          label: 'EUR',
-          backgroundColor: '#3f51b5',
-          data: daily.map((d) => parseFloat(d.totalEur ?? '0')),
-        }],
+        datasets: [
+          {
+            label: "EUR",
+            backgroundColor: "#3f51b5",
+            data: daily.map((d) => Number.parseFloat(d.totalEur ?? "0")),
+          },
+        ],
       };
     },
 
-    chartOptions(): ChartOptions<'bar'> {
+    chartOptions(): ChartOptions<"bar"> {
       return {
         responsive: true,
         maintainAspectRatio: false,
@@ -59,7 +61,7 @@ export default defineComponent({
             beginAtZero: true,
             ticks: {
               // Chart.js types tick value as number|string but a LinearScale only emits numbers
-              callback: (v) => v == null ? '' : `€ ${formatEur(v as number)}`,
+              callback: (v) => (v == null ? "" : `€ ${formatEur(v as number)}`),
             },
           },
         },

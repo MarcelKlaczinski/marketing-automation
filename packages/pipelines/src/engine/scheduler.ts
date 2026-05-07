@@ -1,5 +1,5 @@
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Queue, Worker } from "bullmq";
-import { getEnv, createLogger } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 
 const log = createLogger("scheduler");
@@ -50,7 +50,7 @@ export async function startScheduler(): Promise<Worker> {
       {
         repeat: { pattern: job.cron },
         jobId: `scheduled:${name}`,
-      },
+      }
     );
     log.info({ name, cron: job.cron }, "Scheduled job registered");
   }
@@ -67,7 +67,7 @@ export async function startScheduler(): Promise<Worker> {
       await sj.handler();
       log.info({ name: job.name }, "Scheduled job completed");
     },
-    { connection: getConnection() },
+    { connection: getConnection() }
   );
 
   worker.on("failed", (job, err) => log.error({ name: job?.name, err }, "Scheduled job failed"));

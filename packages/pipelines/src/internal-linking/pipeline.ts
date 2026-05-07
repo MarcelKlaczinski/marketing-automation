@@ -1,14 +1,17 @@
+import { articles, db, linkRebuildRuns, projects } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
+import { and, eq, gte, inArray, sum } from "drizzle-orm";
 import { z } from "zod";
-import { eq, and, inArray, sum, gte } from "drizzle-orm";
 import { Pipeline } from "../engine/pipeline.ts";
 import { runPipeline } from "../engine/runner.ts";
-import { ArticleLinkUpdatePipeline } from "./article-pipeline.ts";
-import { db, articles, projects, linkRebuildRuns } from "@marketing-auto/db";
-import { InternalLinkingError } from "./types.ts";
 import { BaseStep, type StepContext } from "../engine/step.ts";
-import { createLogger } from "@marketing-auto/shared";
+import { ArticleLinkUpdatePipeline } from "./article-pipeline.ts";
+import { InternalLinkingError } from "./types.ts";
 
-const PUBLISHED_STATUSES: Array<"published" | "ready_to_publish"> = ["published", "ready_to_publish"];
+const PUBLISHED_STATUSES: Array<"published" | "ready_to_publish"> = [
+  "published",
+  "ready_to_publish",
+];
 
 const log = createLogger("internal-linking:cluster");
 
@@ -37,7 +40,7 @@ class OrchestrateClusterRebuildStep extends BaseStep<
   readonly outputSchema = ClusterRebuildOutputSchema;
 
   override estimatedCostEur(): number {
-    return 8 * 0.30;
+    return 8 * 0.3;
   }
 
   async execute(input: z.infer<typeof ClusterRebuildInputSchema>, _ctx: StepContext) {
@@ -50,18 +53,32 @@ class OrchestrateClusterRebuildStep extends BaseStep<
         title: articles.title,
       })
       .from(articles)
-      .where(and(
-        eq(articles.clusterId, input.clusterId),
-        inArray(articles.status, PUBLISHED_STATUSES),
-      ));
+      .where(
+        and(eq(articles.clusterId, input.clusterId), inArray(articles.status, PUBLISHED_STATUSES))
+      );
 
     if (clusterArticles.length === 0) {
       log.info({ clusterId: input.clusterId }, "Cluster has no published articles, nothing to do");
-      return { clusterId: input.clusterId, articlesProcessed: 0, articlesModified: 0, totalLinksAdded: 0, totalCostEur: 0 };
+      return {
+        clusterId: input.clusterId,
+        articlesProcessed: 0,
+        articlesModified: 0,
+        totalLinksAdded: 0,
+        totalCostEur: 0,
+      };
     }
     if (clusterArticles.length === 1) {
-      log.info({ clusterId: input.clusterId }, "Cluster has only 1 article, no candidates for linking");
-      return { clusterId: input.clusterId, articlesProcessed: 1, articlesModified: 0, totalLinksAdded: 0, totalCostEur: 0 };
+      log.info(
+        { clusterId: input.clusterId },
+        "Cluster has only 1 article, no candidates for linking"
+      );
+      return {
+        clusterId: input.clusterId,
+        articlesProcessed: 1,
+        articlesModified: 0,
+        totalLinksAdded: 0,
+        totalCostEur: 0,
+      };
     }
 
     let articlesModified = 0;
@@ -78,11 +95,14 @@ class OrchestrateClusterRebuildStep extends BaseStep<
             projectId: input.projectId,
             triggerResync: true,
           },
-          { projectId: input.projectId },
+          { projectId: input.projectId }
         );
 
         if (!result.ok) {
-          log.error({ articleId: article.id, error: result.error }, "Per-article link update failed; continuing");
+          log.error(
+            { articleId: article.id, error: result.error },
+            "Per-article link update failed; continuing"
+          );
           continue;
         }
 
@@ -90,14 +110,20 @@ class OrchestrateClusterRebuildStep extends BaseStep<
           articlesModified++;
           totalLinksAdded += result.output.linksAdded;
         }
-        totalCostEur += 0.30;
+        totalCostEur += 0.3;
 
-        log.info({
-          articleId: article.id,
-          linksAdded: result.output.linksAdded,
-        }, "Per-article link update done");
+        log.info(
+          {
+            articleId: article.id,
+            linksAdded: result.output.linksAdded,
+          },
+          "Per-article link update done"
+        );
       } catch (e) {
-        log.error({ articleId: article.id, error: e }, "Per-article link update crashed; continuing");
+        log.error(
+          { articleId: article.id, error: e },
+          "Per-article link update crashed; continuing"
+        );
       }
     }
 
@@ -111,11 +137,14 @@ class OrchestrateClusterRebuildStep extends BaseStep<
   }
 
   private async checkBudget(projectId: string): Promise<void> {
-    const [proj] = await db.select({ cap: projects.linkRebuildBudgetMonthly })
-      .from(projects).where(eq(projects.id, projectId)).limit(1);
+    const [proj] = await db
+      .select({ cap: projects.linkRebuildBudgetMonthly })
+      .from(projects)
+      .where(eq(projects.id, projectId))
+      .limit(1);
     if (!proj) throw new InternalLinkingError("Project not found", "budget");
 
-    const cap = parseFloat(proj.cap ?? "30.00");
+    const cap = Number.parseFloat(proj.cap ?? "30.00");
 
     const monthStart = new Date();
     monthStart.setDate(1);
@@ -124,17 +153,15 @@ class OrchestrateClusterRebuildStep extends BaseStep<
     const [usage] = await db
       .select({ total: sum(linkRebuildRuns.totalCostEur) })
       .from(linkRebuildRuns)
-      .where(and(
-        eq(linkRebuildRuns.projectId, projectId),
-        gte(linkRebuildRuns.startedAt, monthStart),
-      ));
+      .where(
+        and(eq(linkRebuildRuns.projectId, projectId), gte(linkRebuildRuns.startedAt, monthStart))
+      );
 
-    const used = parseFloat(String(usage?.total ?? "0"));
+    const used = Number.parseFloat(String(usage?.total ?? "0"));
     if (used >= cap) {
       throw new InternalLinkingError(
-        `Monthly link-rebuild budget exceeded: €${used.toFixed(2)} / €${cap.toFixed(2)}. ` +
-        `Increase via projects.linkRebuildBudgetMonthly or wait until next month.`,
-        "budget",
+        `Monthly link-rebuild budget exceeded: €${used.toFixed(2)} / €${cap.toFixed(2)}. Increase via projects.linkRebuildBudgetMonthly or wait until next month.`,
+        "budget"
       );
     }
   }
@@ -151,33 +178,45 @@ export class ClusterLinkRebuildPipeline extends Pipeline<
 
   override async afterComplete(
     output: z.infer<typeof ClusterRebuildOutputSchema>,
-    input: z.infer<typeof ClusterRebuildInputSchema>,
+    input: z.infer<typeof ClusterRebuildInputSchema>
   ): Promise<void> {
     if (!input.linkRebuildRunId) return;
-    await db.update(linkRebuildRuns).set({
-      status: "succeeded",
-      articlesProcessed: output.articlesProcessed,
-      articlesModified: output.articlesModified,
-      totalLinksAdded: output.totalLinksAdded,
-      totalCostEur: output.totalCostEur.toFixed(4),
-      finishedAt: new Date(),
-    }).where(eq(linkRebuildRuns.id, input.linkRebuildRunId));
-    log.info({ linkRebuildRunId: input.linkRebuildRunId }, "link_rebuild_runs row settled: succeeded");
+    await db
+      .update(linkRebuildRuns)
+      .set({
+        status: "succeeded",
+        articlesProcessed: output.articlesProcessed,
+        articlesModified: output.articlesModified,
+        totalLinksAdded: output.totalLinksAdded,
+        totalCostEur: output.totalCostEur.toFixed(4),
+        finishedAt: new Date(),
+      })
+      .where(eq(linkRebuildRuns.id, input.linkRebuildRunId));
+    log.info(
+      { linkRebuildRunId: input.linkRebuildRunId },
+      "link_rebuild_runs row settled: succeeded"
+    );
   }
 
   override async afterError(
     error: unknown,
-    input: z.infer<typeof ClusterRebuildInputSchema>,
+    input: z.infer<typeof ClusterRebuildInputSchema>
   ): Promise<void> {
     if (!input.linkRebuildRunId) return;
     const isBudgetError = error instanceof InternalLinkingError && error.stage === "budget";
     const status = isBudgetError ? ("budget_exceeded" as const) : ("failed" as const);
-    await db.update(linkRebuildRuns).set({
-      status,
-      errorMessage: error instanceof Error ? error.message : String(error),
-      errorStage: error instanceof InternalLinkingError ? error.stage : null,
-      finishedAt: new Date(),
-    }).where(eq(linkRebuildRuns.id, input.linkRebuildRunId));
-    log.info({ linkRebuildRunId: input.linkRebuildRunId, status }, "link_rebuild_runs row settled: failed");
+    await db
+      .update(linkRebuildRuns)
+      .set({
+        status,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStage: error instanceof InternalLinkingError ? error.stage : null,
+        finishedAt: new Date(),
+      })
+      .where(eq(linkRebuildRuns.id, input.linkRebuildRunId));
+    log.info(
+      { linkRebuildRunId: input.linkRebuildRunId, status },
+      "link_rebuild_runs row settled: failed"
+    );
   }
 }

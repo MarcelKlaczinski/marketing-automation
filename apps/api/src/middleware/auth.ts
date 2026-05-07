@@ -1,9 +1,9 @@
+import { db, sessions, users } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
+import { and, eq, gt } from "drizzle-orm";
 import type { MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
-import { eq, and, gt } from "drizzle-orm";
-import { db, sessions, users } from "@marketing-auto/db";
 import { hashToken } from "../lib/tokens.ts";
-import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("auth-mw");
 
@@ -46,12 +46,7 @@ export const sessionLoader: MiddlewareHandler = async (c, next) => {
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
-    .where(
-      and(
-        eq(sessions.tokenHash, tokenHash),
-        gt(sessions.expiresAt, new Date()),
-      ),
-    )
+    .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, new Date())))
     .limit(1)
     .then((rows) => rows[0]);
 

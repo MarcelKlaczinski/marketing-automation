@@ -11,18 +11,18 @@
  * Run DB-only:
  *   bun --filter @marketing-auto/pipelines test integration
  */
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
-import { eq, and } from "drizzle-orm";
-import {
-  db,
-  projects,
-  clusters,
-  articles,
-  contentPillars,
-  linkRebuildRuns,
-} from "@marketing-auto/db";
-import { runPipeline } from "../../src/engine/runner.ts";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
+import {
+  articles,
+  clusters,
+  contentPillars,
+  db,
+  linkRebuildRuns,
+  projects,
+} from "@marketing-auto/db";
+import { and, eq } from "drizzle-orm";
+import { runPipeline } from "../../src/engine/runner.ts";
 import { ArticleLinkUpdatePipeline } from "../../src/internal-linking/article-pipeline.ts";
 
 const LIVE = process.env.RUN_LIVE_INTERNAL_LINKING === "1";
@@ -33,30 +33,39 @@ let projectId: string;
 let clusterId: string;
 
 beforeAll(async () => {
-  const [p] = await db.insert(projects).values({
-    slug: `il-intg-test-${Date.now()}`,
-    name: "Internal Linking Integration Test",
-    industry: "ai_education",
-    pipelineTemplate: "educational",
-    domain: "test.ki-wissensraum.de",
-  }).returning();
+  const [p] = await db
+    .insert(projects)
+    .values({
+      slug: `il-intg-test-${Date.now()}`,
+      name: "Internal Linking Integration Test",
+      industry: "ai_education",
+      pipelineTemplate: "educational",
+      domain: "test.ki-wissensraum.de",
+    })
+    .returning();
   projectId = p!.id;
 
-  const [pillar] = await db.insert(contentPillars).values({
-    projectId,
-    name: "KI Tools",
-    position: 0,
-  }).returning();
+  const [pillar] = await db
+    .insert(contentPillars)
+    .values({
+      projectId,
+      name: "KI Tools",
+      position: 0,
+    })
+    .returning();
 
-  const [c] = await db.insert(clusters).values({
-    projectId,
-    pillarId: pillar!.id,
-    name: "Claude Grundlagen",
-    pillar: "KI Tools",
-    cornerstoneKeywords: ["claude-ai"],
-    satelliteKeywords: [],
-    status: "approved",
-  }).returning();
+  const [c] = await db
+    .insert(clusters)
+    .values({
+      projectId,
+      pillarId: pillar!.id,
+      name: "Claude Grundlagen",
+      pillar: "KI Tools",
+      cornerstoneKeywords: ["claude-ai"],
+      satelliteKeywords: [],
+      status: "approved",
+    })
+    .returning();
   clusterId = c!.id;
 });
 
@@ -68,17 +77,20 @@ afterAll(async () => {
 
 describe("ArticleSyncPipeline.afterComplete (DB)", () => {
   it("creates link_rebuild_runs row for article with clusterId", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId,
-      slug: `ac-test-with-cluster-${Date.now()}`,
-      cornerstoneKeyword: "claude-api",
-      title: "Claude API Guide",
-      bodyMd: "## Einführung\n\nClaude API ist einfach zu nutzen.",
-      heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-      status: "published",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: `ac-test-with-cluster-${Date.now()}`,
+        cornerstoneKeyword: "claude-api",
+        title: "Claude API Guide",
+        bodyMd: "## Einführung\n\nClaude API ist einfach zu nutzen.",
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        status: "published",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
@@ -86,7 +98,7 @@ describe("ArticleSyncPipeline.afterComplete (DB)", () => {
       // DB insert in enqueueClusterLinkRebuild precedes the BullMQ call, so the row exists even without Redis.
       await pipeline.afterComplete(
         { articleId, syncRunId: crypto.randomUUID() },
-        { articleId, projectId },
+        { articleId, projectId }
       );
 
       const [run] = await db
@@ -97,8 +109,8 @@ describe("ArticleSyncPipeline.afterComplete (DB)", () => {
             eq(linkRebuildRuns.projectId, projectId),
             eq(linkRebuildRuns.clusterId, clusterId),
             eq(linkRebuildRuns.triggeringArticleId, articleId),
-            eq(linkRebuildRuns.triggerType, "auto_after_sync"),
-          ),
+            eq(linkRebuildRuns.triggerType, "auto_after_sync")
+          )
         )
         .limit(1);
 
@@ -110,17 +122,20 @@ describe("ArticleSyncPipeline.afterComplete (DB)", () => {
   });
 
   it("does NOT create a link_rebuild_runs row when article has no clusterId", async () => {
-    const [a] = await db.insert(articles).values({
-      projectId,
-      clusterId: null,
-      slug: `ac-test-no-cluster-${Date.now()}`,
-      cornerstoneKeyword: "claude-api",
-      title: "Standalone Article",
-      bodyMd: "## Test\n\nKein Cluster.",
-      heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-      status: "published",
-      approvalMode: "manual",
-    }).returning();
+    const [a] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId: null,
+        slug: `ac-test-no-cluster-${Date.now()}`,
+        cornerstoneKeyword: "claude-api",
+        title: "Standalone Article",
+        bodyMd: "## Test\n\nKein Cluster.",
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        status: "published",
+        approvalMode: "manual",
+      })
+      .returning();
     const articleId = a!.id;
 
     try {
@@ -132,7 +147,7 @@ describe("ArticleSyncPipeline.afterComplete (DB)", () => {
       const pipeline = new ArticleSyncPipeline();
       await pipeline.afterComplete(
         { articleId, syncRunId: crypto.randomUUID() },
-        { articleId, projectId },
+        { articleId, projectId }
       );
 
       const after = await db
@@ -151,10 +166,13 @@ describe("ArticleSyncPipeline.afterComplete (DB)", () => {
     const ghostId = crypto.randomUUID();
     // Non-existent article → DB select returns nothing → no enqueue attempt
     await expect(
-      pipeline.afterComplete({ articleId: ghostId, syncRunId: crypto.randomUUID() }, {
-        articleId: ghostId,
-        projectId,
-      }),
+      pipeline.afterComplete(
+        { articleId: ghostId, syncRunId: crypto.randomUUID() },
+        {
+          articleId: ghostId,
+          projectId,
+        }
+      )
     ).resolves.toBeUndefined();
   });
 });
@@ -192,20 +210,24 @@ describe.skipIf(!LIVE)("ArticleLinkUpdatePipeline (live — ~€0.60)", () => {
   beforeAll(async () => {
     articleIds = [];
     for (let i = 0; i < 2; i++) {
-      const [a] = await db.insert(articles).values({
-        projectId,
-        clusterId,
-        slug: `live-il-test-${i}-${Date.now()}`,
-        cornerstoneKeyword: i === 0 ? "claude-api" : "lokale-llms",
-        title: i === 0 ? "Claude API Guide" : "Lokale LLMs Guide",
-        metaDescription: i === 0
-          ? "Claude API schnell einrichten und nutzen."
-          : "Lokale LLMs auf eigener Hardware betreiben.",
-        bodyMd: ARTICLE_BODIES[i]!,
-        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
-        status: "published",
-        approvalMode: "manual",
-      }).returning();
+      const [a] = await db
+        .insert(articles)
+        .values({
+          projectId,
+          clusterId,
+          slug: `live-il-test-${i}-${Date.now()}`,
+          cornerstoneKeyword: i === 0 ? "claude-api" : "lokale-llms",
+          title: i === 0 ? "Claude API Guide" : "Lokale LLMs Guide",
+          metaDescription:
+            i === 0
+              ? "Claude API schnell einrichten und nutzen."
+              : "Lokale LLMs auf eigener Hardware betreiben.",
+          bodyMd: ARTICLE_BODIES[i]!,
+          heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+          status: "published",
+          approvalMode: "manual",
+        })
+        .returning();
       articleIds.push(a!.id);
     }
   });
@@ -221,7 +243,7 @@ describe.skipIf(!LIVE)("ArticleLinkUpdatePipeline (live — ~€0.60)", () => {
       const result = await runPipeline(
         new ArticleLinkUpdatePipeline(),
         { articleId, clusterId, projectId, triggerResync: false },
-        { projectId },
+        { projectId }
       );
 
       expect(result.ok).toBe(true);
@@ -266,7 +288,7 @@ describe.skipIf(!LIVE)("ArticleLinkUpdatePipeline (live — ~€0.60)", () => {
       const result = await runPipeline(
         new ArticleLinkUpdatePipeline(),
         { articleId, clusterId, projectId, triggerResync: false },
-        { projectId },
+        { projectId }
       );
 
       expect(result.ok).toBe(true);

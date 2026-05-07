@@ -1,8 +1,9 @@
-import { z } from "zod";
-import { eq } from "drizzle-orm";
-import { BaseStep, type StepContext } from "../../engine/step.ts";
-import { db, articles } from "@marketing-auto/db";
 import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { COST_OPS } from "@marketing-auto/core/cost";
+import { articles, db } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
+import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
@@ -18,23 +19,28 @@ const OutputSchema = z.object({
   wordCount: z.number().int().min(500),
 });
 
-export class DraftStep extends BaseStep<
-  z.infer<typeof InputSchema>,
-  z.infer<typeof OutputSchema>
-> {
+export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typeof OutputSchema>> {
   readonly name = "draft";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number { return 0.80; }
+  override estimatedCostEur(): number {
+    return 0.8;
+  }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
-    const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
+    const [article] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, input.articleId))
+      .limit(1);
     if (!article) throw new ArticlePipelineError(`Article ${input.articleId} not found`, "draft");
-    if (!article.outline) throw new ArticlePipelineError(`Article has no outline`, "draft");
+    if (!article.outline) throw new ArticlePipelineError("Article has no outline", "draft");
 
     const outline = ArticleOutlineSchema.parse(article.outline);
-    const model = (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ?? "claude-sonnet-4-6";
+    const model =
+      (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
+      "claude-sonnet-4-6";
 
     const prompt = await buildSystemPrompt({
       skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing-context"],
@@ -64,30 +70,38 @@ Output: pure Markdown, ready to publish. No frontmatter, no JSON wrapping.
     });
 
     const userMsg = [
-      `# Outline to write`,
+      "# Outline to write",
       `**Title**: ${outline.title}`,
       `**Meta description**: ${outline.metaDescription}`,
-      ``,
-      `## Intro angle`,
+      "",
+      "## Intro angle",
       outline.introAngle,
-      ``,
-      `## Sections`,
-      outline.sections.map((s, i) => [
-        `### ${i + 1}. ${s.h2}`,
-        `*Intent*: ${s.intent}`,
-        `*Estimated words*: ${s.estimatedWords}`,
-        `*Key points*:`,
-        ...s.keyPoints.map((p) => `- ${p}`),
-        s.targetKeywords.length > 0 ? `*Naturally include*: ${s.targetKeywords.join(", ")}` : "",
-      ].filter(Boolean).join("\n")).join("\n\n"),
-      ``,
-      `Now write the full article in Markdown.`,
+      "",
+      "## Sections",
+      outline.sections
+        .map((s, i) =>
+          [
+            `### ${i + 1}. ${s.h2}`,
+            `*Intent*: ${s.intent}`,
+            `*Estimated words*: ${s.estimatedWords}`,
+            "*Key points*:",
+            ...s.keyPoints.map((p) => `- ${p}`),
+            s.targetKeywords.length > 0
+              ? `*Naturally include*: ${s.targetKeywords.join(", ")}`
+              : "",
+          ]
+            .filter(Boolean)
+            .join("\n")
+        )
+        .join("\n\n"),
+      "",
+      "Now write the full article in Markdown.",
     ].join("\n");
 
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
-      operation: "article-draft",
+      operation: COST_OPS.ARTICLE_DRAFT,
       model,
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
@@ -102,7 +116,7 @@ Output: pure Markdown, ready to publish. No frontmatter, no JSON wrapping.
     if (wordCount < 500) {
       throw new ArticlePipelineError(
         `Draft too short: ${wordCount} words. Outline estimated ${outline.estimatedTotalWords}.`,
-        "draft",
+        "draft"
       );
     }
 

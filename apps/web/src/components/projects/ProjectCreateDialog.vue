@@ -98,14 +98,14 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useProjectsStore } from 'src/stores/projects';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import MarkdownEditor from 'src/components/common/MarkdownEditor.vue';
+import MarkdownEditor from "src/components/common/MarkdownEditor.vue";
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { useProjectsStore } from "src/stores/projects";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ProjectCreateDialog',
+  name: "ProjectCreateDialog",
 
   components: { MarkdownEditor },
 
@@ -113,7 +113,7 @@ export default defineComponent({
     modelValue: { type: Boolean, default: false },
   },
 
-  emits: ['update:modelValue', 'created'],
+  emits: ["update:modelValue", "created"],
 
   setup() {
     return {
@@ -125,47 +125,55 @@ export default defineComponent({
   data: () => ({
     step: 1,
     creating: false,
-    lastAutoSlug: '',
+    lastAutoSlug: "",
     form: {
-      name: '',
-      slug: '',
-      industry: 'ai_education',
-      pipelineTemplate: 'educational',
-      marketingContextMd: '',
+      name: "",
+      slug: "",
+      industry: "ai_education",
+      pipelineTemplate: "educational",
+      marketingContextMd: "",
     },
   }),
 
   computed: {
     industryOptions() {
-      return ['ai_education', 'automotive_dealer', 'renewable_affiliate', 'music_school', 'other'].map((v) => ({
+      return [
+        "ai_education",
+        "automotive_dealer",
+        "renewable_affiliate",
+        "music_school",
+        "other",
+      ].map((v) => ({
         label: this.$t(`industries.${v}`),
         value: v,
       }));
     },
 
     templateOptions() {
-      return ['educational', 'affiliate_review', 'local_business', 'programmatic_seo'].map((v) => ({
+      return ["educational", "affiliate_review", "local_business", "programmatic_seo"].map((v) => ({
         label: this.$t(`pipelineTemplates.${v}`),
         value: v,
       }));
     },
 
     canProceedToContext(): boolean {
-      return !!this.form.name &&
-        !!this.form.slug &&
-        /^[a-z0-9-]+$/.test(this.form.slug);
+      return !!this.form.name && !!this.form.slug && /^[a-z0-9-]+$/.test(this.form.slug);
     },
   },
 
   watch: {
-    'form.name'(newName: string): void {
+    "form.name"(newName: string): void {
       if (!this.form.slug || this.form.slug === this.lastAutoSlug) {
         const suggested = newName
           .toLowerCase()
-          .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
-          .normalize('NFD').replace(/[̀-ͯ]/g, '')
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '');
+          .replace(/ä/g, "ae")
+          .replace(/ö/g, "oe")
+          .replace(/ü/g, "ue")
+          .replace(/ß/g, "ss")
+          .normalize("NFD")
+          .replace(/\p{M}/gu, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "");
         this.form.slug = suggested;
         this.lastAutoSlug = suggested;
       }
@@ -175,19 +183,19 @@ export default defineComponent({
   methods: {
     onClose(): void {
       this.reset();
-      this.$emit('update:modelValue', false);
+      this.$emit("update:modelValue", false);
     },
 
     reset(): void {
       this.step = 1;
       this.creating = false;
-      this.lastAutoSlug = '';
+      this.lastAutoSlug = "";
       this.form = {
-        name: '',
-        slug: '',
-        industry: 'ai_education',
-        pipelineTemplate: 'educational',
-        marketingContextMd: '',
+        name: "",
+        slug: "",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+        marketingContextMd: "",
       };
     },
 
@@ -210,8 +218,8 @@ export default defineComponent({
           payload.marketingContextMd = this.form.marketingContextMd;
         }
         const created = await this.projectsStore.create(payload);
-        this.notify.success(this.$t('projects.create.success', { name: created.name }));
-        this.$emit('created', created.slug);
+        this.notify.success(this.$t("projects.create.success", { name: created.name }));
+        this.$emit("created", created.slug);
         this.reset();
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);

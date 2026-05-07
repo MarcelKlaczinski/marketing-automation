@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { costLogs, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
-import { db, projects, costLogs } from "@marketing-auto/db";
 import { generateImage } from "../src/index.ts";
 
 const live = process.env.RUN_LIVE_REPLICATE === "1";
@@ -11,13 +11,16 @@ describeLive("Replicate adapter (LIVE)", () => {
   const slug = `replicate-test-${Date.now()}`;
 
   beforeAll(async () => {
-    const [p] = await db.insert(projects).values({
-      slug,
-      name: "Replicate Adapter Test",
-      industry: "ai_education",
-      pipelineTemplate: "educational",
-      costLimits: { daily: { replicate: 0.5 }, monthly: { replicate: 5 } },
-    }).returning();
+    const [p] = await db
+      .insert(projects)
+      .values({
+        slug,
+        name: "Replicate Adapter Test",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+        costLimits: { daily: { replicate: 0.5 }, monthly: { replicate: 5 } },
+      })
+      .returning();
     projectId = p!.id;
   });
 

@@ -40,12 +40,12 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, type PropType } from 'vue';
-import { formatEur } from 'src/lib/format-eur';
-import type { CostAggregations } from 'src/stores/cost';
+import { formatEur } from "src/lib/format-eur";
+import type { CostAggregations } from "src/stores/cost";
+import { type PropType, defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'CostSummaryCards',
+  name: "CostSummaryCards",
 
   props: {
     aggregations: { type: Object as PropType<CostAggregations | null>, default: null },
@@ -54,32 +54,30 @@ export default defineComponent({
 
   computed: {
     thisMonthValue(): number {
-      return parseFloat(this.aggregations?.thisMonth.totalEur ?? '0');
+      return Number.parseFloat(this.aggregations?.thisMonth.totalEur ?? "0");
     },
     lastMonthValue(): number | null {
       const v = this.aggregations?.lastMonth.totalEur;
-      return v !== undefined ? parseFloat(v) : null;
+      return v !== undefined ? Number.parseFloat(v) : null;
     },
     trendIcon(): string {
-      if (this.lastMonthValue === null) return 'remove';
-      return this.thisMonthValue > this.lastMonthValue ? 'trending_up' : 'trending_down';
+      if (this.lastMonthValue === null) return "remove";
+      return this.thisMonthValue > this.lastMonthValue ? "trending_up" : "trending_down";
     },
     trendColor(): string {
-      if (this.lastMonthValue === null) return 'grey';
-      return this.thisMonthValue > this.lastMonthValue ? 'negative' : 'positive';
+      if (this.lastMonthValue === null) return "grey";
+      return this.thisMonthValue > this.lastMonthValue ? "negative" : "positive";
     },
     trendCaption(): string {
-      if (this.lastMonthValue === null || !this.aggregations) return '';
+      if (this.lastMonthValue === null || !this.aggregations) return "";
       const diff = this.thisMonthValue - this.lastMonthValue;
-      const pct = this.lastMonthValue > 0
-        ? Math.abs(diff / this.lastMonthValue) * 100
-        : 0;
-      const sign = diff >= 0 ? '+' : '−';
-      return `${sign}${pct.toFixed(0)}% ${this.$t('cost.summary.vsLastMonth') as string}`;
+      const pct = this.lastMonthValue > 0 ? Math.abs(diff / this.lastMonthValue) * 100 : 0;
+      const sign = diff >= 0 ? "+" : "−";
+      return `${sign}${pct.toFixed(0)}% ${this.$t("cost.summary.vsLastMonth") as string}`;
     },
     dailyAvg(): string {
-      if (!this.aggregations) return '0';
-      const totalThisMonth = parseFloat(this.aggregations.thisMonth.totalEur);
+      if (!this.aggregations) return "0";
+      const totalThisMonth = Number.parseFloat(this.aggregations.thisMonth.totalEur);
       const dayOfMonth = new Date().getDate();
       return (totalThisMonth / dayOfMonth).toFixed(6);
     },

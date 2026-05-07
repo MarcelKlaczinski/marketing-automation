@@ -1,17 +1,17 @@
-import { defineRouter } from '#q-app/wrappers';
 import {
-  createRouter,
   createMemoryHistory,
-  createWebHistory,
+  createRouter,
   createWebHashHistory,
-} from 'vue-router';
-import routes from './routes';
-import { registerGuards } from './guards';
+  createWebHistory,
+} from "vue-router";
+import { defineRouter } from "#q-app/wrappers";
+import { registerGuards } from "./guards";
+import routes from "./routes";
 
-export default defineRouter(function () {
+export default defineRouter(() => {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
-    : process.env.VUE_ROUTER_MODE === 'history'
+    : process.env.VUE_ROUTER_MODE === "history"
       ? createWebHistory
       : createWebHashHistory;
 

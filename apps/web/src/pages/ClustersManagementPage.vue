@@ -101,22 +101,28 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { usePillarsStore, type Pillar } from 'src/stores/pillars';
-import { useClustersStore, type Cluster } from 'src/stores/clusters';
-import { useProjectsStore } from 'src/stores/projects';
-import { useNotify } from 'src/composables/useNotify';
-import { HttpError } from 'src/lib/http-error';
-import PillarSection from 'src/components/clusters/PillarSection.vue';
-import ClusterCreateDialog from 'src/components/clusters/ClusterCreateDialog.vue';
-import ConfirmDeleteDialog from 'src/components/common/ConfirmDeleteDialog.vue';
-import ArticleMoveDialog from 'src/components/clusters/ArticleMoveDialog.vue';
-import ProjectPauseBanner from 'src/components/common/ProjectPauseBanner.vue';
+import ArticleMoveDialog from "src/components/clusters/ArticleMoveDialog.vue";
+import ClusterCreateDialog from "src/components/clusters/ClusterCreateDialog.vue";
+import PillarSection from "src/components/clusters/PillarSection.vue";
+import ConfirmDeleteDialog from "src/components/common/ConfirmDeleteDialog.vue";
+import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
+import { useNotify } from "src/composables/useNotify";
+import { HttpError } from "src/lib/http-error";
+import { type Cluster, useClustersStore } from "src/stores/clusters";
+import { type Pillar, usePillarsStore } from "src/stores/pillars";
+import { useProjectsStore } from "src/stores/projects";
+import { defineComponent } from "vue";
 
 export default defineComponent({
-  name: 'ClustersManagementPage',
+  name: "ClustersManagementPage",
 
-  components: { PillarSection, ClusterCreateDialog, ConfirmDeleteDialog, ArticleMoveDialog, ProjectPauseBanner },
+  components: {
+    PillarSection,
+    ClusterCreateDialog,
+    ConfirmDeleteDialog,
+    ArticleMoveDialog,
+    ProjectPauseBanner,
+  },
 
   props: {
     slug: { type: String, required: true },
@@ -137,13 +143,13 @@ export default defineComponent({
     deletePillarDialog: {
       open: false,
       pillarId: null as string | null,
-      pillarName: '',
+      pillarName: "",
       loading: false,
     },
     deleteClusterDialog: {
       open: false,
       clusterId: null as string | null,
-      message: '',
+      message: "",
       loading: false,
     },
     moveArticlesDialog: { open: false, cluster: null as Cluster | null },
@@ -194,7 +200,7 @@ export default defineComponent({
     async confirmCreatePillar(payload: { name: string; description?: string }): Promise<void> {
       try {
         await this.pillarsStore.create(this.slug, payload.name, payload.description);
-        this.notify.success(this.$t('clusters.notify.pillarCreated') as string);
+        this.notify.success(this.$t("clusters.notify.pillarCreated") as string);
         this.createPillarDialog.open = false;
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
@@ -211,7 +217,7 @@ export default defineComponent({
           name: payload.name,
           description: payload.description,
         });
-        this.notify.success(this.$t('clusters.notify.pillarUpdated') as string);
+        this.notify.success(this.$t("clusters.notify.pillarUpdated") as string);
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       }
@@ -220,9 +226,9 @@ export default defineComponent({
     onDeletePillar(pillar: Pillar): void {
       if (pillar.clusterCount > 0) {
         this.notify.warn(
-          this.$t('clusters.notify.cannotDeletePillarWithClusters', {
+          this.$t("clusters.notify.cannotDeletePillarWithClusters", {
             count: pillar.clusterCount,
-          }) as string,
+          }) as string
         );
         return;
       }
@@ -238,18 +244,15 @@ export default defineComponent({
       if (!this.deletePillarDialog.pillarId) return;
       this.deletePillarDialog.loading = true;
       try {
-        const result = await this.pillarsStore.delete(
-          this.slug,
-          this.deletePillarDialog.pillarId,
-        );
+        const result = await this.pillarsStore.delete(this.slug, this.deletePillarDialog.pillarId);
         if (result.deleted) {
-          this.notify.success(this.$t('clusters.notify.pillarDeleted') as string);
+          this.notify.success(this.$t("clusters.notify.pillarDeleted") as string);
           this.deletePillarDialog.open = false;
         } else {
           this.notify.warn(
-            this.$t('clusters.notify.cannotDeletePillarWithClusters', {
+            this.$t("clusters.notify.cannotDeletePillarWithClusters", {
               count: result.clusterCount ?? 0,
-            }) as string,
+            }) as string
           );
           this.deletePillarDialog.open = false;
         }
@@ -260,7 +263,7 @@ export default defineComponent({
       }
     },
 
-    async onMovePillar(payload: { id: string; direction: 'up' | 'down' }): Promise<void> {
+    async onMovePillar(payload: { id: string; direction: "up" | "down" }): Promise<void> {
       try {
         await this.pillarsStore.move(this.slug, payload.id, payload.direction);
       } catch (e) {
@@ -279,9 +282,9 @@ export default defineComponent({
           this.slug,
           this.createClusterDialog.pillarId,
           payload.name,
-          payload.extra,
+          payload.extra
         );
-        this.notify.success(this.$t('clusters.notify.clusterCreated') as string);
+        this.notify.success(this.$t("clusters.notify.clusterCreated") as string);
         this.createClusterDialog.open = false;
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
@@ -298,7 +301,7 @@ export default defineComponent({
           name: payload.name,
           primaryKeyword: payload.primaryKeyword,
         });
-        this.notify.success(this.$t('clusters.notify.clusterUpdated') as string);
+        this.notify.success(this.$t("clusters.notify.clusterUpdated") as string);
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       }
@@ -310,11 +313,11 @@ export default defineComponent({
         clusterId: cluster.id,
         message:
           cluster.articleCount > 0
-            ? (this.$t('clusters.dialogs.deleteClusterWithArticles', {
+            ? (this.$t("clusters.dialogs.deleteClusterWithArticles", {
                 name: cluster.name,
                 count: cluster.articleCount,
               }) as string)
-            : (this.$t('clusters.dialogs.deleteClusterMessage', { name: cluster.name }) as string),
+            : (this.$t("clusters.dialogs.deleteClusterMessage", { name: cluster.name }) as string),
         loading: false,
       };
     },
@@ -324,7 +327,7 @@ export default defineComponent({
       this.deleteClusterDialog.loading = true;
       try {
         await this.clustersStore.delete(this.slug, this.deleteClusterDialog.clusterId);
-        this.notify.success(this.$t('clusters.notify.clusterDeleted') as string);
+        this.notify.success(this.$t("clusters.notify.clusterDeleted") as string);
         this.deleteClusterDialog.open = false;
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
@@ -333,7 +336,7 @@ export default defineComponent({
       }
     },
 
-    async onMoveCluster(payload: { id: string; direction: 'up' | 'down' }): Promise<void> {
+    async onMoveCluster(payload: { id: string; direction: "up" | "down" }): Promise<void> {
       try {
         await this.clustersStore.move(this.slug, payload.id, payload.direction);
       } catch (e) {
@@ -344,7 +347,7 @@ export default defineComponent({
     async onChangeClusterPillar(payload: { id: string; pillarId: string }): Promise<void> {
       try {
         await this.clustersStore.update(this.slug, payload.id, { pillarId: payload.pillarId });
-        this.notify.success(this.$t('clusters.notify.clusterMoved') as string);
+        this.notify.success(this.$t("clusters.notify.clusterMoved") as string);
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       }
@@ -364,12 +367,12 @@ export default defineComponent({
           this.slug,
           payload.fromClusterId,
           payload.articleIds,
-          payload.toClusterId,
+          payload.toClusterId
         );
         this.notify.success(
-          this.$t('clusters.notify.articlesMoved', {
+          this.$t("clusters.notify.articlesMoved", {
             count: payload.articleIds.length,
-          }) as string,
+          }) as string
         );
         this.moveArticlesDialog.open = false;
       } catch (e) {

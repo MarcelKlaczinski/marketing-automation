@@ -10,7 +10,7 @@ const envSchema = z.object({
   // Deployment mode — "lokal" (default) or "self_hosted"
   DEPLOYMENT_MODE: z.preprocess(
     (v) => (v === "" ? undefined : v),
-    z.enum(["lokal", "self_hosted"]).optional(),
+    z.enum(["lokal", "self_hosted"]).optional()
   ),
 
   // Database
@@ -26,7 +26,10 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().url().default("http://localhost:3051"),
 
   // Encryption (for credential vault, Spec 02). Generate with: openssl rand -hex 32
-  ENCRYPTION_KEY: z.string().length(64).regex(/^[0-9a-f]+$/i),
+  ENCRYPTION_KEY: z
+    .string()
+    .length(64)
+    .regex(/^[0-9a-f]+$/i),
 
   // Anthropic (for adapters later)
   ANTHROPIC_API_KEY: optionalStr(z.string().startsWith("sk-ant-")),

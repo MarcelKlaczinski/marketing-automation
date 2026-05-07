@@ -1,24 +1,24 @@
 #!/usr/bin/env bun
-import { z } from "zod";
-import { eq } from "drizzle-orm";
 import { db, projects } from "@marketing-auto/db";
 import { runPipeline } from "@marketing-auto/pipelines";
 import {
-  ClusterProposePipeline,
   ClusterExpandPipeline,
+  ClusterProposePipeline,
   ConfirmedClusterSchema,
-  ValidatedClusterSchema,
+  type ValidatedClusterSchema,
 } from "@marketing-auto/pipelines/cold-start";
 import {
-  coldStartFile,
   COLD_START_FILES,
-  readMarkdownIfExists,
-  writeMarkdownAtomic,
-  parseDataBlock,
-  renderDataBlock,
   DataBlockParseError,
+  coldStartFile,
+  parseDataBlock,
+  readMarkdownIfExists,
+  renderDataBlock,
+  writeMarkdownAtomic,
 } from "@marketing-auto/pipelines/cold-start/shared";
 import { createLogger } from "@marketing-auto/shared";
+import { eq } from "drizzle-orm";
+import { z } from "zod";
 
 const log = createLogger("cold-start:cluster");
 
@@ -28,16 +28,12 @@ const force = process.argv.includes("--force");
 
 if (!slug) {
   console.error(
-    "Usage: bun src/scripts/cold-start/03-cluster-plan.ts <slug> [propose|expand] [--force]",
+    "Usage: bun src/scripts/cold-start/03-cluster-plan.ts <slug> [propose|expand] [--force]"
   );
   process.exit(1);
 }
 
-const [project] = await db
-  .select()
-  .from(projects)
-  .where(eq(projects.slug, slug))
-  .limit(1);
+const [project] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1);
 
 if (!project) {
   console.error(`Project not found: ${slug}. Create it via 'add-project' first.`);
@@ -53,7 +49,11 @@ async function loadPhase2Data(): Promise<{ contentGaps: string[]; topicsToAvoid:
   const competitorMd = await readMarkdownIfExists(competitorPath);
   if (!competitorMd) {
     console.error(`${competitorPath} not found.`);
-    console.error("Run phase 2 first: bun --filter @marketing-auto/api cold-start:competitor-analysis " + slug + " analyze");
+    console.error(
+      "Run phase 2 first: bun --filter @marketing-auto/api cold-start:competitor-analysis " +
+        slug +
+        " analyze"
+    );
     process.exit(1);
   }
 
@@ -92,7 +92,9 @@ async function loadPhase2Data(): Promise<{ contentGaps: string[]; topicsToAvoid:
 if (mode === "propose") {
   const existing = await readMarkdownIfExists(outputPath);
   if (existing && !force) {
-    console.error(`${outputPath} already exists. Use --force to overwrite (your edits will be lost).`);
+    console.error(
+      `${outputPath} already exists. Use --force to overwrite (your edits will be lost).`
+    );
     process.exit(1);
   }
 
@@ -108,7 +110,7 @@ if (mode === "propose") {
   const result = await runPipeline(
     new ClusterProposePipeline(),
     { projectSlug: slug, contentGaps, topicsToAvoid },
-    { projectId: project.id },
+    { projectId: project.id }
   );
 
   if (!result.ok) {
@@ -122,11 +124,15 @@ if (mode === "propose") {
   await writeMarkdownAtomic(outputPath, md);
 
   console.log(`Cluster proposal written to:\n   ${outputPath}\n`);
-  console.log(`Candidates: ${validated.length} passed volume check, ${filteredCount} filtered out (< 50/month)`);
+  console.log(
+    `Candidates: ${validated.length} passed volume check, ${filteredCount} filtered out (< 50/month)`
+  );
   console.log(`\nNext:`);
   console.log(`  1. Review the file — set "status: skip" on clusters you want to drop`);
   console.log(`     (or just delete rows from the DATA block)`);
-  console.log(`  2. Run expand: bun --filter @marketing-auto/api cold-start:cluster-plan ${slug} expand`);
+  console.log(
+    `  2. Run expand: bun --filter @marketing-auto/api cold-start:cluster-plan ${slug} expand`
+  );
   process.exit(0);
 }
 
@@ -144,7 +150,7 @@ if (mode === "expand") {
     confirmedClusters = parseDataBlock(
       proposalMd,
       "cluster-candidates",
-      z.array(ConfirmedClusterSchema).min(1),
+      z.array(ConfirmedClusterSchema).min(1)
     );
   } catch (e) {
     if (e instanceof DataBlockParseError) {
@@ -158,7 +164,9 @@ if (mode === "expand") {
 
   const { contentGaps, topicsToAvoid } = await loadPhase2Data();
 
-  console.log(`Expanding ${confirmedClusters.length} clusters with satellite keywords for ${slug}...`);
+  console.log(
+    `Expanding ${confirmedClusters.length} clusters with satellite keywords for ${slug}...`
+  );
   console.log(`  This calls DataForSEO relatedKeywords once per cluster.`);
   console.log();
 
@@ -167,7 +175,7 @@ if (mode === "expand") {
   const result = await runPipeline(
     new ClusterExpandPipeline(),
     { projectSlug: slug, confirmedClusters, contentGaps, topicsToAvoid },
-    { projectId: project.id },
+    { projectId: project.id }
   );
 
   if (!result.ok) {
@@ -214,7 +222,7 @@ process.exit(1);
 function renderProposalMarkdown(
   projectSlug: string,
   validated: z.infer<typeof ValidatedClusterSchema>[],
-  filteredCount: number,
+  filteredCount: number
 ): string {
   const sections: string[] = [
     `# Cluster Plan: ${projectSlug}`,
@@ -227,7 +235,9 @@ function renderProposalMarkdown(
     "2. Delete rows for clusters you don't want to produce content for",
     "3. You can edit `cornerstone_keyword` if you know a better match",
     "4. Keep at least 5 clusters for a useful cornerstone list",
-    "5. Run expand: `bun --filter @marketing-auto/api cold-start:cluster-plan " + projectSlug + " expand`",
+    "5. Run expand: `bun --filter @marketing-auto/api cold-start:cluster-plan " +
+      projectSlug +
+      " expand`",
     "",
     "> **Important:** Only edit the YAML inside the DATA block. The `<!-- DATA:cluster-candidates BEGIN/END -->` markers must stay intact.",
     "",

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { eq } from "drizzle-orm";
-import { db, articles } from "@marketing-auto/db";
 import { enqueueArticleSync } from "@marketing-auto/adapter-astro-sync";
+import { articles, db } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
 
 const slug = process.argv[2];
 if (!slug) {
@@ -27,7 +27,7 @@ const article = all[0]!;
 
 if (article.status !== "final_review" && article.status !== "ready_to_publish") {
   console.error(
-    `Article status is "${article.status}". Sync requires "final_review" or "ready_to_publish".`,
+    `Article status is "${article.status}". Sync requires "final_review" or "ready_to_publish".`
   );
   process.exit(1);
 }

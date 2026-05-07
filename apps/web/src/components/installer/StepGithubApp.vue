@@ -48,39 +48,37 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
-import { useSystemStatusStore } from 'src/stores/system-status';
-import StepBase from './StepBase.vue';
+import { useSystemStatusStore } from "src/stores/system-status";
+import { defineComponent } from "vue";
+import StepBase from "./StepBase.vue";
 
 export default defineComponent({
-  name: 'StepGithubApp',
+  name: "StepGithubApp",
   components: { StepBase },
-  emits: ['configured', 'skipped'],
+  emits: ["configured", "skipped"],
   setup() {
     return { systemStatusStore: useSystemStatusStore() };
   },
   data: () => ({
-    appId: '',
-    privateKeyPath: '',
-    privateKeyContent: '',
+    appId: "",
+    privateKeyPath: "",
+    privateKeyContent: "",
   }),
   computed: {
     isLokal(): boolean {
-      return this.systemStatusStore.deploymentMode === 'lokal';
+      return this.systemStatusStore.deploymentMode === "lokal";
     },
     modeNote(): string {
       return this.isLokal
-        ? (this.$t('installer.steps.githubApp.modeNoteLokal') as string)
-        : (this.$t('installer.steps.githubApp.modeNoteSelfHosted') as string);
+        ? (this.$t("installer.steps.githubApp.modeNoteLokal") as string)
+        : (this.$t("installer.steps.githubApp.modeNoteSelfHosted") as string);
     },
     fields(): { key: string; value: string }[] {
-      const result: { key: string; value: string }[] = [
-        { key: 'app_id', value: this.appId },
-      ];
+      const result: { key: string; value: string }[] = [{ key: "app_id", value: this.appId }];
       if (this.isLokal) {
-        result.push({ key: 'private_key_path', value: this.privateKeyPath });
+        result.push({ key: "private_key_path", value: this.privateKeyPath });
       } else {
-        result.push({ key: 'private_key_content', value: this.privateKeyContent });
+        result.push({ key: "private_key_content", value: this.privateKeyContent });
       }
       return result;
     },

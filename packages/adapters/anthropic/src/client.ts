@@ -1,16 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { getEnv, createLogger } from "@marketing-auto/shared";
-import { getGlobal } from "@marketing-auto/core/credentials";
 import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
-import { track, anthropicCostEur } from "@marketing-auto/cost-tracker";
+import { getGlobal } from "@marketing-auto/core/credentials";
+import { anthropicCostEur, track } from "@marketing-auto/cost-tracker";
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import {
   ANTHROPIC_MODELS,
+  AnthropicClientError,
+  type CacheStats,
+  JsonParseError,
   MAX_OUTPUT_TOKENS,
   type MessagesInput,
   type MessagesResult,
-  type CacheStats,
-  JsonParseError,
-  AnthropicClientError,
 } from "./types.ts";
 
 const log = createLogger("anthropic");
@@ -43,9 +43,7 @@ const JSON_INSTRUCTION = [
   'If you cannot produce valid JSON, return: {"error": "..."}',
 ].join("\n");
 
-function buildSystemBlocks(
-  input: MessagesInput,
-): Anthropic.Messages.TextBlockParam[] {
+function buildSystemBlocks(input: MessagesInput): Anthropic.Messages.TextBlockParam[] {
   const blocks: Anthropic.Messages.TextBlockParam[] = [];
 
   if (input.systemPrefix.length > 0) {
@@ -59,9 +57,7 @@ function buildSystemBlocks(
     });
   }
 
-  const suffix = input.jsonMode
-    ? `${input.systemSuffix}\n${JSON_INSTRUCTION}`
-    : input.systemSuffix;
+  const suffix = input.jsonMode ? `${input.systemSuffix}\n${JSON_INSTRUCTION}` : input.systemSuffix;
 
   if (suffix.length > 0) {
     blocks.push({
@@ -73,9 +69,7 @@ function buildSystemBlocks(
   return blocks;
 }
 
-function buildTools(
-  input: MessagesInput,
-): Anthropic.Messages.ToolUnion[] | undefined {
+function buildTools(input: MessagesInput): Anthropic.Messages.ToolUnion[] | undefined {
   if (!input.webSearch?.enabled) return undefined;
 
   const ws = input.webSearch;
@@ -104,14 +98,10 @@ function extractText(content: Anthropic.Messages.ContentBlock[]): string {
     .join("");
 }
 
-function tryParseJson(
-  raw: string,
-): { ok: true; value: unknown } | { ok: false; error: unknown } {
+function tryParseJson(raw: string): { ok: true; value: unknown } | { ok: false; error: unknown } {
   let cleaned = raw.trim();
   if (cleaned.startsWith("```")) {
-    cleaned = cleaned
-      .replace(/^```(?:json)?\s*\n?/i, "")
-      .replace(/\n?```\s*$/, "");
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "");
   }
   try {
     return { ok: true, value: JSON.parse(cleaned) };
@@ -129,15 +119,12 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
   await assertCostBudget(
     input.projectId,
     "anthropic",
-    estimateCostEur("anthropic", input.operation),
+    estimateCostEur("anthropic", input.operation)
   );
 
   const client = await getClient();
   const modelId = ANTHROPIC_MODELS[input.model];
-  const maxTokens = Math.min(
-    input.maxTokens ?? 4096,
-    MAX_OUTPUT_TOKENS[input.model],
-  );
+  const maxTokens = Math.min(input.maxTokens ?? 4096, MAX_OUTPUT_TOKENS[input.model]);
 
   const systemBlocks = buildSystemBlocks(input);
   const tools = buildTools(input);
@@ -153,7 +140,7 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
       jsonMode: input.jsonMode ?? false,
       webSearch: input.webSearch?.enabled ?? false,
     },
-    "Calling Anthropic",
+    "Calling Anthropic"
   );
 
   const trackBase = {
@@ -186,10 +173,7 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
         return await client.messages.create(params);
       } catch (e) {
         if (e instanceof Anthropic.APIError && !isRetryableError(e)) {
-          throw new AnthropicClientError(
-            `Anthropic API error: ${e.message}`,
-            e.status ?? 0,
-          );
+          throw new AnthropicClientError(`Anthropic API error: ${e.message}`, e.status ?? 0);
         }
         throw e;
       }
@@ -217,7 +201,11 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
 
   let response;
   if (input.pipelineRunId !== undefined && input.articleId !== undefined) {
-    response = await track({ ...trackBase, pipelineRunId: input.pipelineRunId, articleId: input.articleId });
+    response = await track({
+      ...trackBase,
+      pipelineRunId: input.pipelineRunId,
+      articleId: input.articleId,
+    });
   } else if (input.pipelineRunId !== undefined) {
     response = await track({ ...trackBase, pipelineRunId: input.pipelineRunId });
   } else if (input.articleId !== undefined) {
@@ -250,12 +238,12 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
           rawLen: raw.length,
           rawPreview: raw.slice(0, 200),
         },
-        "JSON parse failed",
+        "JSON parse failed"
       );
       throw new JsonParseError(
         `Anthropic returned non-JSON response for operation "${input.operation}"`,
         raw,
-        r.error,
+        r.error
       );
     }
     parsedJson = r.value;
@@ -273,7 +261,7 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
           ? Math.round((cacheRead / cacheStats.totalInputTokens) * 100)
           : 0,
     },
-    "Anthropic call complete",
+    "Anthropic call complete"
   );
 
   return {
