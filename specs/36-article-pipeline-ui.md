@@ -2054,6 +2054,12 @@ See "Implementation Order" — 5 sessions with `/clear` between.
 
 - `as unknown as T` double-cast is required when narrowing from `Record<string, unknown>[]` items (the `recentRuns.*` arrays in `ArticleDetail`) to a typed interface — TypeScript doesn't allow a direct `as T` cast from `Record<string, unknown>` to an interface with specific typed fields, because the two types are not in an assignable relationship. The `as unknown` bridge is the correct pattern (mirrors the CodeMirror rule in `apps/web/CLAUDE.md`). This differs from `detail.article as { ... }` which works directly because the cast target's fields are compatible with `unknown` values.
 
+**Session 5 (Action panel + polling integration)**
+
+- `q-tooltip` must be placed **inside** the element it should appear on, not as a preceding sibling with `:target="true"`. In Vue 3 fragment templates (multiple root nodes), a sibling tooltip has no unambiguous parent to attach to. Caught in review; fixed by moving `q-tooltip` inside the `<button>`.
+
+- `data()` arrow shorthand is required even when the initializer needs a Pinia store reference to build action closures. Pattern: `const s = () => useArticlesStore()` — a lazy thunk that defers the singleton lookup to call-time, satisfying both the arrow shorthand rule and the closure requirement. The store is the same singleton instance regardless of when `useArticlesStore()` is called.
+
 ## Deviations
 
 **Session 1 (Backend)**
