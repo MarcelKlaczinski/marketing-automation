@@ -8,4 +8,5 @@ export default {
   next: 'Next',
   required: 'Required',
   unsavedChanges: 'Unsaved changes',
+  comingSoon: 'Will be implemented in a later session.',
 };

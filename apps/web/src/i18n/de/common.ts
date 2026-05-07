@@ -8,4 +8,5 @@ export default {
   next: 'Weiter',
   required: 'Pflichtfeld',
   unsavedChanges: 'Ungespeicherte Änderungen',
+  comingSoon: 'Wird in einer späteren Session implementiert.',
 };

@@ -60,4 +60,38 @@ export default {
     triggered: 'Action started: {action}',
     notAvailable: 'Action not available in current status',
   },
+
+  header: {
+    back: 'Back',
+    cornerstone: 'Cornerstone Article',
+    lastUpdated: 'Last updated',
+  },
+
+  status: {
+    proposed: 'Proposed',
+    approved: 'Approved',
+    generating: 'Generating',
+    outline_review: 'Outline Review',
+    drafting: 'Drafting',
+    final_review: 'Final Review',
+    schema_extending: 'Extending Schema',
+    ready_to_publish: 'Ready to Publish',
+    validating: 'Validating',
+    published: 'Published',
+    blocked_by_pagespeed: 'PageSpeed Blocked',
+    failed: 'Failed',
+    rejected: 'Rejected',
+  },
+
+  metadata: {
+    title: 'Title',
+    slug: 'Slug (URL path)',
+    cornerstoneKeyword: 'Cornerstone Keyword',
+    metaDescription: 'Meta Description',
+    status: 'Status',
+    save: 'Save',
+    saveSuccess: 'Metadata saved',
+    slugHint: 'Lowercase letters, digits, and hyphens only',
+    statusWarning: 'Status changes are manual — for emergency recovery only',
+  },
 };

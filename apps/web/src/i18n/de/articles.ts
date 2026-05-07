@@ -60,4 +60,38 @@ export default {
     triggered: 'Aktion gestartet: {action}',
     notAvailable: 'Aktion nicht verfügbar im aktuellen Status',
   },
+
+  header: {
+    back: 'Zurück',
+    cornerstone: 'Cornerstone-Artikel',
+    lastUpdated: 'Zuletzt aktualisiert',
+  },
+
+  status: {
+    proposed: 'Vorgeschlagen',
+    approved: 'Freigegeben',
+    generating: 'Wird generiert',
+    outline_review: 'Outline-Review',
+    drafting: 'Wird geschrieben',
+    final_review: 'Final-Review',
+    schema_extending: 'Schema wird erweitert',
+    ready_to_publish: 'Veröffentlichungsbereit',
+    validating: 'Wird validiert',
+    published: 'Veröffentlicht',
+    blocked_by_pagespeed: 'PageSpeed blockiert',
+    failed: 'Fehlgeschlagen',
+    rejected: 'Abgelehnt',
+  },
+
+  metadata: {
+    title: 'Titel',
+    slug: 'Slug (URL-Pfad)',
+    cornerstoneKeyword: 'Cornerstone-Keyword',
+    metaDescription: 'Meta-Beschreibung',
+    status: 'Status',
+    save: 'Speichern',
+    saveSuccess: 'Metadaten gespeichert',
+    slugHint: 'Nur Kleinbuchstaben, Ziffern und Bindestriche erlaubt',
+    statusWarning: 'Status-Änderungen manuell vornehmen — nur für Notfallkorrekturen',
+  },
 };

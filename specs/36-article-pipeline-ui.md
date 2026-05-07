@@ -2038,6 +2038,16 @@ See "Implementation Order" — 5 sessions with `/clear` between.
 
 - The old adapter enqueue helpers (`enqueueArticleSync` from `@marketing-auto/adapter-astro-sync`, `enqueueArticleValidation` from `@marketing-auto/adapter-pagespeed`) are **no longer called from HTTP routes**. All 5 trigger endpoints now go through thin wrappers in `packages/pipelines/src/article/trigger.ts`. The adapter helpers may still be useful for programmatic (non-HTTP) callers.
 
+## Discovered During Implementation
+
+**Session 3 (Detail page shell + Body/Metadata tabs)**
+
+- `data()` cannot call `this.buildXxx()` helper methods — component methods are not yet attached when `data()` runs. TypeScript catches this as TS2722 "Cannot invoke an object which is possibly undefined". Pattern: inline the form-building logic directly in `data()`, or extract it as a module-level pure function that accepts the prop value as an argument.
+
+- `HttpError.userMessage` (not `.message`) is the correct property for user-facing notifications. `.userMessage` is a getter that extracts `body.message`/`body.error`, maps common HTTP status codes to readable strings, and falls back gracefully for network errors.
+
+- `STATUS_TO_GROUP` in `ArticleDetailHeader` was initially duplicated from `src/lib/article-status.ts`. Caught in review and fixed to import from the shared lib. Always import from `article-status.ts` rather than redefining the map locally.
+
 ## Deviations
 
 **Session 1 (Backend)**
