@@ -223,7 +223,10 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/web/src/pages/ProjectDetailPage.vue)",
       "Bash(bun --filter @marketing-auto/web vue-tsc --noEmit)",
       "Bash(bunx vue-tsc *)",
-      "Bash(bun --filter @marketing-auto/web tsc --noEmit)"
+      "Bash(bun --filter @marketing-auto/web tsc --noEmit)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff --stat)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/routes/_lib/trigger-helpers.ts apps/api/src/scripts/apply-cost-defaults.ts apps/api/src/routes/articles.ts apps/api/src/routes/cold-start.ts apps/api/src/routes/cost.ts apps/api/src/routes/projects.ts packages/adapters/astro-sync/src/pipeline.ts packages/adapters/astro-sync/src/steps/load-article.ts packages/adapters/astro-sync/src/types.ts packages/db/src/schema/operations.ts)",
+      "Bash(bun --filter \"**/api\" run typecheck)"
     ]
   }
 }

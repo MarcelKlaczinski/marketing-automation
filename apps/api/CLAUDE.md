@@ -52,6 +52,36 @@ systemRoutes.post("/verify/:adapter", requireAuth, ...)               // protect
 ```
 Business logic shared across those handlers goes in `src/lib/<domain>-service.ts` (not `packages/core`) when it has no project_id context and is tightly coupled to the HTTP layer. See `src/lib/system-service.ts`.
 
+## Pipeline Trigger Pattern (Spec 41)
+
+All pipeline-trigger endpoints must use one of the two helpers in `src/routes/_lib/trigger-helpers.ts`. They enforce three guards in order: (1) project-pause → 423, (2) cost-budget pre-flight → 402, (3) idempotency → 200 deduped.
+
+**`triggerWithPreRunId(opts)`** — use when the route owns the `pipeline_runs` row. It pre-INSERTs the row before enqueueing and returns `{ runId, jobId, deduped }`. Use `triggerResultToResponse(c, result)` to send the HTTP response.
+
+```typescript
+const result = await triggerWithPreRunId({
+  pipelineName: "article:outline",
+  projectId: article.projectId,
+  uniqueKey: { field: "articleId", value: id },
+  costEstimate: { service: "anthropic", operation: "outline-generation" },
+  extraInput: { articleId: id },
+  enqueue: enqueueArticleOutlinePipeline,
+});
+return triggerResultToResponse(c, result);
+```
+
+**`checkTriggerAllowed(opts)`** — use when the caller already manages its own `pipeline_runs` row (e.g., cold-start triggers that call `enqueuePipeline()` internally). Returns `null` if allowed, or an error result. Use `guardErrorToResponse(c, blocked)` for the error path.
+
+```typescript
+const blocked = await checkTriggerAllowed({ pipelineName, projectId, uniqueKey, costEstimate });
+if (blocked) return guardErrorToResponse(c, blocked);
+// ... caller does its own enqueue
+```
+
+HTTP semantics: 202 = new run, 200 = deduped (run already exists), 402 = cost limit, 423 = project paused.
+
+DO NOT add a new trigger endpoint that bypasses these helpers — cost + idempotency must always be enforced at the HTTP boundary.
+
 ## Route Param Enum Validation Pattern
 
 When validating a route parameter against a typed `as const` array, widen the **array** to accept `string`, not the value being tested:

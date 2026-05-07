@@ -77,6 +77,11 @@ The installation ID comes from `bun --filter @marketing-auto/adapter-astro-sync 
 - DO NOT access `.content` directly after narrowing `GET /repos/{owner}/{repo}/contents/{path}`
   with `!Array.isArray()` — the union type still includes symlink (which has no `.content`).
   Cast to `{ type: string; content?: string; size: number }` before reading the field.
+- DO NOT add a new stage to `AstroSyncError` without checking whether it should be persisted to
+  `astro_sync_runs.error_stage`. The DB column only accepts: `load | schema | image | render | commit | db_update | stale_read`.
+  Stages `auth` and `config` are error categories for the load phase and intentionally excluded from
+  the DB column (they indicate config problems, not pipeline-stage failures). See `afterError()` in
+  `pipeline.ts` for the filter list.
 
 ## Performance / Cost
 

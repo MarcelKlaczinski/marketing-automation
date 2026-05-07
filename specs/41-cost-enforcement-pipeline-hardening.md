@@ -1545,6 +1545,18 @@ Total: ~16 hours.
 
 - The `@marketing-auto/core` package previously had no dependency in `packages/pipelines/package.json`. Added it; run `bun install` after pulling this change.
 
+## Discovered During Implementation
+
+**Session 2**
+
+- `StepContext` does not expose `runStartedAt`. The stale-read guard (Decision 8) uses `ctx.pipelineRunId` to look up `pipelineRuns.createdAt` from the DB instead of passing the timestamp through the input payload. This is cleaner (no engine changes, no new input fields) and equally correct — `createdAt` is set at pre-INSERT time, which is the relevant boundary.
+
+- `AstroSyncError.stage` union needed `"stale_read"` added. The spec described the error stage in terms of `astro_sync_runs.error_stage` DB values but the error class predated this column. Extended the union in `types.ts` and added a filter in `afterError()` to exclude `"auth"/"config"` (which are error categories, not pipeline-stage values) from DB persistence.
+
+- `checkTriggerAllowed()` variant (lighter guard that returns `null` on success) was added alongside `triggerWithPreRunId()`. The spec only described the latter, but cold-start triggers already manage their own `pipeline_runs` row via `enqueuePipeline()` — using the full helper would double-insert. The variant removes that risk cleanly.
+
+- Pre-existing unused function `latestRunStatus` in `cold-start.ts` was removed during the review pass. It was never called but importing `pipelineRuns` and `isNull` for it. Cleaned up.
+
 ## Deviations
 
 **Session 1**

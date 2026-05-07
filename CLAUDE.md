@@ -69,6 +69,7 @@ Designed to evolve into SaaS.
 - DO NOT make an adapter client factory synchronous if credential resolution must hit the DB (vault) — make the factory `async` and cache the resolved client in a module-level singleton. All callers inside the file must `await` the factory. The double-await pattern `(await getApi()).method()` is the correct idiom for immediate chained calls
 - DO NOT assume `enqueuePipeline()` returns a `runId` — it only returns `{ jobId }`. When a UI needs a stable runId to poll immediately, use the **preRunId pattern**: INSERT a `pipeline_runs` row (`status='queued'`) before enqueuing, pass its ID as `preRunId` through job data; the runner UPDATEs it to `status='running'` instead of INSERTing. See `packages/pipelines/src/cold-start/triggers.ts` for the canonical implementation
 - DO NOT derive Cold-Start phase completion from DB columns that don't exist (`projects.brandVoice`, `projects.coldStartCompletedAt`, `competitors` table) — Phase 1 = `projects.marketingContextMd` non-empty; Phase 2 = latest `cold-start:competitor-analysis` run `completed`; Phase 5 = latest `cold-start:go-live-checklist` run `completed`
+- DO NOT write a new pipeline-trigger HTTP endpoint without using `triggerWithPreRunId` or `checkTriggerAllowed` from `apps/api/src/routes/_lib/trigger-helpers.ts` — these enforce pause-check → cost-check → idempotency in the correct order. A route that skips them bypasses cost limits silently. See `apps/api/CLAUDE.md` for which variant to use
 
 ## Workflow
 1. Check the spec file referenced in the prompt before coding
@@ -93,6 +94,7 @@ Implemented specs (do not re-implement):
 - /specs/31-web-app-auth.md
 - /specs/32-web-app-installer.md (all sessions done)
 - /specs/35-coldstart-ui.md
+- /specs/41-cost-enforcement-pipeline-hardening.md (sessions 1+2 done; session 3 = frontend)
 
 ## Project Marketing Contexts
 
