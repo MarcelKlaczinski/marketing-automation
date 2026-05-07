@@ -21,7 +21,7 @@ import {
   enqueueSchemaExtensionPipeline,
 } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
@@ -71,6 +71,54 @@ articleRoutes.get("/", async (c) => {
     .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
     .where(eq(articles.projectId, project.id))
     .orderBy(desc(articles.updatedAt));
+
+  return c.json({ ok: true, data: rows });
+});
+
+// ─── across-projects ──────────────────────────────────────────────────────────
+
+const VALID_ARTICLE_STATUSES = [
+  "proposed", "approved", "generating", "outline_review", "drafting",
+  "final_review", "schema_extending", "ready_to_publish", "validating",
+  "published", "blocked_by_pagespeed", "failed", "rejected",
+] as const;
+type ArticleStatus = typeof VALID_ARTICLE_STATUSES[number];
+
+articleRoutes.get("/across-projects", async (c) => {
+  const statusesParam = c.req.query("statuses");
+  if (!statusesParam) return c.json({ ok: false, error: "statuses required" }, 400);
+
+  const requested = statusesParam.split(",").map((s) => s.trim());
+  const statuses = requested.filter((s): s is ArticleStatus =>
+    (VALID_ARTICLE_STATUSES as readonly string[]).includes(s)
+  );
+  if (statuses.length === 0) {
+    return c.json({ ok: false, error: "no valid statuses" }, 400);
+  }
+
+  const rows = await db
+    .select({
+      id: articles.id,
+      slug: articles.slug,
+      title: articles.title,
+      cornerstoneKeyword: articles.cornerstoneKeyword,
+      status: articles.status,
+      cornerstoneSpecId: articles.cornerstoneSpecId,
+      projectId: articles.projectId,
+      projectName: projects.name,
+      projectSlug: projects.slug,
+      clusterId: articles.clusterId,
+      clusterName: clusters.name,
+      pillarName: contentPillars.name,
+      updatedAt: articles.updatedAt,
+    })
+    .from(articles)
+    .leftJoin(projects, eq(articles.projectId, projects.id))
+    .leftJoin(clusters, eq(articles.clusterId, clusters.id))
+    .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
+    .where(inArray(articles.status, statuses))
+    .orderBy(desc(articles.updatedAt))
+    .limit(50);
 
   return c.json({ ok: true, data: rows });
 });
