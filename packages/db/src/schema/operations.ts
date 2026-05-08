@@ -300,6 +300,48 @@ export const costAlerts = pgTable(
   })
 );
 
+// Spec 44: tracks each Astro-repo import run (mirror of pipeline_runs for import-specific stats)
+export const astroImportRuns = pgTable(
+  "astro_import_runs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // Plain UUID — no DB FK to pipeline_runs to avoid circular dep
+    pipelineRunId: uuid("pipeline_run_id"),
+
+    status: text("status")
+      .$type<"pending" | "running" | "succeeded" | "failed">()
+      .notNull(),
+    triggerSource: text("trigger_source")
+      .$type<"manual" | "webhook" | "scheduled">()
+      .notNull(),
+
+    filesDiscovered: integer("files_discovered"),
+    filesParsed: integer("files_parsed"),
+    articlesInserted: integer("articles_inserted"),
+    articlesUpdated: integer("articles_updated"),
+    articlesUnchanged: integer("articles_unchanged"),
+    articlesFailed: integer("articles_failed"),
+    pairsLinked: integer("pairs_linked"),
+    orphanedArticles: integer("orphaned_articles"),
+
+    headCommitSha: text("head_commit_sha"),
+    errorMessage: text("error_message"),
+    errorStage: text("error_stage").$type<
+      "auth" | "list" | "parse" | "upsert" | "link" | "finalize"
+    >(),
+
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (t) => ({
+    projectIdx: index("astro_import_runs_project_idx").on(t.projectId),
+    statusIdx: index("astro_import_runs_status_idx").on(t.projectId, t.status),
+  })
+);
+
 export const approvals = pgTable(
   "approvals",
   {

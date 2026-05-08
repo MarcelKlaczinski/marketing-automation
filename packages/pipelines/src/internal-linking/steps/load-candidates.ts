@@ -12,7 +12,7 @@ const InputSchema = z.object({
 const CandidateSchema = z.object({
   slug: z.string(),
   title: z.string(),
-  cornerstoneKeyword: z.string(),
+  cornerstoneKeyword: z.string().nullable(),
   metaDescription: z.string(),
 });
 
@@ -21,7 +21,7 @@ const OutputSchema = z.object({
     id: z.string().uuid(),
     slug: z.string(),
     title: z.string(),
-    cornerstoneKeyword: z.string(),
+    cornerstoneKeyword: z.string().nullable(),
     bodyMd: z.string(),
     projectSlug: z.string(),
   }),

@@ -123,6 +123,154 @@ articleRoutes.get("/across-projects", async (c) => {
   return c.json({ ok: true, data: rows });
 });
 
+// ─── imported articles (Spec 44) — must be before /:id wildcard ──────────────
+
+// GET /articles/imported/collections?projectSlug=... — counts per collection
+articleRoutes.get("/imported/collections", async (c) => {
+  const projectSlug = c.req.query("projectSlug");
+  if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, projectSlug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const rows = await db
+    .select({
+      collection: articles.collection,
+      locale: articles.locale,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(articles)
+    .where(and(eq(articles.projectId, project.id), eq(articles.source, "imported")))
+    .groupBy(articles.collection, articles.locale);
+
+  const summary: Record<string, { de: number; en: number; total: number }> = {};
+  for (const row of rows) {
+    const coll = row.collection ?? "unknown";
+    summary[coll] = summary[coll] ?? { de: 0, en: 0, total: 0 };
+    if (row.locale === "de") summary[coll]!.de = row.count;
+    else if (row.locale === "en") summary[coll]!.en = row.count;
+    summary[coll]!.total += row.count;
+  }
+
+  return c.json({ ok: true, data: summary });
+});
+
+// GET /articles/imported?projectSlug=...&collection=... — translation-pair-grouped rows
+articleRoutes.get("/imported", async (c) => {
+  const projectSlug = c.req.query("projectSlug");
+  const collection = c.req.query("collection");
+
+  if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, projectSlug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const conditions = [
+    eq(articles.projectId, project.id),
+    eq(articles.source, "imported"),
+  ] as const;
+  const allConditions = collection
+    ? [...conditions, eq(articles.collection, collection)]
+    : [...conditions];
+
+  const rows = await db
+    .select({
+      id: articles.id,
+      collection: articles.collection,
+      locale: articles.locale,
+      slug: articles.slug,
+      title: articles.title,
+      metaDescription: articles.metaDescription,
+      translationKey: articles.translationKey,
+      author: articles.author,
+      category: articles.category,
+      subcategory: articles.subcategory,
+      tags: articles.tags,
+      publishedAt: articles.publishedAt,
+      frontmatterUpdatedAt: articles.frontmatterUpdatedAt,
+      filePath: articles.filePath,
+      frontmatterExtras: articles.frontmatterExtras,
+      importMetadata: articles.importMetadata,
+      lastImportedAt: articles.lastImportedAt,
+    })
+    .from(articles)
+    .where(and(...allConditions))
+    .orderBy(desc(articles.frontmatterUpdatedAt));
+
+  type Row = (typeof rows)[number];
+  const groupedByKey = new Map<string, Row[]>();
+  const unkeyed: Row[] = [];
+
+  for (const row of rows) {
+    if (row.translationKey) {
+      const existing = groupedByKey.get(row.translationKey) ?? [];
+      existing.push(row);
+      groupedByKey.set(row.translationKey, existing);
+    } else {
+      unkeyed.push(row);
+    }
+  }
+
+  const pairs: Array<{ translationKey: string | null; de: Row | null; en: Row | null }> = [];
+
+  for (const [key, members] of groupedByKey.entries()) {
+    pairs.push({
+      translationKey: key,
+      de: members.find((m) => m.locale === "de") ?? null,
+      en: members.find((m) => m.locale === "en") ?? null,
+    });
+  }
+  for (const u of unkeyed) {
+    pairs.push({
+      translationKey: null,
+      de: u.locale === "de" ? u : null,
+      en: u.locale === "en" ? u : null,
+    });
+  }
+
+  return c.json({ ok: true, data: { pairs, totalCount: rows.length } });
+});
+
+// GET /articles/imported/:id — detail with translation pendant
+articleRoutes.get("/imported/:id", async (c) => {
+  const id = c.req.param("id");
+
+  const [article] = await db
+    .select()
+    .from(articles)
+    .where(and(eq(articles.id, id), eq(articles.source, "imported")))
+    .limit(1);
+
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  let pendant = null;
+  if (article.translationKey) {
+    const [p] = await db
+      .select()
+      .from(articles)
+      .where(
+        and(
+          eq(articles.projectId, article.projectId),
+          eq(articles.source, "imported"),
+          eq(articles.translationKey, article.translationKey),
+          sql`${articles.id} != ${id}`
+        )
+      )
+      .limit(1);
+    pendant = p ?? null;
+  }
+
+  return c.json({ ok: true, data: { article, pendant } });
+});
+
 // ─── detail ───────────────────────────────────────────────────────────────────
 
 articleRoutes.get("/:id", async (c) => {

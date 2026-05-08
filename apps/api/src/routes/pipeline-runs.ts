@@ -77,9 +77,9 @@ function normalizeStatus(raw: string): NormalizedStatus {
 
 function buildPipelineTitle(
   pipelineName: string,
-  articleInfo: { title: string | null; cornerstoneKeyword: string } | null | undefined
+  articleInfo: { title: string | null; cornerstoneKeyword: string | null } | null | undefined
 ): string {
-  if (articleInfo) return articleInfo.title ?? articleInfo.cornerstoneKeyword;
+  if (articleInfo) return articleInfo.title ?? articleInfo.cornerstoneKeyword ?? pipelineName;
   if (pipelineName.startsWith("cold-start:")) {
     return pipelineName.replace("cold-start:", "").replace(/-/g, " ");
   }
@@ -88,7 +88,7 @@ function buildPipelineTitle(
 
 function buildPipelineSubtitle(
   pipelineName: string,
-  articleInfo: { title: string | null; cornerstoneKeyword: string } | null | undefined
+  articleInfo: { title: string | null; cornerstoneKeyword: string | null } | null | undefined
 ): string | null {
   if (articleInfo) {
     if (pipelineName === "article:outline") return "Outline generation";
@@ -164,7 +164,7 @@ pipelineRunsRoutes.get("/active", async (c) => {
 
   const articleInfoMap = new Map<
     string,
-    { id: string; slug: string; title: string | null; cornerstoneKeyword: string }
+    { id: string; slug: string; title: string | null; cornerstoneKeyword: string | null }
   >();
   if (articleIdsFromPR.length > 0) {
     const rows = await db

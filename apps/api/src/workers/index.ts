@@ -1,4 +1,5 @@
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
+import { RepoImportPipeline } from "@marketing-auto/adapter-astro-sync/import";
 import { PageSpeedValidationPipeline } from "@marketing-auto/adapter-pagespeed";
 import {
   ArticleDraftPipeline,
@@ -42,6 +43,8 @@ async function main() {
   pipelineRegistry.register(new ClusterProposePipeline());
   pipelineRegistry.register(new CornerstoneListPipeline());
   pipelineRegistry.register(new GoLiveChecklistPipeline());
+  // Spec 44: Astro repo import pipeline
+  pipelineRegistry.register(new RepoImportPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
   // Register scheduled jobs

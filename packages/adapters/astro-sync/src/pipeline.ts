@@ -93,7 +93,7 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
           { path: render.mdxPath, contentType: "text" as const, content: render.mdxContent },
           { path: hero.astroAssetPath, contentType: "base64" as const, content: hero.base64 },
         ],
-        commitMessage: `feat(blog): publish "${load.article.title}"\n\nAuto-generated from Marketing Automation Platform.\nCornerstone keyword: ${load.article.cornerstoneKeyword}\nArticle slug: ${load.article.slug}`,
+        commitMessage: `feat(blog): publish "${load.article.title}"\n\nAuto-generated from Marketing Automation Platform.\nCornerstone keyword: ${load.article.cornerstoneKeyword ?? "n/a"}\nArticle slug: ${load.article.slug}`,
       };
     }
 

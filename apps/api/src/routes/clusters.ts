@@ -49,7 +49,7 @@ clusterRoutes.get("/", async (c) => {
     .map((r) => r.pillarArticleId)
     .filter((id): id is string => id !== null);
 
-  const titleMap = new Map<string, string>();
+  const titleMap = new Map<string, string | null>();
   if (pillarArticleIds.length > 0) {
     const titles = await db
       .select({
@@ -60,7 +60,7 @@ clusterRoutes.get("/", async (c) => {
       .from(articles)
       .where(inArray(articles.id, pillarArticleIds));
     for (const t of titles) {
-      titleMap.set(t.id, t.title ?? t.cornerstoneKeyword);
+      titleMap.set(t.id, t.title ?? t.cornerstoneKeyword ?? null);
     }
   }
 

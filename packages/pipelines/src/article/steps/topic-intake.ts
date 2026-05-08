@@ -68,6 +68,12 @@ export class TopicIntakeStep extends BaseStep<
     );
     const satelliteKeywords = matchingEntry?.keywords.map((k) => k.keyword) ?? [];
 
+    if (!article.cornerstoneKeyword)
+      throw new ArticlePipelineError(
+        `Article ${input.articleId} has no cornerstoneKeyword — cannot run pipeline`,
+        "topic_intake"
+      );
+
     return {
       cornerstoneKeyword: article.cornerstoneKeyword,
       clusterName: cluster.name,

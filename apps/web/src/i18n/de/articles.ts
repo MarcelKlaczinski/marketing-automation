@@ -1,4 +1,29 @@
 export default {
+  tabs: {
+    generated: "Generiert",
+    imported: "Importiert",
+  },
+
+  imported: {
+    syncFromRepo: "Vom Repo importieren",
+    syncStarted: "Import wurde gestartet",
+    loading: "Lädt...",
+    noData: "Noch keine importierten Artikel. Klicke 'Vom Repo importieren' um zu starten.",
+    noPendant: "kein Gegenstück",
+    noDeVersion: "Keine DE-Version",
+    noEnVersion: "Keine EN-Version",
+    collections: {
+      blog: "Blog",
+      "ki-wissen": "KI-Wissen",
+      comparisons: "Vergleiche",
+      usecases: "Use-Cases",
+      tools: "Tools",
+      "tool-categories": "Tool-Kategorien",
+      authors: "Autoren",
+      "special-landings": "Special Landings",
+    },
+  },
+
   empty: "Noch keine Artikel.",
   emptyHint: "Artikel werden über den Cold-Start (Phase 4) oder per CLI erstellt.",
 

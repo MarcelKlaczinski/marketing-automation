@@ -16,7 +16,7 @@ const OutputSchema = z.object({
     title: z.string(),
     metaDescription: z.string(),
     bodyMd: z.string(),
-    cornerstoneKeyword: z.string(),
+    cornerstoneKeyword: z.string().nullable(),
     heroImagePublicUrl: z.string().url(),
     heroImageAltText: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),

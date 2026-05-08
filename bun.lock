@@ -90,6 +90,7 @@
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/pipelines": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
+        "gray-matter": "^4.0.3",
         "octokit": "^4.0.0",
         "yaml": "^2.6.0",
         "zod": "^3.23.0",

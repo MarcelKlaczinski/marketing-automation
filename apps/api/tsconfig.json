@@ -33,6 +33,9 @@
       "@marketing-auto/adapter-astro-sync": ["../../packages/adapters/astro-sync/src/index.ts"],
       "@marketing-auto/adapter-astro-sync/verify": [
         "../../packages/adapters/astro-sync/src/verify.ts"
+      ],
+      "@marketing-auto/adapter-astro-sync/import": [
+        "../../packages/adapters/astro-sync/src/import/index.ts"
       ]
     }
   },

@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -10,6 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { vector } from "drizzle-orm/pg-core";
 import {
+  articleSourceEnum,
   articleStatusEnum,
   socialFormatEnum,
   socialPlatformEnum,
@@ -35,6 +37,15 @@ export type ArticleOutline = {
   heroImagePrompt: string;
   heroImageStyle: "photorealistic" | "illustrated" | "3d_render" | "minimalist";
   estimatedTotalWords: number;
+};
+
+export type ImportMetadata = {
+  wordCount?: number;
+  readingTimeMinutes?: number;
+  headings?: Array<{ level: number; text: string; id?: string }>;
+  hasAffiliateLinks?: boolean;
+  imageCount?: number;
+  internalLinks?: string[];
 };
 
 export type SelfReviewIssue = {
@@ -67,7 +78,8 @@ export const articles = pgTable(
 
     // Identity
     slug: text("slug").notNull(),
-    cornerstoneKeyword: text("cornerstone_keyword").notNull(),
+    // Nullable: imported articles have no cornerstone keyword
+    cornerstoneKeyword: text("cornerstone_keyword"),
 
     // Content fields — populated incrementally by pipeline steps
     title: text("title"),
@@ -145,6 +157,52 @@ export const articles = pgTable(
     internalLinksAdded: integer("internal_links_added").default(0),
     internalLinkTargets: jsonb("internal_link_targets").$type<string[]>().default([]),
 
+    // Spec 44: source discriminator — 'generated' (pipeline) or 'imported' (Astro repo mirror)
+    source: articleSourceEnum("source").notNull().default("generated"),
+
+    // Spec 44: collection name from Astro repo (e.g. 'blog', 'tools', 'comparisons')
+    // NOT NULL with default 'blog' so the (projectId, source, collection, locale, slug) unique index works
+    collection: text("collection").notNull().default("blog"),
+
+    // Spec 44: locale of the article ('de' or 'en')
+    // NOT NULL with default 'de' for the same uniqueness reason
+    locale: text("locale").notNull().default("de"),
+
+    // Spec 44: links DE+EN articles that are translations of each other
+    translationKey: text("translation_key"),
+
+    // Spec 44: file path in Astro repo (e.g. 'src/content/blog/de/foo.mdx')
+    filePath: text("file_path"),
+
+    // Spec 44: git blob SHA for change-detection (imported articles only)
+    gitSha: text("git_sha"),
+
+    // Spec 44: frontmatter date fields (supplement existing publishedAt for imported articles)
+    frontmatterUpdatedAt: timestamp("frontmatter_updated_at", { withTimezone: true }),
+
+    // Spec 44: structured frontmatter columns for cross-project queries
+    author: text("author"),
+    category: text("category"),
+    subcategory: text("subcategory"),
+    tags: text("tags").array(),
+    noindex: boolean("noindex").notNull().default(false),
+
+    // Spec 44: catch-all for collection-specific frontmatter fields
+    frontmatterExtras: jsonb("frontmatter_extras")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+
+    // Spec 44: computed metadata (wordCount, readingTime, headings, affiliateLinks, etc.)
+    importMetadata: jsonb("import_metadata")
+      .$type<ImportMetadata>()
+      .notNull()
+      .default({}),
+
+    // Spec 44: import audit timestamps
+    importedAt: timestamp("imported_at", { withTimezone: true }),
+    lastImportedAt: timestamp("last_imported_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -153,11 +211,27 @@ export const articles = pgTable(
     clusterIdx: index("articles_cluster_idx").on(t.clusterId),
     statusIdx: index("articles_status_idx").on(t.projectId, t.status),
     cornerstoneKeywordIdx: index("articles_cornerstone_keyword_idx").on(t.cornerstoneKeyword),
-    uniqueSlugPerProject: uniqueIndex("articles_project_slug_unique").on(t.projectId, t.slug),
     embeddingIdx: index("articles_embedding_idx").using(
       "hnsw",
       t.embedding.op("vector_cosine_ops")
     ),
+    // Spec 44: replaces old (projectId, slug) unique — now scoped to source+collection+locale
+    sourceCollectionLocaleSlugUnique: uniqueIndex(
+      "articles_project_source_coll_locale_slug_unique"
+    ).on(t.projectId, t.source, t.collection, t.locale, t.slug),
+    // Spec 44: translation-pair lookups
+    translationKeyIdx: index("articles_project_translation_key_idx").on(
+      t.projectId,
+      t.translationKey
+    ),
+    // Spec 44: collection filtering
+    collectionLocaleIdx: index("articles_project_collection_locale_idx").on(
+      t.projectId,
+      t.collection,
+      t.locale
+    ),
+    // Spec 44: source filtering
+    sourceIdx: index("articles_project_source_idx").on(t.projectId, t.source),
   })
 );
 

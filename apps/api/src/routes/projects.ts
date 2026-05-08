@@ -1,10 +1,14 @@
 import { zValidator } from "@hono/zod-validator";
 import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues } from "@marketing-auto/core";
-import { articles, clusters, db, projects } from "@marketing-auto/db";
-import { eq, sql } from "drizzle-orm";
+import { articles, astroImportRuns, clusters, db, projects } from "@marketing-auto/db";
+import { enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
+import { createLogger } from "@marketing-auto/shared";
+import { desc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
+
+const log = createLogger("routes:projects");
 
 export const projectRoutes = new Hono();
 
@@ -247,4 +251,51 @@ projectRoutes.post("/:slug/resume-queues", async (c) => {
   await resumeProjectQueues(proj.id, user?.id);
 
   return c.json({ ok: true, data: { resumed: true } });
+});
+
+// Spec 44: Astro repo import trigger
+projectRoutes.post("/:slug/astro-import", async (c) => {
+  const slug = c.req.param("slug");
+  const [project] = await db
+    .select({ id: projects.id, astroRepo: projects.astroRepo })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+  if (!project.astroRepo) {
+    return c.json({ ok: false, error: "astroRepo not configured for this project" }, 400);
+  }
+
+  try {
+    const { importRunId, jobId } = await enqueueRepoImport({
+      projectId: project.id,
+      triggerSource: "manual",
+    });
+    return c.json({ ok: true, data: { importRunId, jobId } }, 202);
+  } catch (e) {
+    log.error({ error: e, slug }, "Failed to enqueue repo import");
+    return c.json({ ok: false, error: (e as Error).message }, 500);
+  }
+});
+
+// Spec 44: List recent import runs for a project
+projectRoutes.get("/:slug/astro-import-runs", async (c) => {
+  const slug = c.req.param("slug");
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const runs = await db
+    .select()
+    .from(astroImportRuns)
+    .where(eq(astroImportRuns.projectId, project.id))
+    .orderBy(desc(astroImportRuns.startedAt))
+    .limit(20);
+
+  return c.json({ ok: true, data: runs });
 });

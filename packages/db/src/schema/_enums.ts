@@ -94,3 +94,5 @@ export const approvalActionEnum = pgEnum("approval_action", [
 ]);
 
 export const userRoleEnum = pgEnum("user_role", ["owner", "editor"]);
+
+export const articleSourceEnum = pgEnum("article_source", ["generated", "imported"]);
