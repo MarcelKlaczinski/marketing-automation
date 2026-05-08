@@ -1,6 +1,9 @@
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
 import { RepoImportPipeline } from "@marketing-auto/adapter-astro-sync/import";
-import { PageSpeedValidationPipeline } from "@marketing-auto/adapter-pagespeed";
+import {
+  PageSpeedApiValidationPipeline,
+  PageSpeedValidationPipeline,
+} from "@marketing-auto/adapter-pagespeed";
 import {
   ArticleDraftPipeline,
   ArticleOutlinePipeline,
@@ -35,6 +38,7 @@ async function main() {
   pipelineRegistry.register(new SchemaExtensionPipeline());
   pipelineRegistry.register(new ClusterLinkRebuildPipeline());
   pipelineRegistry.register(new PageSpeedValidationPipeline());
+  pipelineRegistry.register(new PageSpeedApiValidationPipeline());
   // Cold-start pipelines (Spec 35)
   pipelineRegistry.register(new VoiceRefinementQuestionsPipeline());
   pipelineRegistry.register(new VoiceSynthesisPipeline());

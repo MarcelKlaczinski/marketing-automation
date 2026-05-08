@@ -411,6 +411,7 @@ export async function enqueuePagespeedValidationPipeline(
     articleId: input.articleId,
     pipelineRunId: input.preRunId,
     status: "pending",
+    mode: "local",
   });
 
   await db
@@ -434,6 +435,31 @@ export async function enqueueSchemaExtensionPipeline(
     pipelineName: "article:schema-extension",
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
+export type ApiPreRunInput = PreRunInput & { url: string };
+
+export async function enqueuePagespeedApiValidationPipeline(
+  input: ApiPreRunInput
+): Promise<{ jobId: string }> {
+  await db.insert(pagespeedRuns).values({
+    projectId: input.projectId,
+    articleId: input.articleId,
+    pipelineRunId: input.preRunId,
+    status: "pending",
+    mode: "api",
+    testedUrl: input.url,
+  });
+
+  // API mode does not change article status — leave it as-is (e.g. published).
+
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:pagespeed-validation-api",
+    projectId: input.projectId,
+    input: { articleId: input.articleId, projectId: input.projectId, url: input.url },
     preRunId: input.preRunId,
   });
   return { jobId };
