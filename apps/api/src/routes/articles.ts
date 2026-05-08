@@ -17,6 +17,7 @@ import {
   enqueueArticleGenerationLegacy as enqueueArticleGeneration,
   enqueueArticleOutlinePipeline,
   enqueueArticleSyncPipeline,
+  enqueuePagespeedApiValidationPipeline,
   enqueuePagespeedValidationPipeline,
   enqueueSchemaExtensionPipeline,
 } from "@marketing-auto/pipelines";
@@ -534,18 +535,69 @@ articleRoutes.post("/:id/sync", async (c) => {
 
 articleRoutes.post("/:id/validate-pagespeed", async (c) => {
   const id = c.req.param("id");
+
+  // All body fields are optional — parse manually to avoid hard-fail on missing Content-Type
+  const rawBody = await c.req.json().catch(() => ({}));
+  const bodySchema = z.object({
+    mode: z.enum(["local", "api"]).default("local"),
+    urlOverride: z.string().url().optional(),
+  });
+  const body = bodySchema.safeParse(rawBody).data ?? { mode: "local" as const };
+
   const [article] = await db
     .select({
       id: articles.id,
       projectId: articles.projectId,
       astroCommitSha: articles.astroCommitSha,
+      slug: articles.slug,
+      locale: articles.locale,
+      collection: articles.collection,
     })
     .from(articles)
     .where(eq(articles.id, id))
     .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
-  // Cooldown: reject if a run exists within the last 5 minutes with the same commit SHA
+  if (body.mode === "api") {
+    let resolvedUrl: string;
+    if (body.urlOverride) {
+      resolvedUrl = body.urlOverride;
+    } else {
+      const [project] = await db
+        .select({ domain: projects.domain })
+        .from(projects)
+        .where(eq(projects.id, article.projectId))
+        .limit(1);
+
+      if (!project?.domain) {
+        return c.json(
+          {
+            ok: false,
+            error: "no_domain",
+            message:
+              "API mode requires either urlOverride or projects.domain to be set. Set the production domain in project settings.",
+          },
+          400
+        );
+      }
+
+      const cleanDomain = project.domain.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      const segments = ["https:/", cleanDomain, article.locale, article.collection, article.slug];
+      resolvedUrl = segments.join("/") + "/";
+    }
+
+    const result = await triggerWithPreRunId({
+      pipelineName: "article:pagespeed-validation-api",
+      projectId: article.projectId,
+      uniqueKey: { field: "articleId", value: article.id },
+      extraInput: { articleId: article.id, url: resolvedUrl },
+      enqueue: enqueuePagespeedApiValidationPipeline,
+    });
+    log.info({ articleId: id, mode: "api", resolvedUrl, ...result }, "PageSpeed API validation triggered");
+    return triggerResultToResponse(c, result);
+  }
+
+  // local mode: existing cooldown guard + local pipeline
   const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
   const [recentRun] = await db
     .select({ startedAt: pagespeedRuns.startedAt, astroCommitSha: pagespeedRuns.astroCommitSha })
@@ -574,7 +626,7 @@ articleRoutes.post("/:id/validate-pagespeed", async (c) => {
     extraInput: { articleId: article.id },
     enqueue: enqueuePagespeedValidationPipeline,
   });
-  log.info({ articleId: id, ...result }, "PageSpeed validation triggered via HTTP");
+  log.info({ articleId: id, mode: "local", ...result }, "PageSpeed local validation triggered");
   return triggerResultToResponse(c, result);
 });
 
