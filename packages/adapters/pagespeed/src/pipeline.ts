@@ -11,6 +11,7 @@ import { EvaluateAndPersistStep } from "./steps/evaluate-and-persist.ts";
 import { LighthouseStep } from "./steps/lighthouse.ts";
 import { LoadArticleStep } from "./steps/load-article.ts";
 import { AstroPreviewServerStep } from "./steps/preview-server.ts";
+import { PsiApiStep } from "./steps/psi-api.ts";
 
 const log = createLogger("pagespeed:pipeline");
 
@@ -95,12 +96,13 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
         testedUrl: string;
       };
       const load = getStepOutput<{
-        article: { id: string; astroCommitSha: string };
+        article: { id: string; astroCommitSha: string | null };
         thresholds: unknown;
       }>("load-article")!;
       return {
         articleId: load.article.id,
         projectId: pipelineInput.projectId,
+        mode: "local" as const,
         scores: out.scores,
         coreWebVitals: out.coreWebVitals,
         thresholds: load.thresholds,
@@ -163,4 +165,99 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+// ────────────────────────────────────────────────────────────
+// API pipeline (Spec 22.5): load-article → psi-api → evaluate-and-persist
+// No local Astro build needed — tests a live public URL via Google PSI.
+// ────────────────────────────────────────────────────────────
+
+const ApiInputSchema = z.object({
+  articleId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  url: z.string().url(),
+});
+
+const ApiOutputSchema = z.object({
+  outcome: z.enum(["pass", "fail"]),
+  failedThresholds: z.array(z.string()),
+  pagespeedRunId: z.string().uuid(),
+});
+
+type ApiPipelineInput = z.infer<typeof ApiInputSchema>;
+type ApiPipelineOutput = z.infer<typeof ApiOutputSchema>;
+
+export class PageSpeedApiValidationPipeline extends Pipeline<
+  ApiPipelineInput,
+  ApiPipelineOutput
+> {
+  readonly name = "article:pagespeed-validation-api";
+  readonly inputSchema = ApiInputSchema;
+  readonly outputSchema = ApiOutputSchema;
+  readonly steps = [
+    new LoadArticleStep(),
+    new PsiApiStep(),
+    new EvaluateAndPersistStep(),
+  ] as const;
+
+  override bridge(
+    fromStep: BaseStep<unknown, unknown>,
+    toStep: BaseStep<unknown, unknown>,
+    output: unknown,
+    pipelineInput: ApiPipelineInput,
+    getStepOutput: <T = unknown>(stepName: string) => T | undefined
+  ): unknown {
+    if (fromStep.name === "load-article" && toStep.name === "psi-api") {
+      return {
+        url: pipelineInput.url,
+        articleId: pipelineInput.articleId,
+      };
+    }
+
+    if (fromStep.name === "psi-api" && toStep.name === "evaluate-and-persist") {
+      const psiOut = output as {
+        scores: Record<string, number>;
+        coreWebVitals: Record<string, number | null>;
+        testedUrl: string;
+        reportPath: null;
+      };
+      const loadOut = getStepOutput<{ thresholds: Record<string, number> }>("load-article")!;
+      return {
+        articleId: pipelineInput.articleId,
+        projectId: pipelineInput.projectId,
+        mode: "api" as const,
+        scores: psiOut.scores,
+        coreWebVitals: psiOut.coreWebVitals,
+        thresholds: loadOut.thresholds,
+        reportPath: psiOut.reportPath,
+        testedUrl: psiOut.testedUrl,
+        astroCommitSha: null,
+      };
+    }
+
+    return output;
+  }
+
+  override async afterError(error: unknown, input: ApiPipelineInput): Promise<void> {
+    try {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const owners = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, "owner"));
+      for (const owner of owners) {
+        void createNotification({
+          userId: owner.id,
+          type: "pagespeed_failure",
+          severity: "warning",
+          title: "PageSpeed API validation failed",
+          message: errorMessage.slice(0, 200),
+          link: `/articles/${input.articleId}`,
+          metadata: { articleId: input.articleId },
+        });
+      }
+    } catch {
+      // Notification failure must not affect retry behavior
+    }
+  }
 }

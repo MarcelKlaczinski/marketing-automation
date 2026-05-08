@@ -1,5 +1,5 @@
 export { enqueueArticleValidation } from "./trigger.ts";
-export { PageSpeedValidationPipeline } from "./pipeline.ts";
+export { PageSpeedValidationPipeline, PageSpeedApiValidationPipeline } from "./pipeline.ts";
 export {
   PagespeedError,
   type PagespeedScores,

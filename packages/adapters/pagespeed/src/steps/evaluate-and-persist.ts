@@ -4,16 +4,29 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { CoreWebVitalsSchema, type PagespeedOutcome, PagespeedScoresSchema } from "../types.ts";
 
+type EvaluateAndPersistInput = {
+  articleId: string;
+  projectId: string;
+  mode: "local" | "api";
+  scores: z.infer<typeof PagespeedScoresSchema>;
+  coreWebVitals: z.infer<typeof CoreWebVitalsSchema>;
+  thresholds: z.infer<typeof PagespeedScoresSchema>;
+  reportPath: string | null;
+  testedUrl: string;
+  astroCommitSha: string | null;
+};
+
 const InputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
+  mode: z.enum(["local", "api"]).default("local"),
   scores: PagespeedScoresSchema,
   coreWebVitals: CoreWebVitalsSchema,
   thresholds: PagespeedScoresSchema,
-  reportPath: z.string(),
+  reportPath: z.string().nullable(),
   testedUrl: z.string().url(),
-  astroCommitSha: z.string(),
-});
+  astroCommitSha: z.string().nullable(),
+}) as z.ZodType<EvaluateAndPersistInput>;
 
 const OutputSchema = z.object({
   outcome: z.enum(["pass", "fail"]),
@@ -22,7 +35,7 @@ const OutputSchema = z.object({
 });
 
 export class EvaluateAndPersistStep extends BaseStep<
-  z.infer<typeof InputSchema>,
+  EvaluateAndPersistInput,
   z.infer<typeof OutputSchema>
 > {
   readonly name = "evaluate-and-persist";
@@ -34,7 +47,7 @@ export class EvaluateAndPersistStep extends BaseStep<
   }
 
   async execute(
-    input: z.infer<typeof InputSchema>,
+    input: EvaluateAndPersistInput,
     ctx: StepContext
   ): Promise<z.infer<typeof OutputSchema>> {
     const failed: string[] = [];
@@ -44,40 +57,61 @@ export class EvaluateAndPersistStep extends BaseStep<
     if (input.scores.seo < input.thresholds.seo) failed.push("seo");
 
     const outcome: PagespeedOutcome = failed.length === 0 ? "pass" : "fail";
-    const newStatus = outcome === "pass" ? "published" : "blocked_by_pagespeed";
     const now = new Date();
 
-    await db
-      .update(articles)
-      .set({
-        status: newStatus,
-        pagespeedValidatedAt: now,
-        pagespeedScores: input.scores,
-        pagespeedCoreWebVitals: input.coreWebVitals,
-        pagespeedFailedThresholds: failed.length > 0 ? failed : null,
-        pagespeedReportUrl: input.reportPath,
-        pagespeedAstroCommitSha: input.astroCommitSha,
-        updatedAt: now,
-      })
-      .where(eq(articles.id, input.articleId));
+    if (input.mode === "local") {
+      // Local mode is the quality gate — transition article status based on outcome
+      const newStatus = outcome === "pass" ? "published" : "blocked_by_pagespeed";
+      await db
+        .update(articles)
+        .set({
+          status: newStatus,
+          pagespeedValidatedAt: now,
+          pagespeedScores: input.scores,
+          pagespeedCoreWebVitals: input.coreWebVitals,
+          pagespeedFailedThresholds: failed.length > 0 ? failed : null,
+          pagespeedReportUrl: input.reportPath,
+          pagespeedAstroCommitSha: input.astroCommitSha,
+          updatedAt: now,
+        })
+        .where(eq(articles.id, input.articleId));
+    } else {
+      // API mode is informational — update scores but leave article status unchanged
+      await db
+        .update(articles)
+        .set({
+          pagespeedValidatedAt: now,
+          pagespeedScores: input.scores,
+          pagespeedCoreWebVitals: input.coreWebVitals,
+          pagespeedFailedThresholds: failed.length > 0 ? failed : null,
+          updatedAt: now,
+        })
+        .where(eq(articles.id, input.articleId));
+    }
+
+    const runBase = {
+      projectId: input.projectId,
+      articleId: input.articleId,
+      pipelineRunId: ctx.pipelineRunId,
+      status: "succeeded" as const,
+      mode: input.mode,
+      outcome,
+      scores: input.scores as Record<string, number>,
+      coreWebVitals: input.coreWebVitals as Record<string, number>,
+      thresholdsUsed: input.thresholds as Record<string, number>,
+      failedCategories: failed.length > 0 ? failed : null,
+      testedUrl: input.testedUrl,
+      finishedAt: now,
+    };
+    const runValues = {
+      ...runBase,
+      ...(input.reportPath !== null ? { reportPath: input.reportPath } : {}),
+      ...(input.astroCommitSha !== null ? { astroCommitSha: input.astroCommitSha } : {}),
+    };
 
     const [run] = await db
       .insert(pagespeedRuns)
-      .values({
-        projectId: input.projectId,
-        articleId: input.articleId,
-        pipelineRunId: ctx.pipelineRunId,
-        status: "succeeded",
-        outcome,
-        scores: input.scores as Record<string, number>,
-        coreWebVitals: input.coreWebVitals as Record<string, number>,
-        thresholdsUsed: input.thresholds as Record<string, number>,
-        failedCategories: failed.length > 0 ? failed : null,
-        reportPath: input.reportPath,
-        astroCommitSha: input.astroCommitSha,
-        testedUrl: input.testedUrl,
-        finishedAt: now,
-      })
+      .values(runValues)
       .returning();
 
     return {

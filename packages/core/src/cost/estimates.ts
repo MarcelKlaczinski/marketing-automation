@@ -44,6 +44,10 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     [COST_OPS.SMTP_MAGIC_LINK]: 0.001,
     [COST_OPS.SMTP_BRIEFING]: 0.001,
   },
+  // PSI API is free (25k requests/day with key, 400/day without)
+  pagespeed: {
+    [COST_OPS.PAGESPEED_PSI_API]: 0,
+  },
 };
 
 export function estimateCostEur(service: string, operation: string, multiplier = 1): number {

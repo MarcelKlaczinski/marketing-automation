@@ -61,6 +61,9 @@ export const COST_OPS = {
   // === SMTP ===
   SMTP_MAGIC_LINK: "magic-link-email",
   SMTP_BRIEFING: "briefing-email",
+
+  // === PageSpeed Insights API ===
+  PAGESPEED_PSI_API: "pagespeed-psi-api",
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];
