@@ -12,6 +12,7 @@ import { LighthouseStep } from "./steps/lighthouse.ts";
 import { LoadArticleStep } from "./steps/load-article.ts";
 import { AstroPreviewServerStep } from "./steps/preview-server.ts";
 import { PsiApiStep } from "./steps/psi-api.ts";
+import { PagespeedError } from "./types.ts";
 
 const log = createLogger("pagespeed:pipeline");
 
@@ -54,10 +55,24 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
   ): unknown {
     if (fromStep.name === "load-article" && toStep.name === "clone-or-update") {
       const out = output as {
-        astroRepo: { owner: string; name: string };
-        article: { astroCommitSha: string };
+        astroRepo: { owner: string; name: string } | null;
+        article: { astroCommitSha: string | null };
         workDir: string;
       };
+      // Guard: local pipeline requires both astroRepo config and a prior Astro sync.
+      // Status gate was removed in Spec 22.5 so these checks moved here from load-article.
+      if (!out.astroRepo) {
+        throw new PagespeedError(
+          "Project has no astroRepo configured — set up via Spec 21 first",
+          "config"
+        );
+      }
+      if (!out.article.astroCommitSha) {
+        throw new PagespeedError(
+          "Article has no astroCommitSha — sync to Astro via Spec 21 first",
+          "config"
+        );
+      }
       return {
         workDir: out.workDir,
         astroRepoOwner: out.astroRepo.owner,
