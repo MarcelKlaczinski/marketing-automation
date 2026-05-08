@@ -4,7 +4,7 @@ import { runPipeline } from "@marketing-auto/pipelines";
 import {
   ApprovedClusterSchema,
   CornerstoneListPipeline,
-  type CornerstoneSpecSchema,
+  type LocaleAwareCornerstoneSpec,
 } from "@marketing-auto/pipelines/cold-start";
 import {
   COLD_START_FILES,
@@ -90,19 +90,19 @@ if (approvedClusters.length === 0) {
 
 // ─── Run pipeline ─────────────────────────────────────────────────────────────
 
-console.log(`Generating cornerstone specs for ${slug}...`);
+console.log(`Generating cornerstone specs (DE+EN) for ${slug}...`);
 console.log(`  Approved clusters: ${approvedClusters.length}`);
 console.log(`  Cluster names: ${approvedClusters.map((c) => c.name).join(", ")}`);
 console.log();
 
 log.info(
   { slug, approvedClusterCount: approvedClusters.length },
-  "Running cornerstone-list pipeline"
+  "Running cornerstone-list pipeline (DE+EN)"
 );
 
 const result = await runPipeline(
   new CornerstoneListPipeline(),
-  { projectSlug: slug, approvedClusters },
+  { projectSlug: slug, approvedClusters, locales: ["de", "en"] },
   { projectId: project.id }
 );
 
@@ -111,18 +111,18 @@ if (!result.ok) {
   process.exit(1);
 }
 
-const { cornerstones } = result.output;
+const { specs } = result.output;
 
 // ─── Write output ─────────────────────────────────────────────────────────────
 
-const fullMd = renderCornerstoneMarkdown(slug, cornerstones, approvedClusters.length);
+const fullMd = renderCornerstoneMarkdown(slug, specs, approvedClusters.length);
 await writeMarkdownAtomic(outputPath, fullMd);
 
 console.log(`Cornerstone list written to:\n   ${outputPath}\n`);
-console.log(`Cornerstones: ${cornerstones.length} generated (all marked "proposed")`);
+console.log(`Cornerstones: ${specs.length} generated (${approvedClusters.length} clusters × DE+EN)`);
 console.log(`\nNext:`);
-console.log(`  1. Review ${outputPath}`);
-console.log(`  2. Set "status: approved" on articles you want to produce`);
+console.log(`  1. Review ${outputPath} and approve/reject specs in the DB (use /cornerstone-specs API)`);
+console.log(`  2. Once approved, trigger article generation via cluster endpoint`);
 console.log(`  3. Run: bun --filter @marketing-auto/api cold-start:go-live-checklist ${slug}`);
 process.exit(0);
 
@@ -130,21 +130,20 @@ process.exit(0);
 
 function renderCornerstoneMarkdown(
   projectSlug: string,
-  cornerstones: z.infer<typeof CornerstoneSpecSchema>[],
+  specs: LocaleAwareCornerstoneSpec[],
   totalApprovedClusters: number
 ): string {
   const sections: string[] = [
     `# Cornerstone List: ${projectSlug}`,
     "",
-    `Generated ${cornerstones.length} cornerstone article spec(s) from ${totalApprovedClusters} approved cluster(s).`,
+    `Generated ${specs.length} cornerstone specs (DE+EN) from ${totalApprovedClusters} approved cluster(s).`,
+    "Specs are persisted in the `cornerstone_specs` DB table with status `proposed`.",
     "",
-    "**Your tasks before running the go-live checklist:**",
-    "1. Review each cornerstone spec in the DATA block below",
-    "2. Set `status: approved` on articles you want to produce in Phase 3",
-    "3. Edit `proposed_title`, `proposed_slug`, or `h2_outline` if you want different angles",
+    "**Your tasks:**",
+    "1. Review each cornerstone spec pair below",
+    "2. Approve or reject via the Web UI or API (`/api/projects/:slug/cornerstone-specs`)",
+    "3. Trigger article generation per cluster once pairs are approved",
     "4. Run: `bun --filter @marketing-auto/api cold-start:go-live-checklist " + projectSlug + "`",
-    "",
-    "> **Important:** Only edit the YAML inside the DATA block. The `<!-- DATA:cornerstones BEGIN/END -->` markers must stay intact.",
     "",
     "---",
     "",
@@ -152,35 +151,41 @@ function renderCornerstoneMarkdown(
     "",
   ];
 
-  for (const cs of cornerstones) {
-    sections.push(`### ${cs.proposed_title}`);
+  // Group by cornerstone_keyword to show DE+EN side by side
+  const byKeyword = new Map<string, LocaleAwareCornerstoneSpec[]>();
+  for (const spec of specs) {
+    const key = spec.cornerstone_keyword;
+    const arr = byKeyword.get(key) ?? [];
+    arr.push(spec);
+    byKeyword.set(key, arr);
+  }
+
+  for (const [keyword, pair] of byKeyword) {
+    sections.push(`### Cluster: ${keyword}`);
     sections.push("");
-    sections.push(`**Cluster:** ${cs.cluster}  `);
-    sections.push(`**Keyword:** \`${cs.cornerstone_keyword}\`  `);
-    sections.push(`**Slug:** \`/${cs.proposed_slug}/\`  `);
-    sections.push(`**Target length:** ~${cs.estimated_word_count.toLocaleString()} words`);
-    sections.push("");
-    sections.push(`**Meta:** ${cs.meta_description}`);
-    sections.push("");
-    sections.push("**Outline:**");
-    for (const h2 of cs.h2_outline) {
-      sections.push(`- ${h2}`);
+    for (const spec of pair.sort((a, b) => a.locale.localeCompare(b.locale))) {
+      sections.push(`#### [${spec.locale.toUpperCase()}] ${spec.proposed_title}`);
+      sections.push(`**Slug:** \`/${spec.proposed_slug}/\`  `);
+      sections.push(`**Target length:** ~${spec.estimated_word_count.toLocaleString()} words`);
+      sections.push("");
+      sections.push(`**Meta:** ${spec.meta_description}`);
+      sections.push("");
+      sections.push("**Outline:**");
+      for (const h2 of spec.h2_outline) {
+        sections.push(`- ${h2}`);
+      }
+      sections.push("");
     }
-    sections.push("");
   }
 
   sections.push("---");
   sections.push("");
-  sections.push("## Cornerstone Data");
+  sections.push("## Cornerstone Spec Data");
   sections.push("");
-  sections.push("> Edit `status` from `proposed` to `approved` on articles you want to produce.");
-  sections.push("> Phase 3 Article Pipeline reads only `approved` cornerstones.");
+  sections.push("> This data is stored in the DB. Edit specs via the Web UI approval page.");
+  sections.push("> Translation key links DE+EN pairs. Do not edit translation_key manually.");
   sections.push("");
-  sections.push(renderDataBlock("cornerstones", cornerstones));
-  sections.push("");
-  sections.push("## Notes from Marcel");
-  sections.push("");
-  sections.push("(add reasoning for approve/reject decisions here)");
+  sections.push(renderDataBlock("cornerstones", specs));
   sections.push("");
 
   return sections.join("\n");

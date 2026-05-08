@@ -19,7 +19,9 @@ export {
   CornerstoneListPipeline,
   ApprovedClusterSchema,
   CornerstoneSpecSchema,
+  LocaleAwareCornerstoneSpecSchema,
 } from "./04-cornerstone-list/pipeline.ts";
+export type { LocaleAwareCornerstoneSpec } from "./04-cornerstone-list/steps.ts";
 export {
   GoLiveChecklistPipeline,
   GoLiveChecklistOutputSchema,
