@@ -96,3 +96,11 @@ export const approvalActionEnum = pgEnum("approval_action", [
 export const userRoleEnum = pgEnum("user_role", ["owner", "editor"]);
 
 export const articleSourceEnum = pgEnum("article_source", ["generated", "imported"]);
+
+export const cornerstoneSpecStatusEnum = pgEnum("cornerstone_spec_status", [
+  "proposed",
+  "approved",
+  "in_generation",
+  "article_done",
+  "rejected",
+]);

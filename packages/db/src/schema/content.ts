@@ -13,6 +13,7 @@ import { vector } from "drizzle-orm/pg-core";
 import {
   articleSourceEnum,
   articleStatusEnum,
+  cornerstoneSpecStatusEnum,
   socialFormatEnum,
   socialPlatformEnum,
   socialStatusEnum,
@@ -232,6 +233,55 @@ export const articles = pgTable(
     ),
     // Spec 44: source filtering
     sourceIdx: index("articles_project_source_idx").on(t.projectId, t.source),
+    // Spec 45: cornerstone-spec → article lookup
+    cornerstoneSpecIdx: index("articles_cornerstone_spec_id_idx").on(t.cornerstoneSpecId),
+  })
+);
+
+export const cornerstoneSpecs = pgTable(
+  "cornerstone_specs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    clusterId: uuid("cluster_id")
+      .notNull()
+      .references(() => clusters.id, { onDelete: "cascade" }),
+
+    locale: text("locale").notNull(),
+    translationKey: text("translation_key").notNull(),
+
+    cornerstoneKeyword: text("cornerstone_keyword").notNull(),
+    proposedTitle: text("proposed_title").notNull(),
+    proposedSlug: text("proposed_slug").notNull(),
+    metaDescription: text("meta_description").notNull(),
+    estimatedWordCount: integer("estimated_word_count").notNull(),
+    h2Outline: jsonb("h2_outline").$type<string[]>().notNull(),
+
+    status: cornerstoneSpecStatusEnum("status").notNull().default("proposed"),
+    rejectedReason: text("rejected_reason"),
+
+    // No DB-level FK to articles — avoids circular dep with articles.cornerstoneSpecId
+    articleId: uuid("article_id"),
+
+    // No DB-level FK to pipelineRuns — avoids circular dep with operations.ts
+    cornerstoneListPipelineRunId: uuid("cornerstone_list_pipeline_run_id"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    clusterLocaleUnique: uniqueIndex("cornerstone_specs_cluster_locale_unique").on(
+      t.clusterId,
+      t.locale
+    ),
+    translationKeyIdx: index("cornerstone_specs_translation_key_idx").on(
+      t.projectId,
+      t.translationKey
+    ),
+    projectStatusIdx: index("cornerstone_specs_project_status_idx").on(t.projectId, t.status),
+    clusterIdIdx: index("cornerstone_specs_cluster_id_idx").on(t.clusterId),
   })
 );
 
