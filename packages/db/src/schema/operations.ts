@@ -165,6 +165,7 @@ export const pagespeedRuns = pgTable(
 
     status: text("status").$type<"pending" | "succeeded" | "failed" | "errored">().notNull(),
     outcome: text("outcome").$type<"pass" | "fail" | "error" | null>().default(null),
+    mode: text("mode").$type<"local" | "api">().notNull().default("local"),
 
     scores: jsonb("scores").$type<Record<string, number> | null>().default(null),
     coreWebVitals: jsonb("core_web_vitals").$type<Record<string, number> | null>().default(null),
@@ -186,6 +187,7 @@ export const pagespeedRuns = pgTable(
   (t) => ({
     articleIdx: index("pagespeed_runs_article_idx").on(t.articleId),
     projectStatusIdx: index("pagespeed_runs_project_status_idx").on(t.projectId, t.status),
+    projectModeIdx: index("pagespeed_runs_project_mode_idx").on(t.projectId, t.mode),
   })
 );
 
