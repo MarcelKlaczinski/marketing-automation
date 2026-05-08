@@ -1484,7 +1484,19 @@ After this, the marketing-tool can plan and generate a full DE+EN content cluste
 
 ## Discovered During Implementation
 
-(empty)
+### Section A
+
+**`clusters.cornerstoneKeywords` is a `string[]` JSONB array, not a single text column.**
+
+The spec's Section B `afterComplete` pseudocode queries:
+```typescript
+eq(clusters.cornerstoneKeyword, keyword)  // ← column does not exist
+```
+The actual DB column is `cornerstoneKeywords: jsonb().$type<string[]>()` (plural). Section B must match cornerstone specs to clusters using a different strategy — options are:
+1. Pass `clusterId` through the step output (preferred — `ApprovedCluster` already has an `id` field from the cluster-plan phase), so `afterComplete` can do a direct `eq(clusters.id, s.cluster_id)` lookup.
+2. Use a JSONB `@>` operator to check array containment: `sql\`${clusters.cornerstoneKeywords} @> ${JSON.stringify([keyword])}::jsonb\``.
+
+Option 1 is cleaner. Verify `ApprovedCluster.id` is populated before implementing Section B.
 
 ## Deviations
 
