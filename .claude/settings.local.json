@@ -291,7 +291,19 @@
       "Bash(sed -n '90,105p' apps/web/src/components/clusters/ArticleMoveDialog.vue)",
       "Bash(sed -n '93,108p' apps/web/src/components/articles/ArticleBodyPanel.vue)",
       "Bash(bunx web-push *)",
-      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); entries=d['entries']; print\\('Last entry:', entries[-1]\\)\")"
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); entries=d['entries']; print\\('Last entry:', entries[-1]\\)\")",
+      "Bash(git checkout *)",
+      "Bash(psql -U marcelklaczinski -d marketing_automation -c \"SELECT count\\(*\\) FROM articles WHERE source IS NULL;\")",
+      "Bash(psql -U marcelklaczinski -d marketing_automation -c \"SELECT source, collection, locale, count\\(*\\) FROM articles GROUP BY source, collection, locale;\")",
+      "Bash(psql -U marcelklaczinski -d marketing_automation -c \"\\\\d articles_project_source_coll_locale_slug_unique\")",
+      "Bash(psql -U marcelklaczinski -l)",
+      "Bash(psql -U marcelklaczinski -d marketing_auto -c \"SELECT count\\(*\\) as null_source FROM articles WHERE source IS NULL;\")",
+      "Bash(psql -U marcelklaczinski -d marketing_auto -c \"SELECT source::text, collection, locale, count\\(*\\) FROM articles GROUP BY source, collection, locale;\")",
+      "Bash(psql -U marcelklaczinski -d marketing_auto -c \"SELECT indexname FROM pg_indexes WHERE tablename='articles' ORDER BY indexname;\")",
+      "Bash(bun --filter @marketing-auto/adapter-astro-sync test)",
+      "Bash(bun --filter @marketing-auto/db tsc --noEmit)",
+      "Bash(bun --filter \"@marketing-auto/db\" run typecheck)",
+      "Bash(grep -n \"DO NOT pass a bare column\\\\|DO NOT use.*isNull\\\\|DO NOT use \\\\`bun add\\\\|DO NOT use \\\\.rowCount\\\\|DO NOT derive Cold-Start\\\\|DO NOT destructure\\\\|DO NOT write a new pipeline\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)"
     ]
   }
 }
