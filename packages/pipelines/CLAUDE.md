@@ -131,6 +131,29 @@ readonly outputSchema = ArticleOutlineSchemaOutput;
 
 The `.default()` behavior is preserved at runtime — use this pattern whenever a schema needs a default for LLM-output resilience.
 
+**Same problem at the Pipeline level** (not just steps): if a Pipeline `inputSchema` has any `.default()` field, TypeScript rejects the schema as `Pipeline<Input, Output>` for the same reason. Fix: declare a `type PipelineInput` explicitly, then cast the schema:
+
+```typescript
+// pipeline.ts
+type PipelineInput = {
+  projectSlug: string;
+  approvedClusters: ApprovedCluster[];
+  projectId?: string;
+  locales: ("de" | "en")[];  // has a .default() — must use type cast
+};
+
+const InputSchema = z.object({
+  projectSlug: z.string(),
+  approvedClusters: z.array(ApprovedClusterSchema).min(1),
+  projectId: z.string().optional(),
+  locales: z.array(z.enum(["de", "en"])).default(["de", "en"]),
+}) as z.ZodType<PipelineInput>;
+
+class MyPipeline extends Pipeline<PipelineInput, ...> {
+  readonly inputSchema = InputSchema;  // ← no TS error
+}
+```
+
 ## Testing Pipeline Steps
 
 **Unit tests** (no LLM/API calls) call `step.execute(input, ctx)` directly against a real DB.

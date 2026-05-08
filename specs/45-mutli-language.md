@@ -1498,6 +1498,37 @@ The actual DB column is `cornerstoneKeywords: jsonb().$type<string[]>()` (plural
 
 Option 1 is cleaner. Verify `ApprovedCluster.id` is populated before implementing Section B.
 
+### Session 2 — Section B
+
+**`ApprovedCluster` has no `id` field from markdown DATA blocks.**
+
+The spec note above assumed `ApprovedCluster.id` is populated. It is not — clusters parsed from `<!-- DATA:clusters -->` blocks carry only `name`, `pillar`, `cornerstone_keyword`, and `satellite_keywords`. There is no UUID.
+
+Actual fix used: in `afterComplete`, load all clusters for the project via a plain `db.select().from(clusters)`, build a `Map<keyword, cluster>` in JS by iterating `cluster.cornerstoneKeywords` (array), then look up cluster by iterating the map. Option 2 (JSONB `@>`) was not needed.
+
+**`z.array(...).default([...])` causes ZodType variance error on `Pipeline<Input, Output>`.**
+
+When `.default(["de", "en"])` is used on a field in the Pipeline `inputSchema`, Zod makes `_input` type `T | undefined` while keeping `_output` as `T`. Under `exactOptionalPropertyTypes` + `strictFunctionTypes`, TypeScript rejects the schema as `Pipeline<Input, Output>`. Fix: declare a `type PipelineInput` separately and cast the whole schema:
+```typescript
+type PipelineInput = { ...; locales: ("de" | "en")[] };
+const InputSchema = z.object({
+  ...,
+  locales: z.array(z.enum(["de", "en"])).default(["de", "en"]),
+}) as z.ZodType<PipelineInput>;
+```
+
+### Session 2 — Section C
+
+**`buildSystemPrompt` returns `{ cacheablePrefix, variableSuffix, full }`, not a plain string.**
+
+The spec pseudocode shows it returning a `string`, but the actual implementation returns an object to support Anthropic prompt caching (90% discount). Steps must use `prompt.cacheablePrefix` and `prompt.variableSuffix` when calling the adapter with cache_control, or `prompt.full` for non-cached use. The `locale` param was added to `BuildSystemPromptInput` as part of this spec.
+
 ## Deviations
 
-(empty)
+**D.3 — `/generate-articles` endpoint placed in `cornerstone-specs.ts`, not `clusters.ts`.**
+
+Spec D.3 said to add `POST /:clusterId/generate-articles` to `apps/api/src/routes/clusters.ts`. It was placed in `cornerstone-specs.ts` instead because the route is conceptually part of cornerstone-spec management (it operates on approved specs). The URL is identical (`/projects/:slug/clusters/:clusterId/generate-articles`). No functional difference.
+
+**Pre-flight — all commits landed on `master` instead of `feature/45-46-multi-language`.**
+
+The spec pre-flight required creating a feature branch. Implementation proceeded directly on `master`. No functional impact; noted for future specs that require branch isolation.
