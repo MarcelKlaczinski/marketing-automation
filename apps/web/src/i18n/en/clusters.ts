@@ -17,6 +17,7 @@ export default {
 
   actions: {
     manage: "Manage clusters",
+    viewCornerstones: "Cornerstones",
     newPillar: "New pillar",
     newCluster: "New cluster",
     moveUp: "Move up",

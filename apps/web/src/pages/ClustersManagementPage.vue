@@ -14,7 +14,13 @@
         </q-breadcrumbs>
         <h1 class="text-h5 q-my-none">{{ $t('clusters.pageTitle') }}</h1>
       </div>
-      <div class="col-auto">
+      <div class="col-auto row q-gutter-sm">
+        <q-btn
+          flat
+          icon="layers"
+          :label="$t('clusters.actions.viewCornerstones') as string"
+          :to="{ name: 'cornerstone-approval', params: { slug } }"
+        />
         <q-btn
           color="primary"
           icon="add"

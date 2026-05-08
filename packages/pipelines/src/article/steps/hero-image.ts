@@ -32,7 +32,7 @@ export class HeroImageStep extends BaseStep<
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const [article] = await db
-      .select()
+      .select({ outline: articles.outline, locale: articles.locale })
       .from(articles)
       .where(eq(articles.id, input.articleId))
       .limit(1);
@@ -52,7 +52,11 @@ export class HeroImageStep extends BaseStep<
       estimatedCostEur: this.estimatedCostEur(),
     });
 
-    const altText = `${outline.title} — ${outline.heroImagePrompt.slice(0, 100)}`;
+    // Alt-text is locale-native. The heroImagePrompt is English (model requirement),
+    // so DE articles use title-only to avoid mixing languages in screen-reader text.
+    const altText = article.locale === "de"
+      ? `${outline.title} – Beitragsbild`
+      : `${outline.title} — ${outline.heroImagePrompt.slice(0, 100)}`;
 
     return {
       r2Key: result.r2Key,
