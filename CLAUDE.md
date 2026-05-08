@@ -76,6 +76,8 @@ Designed to evolve into SaaS.
 - DO NOT use `.rowCount` on Drizzle `update()` or `delete()` results — the property does not exist on `RowList<never[]>`. Use `.returning({ id: table.id })` and check `.length` instead: `const rows = await db.update(...).returning({ id: t.id }); return rows.length`
 - DO NOT use `bun add <pkg> --filter @marketing-auto/foo` to install a package into a workspace — Bun interprets `--filter` as an npm package name to look up, not a workspace filter. Use `bun add <pkg> --cwd packages/foo` (or `--cwd apps/api`) instead
 - DO NOT pass a bare column reference to Drizzle's index `.where()` — it expects an SQL expression. Use `isNull(col)` or `sql\`...\`` for partial index conditions: `.where(isNull(t.readAt))` not `.where(t.readAt)`
+- DO NOT make discriminator columns (e.g. `collection`, `locale`) nullable when they appear in a unique index — PostgreSQL treats `NULL != NULL`, so two rows with `NULL` in that column never conflict, silently breaking the constraint. Use `NOT NULL` with a default value (e.g. `.default("blog")`) so the constraint works correctly
+- DO NOT run `drizzle-kit generate` from within Claude Code or any non-TTY environment — it opens an interactive terminal prompt that stalls indefinitely. Write the migration SQL manually and add the corresponding entry to `packages/db/drizzle/meta/_journal.json` (increment idx, set `when` to a value strictly greater than the last entry, provide a descriptive tag)
 
 ## Local DB Setup
 
@@ -120,6 +122,7 @@ Implemented specs (do not re-implement):
 - /specs/35-coldstart-ui.md
 - /specs/41-cost-enforcement-pipeline-hardening.md
 - /specs/40-notifications.md
+- /specs/44-astro-import.md
 
 ## Project Marketing Contexts
 

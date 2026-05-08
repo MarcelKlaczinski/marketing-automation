@@ -2108,8 +2108,16 @@ After this, the Marketing-Tool can mirror the toolwiki repo into its DB. Next:
 
 ## Discovered During Implementation
 
-(empty — fill during/after implementation)
+- **`drizzle-kit generate` is non-TTY incompatible** — it opens an interactive prompt and stalls indefinitely when run from Claude Code or CI. Migration SQL was written manually and `_journal.json` updated by hand (entry idx 14, when 1779200000000).
+
+- **`cornerstoneKeyword` nullable cascade** — making the column nullable broke 5 downstream pipeline steps and API routes that assumed `string`. Required null-guard fixes in: `load-article.ts` OutputSchema, `ArticleSyncPipeline` commit message, `topic-intake.ts` (null guard + error throw), `load-candidates.ts` CandidateSchema, `clusters.ts` titleMap type, `pipeline-runs.ts` function signatures.
+
+- **`UpdateImportRunStep` had no implementation in spec** — the spec's pipeline assembly listed this step but provided no implementation code. Written from scratch based on the `astroImportRuns` schema.
+
+- **Pause + idempotency guard missing** — the spec's trigger route example omitted `checkTriggerAllowed`. Found during `/review-task` and fixed: the route now checks pause state and deduplicates against active `pipelineRuns` rows before calling `enqueueRepoImport`. When deduped, the existing active `astroImportRuns` row is looked up by `projectId + status` to return the correct `importRunId`.
 
 ## Deviations
 
-(empty — fill during/after implementation)
+- **`collection` and `locale` are `NOT NULL` with defaults instead of nullable** — the spec defined them as nullable (to match the spec's SQL comments: "nullable: collection, locale"). Changed to `NOT NULL DEFAULT 'blog'` / `NOT NULL DEFAULT 'de'` because PostgreSQL unique indexes treat `NULL != NULL`, meaning two rows with `NULL` collection/locale would never conflict and the unique constraint would be silently bypassed. Using `NOT NULL` with defaults preserves the constraint's intent. Existing generated articles are backfilled to these defaults in the migration.
+
+- **Migration written manually** — the spec called for `bun --filter @marketing-auto/db drizzle-kit generate`. This was replaced with hand-written SQL + manual `_journal.json` update due to the non-TTY limitation (see Discovered above).

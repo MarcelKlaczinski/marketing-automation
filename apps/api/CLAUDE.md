@@ -80,6 +80,8 @@ if (blocked) return guardErrorToResponse(c, blocked);
 
 HTTP semantics: 202 = new run, 200 = deduped (run already exists), 402 = cost limit, 423 = project paused.
 
+**Adapter-specific audit tables + `checkTriggerAllowed`**: when a pipeline maintains its own audit table (e.g. `astroImportRuns`) in addition to `pipelineRuns`, use `checkTriggerAllowed`. When it returns `deduped: true`, it gives back the `pipelineRuns.id`, not the adapter audit row ID. Query the adapter table separately — `SELECT id FROM astro_import_runs WHERE project_id = $1 AND status IN ('pending','running') LIMIT 1` — to return the correct ID to the frontend.
+
 DO NOT add a new trigger endpoint that bypasses these helpers — cost + idempotency must always be enforced at the HTTP boundary.
 
 ## Route Param Enum Validation Pattern
