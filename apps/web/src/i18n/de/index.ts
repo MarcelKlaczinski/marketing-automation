@@ -1,4 +1,5 @@
 import activity from "./activity";
+import cornerstones from "./cornerstones";
 import app from "./app";
 import articleStatus from "./articleStatus";
 import articles from "./articles";
@@ -42,4 +43,5 @@ export default {
   clusters,
   projectPause,
   notifications,
+  cornerstones,
 };

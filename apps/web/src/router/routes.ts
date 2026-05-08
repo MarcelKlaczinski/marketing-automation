@@ -41,6 +41,13 @@ const routes: RouteRecordRaw[] = [
         meta: { requiresAuth: true },
       },
       {
+        path: "projects/:slug/cornerstones",
+        name: "cornerstone-approval",
+        component: () => import("src/pages/CornerstoneApprovalPage.vue"),
+        props: true,
+        meta: { requiresAuth: true },
+      },
+      {
         path: "articles/:id",
         name: "article-detail",
         component: () => import("src/pages/ArticleDetailPage.vue"),
