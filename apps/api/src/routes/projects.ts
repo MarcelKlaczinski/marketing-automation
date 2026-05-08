@@ -3,10 +3,14 @@ import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues } from "@marketi
 import { articles, astroImportRuns, clusters, db, projects } from "@marketing-auto/db";
 import { enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import { createLogger } from "@marketing-auto/shared";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
+import {
+  checkTriggerAllowed,
+  guardErrorToResponse,
+} from "./_lib/trigger-helpers.ts";
 
 const log = createLogger("routes:projects");
 
@@ -265,6 +269,31 @@ projectRoutes.post("/:slug/astro-import", async (c) => {
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
   if (!project.astroRepo) {
     return c.json({ ok: false, error: "astroRepo not configured for this project" }, 400);
+  }
+
+  // Enforce pause + idempotency (GitHub API has no per-call cost → no cost estimate)
+  const guard = await checkTriggerAllowed({
+    pipelineName: "astro:repo-import",
+    projectId: project.id,
+    uniqueKey: { field: "projectId", value: project.id },
+  });
+  if (guard !== null) {
+    if ("error" in guard) return guardErrorToResponse(c, guard);
+    // Deduped: find the existing active import run to return its ID
+    const [activeRun] = await db
+      .select({ id: astroImportRuns.id })
+      .from(astroImportRuns)
+      .where(
+        and(
+          eq(astroImportRuns.projectId, project.id),
+          inArray(astroImportRuns.status, ["pending", "running"])
+        )
+      )
+      .limit(1);
+    return c.json(
+      { ok: true, data: { importRunId: activeRun?.id ?? guard.runId, jobId: guard.jobId, deduped: true } },
+      200
+    );
   }
 
   try {
