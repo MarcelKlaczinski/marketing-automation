@@ -144,12 +144,13 @@ export const useArticlesStore = defineStore("articles", {
     },
 
     async triggerPagespeedValidation(
-      articleId: string
+      articleId: string,
+      mode: "local" | "api" = "local"
     ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
       const res = await api.post<{
         ok: boolean;
         data: { runId: string; jobId: string; deduped: boolean };
-      }>(`/articles/${articleId}/validate-pagespeed`);
+      }>(`/articles/${articleId}/validate-pagespeed`, { mode });
       return res.data.data;
     },
 

@@ -25,6 +25,7 @@ import { useNotify } from "src/composables/useNotify";
 import { HttpError } from "src/lib/http-error";
 import { useArticlesStore } from "src/stores/articles";
 import type { ArticleDetail } from "src/stores/articles";
+import { useProjectsStore } from "src/stores/projects";
 import { type PropType, defineComponent } from "vue";
 import ArticleRecentRunsList from "./ArticleRecentRunsList.vue";
 import PipelineActionRow from "./PipelineActionRow.vue";
@@ -33,6 +34,7 @@ import type { ActionDef } from "./PipelineActionRow.vue";
 interface PipelineAction extends ActionDef {
   enabledWhen: (status: string) => boolean;
   triggerFn: (articleId: string) => Promise<{ runId: string; jobId: string; deduped: boolean }>;
+  disabledTooltipKey?: string;
 }
 
 export default defineComponent({
@@ -49,13 +51,15 @@ export default defineComponent({
   setup() {
     return {
       articlesStore: useArticlesStore(),
+      projectsStore: useProjectsStore(),
       notify: useNotify(),
     };
   },
 
   data: () => {
-    // triggerFn uses useArticlesStore() lazily at call-time — store is a singleton
+    // Stores are singletons accessed via lazy thunks — safe in arrow-shorthand data()
     const s = () => useArticlesStore();
+    const p = () => useProjectsStore();
     const actions: PipelineAction[] = [
       {
         id: "outline",
@@ -83,13 +87,21 @@ export default defineComponent({
         triggerFn: (id) => s().triggerSync(id),
       },
       {
-        id: "validate-pagespeed",
-        i18nKey: "articles.actions.validatePagespeed",
-        icon: "speed",
+        id: "validate-pagespeed-local",
+        i18nKey: "articles.actions.validatePagespeedLocal",
+        icon: "computer",
         enabled: false,
-        enabledWhen: (status) =>
-          ["published", "blocked_by_pagespeed", "ready_to_publish"].includes(status),
-        triggerFn: (id) => s().triggerPagespeedValidation(id),
+        enabledWhen: () => true,
+        triggerFn: (id) => s().triggerPagespeedValidation(id, "local"),
+      },
+      {
+        id: "validate-pagespeed-api",
+        i18nKey: "articles.actions.validatePagespeedApi",
+        icon: "cloud",
+        enabled: false,
+        disabledTooltipKey: "articles.actions.validatePagespeedApiDisabled",
+        enabledWhen: () => p().current?.domain != null,
+        triggerFn: (id) => s().triggerPagespeedValidation(id, "api"),
       },
       {
         id: "extend-schema",

@@ -6,7 +6,7 @@
     @click="$emit('click')"
   >
     <q-tooltip v-if="!action.enabled">
-      {{ $t('articles.actions.notAvailable') }}
+      {{ action.disabledTooltipKey ? $t(action.disabledTooltipKey) : $t('articles.actions.notAvailable') }}
     </q-tooltip>
     <q-icon :name="action.icon" size="18px" class="action-row__icon" />
     <span class="action-row__label">{{ $t(action.i18nKey) }}</span>
@@ -23,6 +23,7 @@ export interface ActionDef {
   i18nKey: string;
   icon: string;
   enabled: boolean;
+  disabledTooltipKey?: string;
 }
 
 export default defineComponent({
