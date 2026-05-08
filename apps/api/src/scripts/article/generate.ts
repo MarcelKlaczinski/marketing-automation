@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { articles, clusters, db, projects } from "@marketing-auto/db";
-import { enqueueArticleGeneration } from "@marketing-auto/pipelines";
+import { enqueueArticleGenerationLegacy as enqueueArticleGeneration } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { and, eq, inArray } from "drizzle-orm";
 

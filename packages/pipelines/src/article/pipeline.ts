@@ -36,6 +36,8 @@ type TopicIntakeOutput = {
   satelliteKeywords: string[];
   projectSlug: string;
   approvalMode: "manual" | "auto";
+  locale: "de" | "en";
+  translationKey: string | null;
 };
 
 export class ArticleOutlinePipeline extends Pipeline<
@@ -59,13 +61,14 @@ export class ArticleOutlinePipeline extends Pipeline<
     pipelineInput: z.infer<typeof OutlineInputSchema>,
     getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
-    // topic-intake → research: pass cornerstone keyword, satellites, project slug
+    // topic-intake → research: pass cornerstone keyword, satellites, project slug, locale
     if (fromStep.name === "topic-intake" && toStep.name === "research") {
       const t = output as TopicIntakeOutput;
       return {
         cornerstoneKeyword: t.cornerstoneKeyword,
         satelliteKeywords: t.satelliteKeywords,
         projectSlug: t.projectSlug,
+        locale: t.locale,
       };
     }
 
@@ -79,6 +82,7 @@ export class ArticleOutlinePipeline extends Pipeline<
         clusterPillar: t.clusterPillar,
         projectSlug: t.projectSlug,
         research: output,
+        locale: t.locale,
         ...(pipelineInput.modelOverride && { modelOverride: pipelineInput.modelOverride }),
       };
     }
@@ -142,6 +146,8 @@ type DraftTopicIntakeOutput = {
   satelliteKeywords: string[];
   projectSlug: string;
   approvalMode: "manual" | "auto";
+  locale: "de" | "en";
+  translationKey: string | null;
 };
 
 type DraftStepOutput = {
@@ -189,13 +195,14 @@ export class ArticleDraftPipeline extends Pipeline<
     pipelineInput: z.infer<typeof DraftInputSchema>,
     getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
-    // topic-intake → draft: pass articleId, projectId, projectSlug + optional modelOverride
+    // topic-intake → draft: pass articleId, projectId, projectSlug, locale + optional modelOverride
     if (fromStep.name === "topic-intake" && toStep.name === "draft") {
       const t = output as DraftTopicIntakeOutput;
       const base = {
         articleId: pipelineInput.articleId,
         projectId: pipelineInput.projectId,
         projectSlug: t.projectSlug,
+        locale: t.locale,
       };
       if (
         pipelineInput.modelOverride === "claude-opus-4-7" ||

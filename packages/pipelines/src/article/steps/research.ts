@@ -10,6 +10,7 @@ const InputSchema = z.object({
   cornerstoneKeyword: z.string(),
   satelliteKeywords: z.array(z.string()),
   projectSlug: z.string(),
+  locale: z.enum(["de", "en"]).optional(),
 });
 
 export class ResearchStep extends BaseStep<
@@ -34,10 +35,7 @@ export class ResearchStep extends BaseStep<
       estimatedCostEur: 0.0018,
     });
 
-    const prompt = await buildSystemPrompt({
-      skills: ["ai-seo", "content-strategy"],
-      projectIdOrSlug: input.projectSlug,
-      stepInstructions: `
+    const stepInstructions = `
 You are analyzing a Google SERP to identify what topics, angles, and patterns
 the currently-ranking pages are covering for a target keyword.
 
@@ -50,8 +48,11 @@ Your output: a 200-500 word synthesis covering:
 Use the People Also Ask questions and Related Searches as additional intent signals.
 
 Be specific. "Most pages cover X" is good. "There are some patterns" is bad.
-      `.trim(),
-    });
+    `.trim();
+    const promptBase = { skills: ["ai-seo", "content-strategy"], projectIdOrSlug: input.projectSlug, stepInstructions };
+    const prompt = await buildSystemPrompt(
+      input.locale ? { ...promptBase, locale: input.locale } : promptBase
+    );
 
     const userMsg = [
       `# Target keyword: ${input.cornerstoneKeyword}`,

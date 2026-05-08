@@ -16,6 +16,8 @@ const OutputSchema = z.object({
   satelliteKeywords: z.array(z.string()),
   projectSlug: z.string(),
   approvalMode: z.enum(["manual", "auto"]),
+  locale: z.enum(["de", "en"]),
+  translationKey: z.string().nullable(),
 });
 
 export class TopicIntakeStep extends BaseStep<
@@ -74,6 +76,9 @@ export class TopicIntakeStep extends BaseStep<
         "topic_intake"
       );
 
+    // locale defaults to "de" for articles created before multi-language was introduced
+    const locale = (article.locale as "de" | "en") ?? "de";
+
     return {
       cornerstoneKeyword: article.cornerstoneKeyword,
       clusterName: cluster.name,
@@ -81,6 +86,8 @@ export class TopicIntakeStep extends BaseStep<
       satelliteKeywords,
       projectSlug: project.slug,
       approvalMode: (article.approvalMode ?? "manual") as "manual" | "auto",
+      locale,
+      translationKey: article.translationKey ?? null,
     };
   }
 }

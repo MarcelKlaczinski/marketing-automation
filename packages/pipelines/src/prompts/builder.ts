@@ -7,6 +7,12 @@ export type SystemPromptInput = {
   projectIdOrSlug: string;
   /** Step-specific instructions. Hard-coded in the step class. */
   stepInstructions: string;
+  /**
+   * Target locale for this generation. When set, injects a market-context block
+   * into the cacheable prefix instructing the LLM to write for that market.
+   * Omit for locale-neutral steps (research synthesis, schema markup, etc.).
+   */
+  locale?: "de" | "en";
 };
 
 export type SystemPromptResult = {
@@ -35,6 +41,13 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
     );
   }
 
+  const localeBlock =
+    input.locale === "de"
+      ? "\n\n---\n\n# Market Context\n\nThis output is for the **German market (de-DE)**. Write in German. Use German SEO conventions (compound nouns, longer search phrases). Apply German cultural references and business norms (DSGVO, UWG). Convert umlauts to ae/oe/ue/ss in URL slugs."
+      : input.locale === "en"
+        ? "\n\n---\n\n# Market Context\n\nThis output is for the **global English market (en-US)**. Write in clear, direct English. Use US/global cultural and business context. Avoid German-specific references."
+        : "";
+
   const cacheablePrefix = [
     "# Marketing Skill Reference",
     skillContent,
@@ -43,6 +56,7 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
     "",
     "# Project Marketing Context",
     projectContext,
+    localeBlock,
   ].join("\n");
 
   const variableSuffix = ["---", "", "# Task-Specific Instructions", input.stepInstructions].join(

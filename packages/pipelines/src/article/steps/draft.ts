@@ -12,6 +12,7 @@ const InputSchema = z.object({
   projectId: z.string().uuid(),
   projectSlug: z.string(),
   modelOverride: z.string().optional(),
+  locale: z.enum(["de", "en"]).optional(),
 });
 
 const OutputSchema = z.object({
@@ -42,10 +43,7 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
       (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
       "claude-sonnet-4-6";
 
-    const prompt = await buildSystemPrompt({
-      skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing-context"],
-      projectIdOrSlug: input.projectSlug,
-      stepInstructions: `
+    const draftInstructions = `
 You are writing the FULL DRAFT of an article based on the approved outline.
 
 Hard rules:
@@ -66,8 +64,15 @@ Hard rules:
 10. NO internal links — do not invent anchor tags or placeholder links. Spec 24 handles linking.
 
 Output: pure Markdown, ready to publish. No frontmatter, no JSON wrapping.
-      `.trim(),
-    });
+    `.trim();
+    const promptBase = {
+      skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing-context"],
+      projectIdOrSlug: input.projectSlug,
+      stepInstructions: draftInstructions,
+    };
+    const prompt = await buildSystemPrompt(
+      input.locale ? { ...promptBase, locale: input.locale } : promptBase
+    );
 
     const userMsg = [
       "# Outline to write",

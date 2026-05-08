@@ -14,7 +14,7 @@ import {
 import {
   continueArticleGeneration,
   enqueueArticleDraftPipeline,
-  enqueueArticleGeneration,
+  enqueueArticleGenerationLegacy as enqueueArticleGeneration,
   enqueueArticleOutlinePipeline,
   enqueueArticleSyncPipeline,
   enqueuePagespeedValidationPipeline,

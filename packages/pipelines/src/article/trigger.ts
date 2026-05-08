@@ -1,15 +1,23 @@
-import { articles, astroSyncRuns, clusters, db, pagespeedRuns } from "@marketing-auto/db";
+import {
+  articles,
+  astroSyncRuns,
+  clusters,
+  cornerstoneSpecs,
+  db,
+  pagespeedRuns,
+} from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { and, eq } from "drizzle-orm";
 import { enqueuePipeline } from "../engine/queue.ts";
 
 const log = createLogger("article-trigger");
 
+// ─── cornerstoneSpecId-based trigger (Spec 45-46) ────────────────────────────
+
 export type EnqueueArticleGenerationInput = {
-  /** The cornerstone keyword used as the primary article identifier. */
-  cornerstoneSlug: string;
+  /** Cornerstone-spec UUID — already locale-specific. */
+  cornerstoneSpecId: string;
   projectId: string;
-  /** "manual" pauses after outline; "auto" runs Job 2 immediately on Job 1 completion. */
   approvalMode?: "manual" | "auto";
   modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
 };
@@ -21,12 +29,237 @@ export type EnqueueArticleGenerationResult = {
 };
 
 /**
- * Single entry point used by ALL triggers (CLI single, CLI batch, scheduler, HTTP endpoint).
- * Creates an articles row in "generating" state and enqueues Job 1 (outline pipeline).
+ * Enqueue article generation for ONE cornerstone-spec (one locale).
+ * Creates an article row linked to the spec, updates the spec status to in_generation,
+ * and enqueues Job 1 (outline pipeline).
  */
 export async function enqueueArticleGeneration(
   input: EnqueueArticleGenerationInput
 ): Promise<EnqueueArticleGenerationResult> {
+  const [spec] = await db
+    .select()
+    .from(cornerstoneSpecs)
+    .where(
+      and(
+        eq(cornerstoneSpecs.id, input.cornerstoneSpecId),
+        eq(cornerstoneSpecs.projectId, input.projectId)
+      )
+    )
+    .limit(1);
+
+  if (!spec) {
+    throw new Error(`Cornerstone-spec ${input.cornerstoneSpecId} not found`);
+  }
+  if (spec.status === "in_generation" || spec.status === "article_done") {
+    throw new Error(
+      `Cornerstone-spec ${input.cornerstoneSpecId} already in/past generation (status: ${spec.status})`
+    );
+  }
+  if (spec.status === "rejected") {
+    throw new Error(`Cornerstone-spec ${input.cornerstoneSpecId} is rejected`);
+  }
+
+  let articleId: string;
+
+  if (spec.articleId) {
+    // Spec already linked to an article — reuse it if not actively running
+    const [existing] = await db
+      .select()
+      .from(articles)
+      .where(eq(articles.id, spec.articleId))
+      .limit(1);
+    if (existing) {
+      if (existing.status === "generating" || existing.status === "drafting") {
+        throw new Error(
+          `Article ${existing.id} for spec ${input.cornerstoneSpecId} already in progress`
+        );
+      }
+      articleId = existing.id;
+      await db
+        .update(articles)
+        .set({
+          status: "generating",
+          approvalMode: input.approvalMode ?? "manual",
+          updatedAt: new Date(),
+        })
+        .where(eq(articles.id, articleId));
+    } else {
+      // articleId was set but article is gone — create a fresh one
+      articleId = await createArticleFromSpec(spec, input);
+    }
+  } else {
+    articleId = await createArticleFromSpec(spec, input);
+  }
+
+  const { jobId: outlineJobId } = await enqueuePipeline({
+    pipelineName: "article:outline",
+    projectId: input.projectId,
+    input: {
+      articleId,
+      projectId: input.projectId,
+      ...(input.modelOverride && { modelOverride: input.modelOverride }),
+    },
+    jobOptions: { jobId: `article-outline-${articleId}` },
+  });
+
+  log.info(
+    {
+      articleId,
+      cornerstoneSpecId: input.cornerstoneSpecId,
+      locale: spec.locale,
+      approvalMode: input.approvalMode ?? "manual",
+      outlineJobId,
+    },
+    "Article generation enqueued (Job 1)"
+  );
+
+  return { articleId, outlineJobId, status: "outline_enqueued" };
+}
+
+async function createArticleFromSpec(
+  spec: typeof cornerstoneSpecs.$inferSelect,
+  input: EnqueueArticleGenerationInput
+): Promise<string> {
+  const [created] = await db
+    .insert(articles)
+    .values({
+      projectId: input.projectId,
+      clusterId: spec.clusterId,
+      cornerstoneSpecId: spec.id,
+      slug: spec.proposedSlug,
+      cornerstoneKeyword: spec.cornerstoneKeyword,
+      title: spec.proposedTitle,
+      metaDescription: spec.metaDescription,
+      locale: spec.locale,
+      translationKey: spec.translationKey,
+      source: "generated",
+      collection: "blog",
+      status: "generating",
+      approvalMode: input.approvalMode ?? "manual",
+    })
+    .returning({ id: articles.id });
+
+  const articleId = created!.id;
+
+  await db
+    .update(cornerstoneSpecs)
+    .set({ articleId, status: "in_generation", updatedAt: new Date() })
+    .where(eq(cornerstoneSpecs.id, spec.id));
+
+  return articleId;
+}
+
+/**
+ * Enqueue article generation for the full approved pair of a cluster (DE+EN).
+ * Looks up all approved cornerstone-specs for the cluster, then enqueues them in parallel.
+ */
+export async function enqueueClusterArticleGeneration(input: {
+  clusterId: string;
+  projectId: string;
+  approvalMode?: "manual" | "auto";
+  modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
+}): Promise<{ results: Array<EnqueueArticleGenerationResult & { locale: string }> }> {
+  const specs = await db
+    .select()
+    .from(cornerstoneSpecs)
+    .where(
+      and(
+        eq(cornerstoneSpecs.clusterId, input.clusterId),
+        eq(cornerstoneSpecs.projectId, input.projectId),
+        eq(cornerstoneSpecs.status, "approved")
+      )
+    );
+
+  if (specs.length === 0) {
+    throw new Error(
+      `No approved cornerstone-specs for cluster ${input.clusterId}. Approve specs first.`
+    );
+  }
+
+  const results = await Promise.all(
+    specs.map(async (spec) => {
+      const enqueueInput: EnqueueArticleGenerationInput = {
+        cornerstoneSpecId: spec.id,
+        projectId: input.projectId,
+      };
+      if (input.approvalMode) enqueueInput.approvalMode = input.approvalMode;
+      if (input.modelOverride) enqueueInput.modelOverride = input.modelOverride;
+      const r = await enqueueArticleGeneration(enqueueInput);
+      return { ...r, locale: spec.locale };
+    })
+  );
+
+  return { results };
+}
+
+/**
+ * Continues a paused article — runs Job 2 (draft + image + assembly).
+ * Called via `article:continue` CLI in manual mode, or auto-called at end of Job 1 in auto mode.
+ */
+export async function continueArticleGeneration(input: {
+  articleId: string;
+  projectId: string;
+  modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
+}): Promise<{ draftJobId: string }> {
+  const [article] = await db
+    .select()
+    .from(articles)
+    .where(eq(articles.id, input.articleId))
+    .limit(1);
+
+  if (!article) throw new Error(`Article ${input.articleId} not found`);
+  if (article.status !== "outline_review") {
+    throw new Error(
+      `Article status is "${article.status}", expected "outline_review". Cannot continue.`
+    );
+  }
+  if (!article.outline) {
+    throw new Error(`Article has no outline persisted; Job 1 incomplete.`);
+  }
+
+  await db
+    .update(articles)
+    .set({
+      status: "drafting",
+      updatedAt: new Date(),
+    })
+    .where(eq(articles.id, input.articleId));
+
+  const { jobId: draftJobId } = await enqueuePipeline({
+    pipelineName: "article:draft",
+    projectId: input.projectId,
+    input: {
+      articleId: input.articleId,
+      projectId: input.projectId,
+      ...(input.modelOverride && { modelOverride: input.modelOverride }),
+    },
+    jobOptions: { jobId: `article-draft-${input.articleId}` },
+  });
+
+  log.info({ articleId: input.articleId, draftJobId }, "Article generation continued (Job 2)");
+
+  return { draftJobId };
+}
+
+// ─── Legacy cornerstoneSlug-based trigger (kept for CLI backwards compat) ────
+
+export type LegacyEnqueueInput = {
+  /** @deprecated Use enqueueArticleGeneration with cornerstoneSpecId instead. */
+  cornerstoneSlug: string;
+  projectId: string;
+  approvalMode?: "manual" | "auto";
+  modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
+};
+
+/**
+ * @deprecated Use enqueueArticleGeneration with cornerstoneSpecId instead.
+ * Kept for CLI scripts that still pass cornerstoneSlug.
+ */
+export async function enqueueArticleGenerationLegacy(
+  input: LegacyEnqueueInput
+): Promise<EnqueueArticleGenerationResult> {
+  log.warn({ cornerstoneSlug: input.cornerstoneSlug }, "Legacy cornerstoneSlug trigger used — migrate to cornerstoneSpecId");
+
   const existing = await db
     .select()
     .from(articles)
@@ -96,66 +329,7 @@ export async function enqueueArticleGeneration(
     jobOptions: { jobId: `article-outline-${articleId}` },
   });
 
-  log.info(
-    {
-      articleId,
-      cornerstoneSlug: input.cornerstoneSlug,
-      approvalMode: input.approvalMode ?? "manual",
-      outlineJobId,
-    },
-    "Article generation enqueued (Job 1)"
-  );
-
   return { articleId, outlineJobId, status: "outline_enqueued" };
-}
-
-/**
- * Continues a paused article — runs Job 2 (draft + image + assembly).
- * Called via `article:continue` CLI in manual mode, or auto-called at end of Job 1 in auto mode.
- */
-export async function continueArticleGeneration(input: {
-  articleId: string;
-  projectId: string;
-  modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
-}): Promise<{ draftJobId: string }> {
-  const [article] = await db
-    .select()
-    .from(articles)
-    .where(eq(articles.id, input.articleId))
-    .limit(1);
-
-  if (!article) throw new Error(`Article ${input.articleId} not found`);
-  if (article.status !== "outline_review") {
-    throw new Error(
-      `Article status is "${article.status}", expected "outline_review". Cannot continue.`
-    );
-  }
-  if (!article.outline) {
-    throw new Error(`Article has no outline persisted; Job 1 incomplete.`);
-  }
-
-  await db
-    .update(articles)
-    .set({
-      status: "drafting",
-      updatedAt: new Date(),
-    })
-    .where(eq(articles.id, input.articleId));
-
-  const { jobId: draftJobId } = await enqueuePipeline({
-    pipelineName: "article:draft",
-    projectId: input.projectId,
-    input: {
-      articleId: input.articleId,
-      projectId: input.projectId,
-      ...(input.modelOverride && { modelOverride: input.modelOverride }),
-    },
-    jobOptions: { jobId: `article-draft-${input.articleId}` },
-  });
-
-  log.info({ articleId: input.articleId, draftJobId }, "Article generation continued (Job 2)");
-
-  return { draftJobId };
 }
 
 // ───── Helpers ────────────────────────────────────────────────────────────────
@@ -175,7 +349,6 @@ export function slugify(input: string): string {
   return (
     input
       .toLowerCase()
-      // Expand German umlauts before NFD so they don't collapse to a/o/u
       .replace(/ä/g, "ae")
       .replace(/ö/g, "oe")
       .replace(/ü/g, "ue")
@@ -188,10 +361,6 @@ export function slugify(input: string): string {
 }
 
 // ─── preRunId-aware wrappers (Spec 36) ───────────────────────────────────────
-// These are thin wrappers used by HTTP trigger endpoints. The route handler
-// creates the pipelineRuns row first (preRunId pattern), then calls one of
-// these to enqueue the BullMQ job with the preRunId so the worker updates
-// the existing row instead of inserting a new one.
 
 export type PreRunInput = { preRunId: string; articleId: string; projectId: string };
 
@@ -218,8 +387,6 @@ export async function enqueueArticleDraftPipeline(input: PreRunInput): Promise<{
 }
 
 export async function enqueueArticleSyncPipeline(input: PreRunInput): Promise<{ jobId: string }> {
-  // Pre-create the astroSyncRuns row so the pipeline's afterError hook can
-  // find and settle it even if the worker crashes before UpdateDbStatusStep.
   await db.insert(astroSyncRuns).values({
     projectId: input.projectId,
     articleId: input.articleId,

@@ -18,6 +18,7 @@ const InputSchema = z.object({
   projectSlug: z.string(),
   research: z.unknown(),
   modelOverride: z.string().optional(),
+  locale: z.enum(["de", "en"]).optional(),
 });
 
 export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOutline> {
@@ -35,10 +36,7 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
       (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
       "claude-opus-4-7";
 
-    const prompt = await buildSystemPrompt({
-      skills: ["copywriting", "content-strategy", "ai-seo", "schema-markup"],
-      projectIdOrSlug: input.projectSlug,
-      stepInstructions: `
+    const outlineInstructions = `
 You are producing the OUTLINE for an article. Marcel will review this outline
 before any draft is written. The outline must be specific enough that:
 - A different writer could pick it up and produce a draft that matches the intent
@@ -68,8 +66,15 @@ You have access to:
 - Satellite keywords (must appear naturally; do not stuff)
 
 Output JSON matching the ArticleOutlineSchema schema EXACTLY.
-      `.trim(),
-    });
+    `.trim();
+    const promptBase = {
+      skills: ["copywriting", "content-strategy", "ai-seo", "schema-markup"],
+      projectIdOrSlug: input.projectSlug,
+      stepInstructions: outlineInstructions,
+    };
+    const prompt = await buildSystemPrompt(
+      input.locale ? { ...promptBase, locale: input.locale } : promptBase
+    );
 
     const userMsg = [
       "# Article brief",
