@@ -3,6 +3,7 @@ import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { anthropicCostEur, track } from "@marketing-auto/cost-tracker";
 import { createLogger, getEnv } from "@marketing-auto/shared";
+import { computeCacheKey, getCacheMode, isCacheable, readFixture, writeFixture } from "./cache.ts";
 import {
   ANTHROPIC_MODELS,
   AnthropicClientError,
@@ -116,6 +117,62 @@ function isRetryableError(e: unknown): boolean {
 }
 
 export async function messages(input: MessagesInput): Promise<MessagesResult> {
+  // --- dev-mode fixture cache (Spec 22.6) ---
+  const mode = getCacheMode();
+  const canCache = isCacheable(input) && !input.forceRefresh;
+
+  if (mode !== "off" && canCache) {
+    const cacheKey = computeCacheKey(input);
+    const fixture = readFixture(cacheKey);
+
+    if (mode === "replay") {
+      if (!fixture) {
+        throw new AnthropicClientError(
+          `Cache MISS for key ${cacheKey} (operation: ${input.operation}). ` +
+            `Run with ANTHROPIC_CACHE_MODE=record or =auto to record fixtures first.`,
+          0
+        );
+      }
+      log.info(
+        { cacheKey, operation: input.operation, recordedAt: fixture.recordedAt },
+        "Anthropic cache HIT (replay)"
+      );
+      await track({
+        projectId: input.projectId,
+        ...(input.pipelineRunId !== undefined ? { pipelineRunId: input.pipelineRunId } : {}),
+        ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
+        service: "anthropic",
+        operation: input.operation,
+        estimatedCostEur: 0,
+        fn: async () => null,
+        computeCostEur: () => 0,
+        metadata: () => ({ cached: true, cacheKey, source: "fixture" }),
+      });
+      return fixture.response;
+    }
+
+    if (mode === "auto" && fixture) {
+      log.info(
+        { cacheKey, operation: input.operation, recordedAt: fixture.recordedAt },
+        "Anthropic cache HIT (auto)"
+      );
+      await track({
+        projectId: input.projectId,
+        ...(input.pipelineRunId !== undefined ? { pipelineRunId: input.pipelineRunId } : {}),
+        ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
+        service: "anthropic",
+        operation: input.operation,
+        estimatedCostEur: 0,
+        fn: async () => null,
+        computeCostEur: () => 0,
+        metadata: () => ({ cached: true, cacheKey, source: "fixture" }),
+      });
+      return fixture.response;
+    }
+    // RECORD mode or AUTO miss: fall through to live call
+  }
+  // --- end cache layer ---
+
   await assertCostBudget(
     input.projectId,
     "anthropic",
@@ -264,7 +321,7 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
     "Anthropic call complete"
   );
 
-  return {
+  const result: MessagesResult = {
     raw,
     json: parsedJson,
     outputTokens: response.usage.output_tokens,
@@ -272,4 +329,17 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
     stopReason: response.stop_reason,
     messageId: response.id,
   };
+
+  // Record fixture after a successful live call (record/auto modes)
+  if (canCache && (mode === "record" || mode === "auto")) {
+    const cacheKey = computeCacheKey(input);
+    try {
+      writeFixture(cacheKey, input, result);
+      log.info({ cacheKey, operation: input.operation, mode }, "Recorded Anthropic fixture");
+    } catch (e) {
+      log.warn({ err: e, cacheKey }, "Failed to write fixture (continuing)");
+    }
+  }
+
+  return result;
 }
