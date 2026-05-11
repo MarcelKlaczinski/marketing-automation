@@ -2,11 +2,20 @@ export default {
   pageTitle: "Content Gaps",
 
   actions: {
-    runDetection: "Run Detection",
-    running:      "Detecting…",
-    dismiss:      "Dismiss",
-    reopen:       "Reopen",
-    markInProgress: "Mark In Progress",
+    runDetection:        "Run Detection",
+    running:             "Detecting…",
+    dismiss:             "Dismiss",
+    reopen:              "Reopen",
+    markInProgress:      "Mark In Progress",
+    suggest:             "Suggest title",
+    suggesting:          "Loading suggestion…",
+    generate:            "Generate article",
+    generating:          "Starting…",
+    translationDisabled: "Translation pipeline not yet available",
+    viewArticle:         "View article",
+    viewSpec:            "View cornerstone spec",
+    dismissAll:          "Dismiss all",
+    suggestAll:          "Suggest all titles",
   },
 
   status: {
@@ -44,6 +53,13 @@ export default {
   emptyStateHint:  "Run detection to identify cluster and translation gaps.",
   emptyFiltered:   "No gaps for this filter.",
 
+  suggestion: {
+    title:       "Suggested title:",
+    slug:        "Slug:",
+    metaDesc:    "Meta description:",
+    imagePrompt: "Image prompt:",
+  },
+
   metadata: {
     cluster:         "Cluster",
     locale:          "Locale",
@@ -51,5 +67,9 @@ export default {
     intentType:      "Intent",
     spokesPresent:   "Present spokes",
     existingArticle: "Existing article",
+  },
+
+  batch: {
+    suggestAllConfirm: "Suggest titles for up to 20 gaps using AI (approx. €0.10)?",
   },
 };

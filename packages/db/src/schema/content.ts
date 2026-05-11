@@ -356,12 +356,16 @@ export type SocialPostContent =
 // ─── Spec 49b: Content Gap Detection ─────────────────────────────────────────
 
 export type ContentGapMetadata = {
-  clusterName?: string;                // cluster display name
-  clusterMemberCount?: number;         // total articles in cluster at detection time
-  existingLocale?: "de" | "en";        // missing_translation: locale that EXISTS
-  existingArticleSlug?: string;        // missing_translation: slug of existing article
-  spokesPresent?: string[];            // missing_spoke_type: intent types already covered
-  suggestedTitle?: string;             // optional generation hint
+  clusterName?: string;                  // cluster display name
+  clusterMemberCount?: number;           // total articles in cluster at detection time
+  existingLocale?: "de" | "en";          // missing_translation: locale that EXISTS
+  existingArticleSlug?: string;          // missing_translation: slug of existing article
+  spokesPresent?: string[];              // missing_spoke_type: intent types already covered
+  // Spec 49c: LLM suggestion fields (populated by /suggest endpoint)
+  suggestedTitle?: string;
+  suggestedSlug?: string;
+  suggestedMetaDescription?: string;
+  suggestedHeroImagePrompt?: string;     // image generation prompt for the suggested article
 };
 
 export const contentGaps = pgTable(
@@ -392,6 +396,11 @@ export const contentGaps = pgTable(
 
     // Context for UI and future generation pipeline
     metadata:       jsonb("metadata").$type<ContentGapMetadata>().notNull().default({}),
+
+    // Spec 49c: generation tracking
+    filledByArticleId:      uuid("filled_by_article_id"),   // FK to articles (no DB-level FK — avoids circular dep)
+    filledBySpecId:         uuid("filled_by_spec_id"),      // FK to cornerstone_specs
+    generationTriggeredAt:  timestamp("generation_triggered_at", { withTimezone: true }),
 
     detectedAt:     timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
     createdAt:      timestamp("created_at",  { withTimezone: true }).notNull().defaultNow(),

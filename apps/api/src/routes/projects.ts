@@ -1,8 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
-import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, db, projects } from "@marketing-auto/db";
+import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
+import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, projects } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
+import { loadProjectContext, enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
+import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -491,3 +494,436 @@ projectRoutes.patch(
     return c.json({ ok: true, data: { id: gapId, status: body.status } });
   }
 );
+
+// ── Spec 49c: Gap-to-Article Generation ──────────────────────────────────────
+
+// POST /:slug/content-gaps/batch
+// NOTE: registered before /:slug/content-gaps/:id/* so Hono doesn't treat "batch" as an ID
+const batchBodySchema = z.object({
+  action:  z.enum(["dismiss", "suggest-all"]),
+  filters: z
+    .object({
+      gapType:  z
+        .enum(["missing_hub", "missing_translation", "missing_spoke_type", "cluster_too_small"])
+        .optional(),
+      priority: z.coerce.number().int().min(1).max(3).optional(),
+    })
+    .optional(),
+  gapIds: z.array(z.string().uuid()).optional(),
+});
+
+projectRoutes.post("/:slug/content-gaps/batch", async (c) => {
+  const slug    = c.req.param("slug");
+  const rawBody = await c.req.json().catch(() => ({}));
+  const parsed  = batchBodySchema.safeParse(rawBody);
+  if (!parsed.success)
+    return c.json({ ok: false, error: "Invalid body", details: parsed.error.flatten() }, 400);
+  const body = parsed.data;
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  // Build WHERE for matching open gaps
+  const activeStatuses: Array<"open" | "in_progress"> = ["open", "in_progress"];
+  const conditions = [
+    eq(contentGaps.projectId, project.id),
+    inArray(contentGaps.status, activeStatuses),
+  ];
+  if (body.filters?.gapType)  conditions.push(eq(contentGaps.gapType, body.filters.gapType));
+  if (body.filters?.priority) conditions.push(eq(contentGaps.priority, body.filters.priority));
+
+  // If explicit gapIds given, restrict to those
+  if (body.gapIds && body.gapIds.length > 0) {
+    conditions.push(inArray(contentGaps.id, body.gapIds));
+  }
+
+  const where = and(...conditions);
+
+  if (body.action === "dismiss") {
+    const rows = await db
+      .update(contentGaps)
+      .set({ status: "dismissed", dismissedAt: new Date(), updatedAt: new Date() })
+      .where(where)
+      .returning({ id: contentGaps.id });
+    return c.json({ ok: true, data: { affected: rows.length } });
+  }
+
+  // suggest-all: load gaps, run suggest for each (max 20)
+  const SUGGEST_BATCH_LIMIT = 20;
+  const gapRows = await db
+    .select({
+      id:        contentGaps.id,
+      gapType:   contentGaps.gapType,
+      clusterId: contentGaps.clusterId,
+      intentType: contentGaps.intentType,
+      locale:    contentGaps.locale,
+      metadata:  contentGaps.metadata,
+    })
+    .from(contentGaps)
+    .where(where)
+    .limit(SUGGEST_BATCH_LIMIT);
+
+  let affected = 0;
+  for (const gap of gapRows) {
+    const suggestion = await suggestGapTitle({
+      projectId: project.id,
+      gap,
+    });
+    if (!suggestion) continue;
+    await db
+      .update(contentGaps)
+      .set({
+        metadata: {
+          ...gap.metadata,
+          suggestedTitle:           suggestion.title,
+          suggestedSlug:            suggestion.slug,
+          suggestedMetaDescription: suggestion.metaDescription,
+          suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+        },
+        updatedAt: new Date(),
+      })
+      .where(eq(contentGaps.id, gap.id));
+    affected++;
+  }
+
+  return c.json({ ok: true, data: { affected } });
+});
+
+// POST /:slug/content-gaps/:id/suggest — LLM title suggestion (Haiku, cheap)
+projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
+  const slug  = c.req.param("slug");
+  const gapId = c.req.param("id");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [gap] = await db
+    .select({
+      id:        contentGaps.id,
+      gapType:   contentGaps.gapType,
+      clusterId: contentGaps.clusterId,
+      intentType: contentGaps.intentType,
+      locale:    contentGaps.locale,
+      metadata:  contentGaps.metadata,
+    })
+    .from(contentGaps)
+    .where(and(eq(contentGaps.id, gapId), eq(contentGaps.projectId, project.id)))
+    .limit(1);
+  if (!gap) return c.json({ ok: false, error: "Gap not found" }, 404);
+
+  const suggestion = await suggestGapTitle({ projectId: project.id, gap });
+  if (!suggestion) return c.json({ ok: false, error: "LLM suggestion failed" }, 500);
+
+  await db
+    .update(contentGaps)
+    .set({
+      metadata: {
+        ...gap.metadata,
+        suggestedTitle:           suggestion.title,
+        suggestedSlug:            suggestion.slug,
+        suggestedMetaDescription: suggestion.metaDescription,
+        suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+      },
+      updatedAt: new Date(),
+    })
+    .where(eq(contentGaps.id, gapId));
+
+  return c.json({ ok: true, data: suggestion });
+});
+
+// POST /:slug/content-gaps/:id/generate — trigger article / cornerstone spec creation
+const generateBodySchema = z.object({
+  title:  z.string().optional(),
+  locale: z.string().optional(),
+});
+
+projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
+  const slug    = c.req.param("slug");
+  const gapId   = c.req.param("id");
+  const rawBody = await c.req.json().catch(() => ({}));
+  const body    = generateBodySchema.safeParse(rawBody).data ?? {};
+
+  const [project] = await db
+    .select({
+      id:             projects.id,
+      pipelineConfig: projects.pipelineConfig,
+    })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [gap] = await db
+    .select({
+      id:             contentGaps.id,
+      gapType:        contentGaps.gapType,
+      clusterId:      contentGaps.clusterId,
+      intentType:     contentGaps.intentType,
+      locale:         contentGaps.locale,
+      status:         contentGaps.status,
+      metadata:       contentGaps.metadata,
+    })
+    .from(contentGaps)
+    .where(and(eq(contentGaps.id, gapId), eq(contentGaps.projectId, project.id)))
+    .limit(1);
+  if (!gap) return c.json({ ok: false, error: "Gap not found" }, 404);
+  if (gap.status === "dismissed" || gap.status === "resolved")
+    return c.json({ ok: false, error: "Gap is already closed" }, 409);
+
+  if (gap.gapType === "missing_translation") {
+    return c.json(
+      { ok: false, error: "Translation generation not yet implemented" },
+      400
+    );
+  }
+
+  const locale = body.locale ?? gap.locale ?? "de";
+  const meta   = gap.metadata ?? {};
+  const proposedTitle =
+    body.title ??
+    meta.suggestedTitle ??
+    (meta.clusterName ? `${meta.clusterName} – Übersicht` : "Neuer Artikel");
+  const proposedSlug = meta.suggestedSlug ?? slugify(proposedTitle);
+
+  // ── missing_hub → cornerstone spec ──────────────────────────────────────────
+  if (gap.gapType === "missing_hub") {
+    if (!gap.clusterId) return c.json({ ok: false, error: "Gap has no clusterId" }, 400);
+
+    // Guard: spec for this cluster+locale may already exist
+    const [existing] = await db
+      .select({ id: cornerstoneSpecs.id })
+      .from(cornerstoneSpecs)
+      .where(
+        and(
+          eq(cornerstoneSpecs.clusterId, gap.clusterId),
+          eq(cornerstoneSpecs.locale, locale)
+        )
+      )
+      .limit(1);
+
+    if (existing) {
+      // Link gap to existing spec and mark in_progress
+      await db
+        .update(contentGaps)
+        .set({
+          filledBySpecId:          existing.id,
+          generationTriggeredAt:   new Date(),
+          status:                  "in_progress",
+          updatedAt:               new Date(),
+        })
+        .where(eq(contentGaps.id, gapId));
+
+      return c.json({
+        ok: true,
+        data: {
+          type:             "cornerstone_spec",
+          cornerstoneSpecId: existing.id,
+          gapStatus:        "in_progress",
+          deduped:          true,
+        },
+      });
+    }
+
+    const [newSpec] = await db
+      .insert(cornerstoneSpecs)
+      .values({
+        projectId:          project.id,
+        clusterId:          gap.clusterId,
+        locale,
+        translationKey:     crypto.randomUUID(),
+        cornerstoneKeyword: slugify(proposedTitle),
+        proposedTitle,
+        proposedSlug,
+        metaDescription:    meta.suggestedMetaDescription ?? "",
+        estimatedWordCount: 2000,
+        h2Outline:          [],
+        status:             "proposed",
+      })
+      .returning({ id: cornerstoneSpecs.id });
+
+    if (!newSpec) return c.json({ ok: false, error: "Failed to create cornerstone spec" }, 500);
+
+    await db
+      .update(contentGaps)
+      .set({
+        filledBySpecId:        newSpec.id,
+        generationTriggeredAt: new Date(),
+        status:                "in_progress",
+        updatedAt:             new Date(),
+      })
+      .where(eq(contentGaps.id, gapId));
+
+    log.info({ gapId, specId: newSpec.id, slug }, "Created cornerstone spec from gap");
+    return c.json({
+      ok: true,
+      data: {
+        type:              "cornerstone_spec",
+        cornerstoneSpecId: newSpec.id,
+        gapStatus:         "in_progress",
+      },
+    });
+  }
+
+  // ── missing_spoke_type / cluster_too_small → article + outline pipeline ─────
+  const articleSlug = meta.suggestedSlug ?? `gap-${gapId.slice(0, 8)}`;
+
+  // Build insert value — intentType is optional; use conditional spread for exactOptionalPropertyTypes
+  const articleInsert: typeof articles.$inferInsert = {
+    projectId:          project.id,
+    clusterId:          gap.clusterId ?? null,
+    source:             "generated",
+    status:             "proposed",
+    locale,
+    collection:         "blog",
+    clusterRole:        "spoke",
+    cornerstoneKeyword: slugify(proposedTitle),
+    title:              proposedTitle,
+    slug:               articleSlug,
+    approvalMode:       "manual",
+    ...(gap.intentType ? { intentType: gap.intentType } : {}),
+  };
+
+  const [newArticle] = await db
+    .insert(articles)
+    .values(articleInsert)
+    .returning({ id: articles.id });
+
+  if (!newArticle) return c.json({ ok: false, error: "Failed to create article" }, 500);
+
+  // Trigger outline pipeline using preRunId pattern
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:outline",
+    projectId:    project.id,
+    uniqueKey:    { field: "articleId", value: newArticle.id },
+    costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+    extraInput:   { articleId: newArticle.id },
+    enqueue:      enqueueArticleOutlinePipeline,
+  });
+
+  await db
+    .update(contentGaps)
+    .set({
+      filledByArticleId:     newArticle.id,
+      generationTriggeredAt: new Date(),
+      status:                "in_progress",
+      updatedAt:             new Date(),
+    })
+    .where(eq(contentGaps.id, gapId));
+
+  log.info({ gapId, articleId: newArticle.id }, "Created article from gap");
+
+  // Can't spread `meta` into TriggerResult — return shape manually
+  if ("error" in result) return c.json({ ok: false, error: result.error }, 402);
+  return c.json({
+    ok:   true,
+    data: {
+      type:      "article",
+      articleId: newArticle.id,
+      runId:     result.runId,
+      jobId:     result.jobId,
+      deduped:   result.deduped,
+      gapStatus: "in_progress",
+    },
+  }, result.deduped ? 200 : 202);
+});
+
+// ── Helper: LLM title suggestion (Claude Haiku) ───────────────────────────────
+
+interface GapSuggestionInput {
+  projectId: string;
+  gap: {
+    id: string;
+    gapType: string;
+    clusterId: string | null;
+    intentType: string | null;
+    locale: string | null;
+    metadata: Record<string, unknown> | null;
+  };
+}
+
+interface GapSuggestion {
+  title: string;
+  slug: string;
+  metaDescription: string;
+  heroImagePrompt: string;
+}
+
+async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSuggestion | null> {
+  const { projectId, gap } = input;
+  const meta = (gap.metadata ?? {}) as Record<string, string | number | string[] | undefined>;
+
+  const clusterName  = (meta.clusterName  as string | undefined) ?? "unbekannter Cluster";
+  const intentType   = gap.intentType ?? null;
+  const locale       = gap.locale ?? "de";
+  const isGerman     = locale === "de";
+  const lang         = isGerman ? "German" : "English";
+
+  const gapDescriptions: Record<string, string> = {
+    missing_hub:         `hub / pillar article for the cluster "${clusterName}"`,
+    missing_spoke_type:  `spoke article with intent "${intentType}" for the cluster "${clusterName}"`,
+    cluster_too_small:   `additional spoke article for the cluster "${clusterName}" to grow the cluster`,
+  };
+  const gapDesc = gapDescriptions[gap.gapType] ?? `content gap for cluster "${clusterName}"`;
+
+  const projectContext = await loadProjectContext(projectId);
+  const contextSection = projectContext
+    ? `\n\n<project_context>\n${projectContext}\n</project_context>`
+    : "";
+
+  const systemPrompt = `You are a content strategist for an AI-focused media brand. Your job is to suggest compelling article metadata.${contextSection}
+
+Respond ONLY with a JSON object — no prose, no markdown fences. Schema:
+{
+  "title": string,          // headline, 50–70 chars, ${lang}, hooks reader attention
+  "slug": string,           // URL slug: lowercase, hyphens, max 60 chars, no special chars
+  "metaDescription": string,// 140–160 chars, ${lang}, includes primary keyword
+  "heroImagePrompt": string // Stable Diffusion / DALL-E prompt for the hero image, vivid and specific, English
+}`;
+
+  const userMessage = `Suggest metadata for a new ${lang} article that fills this content gap:
+
+Gap type: ${gap.gapType}
+Article needed: ${gapDesc}
+Target locale: ${locale}
+${intentType ? `Intent type: ${intentType}` : ""}
+
+The article should match the brand voice and topic of the cluster "${clusterName}".`;
+
+  try {
+    const result = await anthropic.messages({
+      projectId,
+      operation:        COST_OPS.GAP_TITLE_SUGGEST,
+      model:            "claude-haiku-4-5",
+      systemPrefix:     systemPrompt,
+      systemSuffix:     "", // all instructions are in systemPrefix for this cheap call
+      userMessage,
+      maxTokens:        400,
+      jsonMode:         true,
+      estimatedCostEur: 0.01,
+    });
+
+    const parsed = result.json as Partial<GapSuggestion>;
+    if (!parsed.title || !parsed.slug || !parsed.metaDescription || !parsed.heroImagePrompt) {
+      log.warn({ gapId: gap.id, parsed }, "Incomplete suggestion from LLM");
+      return null;
+    }
+
+    return {
+      title:            parsed.title,
+      slug:             parsed.slug,
+      metaDescription:  parsed.metaDescription,
+      heroImagePrompt:  parsed.heroImagePrompt,
+    };
+  } catch (err) {
+    log.error({ gapId: gap.id, err }, "LLM suggestion failed");
+    return null;
+  }
+}

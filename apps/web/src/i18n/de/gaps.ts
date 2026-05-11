@@ -2,11 +2,20 @@ export default {
   pageTitle: "Content-Lücken",
 
   actions: {
-    runDetection: "Analyse starten",
-    running:      "Analysiere…",
-    dismiss:      "Verwerfen",
-    reopen:       "Wieder öffnen",
+    runDetection:   "Analyse starten",
+    running:        "Analysiere…",
+    dismiss:        "Verwerfen",
+    reopen:         "Wieder öffnen",
     markInProgress: "In Bearbeitung",
+    suggest:        "Titel vorschlagen",
+    suggesting:     "Vorschlag wird geladen…",
+    generate:       "Artikel generieren",
+    generating:     "Wird gestartet…",
+    translationDisabled: "Übersetzungs-Pipeline noch nicht verfügbar",
+    viewArticle:    "Artikel ansehen",
+    viewSpec:       "Cornerstone Spec ansehen",
+    dismissAll:     "Alle verwerfen",
+    suggestAll:     "Alle Titel vorschlagen",
   },
 
   status: {
@@ -17,10 +26,10 @@ export default {
   },
 
   gapType: {
-    missing_hub:        "Fehlender Hub",
+    missing_hub:         "Fehlender Hub",
     missing_translation: "Übersetzung fehlt",
-    missing_spoke_type: "Spoke-Typ fehlt",
-    cluster_too_small:  "Cluster zu klein",
+    missing_spoke_type:  "Spoke-Typ fehlt",
+    cluster_too_small:   "Cluster zu klein",
   },
 
   priority: {
@@ -30,11 +39,11 @@ export default {
   },
 
   filters: {
-    all:                "Alle",
-    missing_hub:        "Fehlende Hubs",
+    all:                 "Alle",
+    missing_hub:         "Fehlende Hubs",
     missing_translation: "Übersetzungen",
-    missing_spoke_type: "Spoke-Typen",
-    cluster_too_small:  "Kleine Cluster",
+    missing_spoke_type:  "Spoke-Typen",
+    cluster_too_small:   "Kleine Cluster",
   },
 
   lastDetected:    "Zuletzt analysiert:",
@@ -44,12 +53,23 @@ export default {
   emptyStateHint:  "Starte die Analyse, um Cluster und Übersetzungslücken zu erkennen.",
   emptyFiltered:   "Keine Lücken für diesen Filter.",
 
+  suggestion: {
+    title:       "Vorgeschlagener Titel:",
+    slug:        "Slug:",
+    metaDesc:    "Meta-Beschreibung:",
+    imagePrompt: "Bild-Prompt:",
+  },
+
   metadata: {
-    cluster:       "Cluster",
-    locale:        "Locale",
-    missingLocale: "Fehlende Sprache",
-    intentType:    "Intent",
-    spokesPresent: "Vorhandene Spokes",
+    cluster:         "Cluster",
+    locale:          "Locale",
+    missingLocale:   "Fehlende Sprache",
+    intentType:      "Intent",
+    spokesPresent:   "Vorhandene Spokes",
     existingArticle: "Vorhandener Artikel",
+  },
+
+  batch: {
+    suggestAllConfirm: "Für bis zu 20 Lücken einen Titel per KI vorschlagen (ca. 0,10 €)?",
   },
 };
