@@ -5,7 +5,9 @@
         <span v-if="lane.pillarName" class="lane__pillar">{{ lane.pillarName }} ›</span>
         <span class="lane__cluster">{{ lane.clusterName ?? $t('articles.lane.uncategorized') }}</span>
       </div>
-      <div class="lane__count">{{ lane.articles.length }}</div>
+      <div class="lane__count">
+        {{ lane.articles.length }}<span v-if="totalForLane > lane.articles.length">/{{ totalForLane }}</span>
+      </div>
     </div>
 
     <div class="lane__columns">
@@ -32,6 +34,18 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="hasMore" class="lane__footer">
+      <q-btn
+        flat
+        dense
+        no-caps
+        class="lane__load-more"
+        :label="$t('articles.kanban.loadMore', { remaining: totalForLane - lane.articles.length })"
+        :loading="loadingMore"
+        @click="$emit('load-more')"
+      />
     </div>
   </div>
 </template>
@@ -60,8 +74,13 @@ export default defineComponent({
 
   components: { ArticleCard },
 
+  emits: ["load-more"],
+
   props: {
     lane: { type: Object as PropType<KanbanLane>, required: true },
+    totalForLane: { type: Number, default: 0 },
+    hasMore: { type: Boolean, default: false },
+    loadingMore: { type: Boolean, default: false },
   },
 
   data: () => ({
@@ -188,5 +207,21 @@ export default defineComponent({
   color: var(--q-text-secondary, rgba(0, 0, 0, 0.4));
   font-style: italic;
   padding: 6px 0;
+}
+
+.lane__footer {
+  border-top: 1px solid var(--q-grey-2, #f0f0f0);
+  padding: 6px 16px;
+  display: flex;
+  justify-content: center;
+
+  body.body--dark & {
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+}
+
+.lane__load-more {
+  font-size: 12px;
+  color: var(--q-primary);
 }
 </style>

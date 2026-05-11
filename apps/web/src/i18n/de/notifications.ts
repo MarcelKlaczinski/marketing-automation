@@ -2,6 +2,7 @@ export default {
   title: 'Benachrichtigungen',
   empty: 'Keine Benachrichtigungen',
   markAllRead: 'Alle als gelesen markieren',
+  loadMore: 'Mehr laden',
   viewSettings: 'Einstellungen',
   disconnected: 'Verbindung unterbrochen',
 

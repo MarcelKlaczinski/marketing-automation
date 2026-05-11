@@ -33,7 +33,12 @@
       <q-space />
 
       <div class="article-count">
-        {{ $t('articles.toolbar.totalCount', { count: articles.length }) }}
+        <span v-if="pagination && pagination.total > articles.length">
+          {{ $t('articles.toolbar.countWithTotal', { count: articles.length, total: pagination.total }) }}
+        </span>
+        <span v-else>
+          {{ $t('articles.toolbar.totalCount', { count: articles.length }) }}
+        </span>
       </div>
     </div>
 
@@ -52,7 +57,20 @@
         v-for="lane in lanes"
         :key="lane.id"
         :lane="lane"
+        :total-for-lane="lane.articles.length"
+        :has-more="false"
       />
+
+      <div v-if="pagination && pagination.hasMore" class="kanban__load-more">
+        <q-btn
+          flat
+          no-caps
+          color="primary"
+          :label="$t('articles.kanban.loadMore', { remaining: pagination.total - articles.length })"
+          :loading="loadingMore"
+          @click="loadMore"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -91,11 +109,16 @@ export default defineComponent({
   data: () => ({
     groupBy:
       (LocalStorage.getItem(STORAGE_KEY_GROUP_BY) as GroupBy | null) ?? ("pillar" as GroupBy),
+    loadingMore: false,
   }),
 
   computed: {
     articles(): ArticleListItem[] {
       return this.articlesStore.byProject[this.slug] ?? [];
+    },
+
+    pagination() {
+      return this.articlesStore.paginationByProject[this.slug] ?? null;
     },
 
     lanes(): KanbanLane[] {
@@ -114,6 +137,15 @@ export default defineComponent({
     setGroupBy(value: GroupBy): void {
       this.groupBy = value;
       LocalStorage.set(STORAGE_KEY_GROUP_BY, value);
+    },
+
+    async loadMore(): Promise<void> {
+      this.loadingMore = true;
+      try {
+        await this.articlesStore.loadMoreForProject(this.slug);
+      } finally {
+        this.loadingMore = false;
+      }
     },
 
     computeLanesByPillar(): KanbanLane[] {
@@ -258,5 +290,11 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.kanban__load-more {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0 8px;
 }
 </style>

@@ -94,6 +94,9 @@ export default defineComponent({
     activeCollection: "blog" as string,
     pairs: [] as Pair[],
     collectionSummary: {} as CollectionSummary,
+    total: 0,
+    limit: 50,
+    offset: 0,
     detailOpen: false,
     detailArticleId: null as string | null,
   }),
@@ -142,14 +145,22 @@ export default defineComponent({
       }
     },
 
-    async fetchPairs(): Promise<void> {
+    async fetchPairs(opts: { limit?: number; offset?: number } = {}): Promise<void> {
       this.loading = true;
       try {
-        const res = await api.get<{ ok: boolean; data: { pairs: Pair[]; totalCount: number } }>(
+        const limit = opts.limit ?? this.limit;
+        const offset = opts.offset ?? 0;
+        const res = await api.get<{
+          ok: boolean;
+          data: { items: Pair[]; total: number; limit: number; offset: number };
+        }>(
           "/articles/imported",
-          { params: { projectSlug: this.slug, collection: this.activeCollection } }
+          { params: { projectSlug: this.slug, collection: this.activeCollection, limit, offset } }
         );
-        this.pairs = res.data.data.pairs;
+        this.pairs = res.data.data.items;
+        this.total = res.data.data.total;
+        this.limit = res.data.data.limit;
+        this.offset = res.data.data.offset;
       } finally {
         this.loading = false;
       }

@@ -39,6 +39,18 @@
           />
         </q-list>
 
+        <div v-if="store.hasMore" class="bell-menu__load-more">
+          <q-btn
+            flat
+            dense
+            size="sm"
+            no-caps
+            :label="$t('notifications.loadMore') as string"
+            :loading="store.loading"
+            @click="onLoadMore"
+          />
+        </div>
+
         <q-separator />
 
         <div class="bell-menu__footer">
@@ -108,6 +120,9 @@ export default defineComponent({
     async onMarkAllRead(): Promise<void> {
       await this.store.markAllAsRead();
     },
+    async onLoadMore(): Promise<void> {
+      await this.store.loadMore();
+    },
   },
 });
 </script>
@@ -124,6 +139,12 @@ export default defineComponent({
   display: flex;
   align-items: center;
   padding: 10px 16px;
+}
+
+.bell-menu__load-more {
+  display: flex;
+  justify-content: center;
+  padding: 4px 16px;
 }
 
 </style>

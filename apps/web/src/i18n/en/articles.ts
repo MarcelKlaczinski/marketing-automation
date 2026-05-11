@@ -31,6 +31,11 @@ export default {
     byPillar: "By Pillar",
     byCluster: "By Cluster",
     totalCount: "{count} articles",
+    countWithTotal: "{count} / {total} articles",
+  },
+
+  kanban: {
+    loadMore: "Load more ({remaining} more)",
   },
 
   lane: {

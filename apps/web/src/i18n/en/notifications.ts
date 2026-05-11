@@ -2,6 +2,7 @@ export default {
   title: 'Notifications',
   empty: 'No notifications',
   markAllRead: 'Mark all as read',
+  loadMore: 'Load more',
   viewSettings: 'Settings',
   disconnected: 'Connection interrupted',
 
