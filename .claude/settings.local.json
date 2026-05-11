@@ -324,7 +324,10 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation branch -a)",
       "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); [print\\(e['idx'], e['tag']\\) for e in j['entries']]\")",
       "Bash(xargs -I{} grep -l \"Status\\\\|Phase\" {})",
-      "Bash(bun --filter @marketing-auto/adapter-pagespeed run typecheck)"
+      "Bash(bun --filter @marketing-auto/adapter-pagespeed run typecheck)",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c ' *)",
+      "Bash(mkdir -p /Users/marcelklaczinski/WebstormProjects/marketing-automation/audit *)",
+      "Bash(grep -n \"clusterKey\\\\|clusterRole\" /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/suno.mdx /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/mem-ai.mdx 2>/dev/null | head -20)"
     ]
   }
 }
