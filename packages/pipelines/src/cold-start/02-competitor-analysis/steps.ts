@@ -1,9 +1,12 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { type RankedKeywordItem, dataforseo } from "@marketing-auto/adapter-dataforseo";
 import { COST_OPS } from "@marketing-auto/core/cost";
+import { db, projects } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { buildLocaleContext, localeFromDomain } from "../_lib/locale-context.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
 
@@ -53,6 +56,32 @@ export class IdentifyCompetitorsStep extends BaseStep<
     input: z.infer<typeof IdentifyCompetitorsInputSchema>,
     ctx: StepContext
   ): Promise<CompetitorListOutput> {
+    const projectRow = await db
+      .select({ targetLocales: projects.targetLocales })
+      .from(projects)
+      .where(eq(projects.slug, input.projectSlug))
+      .limit(1);
+    const localeCtx = buildLocaleContext(projectRow[0]?.targetLocales ?? ["de-DE"]);
+
+    const audienceLine = localeCtx.isMultiLocale
+      ? `Audiences: ${localeCtx.audienceDescriptors.join(" AND ")}`
+      : `Audience: ${localeCtx.audienceDescriptors[0]}`;
+
+    const searchLine = localeCtx.isMultiLocale
+      ? `Active and ranking on multiple search engines: ${localeCtx.searchEngines.join(", ")}`
+      : `Active and ranking on ${localeCtx.searchEngines[0]}`;
+
+    const competitorDistribution = localeCtx.isMultiLocale
+      ? `
+DISTRIBUTION (CRITICAL for multi-locale projects):
+- For each target locale (${localeCtx.locales.join(", ")}), pick at least 1-2 competitors
+- Mix: 1-2 international/aspirational competitors + 1-2 regional/direct competitors
+- Example: for an AI-tools niche, include toolify.ai / futurepedia.io (international) alongside DACH-specific sites`
+      : `
+DISTRIBUTION:
+- Mix of 2-3 direct competitors + 1-2 aspirational competitors
+- All within the target market: ${localeCtx.locales[0]}`;
+
     const prompt = await buildSystemPrompt({
       skills: ["competitor-profiling", "ai-seo"],
       projectIdOrSlug: input.projectSlug,
@@ -60,14 +89,15 @@ export class IdentifyCompetitorsStep extends BaseStep<
 Identify 3-5 competitors of the project, based on the marketing-context.md.
 
 Selection criteria:
-- Same audience (German-speaking, similar persona)
-- Same content category (educational, affiliate, local, etc.)
-- Active and ranking on Google.de (skip dormant sites)
-- Mix of direct competitors AND aspirational competitors (1-2 of each)
+- ${audienceLine}
+- Same content category (editorial wiki, affiliate, news, directory, etc.)
+- ${searchLine}
+- Active sites (skip dormant; recent content from last 6 months)
+${competitorDistribution}
 
 For each competitor:
 - domain: bare domain (e.g., "ki-tools.de", no protocol or path)
-- why_relevant: 1 sentence why they matter to this project
+- why_relevant: 1 sentence including the locale/market the competitor serves
 - expected_strengths: 2-4 areas where they likely outrank or out-cover us
 
 Additionally, produce 2-6 short review questions to help Marcel decide whether this
@@ -122,6 +152,7 @@ const CompetitorKeywordsSchema = z.object({
 export type CompetitorKeywordsOutput = z.infer<typeof CompetitorKeywordsSchema>;
 
 const FetchCompetitorKeywordsInputSchema = z.object({
+  projectSlug: z.string(),
   competitors: z
     .array(z.object({ domain: z.string() }))
     .min(1)
@@ -144,8 +175,16 @@ export class FetchCompetitorKeywordsStep extends BaseStep<
     input: z.infer<typeof FetchCompetitorKeywordsInputSchema>,
     ctx: StepContext
   ): Promise<CompetitorKeywordsOutput> {
+    const projectRow = await db
+      .select({ targetLocales: projects.targetLocales })
+      .from(projects)
+      .where(eq(projects.slug, input.projectSlug))
+      .limit(1);
+    const localeCtx = buildLocaleContext(projectRow[0]?.targetLocales ?? ["de-DE"]);
+
     const competitorData = await Promise.all(
       input.competitors.map(async (c) => {
+        const { locationCode, languageCode } = localeFromDomain(c.domain, localeCtx);
         const result = await dataforseo.rankedKeywords({
           projectId: ctx.projectId,
           pipelineRunId: ctx.pipelineRunId,
@@ -153,6 +192,8 @@ export class FetchCompetitorKeywordsStep extends BaseStep<
           domain: c.domain,
           limit: 100,
           maxPosition: 30,
+          locationCode,
+          languageCode,
           estimatedCostEur: 0.012,
         });
 
