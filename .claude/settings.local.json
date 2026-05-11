@@ -327,7 +327,21 @@
       "Bash(bun --filter @marketing-auto/adapter-pagespeed run typecheck)",
       "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c ' *)",
       "Bash(mkdir -p /Users/marcelklaczinski/WebstormProjects/marketing-automation/audit *)",
-      "Bash(grep -n \"clusterKey\\\\|clusterRole\" /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/suno.mdx /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/mem-ai.mdx 2>/dev/null | head -20)"
+      "Bash(grep -n \"clusterKey\\\\|clusterRole\" /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/suno.mdx /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/mem-ai.mdx 2>/dev/null | head -20)",
+      "Skill(start-task)",
+      "Skill(start-task:*)",
+      "Bash(ls /Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/content/tools/de/suno.mdx 2>/dev/null && echo \"exists\" || echo \"not found\")",
+      "Bash(bun --env-file .env run scripts/diagnose-upsert-cluster-key.ts)",
+      "Bash(bun --env-file .env apps/api/src/scripts/apply-cost-defaults.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/diagnose-upsert-cluster-key.ts audit/DIAGNOSE_UPSERT.md audit/PRE_FIX_SNAPSHOT.md specs/49a-fix.md)",
+      "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); last=j['entries'][-1]; print\\('Last idx:', last['idx'], 'tag:', last['tag'], 'when:', last['when']\\)\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/db/drizzle/0018_fix_toolwiki_cluster_keys.sql packages/db/drizzle/meta/_journal.json)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/src/import/steps/filter-changed-files.ts packages/adapters/astro-sync/src/import/pipeline.ts packages/adapters/astro-sync/src/import/trigger.ts apps/api/src/routes/projects.ts apps/api/src/scripts/diagnose-upsert-cluster-key.ts)",
+      "Bash(bun --filter @marketing-auto/adapter-astro-sync test --testPathPattern=\"sync-clusters-orphan\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/src/import/steps/sync-clusters-from-frontmatter.ts packages/adapters/astro-sync/test/sync-clusters-orphan-deletion.test.ts)",
+      "Bash(curl -s http://localhost:3050/api/projects/toolwiki/astro-import)",
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -tAc \"SELECT status FROM astro_import_runs WHERE id = '4df25de8-3c40-4a66-acd2-85fae3abd35e';\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/trigger-force-import.ts apps/api/src/scripts/run-sync-clusters.ts audit/POST_FIX_VERIFICATION.md)"
     ]
   }
 }
