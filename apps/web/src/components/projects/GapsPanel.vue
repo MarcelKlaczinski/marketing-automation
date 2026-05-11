@@ -159,7 +159,7 @@
                 </template>
                 <template v-else>
                   <span v-if="gap.metadata?.clusterMemberCount !== undefined">
-                    {{ gap.metadata.clusterMemberCount }} Artikel
+                    {{ $t('gaps.articleCount', { count: gap.metadata.clusterMemberCount }) }}
                   </span>
                 </template>
               </div>
@@ -543,7 +543,7 @@ export default defineComponent({
         );
         const { affected } = res.data.data;
         await this.loadGaps();
-        this.notify.success(`${affected} Lücken verworfen`);
+        this.notify.success(this.$t('gaps.batch.dismissedSuccess', { count: affected }) as string);
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       }
@@ -560,7 +560,7 @@ export default defineComponent({
         );
         const { affected } = res.data.data;
         await this.loadGaps();
-        this.notify.success(`Titel für ${affected} Lücken vorgeschlagen`);
+        this.notify.success(this.$t('gaps.batch.suggestedSuccess', { count: affected }) as string);
       } catch (e) {
         if (e instanceof HttpError) this.notify.error(e.userMessage);
       } finally {

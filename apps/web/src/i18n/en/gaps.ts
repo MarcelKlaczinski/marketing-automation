@@ -70,6 +70,10 @@ export default {
   },
 
   batch: {
-    suggestAllConfirm: "Suggest titles for up to 20 gaps using AI (approx. €0.10)?",
+    suggestAllConfirm:  "Suggest titles for up to 20 gaps using AI (approx. €0.10)?",
+    dismissedSuccess:   "{count} gaps dismissed",
+    suggestedSuccess:   "Titles suggested for {count} gaps",
   },
+
+  articleCount: "{count} articles",
 };

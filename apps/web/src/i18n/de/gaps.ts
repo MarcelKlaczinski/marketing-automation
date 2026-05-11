@@ -70,6 +70,10 @@ export default {
   },
 
   batch: {
-    suggestAllConfirm: "Für bis zu 20 Lücken einen Titel per KI vorschlagen (ca. 0,10 €)?",
+    suggestAllConfirm:  "Für bis zu 20 Lücken einen Titel per KI vorschlagen (ca. 0,10 €)?",
+    dismissedSuccess:   "{count} Lücken verworfen",
+    suggestedSuccess:   "Titel für {count} Lücken vorgeschlagen",
   },
+
+  articleCount: "{count} Artikel",
 };
