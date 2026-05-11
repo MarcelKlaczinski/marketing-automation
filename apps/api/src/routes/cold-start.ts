@@ -172,6 +172,8 @@ coldStartRoutes.get("/:slug/cold-start/status", async (c) => {
       clusters: {
         status: clusterRunning.length > 0 ? "running" : clusterCount > 0 ? "complete" : "pending",
         count: clusterCount,
+        // Spec 49a: hint — "imported" when clusters came from frontmatter auto-sync (no LLM run)
+        source: clusterCount > 0 ? "imported" : null,
       },
       cornerstones: {
         status:

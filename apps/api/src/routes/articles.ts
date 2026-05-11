@@ -257,6 +257,8 @@ articleRoutes.get("/imported", zValidator("query", importedQuerySchema), async (
           frontmatterExtras: articles.frontmatterExtras,
           importMetadata: articles.importMetadata,
           lastImportedAt: articles.lastImportedAt,
+          clusterKey: articles.clusterKey,
+          clusterRole: articles.clusterRole,
         })
         .from(articles)
         .where(

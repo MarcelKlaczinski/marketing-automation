@@ -1,7 +1,15 @@
 <template>
   <div class="q-pt-md">
-    <!-- idle -->
-    <div v-if="phase === 'idle'">
+    <!-- auto-imported from frontmatter (Spec 49a) -->
+    <div v-if="isImportedComplete">
+      <q-banner class="bg-positive text-white q-mb-md" rounded>
+        <template #avatar><q-icon name="auto_awesome" /></template>
+        {{ $t('coldStart.phase3.importedComplete', { count: importedClusterCount }) }}
+      </q-banner>
+    </div>
+
+    <!-- idle (no clusters yet, no import) -->
+    <div v-else-if="phase === 'idle'">
       <p class="text-body2 q-mb-md">{{ $t('coldStart.phase3.idleDescription') }}</p>
       <q-btn color="primary" :label="$t('coldStart.phase3.startButton')" :loading="triggering" unelevated @click="onStart" />
     </div>
@@ -14,7 +22,7 @@
       </q-banner>
     </div>
 
-    <!-- complete -->
+    <!-- complete via pipeline run -->
     <div v-else-if="phase === 'complete'">
       <q-banner class="bg-positive text-white q-mb-md" rounded>
         <template #avatar><q-icon name="check_circle" /></template>
@@ -70,6 +78,20 @@ export default defineComponent({
       if (r?.status === "completed") return "complete";
       if (r?.status === "running" || r?.status === "queued") return "running";
       return "idle";
+    },
+
+    // Spec 49a: clusters were auto-imported from frontmatter — no pipeline run needed
+    clusterStatus() {
+      return this.coldStartStore.statusByProject[this.slug]?.clusters ?? null;
+    },
+
+    isImportedComplete(): boolean {
+      const cs = this.clusterStatus;
+      return cs?.source === "imported" && cs?.status === "complete" && this.phase === "idle";
+    },
+
+    importedClusterCount(): number {
+      return this.clusterStatus?.count ?? 0;
     },
   },
 

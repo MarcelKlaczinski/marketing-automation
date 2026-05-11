@@ -62,6 +62,7 @@ export default {
     failed: "Cluster plan failed",
     complete: "Cluster plan created.",
     regenerate: "Recreate Cluster Plan",
+    importedComplete: "{count} clusters were automatically imported from frontmatter — no manual cluster plan needed.",
   },
 
   phase4: {

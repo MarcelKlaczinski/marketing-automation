@@ -64,6 +64,9 @@ type ImportedArticleRow = {
   publishedAt: string | null;
   frontmatterUpdatedAt: string | null;
   frontmatterExtras: Record<string, unknown>;
+  // Spec 49a: typed cluster metadata
+  clusterKey: string | null;
+  clusterRole: string | null;
 };
 
 type Pair = {
@@ -84,6 +87,7 @@ const COLLECTION_COLUMNS: Record<string, ColDef[]> = {
   blog: [
     { name: "deTitle", label: "Title (DE)", field: "de.title" },
     { name: "enTitle", label: "Title (EN)", field: "en.title" },
+    { name: "clusterKey", label: "Cluster", field: (r) => r.de?.clusterKey ?? "—" },
     { name: "category", label: "Category", field: (r) => r.de?.category ?? "—" },
     { name: "author", label: "Author", field: (r) => r.de?.author ?? "—" },
     { name: "publishedAt", label: "Published", field: "de.publishedAt" },
@@ -91,6 +95,7 @@ const COLLECTION_COLUMNS: Record<string, ColDef[]> = {
   "ki-wissen": [
     { name: "deTitle", label: "Title (DE)", field: "de.title" },
     { name: "enTitle", label: "Title (EN)", field: "en.title" },
+    { name: "clusterKey", label: "Cluster", field: (r) => r.de?.clusterKey ?? "—" },
     { name: "category", label: "Category", field: (r) => r.de?.category ?? "—" },
     { name: "deSlug", label: "Slug (DE)", field: "de.slug" },
     { name: "enSlug", label: "Slug (EN)", field: "en.slug" },
@@ -98,6 +103,7 @@ const COLLECTION_COLUMNS: Record<string, ColDef[]> = {
   comparisons: [
     { name: "deTitle", label: "Title (DE)", field: "de.title" },
     { name: "enTitle", label: "Title (EN)", field: "en.title" },
+    { name: "clusterKey", label: "Cluster", field: (r) => r.de?.clusterKey ?? "—" },
     {
       name: "toolSlugs",
       label: "Tools",
@@ -113,6 +119,7 @@ const COLLECTION_COLUMNS: Record<string, ColDef[]> = {
   tools: [
     { name: "deTitle", label: "Tool (DE)", field: "de.title" },
     { name: "enTitle", label: "Tool (EN)", field: "en.title" },
+    { name: "clusterKey", label: "Cluster", field: (r) => r.de?.clusterKey ?? "—" },
     { name: "category", label: "Category", field: (r) => r.de?.category ?? "—" },
     { name: "subcategory", label: "Subcategory", field: (r) => r.de?.subcategory ?? "—" },
     { name: "pricing", label: "Pricing", field: (r) => r.de?.frontmatterExtras?.pricing ?? "—" },

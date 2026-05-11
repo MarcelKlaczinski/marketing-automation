@@ -62,6 +62,7 @@ export default {
     failed: "Cluster-Plan fehlgeschlagen",
     complete: "Cluster-Plan erstellt.",
     regenerate: "Cluster-Plan neu erstellen",
+    importedComplete: "{count} Cluster wurden automatisch aus dem Frontmatter importiert — kein manueller Cluster-Plan nötig.",
   },
 
   phase4: {

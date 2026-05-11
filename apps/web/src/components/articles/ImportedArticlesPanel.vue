@@ -70,6 +70,9 @@ type ImportedArticleRow = {
   frontmatterExtras: Record<string, unknown>;
   importMetadata: Record<string, unknown>;
   lastImportedAt: string | null;
+  // Spec 49a: typed cluster metadata
+  clusterKey: string | null;
+  clusterRole: string | null;
 };
 
 type Pair = {

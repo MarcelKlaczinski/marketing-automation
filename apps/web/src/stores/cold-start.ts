@@ -13,7 +13,7 @@ export interface PhaseStatus {
 export interface ColdStartStatus {
   voice: PhaseStatus;
   competitors: PhaseStatus;
-  clusters: PhaseStatus & { count: number };
+  clusters: PhaseStatus & { count: number; source?: "imported" | null };
   cornerstones: PhaseStatus & { proposedCount: number; approvedCount: number };
   goLive: PhaseStatus;
 }
