@@ -26,6 +26,7 @@ import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
+import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { triggerResultToResponse, triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { recalcPillarArticleId } from "./clusters.ts";
 
@@ -35,48 +36,7 @@ export const articleRoutes = new Hono();
 
 articleRoutes.use(requireAuth);
 
-// ─── list ─────────────────────────────────────────────────────────────────────
-
-articleRoutes.get("/", async (c) => {
-  const projectSlug = c.req.query("projectSlug");
-  if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
-
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.slug, projectSlug))
-    .limit(1);
-  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
-
-  const rows = await db
-    .select({
-      id: articles.id,
-      slug: articles.slug,
-      title: articles.title,
-      cornerstoneKeyword: articles.cornerstoneKeyword,
-      status: articles.status,
-      cornerstoneSpecId: articles.cornerstoneSpecId,
-      clusterId: articles.clusterId,
-      clusterName: clusters.name,
-      pillarId: clusters.pillarId,
-      pillarName: contentPillars.name,
-      pillarPosition: contentPillars.position,
-      wordCount: articles.wordCount,
-      publishedAt: articles.publishedAt,
-      astroSyncedAt: articles.astroSyncedAt,
-      createdAt: articles.createdAt,
-      updatedAt: articles.updatedAt,
-    })
-    .from(articles)
-    .leftJoin(clusters, eq(articles.clusterId, clusters.id))
-    .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
-    .where(eq(articles.projectId, project.id))
-    .orderBy(desc(articles.updatedAt));
-
-  return c.json({ ok: true, data: rows });
-});
-
-// ─── across-projects ──────────────────────────────────────────────────────────
+// ─── shared types ─────────────────────────────────────────────────────────────
 
 const VALID_ARTICLE_STATUSES = [
   "proposed", "approved", "generating", "outline_review", "drafting",
@@ -85,11 +45,75 @@ const VALID_ARTICLE_STATUSES = [
 ] as const;
 type ArticleStatus = typeof VALID_ARTICLE_STATUSES[number];
 
-articleRoutes.get("/across-projects", async (c) => {
-  const statusesParam = c.req.query("statuses");
-  if (!statusesParam) return c.json({ ok: false, error: "statuses required" }, 400);
+// ─── list ─────────────────────────────────────────────────────────────────────
 
-  const requested = statusesParam.split(",").map((s) => s.trim());
+const articlesListQuerySchema = paginationQuerySchema.extend({
+  projectSlug: z.string(),
+  lane: z.string().optional(),
+});
+
+articleRoutes.get("/", zValidator("query", articlesListQuerySchema), async (c) => {
+  const q = c.req.valid("query");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, q.projectSlug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const conditions = [eq(articles.projectId, project.id)];
+  if (q.lane) conditions.push(eq(articles.status, q.lane as ArticleStatus));
+  const whereClause = and(...conditions);
+
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id: articles.id,
+        slug: articles.slug,
+        title: articles.title,
+        cornerstoneKeyword: articles.cornerstoneKeyword,
+        status: articles.status,
+        cornerstoneSpecId: articles.cornerstoneSpecId,
+        clusterId: articles.clusterId,
+        clusterName: clusters.name,
+        pillarId: clusters.pillarId,
+        pillarName: contentPillars.name,
+        pillarPosition: contentPillars.position,
+        wordCount: articles.wordCount,
+        publishedAt: articles.publishedAt,
+        astroSyncedAt: articles.astroSyncedAt,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
+        locale: articles.locale,
+        source: articles.source,
+      })
+      .from(articles)
+      .leftJoin(clusters, eq(articles.clusterId, clusters.id))
+      .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
+      .where(whereClause)
+      .orderBy(desc(articles.updatedAt))
+      .limit(q.limit)
+      .offset(q.offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(articles)
+      .where(whereClause),
+  ]);
+
+  return c.json({ ok: true, data: paginated(rows, countRows, q) });
+});
+
+// ─── across-projects ──────────────────────────────────────────────────────────
+
+const acrossProjectsQuerySchema = paginationQuerySchema.extend({
+  statuses: z.string(),
+});
+
+articleRoutes.get("/across-projects", zValidator("query", acrossProjectsQuerySchema), async (c) => {
+  const q = c.req.valid("query");
+
+  const requested = q.statuses.split(",").map((s) => s.trim());
   const statuses = requested.filter((s): s is ArticleStatus =>
     (VALID_ARTICLE_STATUSES as readonly string[]).includes(s)
   );
@@ -97,31 +121,40 @@ articleRoutes.get("/across-projects", async (c) => {
     return c.json({ ok: false, error: "no valid statuses" }, 400);
   }
 
-  const rows = await db
-    .select({
-      id: articles.id,
-      slug: articles.slug,
-      title: articles.title,
-      cornerstoneKeyword: articles.cornerstoneKeyword,
-      status: articles.status,
-      cornerstoneSpecId: articles.cornerstoneSpecId,
-      projectId: articles.projectId,
-      projectName: projects.name,
-      projectSlug: projects.slug,
-      clusterId: articles.clusterId,
-      clusterName: clusters.name,
-      pillarName: contentPillars.name,
-      updatedAt: articles.updatedAt,
-    })
-    .from(articles)
-    .leftJoin(projects, eq(articles.projectId, projects.id))
-    .leftJoin(clusters, eq(articles.clusterId, clusters.id))
-    .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
-    .where(inArray(articles.status, statuses))
-    .orderBy(desc(articles.updatedAt))
-    .limit(50);
+  const whereClause = inArray(articles.status, statuses);
 
-  return c.json({ ok: true, data: rows });
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id: articles.id,
+        slug: articles.slug,
+        title: articles.title,
+        cornerstoneKeyword: articles.cornerstoneKeyword,
+        status: articles.status,
+        cornerstoneSpecId: articles.cornerstoneSpecId,
+        projectId: articles.projectId,
+        projectName: projects.name,
+        projectSlug: projects.slug,
+        clusterId: articles.clusterId,
+        clusterName: clusters.name,
+        pillarName: contentPillars.name,
+        updatedAt: articles.updatedAt,
+      })
+      .from(articles)
+      .leftJoin(projects, eq(articles.projectId, projects.id))
+      .leftJoin(clusters, eq(articles.clusterId, clusters.id))
+      .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
+      .where(whereClause)
+      .orderBy(desc(articles.updatedAt))
+      .limit(q.limit)
+      .offset(q.offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(articles)
+      .where(whereClause),
+  ]);
+
+  return c.json({ ok: true, data: paginated(rows, countRows, q) });
 });
 
 // ─── imported articles (Spec 44) — must be before /:id wildcard ──────────────
@@ -160,84 +193,94 @@ articleRoutes.get("/imported/collections", async (c) => {
   return c.json({ ok: true, data: summary });
 });
 
-// GET /articles/imported?projectSlug=...&collection=... — translation-pair-grouped rows
-articleRoutes.get("/imported", async (c) => {
-  const projectSlug = c.req.query("projectSlug");
-  const collection = c.req.query("collection");
+// GET /articles/imported?projectSlug=...&collection=... — translation-pair-grouped rows (paginated by pair)
+const importedQuerySchema = paginationQuerySchema.extend({
+  projectSlug: z.string(),
+  collection: z.string().optional(),
+});
 
-  if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
+articleRoutes.get("/imported", zValidator("query", importedQuerySchema), async (c) => {
+  const q = c.req.valid("query");
 
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(eq(projects.slug, projectSlug))
+    .where(eq(projects.slug, q.projectSlug))
     .limit(1);
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
   const conditions = [
     eq(articles.projectId, project.id),
     eq(articles.source, "imported"),
-  ] as const;
-  const allConditions = collection
-    ? [...conditions, eq(articles.collection, collection)]
-    : [...conditions];
+  ];
+  if (q.collection) conditions.push(eq(articles.collection, q.collection));
+  const whereClause = and(...conditions);
 
-  const rows = await db
-    .select({
-      id: articles.id,
-      collection: articles.collection,
-      locale: articles.locale,
-      slug: articles.slug,
-      title: articles.title,
-      metaDescription: articles.metaDescription,
-      translationKey: articles.translationKey,
-      author: articles.author,
-      category: articles.category,
-      subcategory: articles.subcategory,
-      tags: articles.tags,
-      publishedAt: articles.publishedAt,
-      frontmatterUpdatedAt: articles.frontmatterUpdatedAt,
-      filePath: articles.filePath,
-      frontmatterExtras: articles.frontmatterExtras,
-      importMetadata: articles.importMetadata,
-      lastImportedAt: articles.lastImportedAt,
-    })
-    .from(articles)
-    .where(and(...allConditions))
-    .orderBy(desc(articles.frontmatterUpdatedAt));
+  // Step 1: get paginated distinct translationKeys ordered by most-recent update
+  const [keyRows, countRows] = await Promise.all([
+    db
+      .select({
+        translationKey: articles.translationKey,
+      })
+      .from(articles)
+      .where(whereClause)
+      .groupBy(articles.translationKey)
+      .orderBy(desc(sql`MAX(${articles.frontmatterUpdatedAt})`))
+      .limit(q.limit)
+      .offset(q.offset),
+    db
+      .select({ count: sql<number>`count(DISTINCT ${articles.translationKey})::int` })
+      .from(articles)
+      .where(whereClause),
+  ]);
 
-  type Row = (typeof rows)[number];
-  const groupedByKey = new Map<string, Row[]>();
-  const unkeyed: Row[] = [];
+  const keys = keyRows.map((r) => r.translationKey).filter((k): k is string => !!k);
 
-  for (const row of rows) {
-    if (row.translationKey) {
-      const existing = groupedByKey.get(row.translationKey) ?? [];
-      existing.push(row);
-      groupedByKey.set(row.translationKey, existing);
-    } else {
-      unkeyed.push(row);
-    }
-  }
+  // Step 2: load all articles for these translationKeys
+  const articleRows = keys.length > 0
+    ? await db
+        .select({
+          id: articles.id,
+          collection: articles.collection,
+          locale: articles.locale,
+          slug: articles.slug,
+          title: articles.title,
+          metaDescription: articles.metaDescription,
+          translationKey: articles.translationKey,
+          author: articles.author,
+          category: articles.category,
+          subcategory: articles.subcategory,
+          tags: articles.tags,
+          publishedAt: articles.publishedAt,
+          frontmatterUpdatedAt: articles.frontmatterUpdatedAt,
+          filePath: articles.filePath,
+          frontmatterExtras: articles.frontmatterExtras,
+          importMetadata: articles.importMetadata,
+          lastImportedAt: articles.lastImportedAt,
+        })
+        .from(articles)
+        .where(
+          and(
+            eq(articles.projectId, project.id),
+            eq(articles.source, "imported"),
+            inArray(articles.translationKey, keys)
+          )
+        )
+    : [];
 
-  const pairs: Array<{ translationKey: string | null; de: Row | null; en: Row | null }> = [];
+  type ArticleRow = (typeof articleRows)[number];
 
-  for (const [key, members] of groupedByKey.entries()) {
-    pairs.push({
+  // Step 3: group into pairs, preserving key order from step 1
+  const pairs = keys.map((key) => {
+    const members = articleRows.filter((a) => a.translationKey === key);
+    return {
       translationKey: key,
       de: members.find((m) => m.locale === "de") ?? null,
       en: members.find((m) => m.locale === "en") ?? null,
-    });
-  }
-  for (const u of unkeyed) {
-    pairs.push({
-      translationKey: null,
-      de: u.locale === "de" ? u : null,
-      en: u.locale === "en" ? u : null,
-    });
-  }
+    };
+  }) satisfies Array<{ translationKey: string; de: ArticleRow | null; en: ArticleRow | null }>;
 
-  return c.json({ ok: true, data: { pairs, totalCount: rows.length } });
+  return c.json({ ok: true, data: paginated(pairs, countRows, q) });
 });
 
 // GET /articles/imported/:id — detail with translation pendant
