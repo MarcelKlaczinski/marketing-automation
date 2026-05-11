@@ -184,7 +184,9 @@ When deploying to production for the first time (after local development):
    curl -X POST -H "Cookie: ma_session=..." https://your-domain/api/admin/prune-notifications
    ```
 
-## Project Target-Locales
+## Project Target-Locales + Target-Niche
+
+### Target-Locales
 
 `projects.targetLocales` (jsonb array, default `["de-DE"]`) controls which markets
 Cold-Start pipelines target. Set via direct SQL — no UI yet.
@@ -210,4 +212,35 @@ Phases that respect `targetLocales`:
 To set toolwiki as bilingual (already applied by migration 0019):
 ```sql
 UPDATE projects SET target_locales = '["de-DE", "en-US"]'::jsonb WHERE slug = 'toolwiki';
+```
+
+### Target-Niche
+
+`projects.targetNiche` (text, nullable) — niche tag for Cold-Start competitor discovery and
+cluster generation hints. `null` = generic fallback (LLM infers niche from marketing context).
+Set via direct SQL — no UI yet. Applied by migration 0020.
+
+Known niches in `packages/pipelines/src/cold-start/_lib/niche-context.ts`:
+- `"ai-tool-wiki"` — Editorial AI tool directory (toolwiki)
+- `"automotive-dealer"` — Regional car dealership (DACH)
+- `"solar-energy"` — Solar products + balcony power stations (DACH)
+
+Phases that respect `targetNiche`:
+- **Phase 2a** (`IdentifyCompetitorsStep`): injects niche-specific competitor examples and topical
+  keywords into the discovery prompt; also removes `competitor-profiling` skill (URL-input mismatch)
+- **Phase 3** (`GenerateClusterCandidatesStep`): injects topical keywords + content types as cluster
+  generation hints
+
+Adding a new niche:
+1. Add entry to `NICHE_LIBRARY` in `packages/pipelines/src/cold-start/_lib/niche-context.ts`
+2. Define `exampleCompetitors` (international + DACH), `topicalKeywords`, `contentTypes`
+3. Set `target_niche` on relevant projects:
+```sql
+UPDATE projects SET target_niche = 'your-niche' WHERE slug = 'project-slug';
+```
+
+To verify toolwiki has niche set (applied by migration 0020):
+```sql
+SELECT slug, target_locales, target_niche FROM projects WHERE slug = 'toolwiki';
+-- Expected: target_locales=["de-DE","en-US"], target_niche="ai-tool-wiki"
 ```

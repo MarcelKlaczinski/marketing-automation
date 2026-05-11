@@ -33,6 +33,10 @@ export const projects = pgTable(
     // Target locales for Cold-Start pipelines (Phase 2 + 3 locale-aware prompts)
     targetLocales: jsonb("target_locales").$type<string[]>().notNull().default(["de-DE"]),
 
+    // Niche tag for Cold-Start competitor + cluster hints (Phase 2 + 3)
+    // e.g. "ai-tool-wiki", "automotive-dealer", "solar-energy" — null = generic fallback
+    targetNiche: text("target_niche"),
+
     // Astro repo config for Spec 21 sync adapter (null = not wired up yet)
     astroRepo: jsonb("astro_repo").$type<AstroRepoConfig>(),
 

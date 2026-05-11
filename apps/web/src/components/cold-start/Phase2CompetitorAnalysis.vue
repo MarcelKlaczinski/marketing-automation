@@ -240,6 +240,11 @@ export default defineComponent({
       const qRun = this.questionsRun;
       if (qRun?.status === "running" || qRun?.status === "queued") return "identifying";
 
+      // On page reload no polling run is active — fall back to store status
+      if (this.coldStartStore.statusByProject[this.slug]?.competitors.status === "complete") {
+        return "complete";
+      }
+
       return "idle";
     },
 

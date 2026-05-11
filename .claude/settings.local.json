@@ -363,7 +363,24 @@
       "Bash(grep -rn \"sql\\\\`\" --include=\"*.ts\" packages/db/src/)",
       "Bash(grep -rn -A 2 'sql`' --include=\"*.ts\" packages/ apps/api/src/)",
       "Bash(bun --filter @marketing-auto/core test packages/core/test/sql-date-bind.test.ts)",
-      "Bash(xargs ls)"
+      "Bash(xargs ls)",
+      "Bash(bun --filter @marketing-auto/pipelines run typecheck)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation checkout -b feature/cold-start-multi-locale)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/db/src/schema/projects.ts packages/db/drizzle/0019_add_target_locales.sql packages/db/drizzle/meta/_journal.json)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/pipelines/src/cold-start/02-competitor-analysis/steps.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/pipelines/src/cold-start/03-cluster-plan/steps.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/CLAUDE.md)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline feature/cold-start-multi-locale ^master)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation checkout master)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation merge feature/cold-start-multi-locale --no-ff -m ' *)",
+      "Bash(pkill -f \"apps/api/src/workers/index\")",
+      "Bash(pkill -f \"apps/api/src/server\")",
+      "Bash(echo \"API server PID: $!\")",
+      "Bash(bun --env-file .env apps/api/src/workers/index.ts)",
+      "Bash(echo \"Worker PID: $!\")",
+      "Bash(echo \"Web dev PID: $!\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff master~5 master -- packages/pipelines/src/cold-start/02-competitor-analysis/steps.ts)",
+      "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); last=j['entries'][-1]; print\\(f'last idx={last[\\\\\"idx\\\\\"]}, when={last[\\\\\"when\\\\\"]}, tag={last[\\\\\"tag\\\\\"]}'\\)\")"
     ]
   }
 }

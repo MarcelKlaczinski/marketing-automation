@@ -7,6 +7,7 @@ import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { buildLocaleContext, localeFromDomain } from "../_lib/locale-context.ts";
+import { buildNicheContext } from "../_lib/niche-context.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
 
@@ -57,11 +58,12 @@ export class IdentifyCompetitorsStep extends BaseStep<
     ctx: StepContext
   ): Promise<CompetitorListOutput> {
     const projectRow = await db
-      .select({ targetLocales: projects.targetLocales })
+      .select({ targetLocales: projects.targetLocales, targetNiche: projects.targetNiche })
       .from(projects)
       .where(eq(projects.slug, input.projectSlug))
       .limit(1);
     const localeCtx = buildLocaleContext(projectRow[0]?.targetLocales ?? ["de-DE"]);
+    const nicheCtx = buildNicheContext(projectRow[0]?.targetNiche ?? null);
 
     const audienceLine = localeCtx.isMultiLocale
       ? `Audiences: ${localeCtx.audienceDescriptors.join(" AND ")}`
@@ -82,12 +84,37 @@ DISTRIBUTION:
 - Mix of 2-3 direct competitors + 1-2 aspirational competitors
 - All within the target market: ${localeCtx.locales[0]}`;
 
+    const nicheHint = nicheCtx.niche
+      ? `
+NICHE CONTEXT:
+This project is in the "${nicheCtx.niche}" niche: ${nicheCtx.description}.
+
+Known competitors in this niche (orientation only — pick from these or similar):
+- International: ${nicheCtx.exampleCompetitors.international.join(", ") || "(none typical)"}
+- DACH: ${nicheCtx.exampleCompetitors.dach.join(", ") || "(none typical)"}
+
+Topical keywords this niche cares about: ${nicheCtx.topicalKeywords.join(", ")}
+Content types this niche typically produces: ${nicheCtx.contentTypes.join(", ")}
+
+IMPORTANT INSTRUCTIONS:
+- Use the example list as STARTING ORIENTATION, not a copy-paste source
+- Consider adjacent niches too (e.g., "AI knowledge sites" for ai-tool-wiki)
+- For multi-locale projects, distribute picks across markets
+- Prefer sites with proven SEO traffic + content depth over startups
+- If a known competitor seems missing from the list, consider including it
+`
+      : `
+NICHE CONTEXT: Generic — no specific niche library entry. Infer the niche
+characteristics from the marketing context above. Focus on sites with similar
+audience and content category.
+`;
+
     const prompt = await buildSystemPrompt({
-      skills: ["competitor-profiling", "ai-seo"],
+      skills: ["ai-seo"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: `
 Identify 3-5 competitors of the project, based on the marketing-context.md.
-
+${nicheHint}
 Selection criteria:
 - ${audienceLine}
 - Same content category (editorial wiki, affiliate, news, directory, etc.)

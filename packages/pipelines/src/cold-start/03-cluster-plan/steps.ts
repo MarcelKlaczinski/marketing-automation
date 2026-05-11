@@ -7,6 +7,7 @@ import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { buildLocaleContext } from "../_lib/locale-context.ts";
+import { buildNicheContext } from "../_lib/niche-context.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
 
@@ -99,11 +100,12 @@ export class GenerateClusterCandidatesStep extends BaseStep<
     ctx: StepContext
   ): Promise<z.infer<typeof CandidatesOutputSchema>> {
     const projectRow = await db
-      .select({ targetLocales: projects.targetLocales })
+      .select({ targetLocales: projects.targetLocales, targetNiche: projects.targetNiche })
       .from(projects)
       .where(eq(projects.slug, input.projectSlug))
       .limit(1);
     const localeCtx = buildLocaleContext(projectRow[0]?.targetLocales ?? ["de-DE"]);
+    const nicheCtx = buildNicheContext(projectRow[0]?.targetNiche ?? null);
 
     const searchVolumeRule = localeCtx.isMultiLocale
       ? `- Cluster keywords should target either:
@@ -112,13 +114,26 @@ export class GenerateClusterCandidatesStep extends BaseStep<
 - For each cluster, indicate which locale it primarily targets in the 'reasoning' field (e.g. "targets de-DE" or "targets en-US")`
       : `- Target clusters that likely have search volume > ${localeCtx.minSearchVolumePerLocale}/month on ${localeCtx.searchEngines[0]}`;
 
+    const nicheHint = nicheCtx.niche
+      ? `
+NICHE: ${nicheCtx.niche}
+Description: ${nicheCtx.description}
+Topical keywords for orientation: ${nicheCtx.topicalKeywords.join(", ")}
+Content types this niche uses: ${nicheCtx.contentTypes.join(", ")}
+
+When proposing clusters:
+- Each cluster should be plausible for this niche
+- Reference the topical keywords as inspiration (don't copy verbatim)
+- Mix content types that fit this niche's audience
+`
+      : "";
+
     const prompt = await buildSystemPrompt({
       skills: ["ai-seo", "content-strategy"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: `
 Generate 20-50 content cluster candidates for the project.
-
-A cluster = one cornerstone article targeting a head keyword + multiple satellite articles
+${nicheHint}A cluster = one cornerstone article targeting a head keyword + multiple satellite articles
 targeting closely related, longer-tail variations of that keyword group.
 
 Rules for candidates:
