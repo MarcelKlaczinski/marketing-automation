@@ -56,6 +56,9 @@ export const projects = pgTable(
         seo: 95,
       }),
 
+    // Spec 49b: timestamp of last content-gap detection run (zero-cost step)
+    gapsLastDetectedAt: timestamp("gaps_last_detected_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

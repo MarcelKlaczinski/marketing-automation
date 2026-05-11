@@ -39,6 +39,7 @@
         <q-tab name="cold-start" :label="$t('projects.detail.tabs.coldStart')" icon="rocket_launch" />
         <q-tab name="articles" :label="$t('projects.detail.tabs.articles')" icon="article" />
         <q-tab name="clusters" :label="$t('projects.detail.tabs.clusters')" icon="hub" />
+        <q-tab name="gaps" :label="$t('projects.detail.tabs.gaps')" icon="find_in_page" />
         <q-tab name="settings" :label="$t('projects.detail.tabs.settings')" icon="settings" />
       </q-tabs>
 
@@ -70,6 +71,10 @@
           <ClustersPanel :slug="slug" />
         </q-tab-panel>
 
+        <q-tab-panel name="gaps" class="q-px-none">
+          <GapsPanel :slug="slug" />
+        </q-tab-panel>
+
         <q-tab-panel name="settings" class="q-px-none">
           <ProjectSettingsPanel :project="project" @updated="onProjectUpdated" />
         </q-tab-panel>
@@ -82,6 +87,7 @@
 import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
 import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
 import ClustersPanel from "src/components/projects/ClustersPanel.vue";
+import GapsPanel from "src/components/projects/GapsPanel.vue";
 import ImportedArticlesPanel from "src/components/articles/ImportedArticlesPanel.vue";
 import ColdStartPanel from "src/components/projects/ColdStartPanel.vue";
 import ProjectOverviewPanel from "src/components/projects/ProjectOverviewPanel.vue";
@@ -89,12 +95,13 @@ import ProjectSettingsPanel from "src/components/projects/ProjectSettingsPanel.v
 import { useProjectsStore } from "src/stores/projects";
 import { defineComponent } from "vue";
 
-type TabName = "overview" | "cold-start" | "articles" | "clusters" | "settings";
+type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "settings";
 const VALID_TABS: ReadonlyArray<TabName> = [
   "overview",
   "cold-start",
   "articles",
   "clusters",
+  "gaps",
   "settings",
 ];
 
@@ -107,6 +114,7 @@ export default defineComponent({
     ColdStartPanel,
     ArticlesPanel,
     ClustersPanel,
+    GapsPanel,
     ImportedArticlesPanel,
     ProjectPauseBanner,
   },

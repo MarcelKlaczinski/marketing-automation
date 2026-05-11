@@ -13,4 +13,5 @@ export default {
   unsavedChanges: "Unsaved changes",
   comingSoon: "Will be implemented in a later session.",
   acknowledge: "Acknowledge",
+  loadMore: "Load more",
 };

@@ -6,3 +6,4 @@ export * from "./operations.ts";
 export * from "./auth.ts";
 export * from "./push.ts";
 export * from "./notifications.ts";
+// contentGaps exported via content.ts

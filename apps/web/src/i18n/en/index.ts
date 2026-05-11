@@ -1,5 +1,6 @@
 import activity from "./activity";
 import cornerstones from "./cornerstones";
+import gaps from "./gaps";
 import app from "./app";
 import articleStatus from "./articleStatus";
 import articles from "./articles";
@@ -44,4 +45,5 @@ export default {
   projectPause,
   notifications,
   cornerstones,
+  gaps,
 };

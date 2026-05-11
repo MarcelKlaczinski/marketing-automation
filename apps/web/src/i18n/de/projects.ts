@@ -38,6 +38,7 @@ export default {
       coldStart: "Cold-Start",
       articles: "Artikel",
       clusters: "Cluster",
+      gaps:     "Content-Lücken",
       settings: "Einstellungen",
     },
   },

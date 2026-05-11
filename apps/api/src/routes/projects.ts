@@ -1,7 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
 import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, db, projects } from "@marketing-auto/db";
-import { enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
+import { articles, astroImportRuns, clusters, contentGaps, db, projects } from "@marketing-auto/db";
+import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
+import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -354,5 +355,139 @@ projectRoutes.get(
     ]);
 
     return c.json({ ok: true, data: paginated(runs, countRows, q) });
+  }
+);
+
+// ── Spec 49b: Content Gap Detection ──────────────────────────────────────────
+
+// POST /:slug/detect-gaps — trigger on-demand (synchronous, zero-cost)
+projectRoutes.post("/:slug/detect-gaps", async (c) => {
+  const slug = c.req.param("slug");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const step = new DetectContentGapsStep();
+  const ctx: StepContext = {
+    projectId:      project.id,
+    pipelineRunId:  "00000000-0000-0000-0000-000000000000",
+    stepRunId:      "00000000-0000-0000-0000-000000000000",
+    pipelineName:   "detect-content-gaps",
+    log:            log as StepContext["log"],
+    reportProgress: async () => { /* on-demand: no-op */ },
+    getStepOutput:  () => undefined,
+  };
+  const result = await step.execute({ projectId: project.id }, ctx);
+
+  return c.json({ ok: true, data: result }, 200);
+});
+
+// GET /:slug/content-gaps — list open/in_progress gaps with optional filters
+const gapsQuerySchema = paginationQuerySchema.extend({
+  limit:    z.coerce.number().int().min(1).max(200).default(50),
+  status:   z.enum(["open", "in_progress", "resolved", "dismissed"]).optional(),
+  gapType:  z
+    .enum(["missing_hub", "missing_translation", "missing_spoke_type", "cluster_too_small"])
+    .optional(),
+  priority: z.coerce.number().int().min(1).max(3).optional(),
+});
+
+projectRoutes.get(
+  "/:slug/content-gaps",
+  zValidator("query", gapsQuerySchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const q    = c.req.valid("query");
+
+    const [project] = await db
+      .select({ id: projects.id, gapsLastDetectedAt: projects.gapsLastDetectedAt })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+    if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+    const conditions = [eq(contentGaps.projectId, project.id)];
+    if (q.status)   conditions.push(eq(contentGaps.status, q.status));
+    if (q.gapType)  conditions.push(eq(contentGaps.gapType, q.gapType));
+    if (q.priority) conditions.push(eq(contentGaps.priority, q.priority));
+
+    // Default: open + in_progress
+    if (!q.status) {
+      const activeStatuses: Array<"open" | "in_progress"> = ["open", "in_progress"];
+      conditions.push(inArray(contentGaps.status, activeStatuses));
+    }
+
+    const where = and(...conditions);
+
+    const [rows, countRows] = await Promise.all([
+      db
+        .select()
+        .from(contentGaps)
+        .where(where)
+        .orderBy(contentGaps.priority, desc(contentGaps.detectedAt))
+        .limit(q.limit)
+        .offset(q.offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(contentGaps)
+        .where(where),
+    ]);
+
+    return c.json({
+      ok: true,
+      data: {
+        ...paginated(rows, countRows, q),
+        gapsLastDetectedAt: project.gapsLastDetectedAt,
+      },
+    });
+  }
+);
+
+// PATCH /:slug/content-gaps/:id — update status (dismiss / mark in_progress / resolve)
+const gapPatchSchema = z.object({
+  status: z.enum(["open", "in_progress", "resolved", "dismissed"]),
+});
+
+projectRoutes.patch(
+  "/:slug/content-gaps/:id",
+  zValidator("json", gapPatchSchema),
+  async (c) => {
+    const slug   = c.req.param("slug");
+    const gapId  = c.req.param("id");
+    const body   = c.req.valid("json");
+
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+    if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+    const now = new Date();
+    const setFields: Partial<typeof contentGaps.$inferInsert> = {
+      status:    body.status,
+      updatedAt: now,
+    };
+    if (body.status === "resolved")  setFields.resolvedAt  = now;
+    if (body.status === "dismissed") setFields.dismissedAt = now;
+
+    const updated = await db
+      .update(contentGaps)
+      .set(setFields)
+      .where(
+        and(
+          eq(contentGaps.projectId, project.id),
+          eq(contentGaps.id, gapId)
+        )
+      )
+      .returning({ id: contentGaps.id });
+
+    if (updated.length === 0) return c.json({ ok: false, error: "Gap not found" }, 404);
+
+    return c.json({ ok: true, data: { id: gapId, status: body.status } });
   }
 );

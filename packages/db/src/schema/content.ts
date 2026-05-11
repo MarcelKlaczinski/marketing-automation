@@ -352,3 +352,55 @@ export type SocialPostContent =
   | { kind: "reel"; videoUrl: string; coverUrl: string; caption: string; hashtags: string[] }
   | { kind: "single_image"; imageUrl: string; caption: string; hashtags: string[] }
   | { kind: "story"; imageUrl: string; durationSec?: number };
+
+// ─── Spec 49b: Content Gap Detection ─────────────────────────────────────────
+
+export type ContentGapMetadata = {
+  clusterName?: string;                // cluster display name
+  clusterMemberCount?: number;         // total articles in cluster at detection time
+  existingLocale?: "de" | "en";        // missing_translation: locale that EXISTS
+  existingArticleSlug?: string;        // missing_translation: slug of existing article
+  spokesPresent?: string[];            // missing_spoke_type: intent types already covered
+  suggestedTitle?: string;             // optional generation hint
+};
+
+export const contentGaps = pgTable(
+  "content_gaps",
+  {
+    id:             uuid("id").primaryKey().defaultRandom(),
+    projectId:      uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    clusterId:      uuid("cluster_id").references(() => clusters.id, { onDelete: "cascade" }),
+
+    // Gap classification
+    gapType:        text("gap_type")
+      .$type<"missing_hub" | "missing_translation" | "missing_spoke_type" | "cluster_too_small">()
+      .notNull(),
+    locale:         text("locale"),         // missing_translation: the locale that IS missing
+    intentType:     text("intent_type"),    // missing_spoke_type: which intent is absent
+    translationKey: text("translation_key"), // missing_translation: key of the existing article
+
+    // Prioritisation: 1=critical, 2=high, 3=medium
+    priority:       integer("priority").notNull().default(2),
+
+    // Lifecycle
+    status:         text("status")
+      .$type<"open" | "in_progress" | "resolved" | "dismissed">()
+      .notNull()
+      .default("open"),
+    resolvedAt:     timestamp("resolved_at",  { withTimezone: true }),
+    dismissedAt:    timestamp("dismissed_at", { withTimezone: true }),
+
+    // Context for UI and future generation pipeline
+    metadata:       jsonb("metadata").$type<ContentGapMetadata>().notNull().default({}),
+
+    detectedAt:     timestamp("detected_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt:      timestamp("created_at",  { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:      timestamp("updated_at",  { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx: index("content_gaps_project_idx").on(t.projectId),
+    clusterIdx: index("content_gaps_cluster_idx").on(t.clusterId),
+    statusIdx:  index("content_gaps_status_idx").on(t.projectId, t.status),
+    typeIdx:    index("content_gaps_type_idx").on(t.projectId, t.gapType),
+  })
+);

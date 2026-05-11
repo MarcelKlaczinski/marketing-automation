@@ -4,6 +4,7 @@ import type { BaseStep } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
+import { DetectContentGapsStep } from "./steps/detect-content-gaps.ts";
 import { FilterChangedFilesStep } from "./steps/filter-changed-files.ts";
 import { LinkTranslationPairsStep } from "./steps/link-translation-pairs.ts";
 import { ListContentFilesStep } from "./steps/list-content-files.ts";
@@ -38,6 +39,7 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
     new UpsertArticlesStep(),
     new LinkTranslationPairsStep(),
     new SyncClustersFromFrontmatterStep(), // Spec 49a: auto-populate clusters from clusterKey frontmatter
+    new DetectContentGapsStep(),           // Spec 49b: zero-cost gap detection after each import
     new UpdateImportRunStep(),
   ] as const;
 
@@ -81,7 +83,11 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
       return { projectId: pipelineInput.projectId };
     }
 
-    if (fromStep.name === "sync-clusters-from-frontmatter" && toStep.name === "update-import-run") {
+    if (fromStep.name === "sync-clusters-from-frontmatter" && toStep.name === "detect-content-gaps") {
+      return { projectId: pipelineInput.projectId };
+    }
+
+    if (fromStep.name === "detect-content-gaps" && toStep.name === "update-import-run") {
       const list = getStepOutput<{ headCommitSha: string; files: unknown[] }>(
         "list-content-files"
       )!;
