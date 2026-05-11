@@ -49,7 +49,7 @@ type ArticleStatus = typeof VALID_ARTICLE_STATUSES[number];
 
 const articlesListQuerySchema = paginationQuerySchema.extend({
   projectSlug: z.string(),
-  lane: z.string().optional(),
+  lane: z.enum(VALID_ARTICLE_STATUSES).optional(),
 });
 
 articleRoutes.get("/", zValidator("query", articlesListQuerySchema), async (c) => {
@@ -63,7 +63,7 @@ articleRoutes.get("/", zValidator("query", articlesListQuerySchema), async (c) =
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
   const conditions = [eq(articles.projectId, project.id)];
-  if (q.lane) conditions.push(eq(articles.status, q.lane as ArticleStatus));
+  if (q.lane) conditions.push(eq(articles.status, q.lane));
   const whereClause = and(...conditions);
 
   const [rows, countRows] = await Promise.all([

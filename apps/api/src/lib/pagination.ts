@@ -1,14 +1,5 @@
 import { z } from "zod";
 
-/**
- * Standard pagination query parameters.
- *
- * Use `.extend(...)` to add endpoint-specific filters:
- *   const articlesQuerySchema = paginationQuerySchema.extend({
- *     projectSlug: z.string(),
- *     status: z.string().optional(),
- *   });
- */
 export const paginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),

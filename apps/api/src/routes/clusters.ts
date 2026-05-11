@@ -10,14 +10,11 @@ export const clusterRoutes = new Hono();
 clusterRoutes.use(requireAuth);
 
 // GET /api/clusters?projectSlug=foo[&pillarId=...][&limit=100&offset=0]
-const clustersListQuerySchema = paginationQuerySchema
-  .extend({
-    projectSlug: z.string(),
-    pillarId: z.string().uuid().optional(),
-  })
-  .extend({
-    limit: z.coerce.number().int().min(1).max(200).default(100),
-  });
+const clustersListQuerySchema = paginationQuerySchema.extend({
+  projectSlug: z.string(),
+  pillarId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
 
 clusterRoutes.get("/", zValidator("query", clustersListQuerySchema), async (c) => {
   const q = c.req.valid("query");
