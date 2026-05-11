@@ -3,9 +3,9 @@ import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues, COST_OPS } from
 import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, projects } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
-import { loadProjectContext, enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
-import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
+import { suggestGapTitle, type GapSuggestion } from "../lib/gap-service.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -574,15 +574,17 @@ projectRoutes.post("/:slug/content-gaps/batch", async (c) => {
       gap,
     });
     if (!suggestion) continue;
+    const s = suggestion as GapSuggestion & { cornerstoneKeyword?: string };
     await db
       .update(contentGaps)
       .set({
         metadata: {
           ...gap.metadata,
-          suggestedTitle:           suggestion.title,
-          suggestedSlug:            suggestion.slug,
-          suggestedMetaDescription: suggestion.metaDescription,
-          suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+          suggestedTitle:           s.title,
+          suggestedSlug:            s.slug,
+          suggestedMetaDescription: s.metaDescription,
+          suggestedHeroImagePrompt: s.heroImagePrompt,
+          ...(s.cornerstoneKeyword ? { suggestedCornerstoneKeyword: s.cornerstoneKeyword } : {}),
         },
         updatedAt: new Date(),
       })
@@ -622,15 +624,17 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
   const suggestion = await suggestGapTitle({ projectId: project.id, gap });
   if (!suggestion) return c.json({ ok: false, error: "LLM suggestion failed" }, 500);
 
+  const s = suggestion as GapSuggestion & { cornerstoneKeyword?: string };
   await db
     .update(contentGaps)
     .set({
       metadata: {
         ...gap.metadata,
-        suggestedTitle:           suggestion.title,
-        suggestedSlug:            suggestion.slug,
-        suggestedMetaDescription: suggestion.metaDescription,
-        suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+        suggestedTitle:           s.title,
+        suggestedSlug:            s.slug,
+        suggestedMetaDescription: s.metaDescription,
+        suggestedHeroImagePrompt: s.heroImagePrompt,
+        ...(s.cornerstoneKeyword ? { suggestedCornerstoneKeyword: s.cornerstoneKeyword } : {}),
       },
       updatedAt: new Date(),
     })
@@ -775,6 +779,12 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
   // ── missing_spoke_type / cluster_too_small → article + outline pipeline ─────
   const articleSlug = meta.suggestedSlug ?? `gap-${gapId.slice(0, 8)}`;
 
+  // Use the LLM-suggested cornerstoneKeyword if available — it's anchored to real cluster
+  // keywords from Cold-Start Phase 3 and drives the DataForSEO SERP lookup in ResearchStep.
+  // Falling back to slugify(title) would produce a bad keyword and empty satellite-keyword matches.
+  const cornerstoneKeyword =
+    (meta.suggestedCornerstoneKeyword as string | undefined) ?? slugify(proposedTitle);
+
   // Build insert value — intentType is optional; use conditional spread for exactOptionalPropertyTypes
   const articleInsert: typeof articles.$inferInsert = {
     projectId:          project.id,
@@ -784,7 +794,7 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
     locale,
     collection:         "blog",
     clusterRole:        "spoke",
-    cornerstoneKeyword: slugify(proposedTitle),
+    cornerstoneKeyword,
     title:              proposedTitle,
     slug:               articleSlug,
     approvalMode:       "manual",
@@ -835,95 +845,4 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
   }, result.deduped ? 200 : 202);
 });
 
-// ── Helper: LLM title suggestion (Claude Haiku) ───────────────────────────────
-
-interface GapSuggestionInput {
-  projectId: string;
-  gap: {
-    id: string;
-    gapType: string;
-    clusterId: string | null;
-    intentType: string | null;
-    locale: string | null;
-    metadata: Record<string, unknown> | null;
-  };
-}
-
-interface GapSuggestion {
-  title: string;
-  slug: string;
-  metaDescription: string;
-  heroImagePrompt: string;
-}
-
-async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSuggestion | null> {
-  const { projectId, gap } = input;
-  const meta = (gap.metadata ?? {}) as Record<string, string | number | string[] | undefined>;
-
-  const clusterName  = (meta.clusterName  as string | undefined) ?? "unbekannter Cluster";
-  const intentType   = gap.intentType ?? null;
-  const locale       = gap.locale ?? "de";
-  const isGerman     = locale === "de";
-  const lang         = isGerman ? "German" : "English";
-
-  const gapDescriptions: Record<string, string> = {
-    missing_hub:         `hub / pillar article for the cluster "${clusterName}"`,
-    missing_spoke_type:  `spoke article with intent "${intentType}" for the cluster "${clusterName}"`,
-    cluster_too_small:   `additional spoke article for the cluster "${clusterName}" to grow the cluster`,
-  };
-  const gapDesc = gapDescriptions[gap.gapType] ?? `content gap for cluster "${clusterName}"`;
-
-  const projectContext = await loadProjectContext(projectId);
-  const contextSection = projectContext
-    ? `\n\n<project_context>\n${projectContext}\n</project_context>`
-    : "";
-
-  const systemPrompt = `You are a content strategist for an AI-focused media brand. Your job is to suggest compelling article metadata.${contextSection}
-
-Respond ONLY with a JSON object — no prose, no markdown fences. Schema:
-{
-  "title": string,          // headline, 50–70 chars, ${lang}, hooks reader attention
-  "slug": string,           // URL slug: lowercase, hyphens, max 60 chars, no special chars
-  "metaDescription": string,// 140–160 chars, ${lang}, includes primary keyword
-  "heroImagePrompt": string // Stable Diffusion / DALL-E prompt for the hero image, vivid and specific, English
-}`;
-
-  const userMessage = `Suggest metadata for a new ${lang} article that fills this content gap:
-
-Gap type: ${gap.gapType}
-Article needed: ${gapDesc}
-Target locale: ${locale}
-${intentType ? `Intent type: ${intentType}` : ""}
-
-The article should match the brand voice and topic of the cluster "${clusterName}".`;
-
-  try {
-    const result = await anthropic.messages({
-      projectId,
-      operation:        COST_OPS.GAP_TITLE_SUGGEST,
-      model:            "claude-haiku-4-5",
-      systemPrefix:     systemPrompt,
-      systemSuffix:     "", // all instructions are in systemPrefix for this cheap call
-      userMessage,
-      maxTokens:        400,
-      jsonMode:         true,
-      estimatedCostEur: 0.01,
-    });
-
-    const parsed = result.json as Partial<GapSuggestion>;
-    if (!parsed.title || !parsed.slug || !parsed.metaDescription || !parsed.heroImagePrompt) {
-      log.warn({ gapId: gap.id, parsed }, "Incomplete suggestion from LLM");
-      return null;
-    }
-
-    return {
-      title:            parsed.title,
-      slug:             parsed.slug,
-      metaDescription:  parsed.metaDescription,
-      heroImagePrompt:  parsed.heroImagePrompt,
-    };
-  } catch (err) {
-    log.error({ gapId: gap.id, err }, "LLM suggestion failed");
-    return null;
-  }
-}
+// suggestGapTitle() lives in src/lib/gap-service.ts (adapter calls must not be in routes)

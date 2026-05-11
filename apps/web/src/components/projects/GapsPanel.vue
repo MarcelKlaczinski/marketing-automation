@@ -311,6 +311,7 @@ interface GapMetadata {
   spokesPresent?: string[];
   suggestedTitle?: string;
   suggestedSlug?: string;
+  suggestedCornerstoneKeyword?: string;
   suggestedMetaDescription?: string;
   suggestedHeroImagePrompt?: string;
 }

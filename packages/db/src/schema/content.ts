@@ -364,6 +364,7 @@ export type ContentGapMetadata = {
   // Spec 49c: LLM suggestion fields (populated by /suggest endpoint)
   suggestedTitle?: string;
   suggestedSlug?: string;
+  suggestedCornerstoneKeyword?: string;  // real search keyword anchored to cluster.satelliteKeywords
   suggestedMetaDescription?: string;
   suggestedHeroImagePrompt?: string;     // image generation prompt for the suggested article
 };
