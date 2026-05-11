@@ -65,7 +65,7 @@ describe("SyncClustersFromFrontmatterStep", () => {
         cornerstoneKeyword: "anyword test",
         title: "Anyword Test",
         clusterKey: "ai-writing-2026",
-        clusterRole: "cornerstone",
+        clusterRole: "hub",
         category: "AI Writing Tools",
         status: "published",
       },
@@ -129,7 +129,7 @@ describe("SyncClustersFromFrontmatterStep", () => {
       cornerstoneKeyword: "cluster x keyword",
       title: "Idempotency Test",
       clusterKey: "cluster-x",
-      clusterRole: "cornerstone",
+      clusterRole: "hub",
       category: "Topic X",
       status: "published",
     });

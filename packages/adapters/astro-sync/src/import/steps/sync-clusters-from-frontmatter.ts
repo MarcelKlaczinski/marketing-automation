@@ -158,8 +158,8 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
         ? (pillarByName.get(memberCategory) ?? uncategorizedPillarId)
         : uncategorizedPillarId;
 
-      // Find cornerstone article — prefer DE locale, fall back to first cornerstone
-      const cornerstones = members.filter((m) => m.clusterRole === "cornerstone");
+      // Find hub article — prefer DE locale, fall back to first hub
+      const cornerstones = members.filter((m) => m.clusterRole === "hub");
       const cornerstone =
         cornerstones.find((c) => c.locale === "de") ?? cornerstones[0] ?? null;
 

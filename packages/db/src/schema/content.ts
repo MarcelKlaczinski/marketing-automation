@@ -190,7 +190,7 @@ export const articles = pgTable(
 
     // Spec 49a: typed cluster metadata promoted from frontmatterExtras
     clusterKey: text("cluster_key"),
-    clusterRole: text("cluster_role").$type<"cornerstone" | "spoke" | null>(),
+    clusterRole: text("cluster_role").$type<"hub" | "spoke" | null>(),
     intentType: text("intent_type"),
 
     // Spec 44: catch-all for collection-specific frontmatter fields

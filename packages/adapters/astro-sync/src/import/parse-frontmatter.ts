@@ -17,7 +17,7 @@ const FrontmatterSchema = z
     noindex: z.boolean().optional(),
     // Spec 49a: cluster metadata
     clusterKey: z.string().optional(),
-    clusterRole: z.enum(["cornerstone", "spoke"]).optional(),
+    clusterRole: z.enum(["hub", "spoke"]).optional(),
     intentType: z.string().optional(),
   })
   .passthrough();
@@ -43,7 +43,7 @@ export type ParseResult = {
     noindex: boolean;
     // Spec 49a: cluster metadata
     clusterKey: string | null;
-    clusterRole: "cornerstone" | "spoke" | null;
+    clusterRole: "hub" | "spoke" | null;
     intentType: string | null;
   };
   extras: Record<string, unknown>;

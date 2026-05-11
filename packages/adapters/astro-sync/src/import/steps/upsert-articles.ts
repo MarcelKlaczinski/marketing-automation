@@ -64,7 +64,7 @@ export class UpsertArticlesStep extends BaseStep<
             noindex: (typed.noindex as boolean | null) ?? false,
             // Spec 49a: cluster metadata
             clusterKey: (typed.clusterKey as string | null) ?? null,
-            clusterRole: (typed.clusterRole as "cornerstone" | "spoke" | null) ?? null,
+            clusterRole: (typed.clusterRole as "hub" | "spoke" | null) ?? null,
             intentType: (typed.intentType as string | null) ?? null,
             bodyMd: p.body as string,
             frontmatterExtras: p.extras as Record<string, unknown>,
@@ -96,7 +96,7 @@ export class UpsertArticlesStep extends BaseStep<
               noindex: (typed.noindex as boolean | null) ?? false,
               // Spec 49a: cluster metadata
               clusterKey: (typed.clusterKey as string | null) ?? null,
-              clusterRole: (typed.clusterRole as "cornerstone" | "spoke" | null) ?? null,
+              clusterRole: (typed.clusterRole as "hub" | "spoke" | null) ?? null,
               intentType: (typed.intentType as string | null) ?? null,
               bodyMd: p.body as string,
               frontmatterExtras: p.extras as Record<string, unknown>,
