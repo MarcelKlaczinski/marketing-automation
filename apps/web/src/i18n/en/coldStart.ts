@@ -42,6 +42,10 @@ export default {
     noCompetitors: "No competitors identified — please try again.",
     complete: "Competitor analysis complete.",
     regenerate: "Re-analyze",
+    competitorsLabel: "Analyzed Competitors",
+    gapsLabel: "Content Gaps",
+    avoidLabel: "Topics to Avoid",
+    reportLabel: "Full Report",
     confirmation: {
       title: "Ready for Competitor Analysis?",
       body: "{count} competitors identified. Analysis will cost ~€{cost} (DataForSEO).",
@@ -63,6 +67,13 @@ export default {
     complete: "Cluster plan created.",
     regenerate: "Recreate Cluster Plan",
     importedComplete: "{count} clusters were automatically imported from frontmatter — no manual cluster plan needed.",
+    optInLabel: "Generate additional cluster suggestions",
+    optInDescription:
+      "Let the LLM pipeline generate additional cluster suggestions that are not yet covered by your imported clusters. You can review and select the suggestions afterward.",
+    generateAdditional: "Generate Additional Clusters",
+    brownfieldMode: "Brownfield Mode",
+    brownfieldExplanation:
+      "The LLM will propose new clusters that complement your existing {count} clusters. You will need to manually filter out any duplicates afterward.",
   },
 
   phase4: {

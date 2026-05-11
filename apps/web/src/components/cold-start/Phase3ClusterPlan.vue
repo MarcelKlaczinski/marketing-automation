@@ -6,6 +6,38 @@
         <template #avatar><q-icon name="auto_awesome" /></template>
         {{ $t('coldStart.phase3.importedComplete', { count: importedClusterCount }) }}
       </q-banner>
+
+      <q-expansion-item
+        icon="add_circle_outline"
+        :label="$t('coldStart.phase3.optInLabel')"
+        header-class="text-weight-medium"
+      >
+        <q-card flat>
+          <q-card-section>
+            <p class="text-body2 q-mb-md">{{ $t('coldStart.phase3.optInDescription') }}</p>
+
+            <q-banner class="bg-blue-1 q-mb-md" rounded>
+              <template #avatar>
+                <q-icon name="info" color="blue-9" />
+              </template>
+              <strong>{{ $t('coldStart.phase3.brownfieldMode') }}:</strong>
+              {{ $t('coldStart.phase3.brownfieldExplanation', { count: importedClusterCount }) }}
+            </q-banner>
+
+            <!-- TODO: Pass existing cluster names to pipeline to avoid duplicate suggestions.
+                 Currently the pipeline doesn't know about imported clusters → User must
+                 manually filter duplicates after generation. Backend enhancement needed. -->
+            <q-btn
+              unelevated
+              color="primary"
+              :label="$t('coldStart.phase3.generateAdditional')"
+              :loading="generatingAdditional"
+              :disable="generatingAdditional"
+              @click="onGenerateAdditional"
+            />
+          </q-card-section>
+        </q-card>
+      </q-expansion-item>
     </div>
 
     <!-- idle (no clusters yet, no import) -->
@@ -65,6 +97,7 @@ export default defineComponent({
 
   data: () => ({
     triggering: false,
+    generatingAdditional: false,
     errorMsg: "",
   }),
 
@@ -118,6 +151,19 @@ export default defineComponent({
         // shown by interceptor
       } finally {
         this.triggering = false;
+      }
+    },
+
+    async onGenerateAdditional(): Promise<void> {
+      this.generatingAdditional = true;
+      this.errorMsg = "";
+      try {
+        const { runId } = await this.coldStartStore.triggerClusterPlan(this.slug);
+        this.runId = runId;
+      } catch {
+        // shown by interceptor
+      } finally {
+        this.generatingAdditional = false;
       }
     },
   },

@@ -42,6 +42,10 @@ export default {
     noCompetitors: "Keine Wettbewerber identifiziert — bitte erneut versuchen.",
     complete: "Wettbewerber-Analyse abgeschlossen.",
     regenerate: "Erneut analysieren",
+    competitorsLabel: "Analysierte Wettbewerber",
+    gapsLabel: "Content-Gaps",
+    avoidLabel: "Zu vermeidende Topics",
+    reportLabel: "Vollständiger Report",
     confirmation: {
       title: "Bereit für Wettbewerbs-Analyse?",
       body: "{count} Wettbewerber identifiziert. Die Analyse kostet ca. €{cost} (DataForSEO).",
@@ -63,6 +67,13 @@ export default {
     complete: "Cluster-Plan erstellt.",
     regenerate: "Cluster-Plan neu erstellen",
     importedComplete: "{count} Cluster wurden automatisch aus dem Frontmatter importiert — kein manueller Cluster-Plan nötig.",
+    optInLabel: "Cluster-Vorschläge zusätzlich generieren",
+    optInDescription:
+      "Lasse die LLM-Pipeline zusätzliche Cluster-Vorschläge generieren, die in deinen importierten Clustern noch nicht abgedeckt sind. Du kannst die Vorschläge anschließend reviewen und auswählen.",
+    generateAdditional: "Zusätzliche Cluster generieren",
+    brownfieldMode: "Brownfield-Modus",
+    brownfieldExplanation:
+      "Der LLM schlägt neue Cluster vor, die deine vorhandenen {count} Cluster ergänzen. Duplikate musst du anschließend manuell herausfiltern.",
   },
 
   phase4: {
