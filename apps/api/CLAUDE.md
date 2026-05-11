@@ -183,3 +183,31 @@ When deploying to production for the first time (after local development):
    ```
    curl -X POST -H "Cookie: ma_session=..." https://your-domain/api/admin/prune-notifications
    ```
+
+## Project Target-Locales
+
+`projects.targetLocales` (jsonb array, default `["de-DE"]`) controls which markets
+Cold-Start pipelines target. Set via direct SQL — no UI yet.
+
+Examples:
+- DACH-only tenant: `["de-DE"]`
+- Bilingual DE/EN: `["de-DE", "en-US"]`
+- International EN-only: `["en-US"]`
+
+Supported locales in `packages/pipelines/src/cold-start/_lib/locale-context.ts`:
+`de-DE` (Google.de, Germany/de), `en-US` (Google.com, USA/en), `en-GB` (Google.co.uk, UK/en).
+Add new locales by extending `LOCALE_METADATA` in that file.
+
+Phases that respect `targetLocales`:
+- **Phase 2a** (`IdentifyCompetitorsStep`): prompt asks for competitors per locale; bilingual projects
+  get the international/DACH distribution hint with toolify.ai / futurepedia.io examples
+- **Phase 2b** (`FetchCompetitorKeywordsStep`): DataForSEO `rankedKeywords` call uses location/language
+  inferred from competitor TLD (`.de`/`.at`/`.ch` → Germany/de, `.com`/`.ai`/`.io` → USA/en, `.co.uk` → UK/en)
+- **Phase 3** (`GenerateClusterCandidatesStep`): prompt instructs LLM to propose clusters for each
+  target locale and tag the locale in the `reasoning` field
+- **Phase 4 + 5**: inherit locale from Phase 3's approved clusters (no extra config needed)
+
+To set toolwiki as bilingual (already applied by migration 0019):
+```sql
+UPDATE projects SET target_locales = '["de-DE", "en-US"]'::jsonb WHERE slug = 'toolwiki';
+```
