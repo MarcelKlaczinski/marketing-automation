@@ -188,6 +188,11 @@ export const articles = pgTable(
     tags: text("tags").array(),
     noindex: boolean("noindex").notNull().default(false),
 
+    // Spec 49a: typed cluster metadata promoted from frontmatterExtras
+    clusterKey: text("cluster_key"),
+    clusterRole: text("cluster_role").$type<"cornerstone" | "spoke" | null>(),
+    intentType: text("intent_type"),
+
     // Spec 44: catch-all for collection-specific frontmatter fields
     frontmatterExtras: jsonb("frontmatter_extras")
       .$type<Record<string, unknown>>()
@@ -235,6 +240,9 @@ export const articles = pgTable(
     sourceIdx: index("articles_project_source_idx").on(t.projectId, t.source),
     // Spec 45: cornerstone-spec → article lookup
     cornerstoneSpecIdx: index("articles_cornerstone_spec_id_idx").on(t.cornerstoneSpecId),
+    // Spec 49a: cluster key + role filtering
+    clusterKeyIdx: index("articles_cluster_key_idx").on(t.projectId, t.clusterKey),
+    clusterRoleIdx: index("articles_cluster_role_idx").on(t.projectId, t.clusterRole),
   })
 );
 

@@ -15,6 +15,10 @@ const FrontmatterSchema = z
     subcategory: z.string().optional(),
     tags: z.array(z.string()).optional(),
     noindex: z.boolean().optional(),
+    // Spec 49a: cluster metadata
+    clusterKey: z.string().optional(),
+    clusterRole: z.enum(["cornerstone", "spoke"]).optional(),
+    intentType: z.string().optional(),
   })
   .passthrough();
 
@@ -37,6 +41,10 @@ export type ParseResult = {
     subcategory: string | null;
     tags: string[];
     noindex: boolean;
+    // Spec 49a: cluster metadata
+    clusterKey: string | null;
+    clusterRole: "cornerstone" | "spoke" | null;
+    intentType: string | null;
   };
   extras: Record<string, unknown>;
   metadata: {
@@ -62,6 +70,10 @@ const TYPED_FIELDS = new Set([
   "subcategory",
   "tags",
   "noindex",
+  // Spec 49a: cluster metadata
+  "clusterKey",
+  "clusterRole",
+  "intentType",
 ]);
 
 export function parseMdxContent(filePath: string, raw: string): ParseResult {
@@ -105,6 +117,10 @@ export function parseMdxContent(filePath: string, raw: string): ParseResult {
       subcategory: fm.subcategory ?? null,
       tags: fm.tags ?? [],
       noindex: fm.noindex ?? false,
+      // Spec 49a: cluster metadata
+      clusterKey: fm.clusterKey ?? null,
+      clusterRole: fm.clusterRole ?? null,
+      intentType: fm.intentType ?? null,
     },
     extras,
     metadata,

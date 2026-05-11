@@ -120,6 +120,13 @@
       "when": 1779400000000,
       "tag": "0016_pagespeed_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1779500000000,
+      "tag": "0017_articles_cluster_fields",
+      "breakpoints": true
     }
   ]
 }
