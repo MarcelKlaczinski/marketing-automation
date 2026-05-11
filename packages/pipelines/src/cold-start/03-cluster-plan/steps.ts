@@ -1,9 +1,12 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { type RelatedKeywordItem, dataforseo } from "@marketing-auto/adapter-dataforseo";
 import { COST_OPS } from "@marketing-auto/core/cost";
+import { db, projects } from "@marketing-auto/db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { buildLocaleContext } from "../_lib/locale-context.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
 
@@ -95,6 +98,20 @@ export class GenerateClusterCandidatesStep extends BaseStep<
     input: z.infer<typeof GenerateCandidatesInputSchema>,
     ctx: StepContext
   ): Promise<z.infer<typeof CandidatesOutputSchema>> {
+    const projectRow = await db
+      .select({ targetLocales: projects.targetLocales })
+      .from(projects)
+      .where(eq(projects.slug, input.projectSlug))
+      .limit(1);
+    const localeCtx = buildLocaleContext(projectRow[0]?.targetLocales ?? ["de-DE"]);
+
+    const searchVolumeRule = localeCtx.isMultiLocale
+      ? `- Cluster keywords should target either:
+  * The primary locale (${localeCtx.primaryLocale}) with search volume > ${localeCtx.minSearchVolumePerLocale}/month on ${localeCtx.searchEngines[0]}
+  * OR a secondary locale with search volume > 30/month on its respective search engine (${localeCtx.searchEngines.slice(1).join(", ")})
+- For each cluster, indicate which locale it primarily targets in the 'reasoning' field (e.g. "targets de-DE" or "targets en-US")`
+      : `- Target clusters that likely have search volume > ${localeCtx.minSearchVolumePerLocale}/month on ${localeCtx.searchEngines[0]}`;
+
     const prompt = await buildSystemPrompt({
       skills: ["ai-seo", "content-strategy"],
       projectIdOrSlug: input.projectSlug,
@@ -113,7 +130,7 @@ Rules for candidates:
 - Prioritize clusters that fill the content gaps identified in competitor analysis
 - Avoid topics in the topicsToAvoid list
 - Each cluster must be meaningfully distinct — do NOT generate keyword variations as separate clusters
-- Target clusters that likely have search volume > 50/month on Google.de
+${searchVolumeRule}
 
 Content gaps to prioritize:
 ${input.contentGaps.map((g) => `- ${g}`).join("\n")}
