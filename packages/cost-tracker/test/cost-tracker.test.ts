@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { costLogs, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import {
@@ -100,6 +100,12 @@ describe("track()", () => {
       })
       .returning();
     projectId = p!.id;
+  });
+
+  afterEach(async () => {
+    if (projectId) {
+      await db.delete(projects).where(eq(projects.id, projectId));
+    }
   });
 
   it("logs a cost_logs row after successful call", async () => {
@@ -231,17 +237,20 @@ describe("track()", () => {
         pipelineTemplate: "educational",
       })
       .returning();
-
-    await expect(
-      track({
-        projectId: p!.id,
-        service: "anthropic",
-        operation: "huge",
-        estimatedCostEur: 9999,
-        fn: async () => "ok",
-        computeCostEur: () => 9999,
-      })
-    ).resolves.toBe("ok");
+    try {
+      await expect(
+        track({
+          projectId: p!.id,
+          service: "anthropic",
+          operation: "huge",
+          estimatedCostEur: 9999,
+          fn: async () => "ok",
+          computeCostEur: () => 9999,
+        })
+      ).resolves.toBe("ok");
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p!.id));
+    }
   });
 });
 
@@ -258,10 +267,13 @@ describe("getCurrentSpend", () => {
         pipelineTemplate: "educational",
       })
       .returning();
-
-    const spend = await getCurrentSpend({ projectId: p!.id, service: "anthropic" });
-    expect(spend.daily).toBe(0);
-    expect(spend.monthly).toBe(0);
+    try {
+      const spend = await getCurrentSpend({ projectId: p!.id, service: "anthropic" });
+      expect(spend.daily).toBe(0);
+      expect(spend.monthly).toBe(0);
+    } finally {
+      await db.delete(projects).where(eq(projects.id, p!.id));
+    }
   });
 });
 
@@ -279,30 +291,33 @@ describe("getProjectCostSummary", () => {
       })
       .returning();
     const pid = p!.id;
+    try {
+      await track({
+        projectId: pid,
+        service: "anthropic",
+        operation: "op1",
+        estimatedCostEur: 0.1,
+        fn: async () => "ok",
+        computeCostEur: () => 0.1,
+      });
+      await track({
+        projectId: pid,
+        service: "replicate",
+        operation: "image",
+        estimatedCostEur: 0.05,
+        fn: async () => "ok",
+        computeCostEur: () => 0.05,
+      });
 
-    await track({
-      projectId: pid,
-      service: "anthropic",
-      operation: "op1",
-      estimatedCostEur: 0.1,
-      fn: async () => "ok",
-      computeCostEur: () => 0.1,
-    });
-    await track({
-      projectId: pid,
-      service: "replicate",
-      operation: "image",
-      estimatedCostEur: 0.05,
-      fn: async () => "ok",
-      computeCostEur: () => 0.05,
-    });
+      const summary = await getProjectCostSummary(pid);
+      expect(summary.today.length).toBe(2);
+      expect(summary.totals.todayEur).toBeCloseTo(0.15, 4);
+      expect(summary.totals.monthEur).toBeCloseTo(0.15, 4);
 
-    const summary = await getProjectCostSummary(pid);
-    expect(summary.today.length).toBe(2);
-    expect(summary.totals.todayEur).toBeCloseTo(0.15, 4);
-    expect(summary.totals.monthEur).toBeCloseTo(0.15, 4);
-
-    const anthropicEntry = summary.today.find((s) => s.service === "anthropic");
-    expect(anthropicEntry?.eur).toBeCloseTo(0.1, 4);
+      const anthropicEntry = summary.today.find((s) => s.service === "anthropic");
+      expect(anthropicEntry?.eur).toBeCloseTo(0.1, 4);
+    } finally {
+      await db.delete(projects).where(eq(projects.id, pid));
+    }
   });
 });
