@@ -42,7 +42,14 @@ describe("SyncClustersFromFrontmatterStep", () => {
   });
 
   afterEach(async () => {
-    // Cascade cleans articles, clusters, contentPillars via FK
+    // Delete child records explicitly BEFORE the project to prevent a race with the
+    // cluster:link-rebuild background scheduler: if the scheduler picks up the approved
+    // cluster IDs and tries to INSERT into pipeline_runs after the project is gone, the
+    // project_id FK constraint fires. Deleting clusters first removes them from the
+    // scheduler's next tick before the project row disappears.
+    await db.delete(articles).where(eq(articles.projectId, projectId));
+    await db.delete(clusters).where(eq(clusters.projectId, projectId));
+    await db.delete(contentPillars).where(eq(contentPillars.projectId, projectId));
     await db.delete(projects).where(eq(projects.id, projectId));
   });
 
