@@ -43,6 +43,33 @@ Response envelope: `{ items, total, limit, offset }`.
 - Always wrap external calls in cost-tracker decorator
 - Always log structured (pino, JSON output)
 
+## Worker-Restart bei Pipeline-Code-Änderungen
+
+**Wann nötig**: Jede Änderung an Files unter
+- `packages/pipelines/src/`
+- `packages/adapters/*/src/import/` (oder andere pipeline-relevante Adapter)
+- BullMQ-Worker-Code in `apps/api/src/workers/`
+
+**Warum**: Der BullMQ-Worker lädt Pipeline-Steps beim Start. Neuer Code wird
+erst nach Restart aktiv. Im Dev-Mode ohne `--hot` läuft der Worker als
+Daemon-Process unverändert weiter.
+
+**Wie**:
+
+```bash
+# Aktuellen Worker-PID finden
+ps aux | grep "workers/index" | grep -v grep
+
+# Restart (oder via npm-script):
+bun --filter @marketing-auto/api run worker:restart
+```
+
+**npm-Script** (`apps/api/package.json`):
+
+```json
+"worker:restart": "pkill -f 'apps/api/src/workers/index' || true; sleep 1; bun --env-file ../../.env apps/api/src/workers/index.ts &"
+```
+
 ## Tests
 - Run with `bun --filter @marketing-auto/api test`. The script `cd`s to repo root before invoking `bun test` so `.env` auto-loads — `server.ts` calls `getEnv()` at import, which would fail without it. Same recursion gotcha as `packages/db` / `packages/core`: don't run `bun run test` from inside the package.
 

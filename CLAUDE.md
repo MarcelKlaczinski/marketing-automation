@@ -99,6 +99,9 @@ so always use `bun run check` / `bun run migrate` (not bare `bunx drizzle-kit �
 The root scripts (`bun run db:migrate`, `bun run db:check`, etc.) also handle this automatically.
 
 ## Workflow
+**Pipeline-Code geändert?** Worker muss neugestartet werden — siehe
+`apps/api/CLAUDE.md` → "Worker-Restart bei Pipeline-Code-Änderungen".
+
 1. Check the spec file referenced in the prompt before coding
 2. Read relevant CLAUDE.md files (root + nearest subdirectory)
 3. Plan first if task is non-trivial — ask "should I enter plan mode?"
