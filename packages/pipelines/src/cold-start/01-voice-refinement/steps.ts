@@ -10,7 +10,7 @@ const VoiceQuestionsOutputSchema = z.object({
   questions: z
     .array(
       z.object({
-        id: z.string(),
+        id: z.coerce.string(), // LLM occasionally returns numeric IDs — coerce to string
         category: z.enum([
           "voice",
           "audience",
