@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { COST_OPS } from "@marketing-auto/core";
-import { articles, clusters, db, pipelineRuns, projects } from "@marketing-auto/db";
+import { articles, clusters, cornerstoneSpecs, db, pipelineRuns, projects } from "@marketing-auto/db";
 import {
   enqueueColdStartClusterPropose,
   enqueueColdStartCompetitorAnalysis,
@@ -106,19 +106,21 @@ coldStartRoutes.get("/:slug/cold-start/status", async (c) => {
     )
     .limit(1);
 
-  // Phase 4: cornerstones
-  const cornerstoneArticles = await db
-    .select({ status: articles.status })
-    .from(articles)
-    .where(
-      and(
-        eq(articles.projectId, projectId),
-        inArray(articles.status, ["proposed", "approved"] as Array<"proposed" | "approved">)
-      )
-    );
+  // Phase 4: cornerstones — read from cornerstone_specs (Spec 48, multi-language)
+  const csCountResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(cornerstoneSpecs)
+    .where(eq(cornerstoneSpecs.projectId, projectId));
+  const csCount = csCountResult[0]?.count ?? 0;
 
-  const proposedCount = cornerstoneArticles.filter((a) => a.status === "proposed").length;
-  const approvedCount = cornerstoneArticles.filter((a) => a.status === "approved").length;
+  const csApprovedResult = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(cornerstoneSpecs)
+    .where(
+      and(eq(cornerstoneSpecs.projectId, projectId), eq(cornerstoneSpecs.status, "approved"))
+    );
+  const approvedCount = csApprovedResult[0]?.count ?? 0;
+  const proposedCount = csCount - approvedCount;
 
   const cornerstoneRunning = await db
     .select({ id: pipelineRuns.id })
@@ -378,6 +380,7 @@ const cornerstoneListSchema = z.object({
       })
     )
     .min(1),
+  locales: z.array(z.enum(["de", "en"])).min(1).max(2).default(["de", "en"]),
 });
 
 coldStartRoutes.post(
@@ -396,10 +399,11 @@ coldStartRoutes.post(
     });
     if (blocked) return guardErrorToResponse(c, blocked);
 
-    const { approvedClusters } = c.req.valid("json");
+    const { approvedClusters, locales } = c.req.valid("json");
     const { runId, jobId } = await enqueueColdStartCornerstoneList({
       projectId: proj.id,
       approvedClusters,
+      locales,
     });
     return c.json({ ok: true, data: { runId, jobId } }, 202);
   }
@@ -409,6 +413,11 @@ const cornerstoneActionSchema = z.object({
   action: z.enum(["approve", "reject"]),
 });
 
+/**
+ * @deprecated Spec 48 — use POST /projects/:slug/cornerstone-specs/:specId/approve
+ * or /cornerstone-specs/pair/:translationKey/approve instead.
+ * Kept temporarily for backwards-compat. Remove in follow-up once no frontend references remain.
+ */
 coldStartRoutes.post(
   "/:slug/cold-start/cornerstones/:articleId/action",
   zValidator("json", cornerstoneActionSchema),
@@ -431,6 +440,10 @@ const cornerstoneEditSchema = z.object({
   metaDescription: z.string().max(500).optional(),
 });
 
+/**
+ * @deprecated Spec 48 — cornerstones are now managed via /projects/:slug/cornerstone-specs.
+ * Kept temporarily for backwards-compat. Remove in follow-up once no frontend references remain.
+ */
 coldStartRoutes.patch(
   "/:slug/cold-start/cornerstones/:articleId",
   zValidator("json", cornerstoneEditSchema),
@@ -454,7 +467,11 @@ coldStartRoutes.patch(
   }
 );
 
-// List proposed+approved cornerstones for a project
+/**
+ * @deprecated Spec 48 — use GET /projects/:slug/cornerstone-specs instead.
+ * Reads from `articles` table (old model, no multi-language support).
+ * Kept temporarily for backwards-compat. Remove in follow-up once no frontend references remain.
+ */
 coldStartRoutes.get("/:slug/cold-start/cornerstones", async (c) => {
   const slug = c.req.param("slug");
   const proj = await resolveProject(slug);

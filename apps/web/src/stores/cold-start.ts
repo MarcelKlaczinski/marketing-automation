@@ -18,6 +18,7 @@ export interface ColdStartStatus {
   goLive: PhaseStatus;
 }
 
+// Kept for CornerstoneCard.vue (legacy single-locale view, not yet removed per Spec 48)
 export interface CornerstoneArticle {
   id: string;
   slug: string;
@@ -30,14 +31,12 @@ export interface CornerstoneArticle {
 
 interface ColdStartState {
   statusByProject: Record<string, ColdStartStatus | null>;
-  cornerstonesByProject: Record<string, CornerstoneArticle[]>;
   loading: boolean;
 }
 
 export const useColdStartStore = defineStore("coldStart", {
   state: (): ColdStartState => ({
     statusByProject: {},
-    cornerstonesByProject: {},
     loading: false,
   }),
 
@@ -52,13 +51,6 @@ export const useColdStartStore = defineStore("coldStart", {
       } finally {
         this.loading = false;
       }
-    },
-
-    async fetchCornerstones(slug: string): Promise<void> {
-      const res = await api.get<{ ok: boolean; data: CornerstoneArticle[] }>(
-        `/projects/${slug}/cold-start/cornerstones`
-      );
-      this.cornerstonesByProject[slug] = res.data.data;
     },
 
     async triggerVoiceQuestions(slug: string): Promise<{ runId: string; jobId: string }> {
@@ -122,29 +114,14 @@ export const useColdStartStore = defineStore("coldStart", {
           search_volume: number | null;
           difficulty: number | null;
         }[];
-      }[]
+      }[],
+      locales: ("de" | "en")[] = ["de", "en"]
     ): Promise<{ runId: string; jobId: string }> {
       const res = await api.post<{ ok: boolean; data: { runId: string; jobId: string } }>(
         `/projects/${slug}/cold-start/cornerstones`,
-        { approvedClusters }
+        { approvedClusters, locales }
       );
       return res.data.data;
-    },
-
-    async cornerstoneAction(
-      slug: string,
-      articleId: string,
-      action: "approve" | "reject"
-    ): Promise<void> {
-      await api.post(`/projects/${slug}/cold-start/cornerstones/${articleId}/action`, { action });
-    },
-
-    async cornerstoneEdit(
-      slug: string,
-      articleId: string,
-      patch: { title?: string; cornerstoneKeyword?: string; metaDescription?: string }
-    ): Promise<void> {
-      await api.patch(`/projects/${slug}/cold-start/cornerstones/${articleId}`, patch);
     },
 
     async triggerGoLive(slug: string): Promise<{ runId: string; jobId: string }> {
