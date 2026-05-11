@@ -54,10 +54,12 @@ export default {
   emptyFiltered:   "Keine Lücken für diesen Filter.",
 
   suggestion: {
-    title:       "Vorgeschlagener Titel:",
-    slug:        "Slug:",
-    metaDesc:    "Meta-Beschreibung:",
-    imagePrompt: "Bild-Prompt:",
+    title:              "Vorgeschlagener Titel:",
+    slug:               "Slug:",
+    keyword:            "Keyword",
+    metaDesc:           "Meta-Beschreibung:",
+    imagePrompt:        "Bild-Prompt:",
+    discoveredKeywords: "Entdeckte Keywords (gespeichert):",
   },
 
   metadata: {

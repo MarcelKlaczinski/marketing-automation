@@ -54,10 +54,12 @@ export default {
   emptyFiltered:   "No gaps for this filter.",
 
   suggestion: {
-    title:       "Suggested title:",
-    slug:        "Slug:",
-    metaDesc:    "Meta description:",
-    imagePrompt: "Image prompt:",
+    title:              "Suggested title:",
+    slug:               "Slug:",
+    keyword:            "Keyword",
+    metaDesc:           "Meta description:",
+    imagePrompt:        "Image prompt:",
+    discoveredKeywords: "Discovered keywords (saved):",
   },
 
   metadata: {

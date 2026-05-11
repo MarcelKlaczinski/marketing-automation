@@ -367,6 +367,7 @@ export type ContentGapMetadata = {
   suggestedCornerstoneKeyword?: string;  // real search keyword anchored to cluster.satelliteKeywords
   suggestedMetaDescription?: string;
   suggestedHeroImagePrompt?: string;     // image generation prompt for the suggested article
+  discoveredKeywords?: string[];         // keywords found via DataForSEO relatedKeywords (Path B)
 };
 
 export const contentGaps = pgTable(

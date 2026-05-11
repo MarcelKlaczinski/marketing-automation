@@ -175,9 +175,40 @@
                 </div>
                 <div class="text-caption text-grey-7">
                   <code>{{ gap.metadata.suggestedSlug }}</code>
+                  <span v-if="gap.metadata.suggestedCornerstoneKeyword" class="q-ml-sm text-teal-7">
+                    · {{ $t('gaps.suggestion.keyword') }}: <strong>{{ gap.metadata.suggestedCornerstoneKeyword }}</strong>
+                  </span>
                 </div>
                 <div v-if="gap.metadata.suggestedMetaDescription" class="text-caption text-grey-6 q-mt-xs">
                   {{ gap.metadata.suggestedMetaDescription }}
+                </div>
+                <!-- Discovered keywords (Path B: relatedKeywords for Astro-imported clusters) -->
+                <div
+                  v-if="gap.metadata.discoveredKeywords?.length"
+                  class="q-mt-xs"
+                >
+                  <div class="text-caption text-grey-5 q-mb-xs">
+                    {{ $t('gaps.suggestion.discoveredKeywords') }}
+                  </div>
+                  <div class="row q-gutter-xs">
+                    <q-chip
+                      v-for="kw in gap.metadata.discoveredKeywords.slice(0, 8)"
+                      :key="kw"
+                      dense
+                      square
+                      size="xs"
+                      color="teal-1"
+                      text-color="teal-8"
+                    >
+                      {{ kw }}
+                    </q-chip>
+                    <span
+                      v-if="gap.metadata.discoveredKeywords.length > 8"
+                      class="text-caption text-grey-5 self-center"
+                    >
+                      +{{ gap.metadata.discoveredKeywords.length - 8 }}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -314,6 +345,7 @@ interface GapMetadata {
   suggestedCornerstoneKeyword?: string;
   suggestedMetaDescription?: string;
   suggestedHeroImagePrompt?: string;
+  discoveredKeywords?: string[];
 }
 
 interface ContentGap {
@@ -461,8 +493,10 @@ export default defineComponent({
           data: {
             title: string;
             slug: string;
+            cornerstoneKeyword: string;
             metaDescription: string;
             heroImagePrompt: string;
+            discoveredKeywords?: string[];
           };
         }>(`/projects/${this.slug}/content-gaps/${gap.id}/suggest`);
 
@@ -474,10 +508,12 @@ export default defineComponent({
             ...this.gaps[idx]!,
             metadata: {
               ...(this.gaps[idx]?.metadata ?? {}),
-              suggestedTitle:           suggestion.title,
-              suggestedSlug:            suggestion.slug,
-              suggestedMetaDescription: suggestion.metaDescription,
-              suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+              suggestedTitle:              suggestion.title,
+              suggestedSlug:               suggestion.slug,
+              suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword,
+              suggestedMetaDescription:    suggestion.metaDescription,
+              suggestedHeroImagePrompt:    suggestion.heroImagePrompt,
+              ...(suggestion.discoveredKeywords ? { discoveredKeywords: suggestion.discoveredKeywords } : {}),
             },
           };
         }

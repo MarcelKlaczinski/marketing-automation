@@ -583,7 +583,8 @@ projectRoutes.post("/:slug/content-gaps/batch", async (c) => {
           suggestedSlug:            suggestion.slug,
           suggestedMetaDescription: suggestion.metaDescription,
           suggestedHeroImagePrompt: suggestion.heroImagePrompt,
-          ...(suggestion.cornerstoneKeyword ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword } : {}),
+          ...(suggestion.cornerstoneKeyword  ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword }  : {}),
+          ...(suggestion.discoveredKeywords  ? { discoveredKeywords: suggestion.discoveredKeywords }           : {}),
         },
         updatedAt: new Date(),
       })
@@ -633,6 +634,7 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
         suggestedMetaDescription: suggestion.metaDescription,
         suggestedHeroImagePrompt: suggestion.heroImagePrompt,
         ...(suggestion.cornerstoneKeyword ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword } : {}),
+        ...(suggestion.discoveredKeywords  ? { discoveredKeywords: suggestion.discoveredKeywords }         : {}),
       },
       updatedAt: new Date(),
     })
