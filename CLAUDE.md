@@ -78,6 +78,7 @@ Designed to evolve into SaaS.
 - DO NOT pass a bare column reference to Drizzle's index `.where()` — it expects an SQL expression. Use `isNull(col)` or `sql\`...\`` for partial index conditions: `.where(isNull(t.readAt))` not `.where(t.readAt)`
 - DO NOT make discriminator columns (e.g. `collection`, `locale`) nullable when they appear in a unique index — PostgreSQL treats `NULL != NULL`, so two rows with `NULL` in that column never conflict, silently breaking the constraint. Use `NOT NULL` with a default value (e.g. `.default("blog")`) so the constraint works correctly
 - DO NOT run `drizzle-kit generate` from within Claude Code or any non-TTY environment — it opens an interactive terminal prompt that stalls indefinitely. Write the migration SQL manually and add the corresponding entry to `packages/db/drizzle/meta/_journal.json` (increment idx, set `when` to a value strictly greater than the last entry, provide a descriptive tag)
+- DO NOT rely on CASCADE alone to clean up test rows when the API/workers are running — background schedulers (e.g. `cluster:link-rebuild`) read approved rows and INSERT into `pipeline_runs` with the test `project_id`; if `afterEach` deletes the project first the FK fires. Always delete child rows explicitly in dependency order before deleting the project: `articles → clusters → contentPillars → projects`. Pattern used in `packages/adapters/astro-sync/test/sync-clusters.test.ts`
 
 ## Local DB Setup
 
