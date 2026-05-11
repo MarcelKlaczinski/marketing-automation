@@ -57,6 +57,12 @@ export type MessagesInput = {
   webSearch?: AnthropicWebSearch;
 
   estimatedCostEur: number;
+
+  /**
+   * Bypass the dev-mode fixture cache for this call (force live API even if
+   * a fixture exists). Has no effect when ANTHROPIC_CACHE_MODE=off.
+   */
+  forceRefresh?: boolean;
 };
 
 export type CacheStats = {

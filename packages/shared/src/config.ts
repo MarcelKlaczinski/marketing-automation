@@ -33,6 +33,11 @@ const envSchema = z.object({
 
   // Anthropic (for adapters later)
   ANTHROPIC_API_KEY: optionalStr(z.string().startsWith("sk-ant-")),
+  // Dev-mode fixture cache (Spec 22.6). Default "off" = production-safe.
+  ANTHROPIC_CACHE_MODE: z.preprocess(
+    (v) => (v === "" ? undefined : v),
+    z.enum(["off", "replay", "record", "auto"]).optional()
+  ),
 
   // Replicate
   REPLICATE_API_TOKEN: optionalStr(z.string().startsWith("r8_")),
