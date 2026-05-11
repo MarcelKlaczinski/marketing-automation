@@ -80,6 +80,7 @@ Designed to evolve into SaaS.
 - DO NOT run `drizzle-kit generate` from within Claude Code or any non-TTY environment — it opens an interactive terminal prompt that stalls indefinitely. Write the migration SQL manually and add the corresponding entry to `packages/db/drizzle/meta/_journal.json` (increment idx, set `when` to a value strictly greater than the last entry, provide a descriptive tag)
 - DO NOT rely on CASCADE alone to clean up test rows when the API/workers are running — background schedulers (e.g. `cluster:link-rebuild`) read approved rows and INSERT into `pipeline_runs` with the test `project_id`; if `afterEach` deletes the project first the FK fires. Always delete child rows explicitly in dependency order before deleting the project: `articles → clusters → contentPillars → projects`. Pattern used in `packages/adapters/astro-sync/test/sync-clusters.test.ts`
 - DO NOT add a new Cold-Start step that reads project-level config (e.g. `targetLocales`) without loading it from `projects` via `db.select()` inside `execute()` — the step's `inputSchema` only receives what the previous step or bridge produces; project config must be queried directly. When the config is already in the pipeline input (e.g. `projectSlug`), add the field to the step's `inputSchema` — the pipeline runner passes the full pipeline input to the first step, and Zod silently strips unknown fields for subsequent steps. See `FetchCompetitorKeywordsStep` in `packages/pipelines/src/cold-start/02-competitor-analysis/steps.ts` for the canonical pattern
+- DO NOT set `article.cornerstoneKeyword` to `slugify(title)` when creating an article programmatically — `TopicIntakeStep` matches `article.cornerstoneKeyword` against entries in `cluster.satelliteKeywords[].cornerstoneKeyword` to find satellite keywords for SERP research. A slugified title never matches, producing `satelliteKeywords = []` and degraded outline quality. Always derive `cornerstoneKeyword` from the cluster's actual keyword data (e.g. via `gap.metadata.suggestedCornerstoneKeyword` populated by `gap-service.ts`) or from `cornerstoneSpecs.cornerstoneKeyword` for spec-to-article generation
 
 ## Local DB Setup
 
@@ -156,6 +157,8 @@ Implemented specs (do not re-implement):
 - /specs/41-cost-enforcement-pipeline-hardening.md
 - /specs/40-notifications.md
 - /specs/44-astro-import.md
+- /specs/49b-content-gap-detection.md
+- /specs/49c-gap-generation.md
 
 ## Project Marketing Contexts
 

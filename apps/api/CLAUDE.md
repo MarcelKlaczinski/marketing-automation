@@ -8,6 +8,25 @@
 - `src/middleware/`       Custom Hono middleware (auth, cost-context)
 - `src/lib/`              Local utilities (logger setup, helpers)
 
+## Service Layer Pattern (`src/lib/<domain>-service.ts`)
+
+When a route needs to call an adapter (anthropic, dataforseo, etc.) but the logic
+is too route-specific to live in `packages/core`, extract it into a service file:
+
+```
+src/lib/gap-service.ts    ← adapter calls + business logic for gap suggestion
+src/lib/system-service.ts ← system/installer-related logic (no project context)
+src/lib/email.ts          ← transactional email helpers
+```
+
+Rules:
+- Service files import adapters directly (that's their job)
+- Route handlers import service functions and call them — no adapter imports in routes
+- Service files use pino logger, not console.log
+- Business logic that is project-context-aware and reusable across routes → `packages/core` instead
+
+Canonical example: `src/lib/gap-service.ts` (Spec 49c) — DataForSEO keyword enrichment + Claude Haiku suggestion, called from two route handlers without duplicating logic.
+
 ## Endpoint Patterns
 - All endpoints use Zod-validated input via @hono/zod-validator
 - All responses follow `{ ok: true, data }` | `{ ok: false, error }` shape

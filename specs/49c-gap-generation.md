@@ -283,3 +283,36 @@ Filter-context-aware: the batch buttons act on the current filter selection.
 - **Translation disabled** — revisit when a translation pipeline exists.
 - **Slug temp value** — for spoke articles, slug is set to a temporary value
   (`gap-<gapId[0..8]>`) and gets replaced by the outline step's `UpdateArticleStep`.
+
+---
+
+## Deviations from Original Spec
+
+### 1. Service function, not BaseStep
+The spec described `SuggestGapTitleStep` as a `BaseStep` in `packages/adapters/astro-sync/`.
+**Implemented as** `suggestGapTitle()` in `apps/api/src/lib/gap-service.ts`, called
+synchronously from route handlers. Rationale: the operation is a one-off HTTP call, not
+a pipeline step — it has no need for idempotency keys, step_runs rows, or BullMQ queuing.
+The service-file pattern (`src/lib/<domain>-service.ts`) satisfies the "no adapter calls
+in routes" rule without unnecessary pipeline overhead.
+
+### 2. Suggestion output extended
+Original spec: `title`, `slug`, `metaDescription` only.
+**Implemented:** also returns `heroImagePrompt` (image generation prompt, always required
+for articles) and `cornerstoneKeyword` (the primary search keyword anchored to real cluster
+data).
+
+### 3. DataForSEO keyword enrichment added
+Not in original spec. Before calling Claude Haiku, `gap-service.ts` calls
+`dataforseo.keywordOverview()` on the cluster's existing keyword list (from Cold-Start
+Phase 3). This provides volume + difficulty data so Haiku picks a rankable keyword instead
+of guessing from the cluster name. Cost: +~€0.002 per suggestion. DataForSEO errors fall
+back gracefully.
+
+### 4. `cornerstoneKeyword` on article insert uses LLM-suggested keyword
+Spec said `cornerstoneKeyword: slugify(proposedTitle)`.
+**Implemented:** `cornerstoneKeyword = meta.suggestedCornerstoneKeyword ?? slugify(proposedTitle)`.
+`TopicIntakeStep` matches `article.cornerstoneKeyword` against `cluster.satelliteKeywords`
+entries to retrieve satellite keywords for the SERP research step. Using `slugify(title)`
+never matches → `satelliteKeywords = []` → degraded outline quality. The LLM-suggested
+keyword is chosen from the cluster's actual keyword data, ensuring the match succeeds.
