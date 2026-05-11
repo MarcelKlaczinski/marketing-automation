@@ -30,6 +30,9 @@ export const projects = pgTable(
     marketingContextMd: text("marketing_context_md"),
     marketingContextUpdatedAt: timestamp("marketing_context_updated_at", { withTimezone: true }),
 
+    // Target locales for Cold-Start pipelines (Phase 2 + 3 locale-aware prompts)
+    targetLocales: jsonb("target_locales").$type<string[]>().notNull().default(["de-DE"]),
+
     // Astro repo config for Spec 21 sync adapter (null = not wired up yet)
     astroRepo: jsonb("astro_repo").$type<AstroRepoConfig>(),
 
