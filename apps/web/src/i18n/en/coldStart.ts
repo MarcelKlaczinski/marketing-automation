@@ -92,6 +92,15 @@ export default {
       keyword: "Cornerstone Keyword",
       description: "Meta Description",
     },
+    idleDescriptionMultiLang:
+      "For each of the {count} approved clusters, one cornerstone spec per language will be generated.",
+    localesLabel: "Languages for generation",
+    reviewIntroMultiLang:
+      "Review the DE+EN pairs. Approve them individually or as a pair, then generate the articles.",
+    generateArticles: "{count} cluster(s): generate articles",
+    regenerate: "Regenerate",
+    articlesEnqueued: "{total} article generation(s) started",
+    openStandaloneView: "Open standalone view",
   },
 
   phase5: {

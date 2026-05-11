@@ -1,7 +1,7 @@
 <template>
   <div class="q-pt-md">
     <!-- loading initial data -->
-    <div v-if="loadingClusters" class="text-center q-pa-md">
+    <div v-if="loadingInitial" class="text-center q-pa-md">
       <q-spinner size="2em" color="primary" />
     </div>
 
@@ -15,11 +15,25 @@
 
     <!-- idle with cluster data -->
     <div v-else-if="phase === 'idle'">
-      <p class="text-body2 q-mb-md">{{ $t('coldStart.phase4.idleDescription') }}</p>
+      <p class="text-body2 q-mb-md">
+        {{ $t('coldStart.phase4.idleDescriptionMultiLang', { count: approvedClusters.length }) }}
+      </p>
+
+      <q-card flat bordered class="q-pa-md q-mb-md">
+        <div class="text-subtitle2 q-mb-sm">{{ $t('coldStart.phase4.localesLabel') }}</div>
+        <q-option-group
+          v-model="selectedLocales"
+          :options="localeOptions"
+          type="checkbox"
+          inline
+        />
+      </q-card>
+
       <q-btn
         color="primary"
         :label="$t('coldStart.phase4.generate')"
         :loading="triggering"
+        :disable="selectedLocales.length === 0"
         unelevated
         @click="onGenerate"
       />
@@ -33,42 +47,45 @@
       </q-banner>
     </div>
 
-    <!-- review cornerstones -->
-    <template v-if="phase === 'review' || (phase === 'idle' && cornerstones.length > 0)">
-      <p class="text-body2 q-mb-md">{{ $t('coldStart.phase4.reviewIntro') }}</p>
+    <!-- review pairs -->
+    <template v-else-if="phase === 'review'">
+      <p class="text-body2 q-mb-md">{{ $t('coldStart.phase4.reviewIntroMultiLang') }}</p>
 
-      <CornerstoneCard
-        v-for="article in proposedCornerstones"
-        :key="article.id"
-        :article="article"
-        :acting="actingOn === article.id"
-        @approve="onApprove(article.id)"
-        @reject="onReject(article.id)"
-        @save="(patch) => onEdit(article.id, patch)"
+      <CornerstonePairCard
+        v-for="pair in pairs"
+        :key="pair.translationKey"
+        :pair="pair"
+        :slug="slug"
+        @approved="onPairChanged"
+        @rejected="onPairChanged"
       />
 
-      <CornerstoneCard
-        v-for="article in approvedCornerstones"
-        :key="article.id"
-        :article="article"
-        :acting="actingOn === article.id"
-        @approve="onApprove(article.id)"
-        @reject="onReject(article.id)"
-        @save="(patch) => onEdit(article.id, patch)"
-      />
-
-      <div v-if="approvedCornerstones.length > 0" class="row q-mt-lg">
+      <div v-if="anyApproved" class="row q-mt-lg">
         <q-space />
         <q-btn
           color="positive"
-          :label="$t('coldStart.phase4.proceed', { count: approvedCornerstones.length })"
+          :label="$t('coldStart.phase4.generateArticles', { count: approvedClusterIds.length })"
+          :loading="generating"
           unelevated
-          @click="$emit('done')"
+          @click="onGenerateArticles"
         />
       </div>
 
-      <div class="q-mt-md">
-        <q-btn flat color="primary" :label="$t('coldStart.phase4.generate')" size="sm" :loading="triggering" @click="onGenerate" />
+      <div class="q-mt-md row items-center q-gutter-md">
+        <q-btn
+          flat
+          color="primary"
+          :label="$t('coldStart.phase4.regenerate')"
+          size="sm"
+          :loading="triggering"
+          @click="onGenerate"
+        />
+        <router-link
+          :to="{ name: 'cornerstone-approval', params: { slug } }"
+          class="text-primary text-caption"
+        >
+          {{ $t('coldStart.phase4.openStandaloneView') }}
+        </router-link>
       </div>
     </template>
 
@@ -80,26 +97,21 @@
 </template>
 
 <script lang="ts">
+import { defineComponent, ref } from "vue";
+import { Notify } from "quasar";
 import { usePipelineRunPolling } from "src/composables/usePipelineRunPolling";
 import { api } from "src/lib/api-client";
-import { type CornerstoneArticle, useColdStartStore } from "src/stores/cold-start";
-import { defineComponent, ref } from "vue";
-import CornerstoneCard from "./CornerstoneCard.vue";
+import { useColdStartStore } from "src/stores/cold-start";
+import CornerstonePairCard from "src/components/cornerstones/CornerstonePairCard.vue";
+import type { CornerstonePair } from "src/components/cornerstones/types";
 
 type Phase = "idle" | "running" | "review";
-
-interface ValidatedCluster {
-  name: string;
-  pillar: string;
-  cornerstone_keyword: string;
-  search_volume: number | null;
-  keyword_difficulty: number | null;
-}
+type Locale = "de" | "en";
 
 export default defineComponent({
   name: "Phase4Cornerstones",
 
-  components: { CornerstoneCard },
+  components: { CornerstonePairCard },
 
   props: {
     slug: { type: String, required: true },
@@ -118,42 +130,55 @@ export default defineComponent({
 
   data: () => ({
     triggering: false,
-    loadingClusters: true,
-    approvedClusters: [] as {
+    generating: false,
+    loadingInitial: true,
+    approvedClusters: [] as Array<{
       name: string;
       pillar: string;
       status: "approved";
       cornerstone_keyword: string;
       cornerstone_search_volume: number | null;
       cornerstone_difficulty: number | null;
-      satellite_keywords: [];
-    }[],
-    actingOn: null as string | null,
+      satellite_keywords: { keyword: string; search_volume: number | null; difficulty: number | null }[];
+    }>,
+    pairs: [] as CornerstonePair[],
+    selectedLocales: ["de", "en"] as Locale[],
     errorMsg: "",
   }),
 
   computed: {
+    localeOptions(): Array<{ label: string; value: Locale }> {
+      return [
+        { label: "Deutsch (DE)", value: "de" },
+        { label: "English (EN)", value: "en" },
+      ];
+    },
+
     currentRun() {
       return this.polling.run.value;
-    },
-
-    cornerstones(): CornerstoneArticle[] {
-      return this.coldStartStore.cornerstonesByProject[this.slug] ?? [];
-    },
-
-    proposedCornerstones(): CornerstoneArticle[] {
-      return this.cornerstones.filter((a) => a.status === "proposed");
-    },
-
-    approvedCornerstones(): CornerstoneArticle[] {
-      return this.cornerstones.filter((a) => a.status === "approved");
     },
 
     phase(): Phase {
       const r = this.currentRun;
       if (r?.status === "running" || r?.status === "queued") return "running";
-      if (this.cornerstones.length > 0) return "review";
+      if (this.pairs.length > 0) return "review";
       return "idle";
+    },
+
+    anyApproved(): boolean {
+      return this.pairs.some(
+        (p) => p.de?.status === "approved" || p.en?.status === "approved"
+      );
+    },
+
+    approvedClusterIds(): string[] {
+      const set = new Set<string>();
+      for (const p of this.pairs) {
+        if (p.de?.status === "approved" || p.en?.status === "approved") {
+          set.add(p.clusterId);
+        }
+      }
+      return Array.from(set);
     },
   },
 
@@ -162,7 +187,7 @@ export default defineComponent({
       if (!isTerminal) return;
       const r = this.currentRun;
       if (r?.status === "completed") {
-        void this.coldStartStore.fetchCornerstones(this.slug);
+        void this.fetchPairs();
       } else if (r?.status === "failed") {
         this.errorMsg = r.error ?? (this.$t("coldStart.phase4.failed") as string);
       }
@@ -170,25 +195,26 @@ export default defineComponent({
   },
 
   async created() {
-    await Promise.all([this.loadClusterData(), this.coldStartStore.fetchCornerstones(this.slug)]);
-    this.loadingClusters = false;
+    await Promise.all([this.loadClusterData(), this.fetchPairs()]);
+    this.loadingInitial = false;
   },
 
   methods: {
     async loadClusterData(): Promise<void> {
       try {
-        // Find the project ID from the status endpoint data
-        const statusRes = await api.get<{ ok: boolean; data: { clusters: { count: number } } }>(
-          `/projects/${this.slug}/cold-start/status`
-        );
-        if (!statusRes.data.ok) return;
-
-        // Fetch latest cluster-propose run output
         const projectRes = await api.get<{ ok: boolean; data: { id: string } }>(
           `/projects/${this.slug}`
         );
         if (!projectRes.data.ok) return;
         const projectId = projectRes.data.data.id;
+
+        interface ValidatedCluster {
+          name: string;
+          pillar: string;
+          cornerstone_keyword: string;
+          search_volume: number | null;
+          keyword_difficulty: number | null;
+        }
 
         const runsRes = await api.get<{
           ok: boolean;
@@ -206,11 +232,23 @@ export default defineComponent({
             cornerstone_keyword: c.cornerstone_keyword,
             cornerstone_search_volume: c.search_volume,
             cornerstone_difficulty: c.keyword_difficulty,
-            satellite_keywords: [] as [],
+            satellite_keywords: [] as { keyword: string; search_volume: number | null; difficulty: number | null }[],
           }));
         }
       } catch {
-        // non-fatal: user can still see existing cornerstones
+        // non-fatal: user can still see existing pairs
+      }
+    },
+
+    async fetchPairs(): Promise<void> {
+      try {
+        const res = await api.get<{
+          ok: boolean;
+          data: { pairs: CornerstonePair[]; totalSpecs: number };
+        }>(`/projects/${this.slug}/cornerstone-specs`);
+        this.pairs = res.data.data.pairs;
+      } catch (e) {
+        this.errorMsg = (e as Error).message;
       }
     },
 
@@ -219,11 +257,14 @@ export default defineComponent({
       this.triggering = true;
       this.errorMsg = "";
       try {
-        const { runId } = await this.coldStartStore.triggerCornerstoneList(
-          this.slug,
-          this.approvedClusters
-        );
-        this.runId = runId;
+        const res = await api.post<{
+          ok: boolean;
+          data: { runId: string; jobId: string };
+        }>(`/projects/${this.slug}/cold-start/cornerstones`, {
+          approvedClusters: this.approvedClusters,
+          locales: this.selectedLocales,
+        });
+        this.runId = res.data.data.runId;
       } catch {
         // shown by interceptor
       } finally {
@@ -231,32 +272,33 @@ export default defineComponent({
       }
     },
 
-    async onApprove(articleId: string): Promise<void> {
-      this.actingOn = articleId;
-      try {
-        await this.coldStartStore.cornerstoneAction(this.slug, articleId, "approve");
-        await this.coldStartStore.fetchCornerstones(this.slug);
-      } finally {
-        this.actingOn = null;
-      }
+    onPairChanged(): void {
+      void this.fetchPairs();
     },
 
-    async onReject(articleId: string): Promise<void> {
-      this.actingOn = articleId;
+    async onGenerateArticles(): Promise<void> {
+      this.generating = true;
+      this.errorMsg = "";
       try {
-        await this.coldStartStore.cornerstoneAction(this.slug, articleId, "reject");
-        await this.coldStartStore.fetchCornerstones(this.slug);
+        let totalEnqueued = 0;
+        for (const clusterId of this.approvedClusterIds) {
+          const res = await api.post<{
+            ok: boolean;
+            data: { results: Array<{ articleId: string; locale: string }> };
+          }>(`/projects/${this.slug}/clusters/${clusterId}/generate-articles`);
+          totalEnqueued += res.data.data.results.length;
+        }
+        Notify.create({
+          type: "positive",
+          message: this.$t("coldStart.phase4.articlesEnqueued", { total: totalEnqueued }) as string,
+          timeout: 4000,
+        });
+        this.$emit("done");
+      } catch (e) {
+        this.errorMsg = (e as Error).message;
       } finally {
-        this.actingOn = null;
+        this.generating = false;
       }
-    },
-
-    async onEdit(
-      articleId: string,
-      patch: { title?: string; cornerstoneKeyword?: string; metaDescription?: string }
-    ): Promise<void> {
-      await this.coldStartStore.cornerstoneEdit(this.slug, articleId, patch);
-      await this.coldStartStore.fetchCornerstones(this.slug);
     },
   },
 });
