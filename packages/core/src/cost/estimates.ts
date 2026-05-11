@@ -35,13 +35,15 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // Spec 49c: gap title suggestion (Claude Haiku, ~1000 tokens total)
     [COST_OPS.GAP_TITLE_SUGGEST]: 0.01,
   },
-  replicate: {
-    [COST_OPS.HERO_IMAGE]: 0.1,
-  },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,
     [COST_OPS.DATAFORSEO_KEYWORD_RESEARCH]: 0.05,
     [COST_OPS.DATAFORSEO_BACKLINK_CHECK]: 0.3,
+    // Spec 49c: small per-gap keyword overview (5-15 keywords, actual cost ~€0.002)
+    [COST_OPS.GAP_KEYWORD_OVERVIEW]: 0.01,
+  },
+  replicate: {
+    [COST_OPS.HERO_IMAGE]: 0.1,
   },
   smtp: {
     [COST_OPS.SMTP_MAGIC_LINK]: 0.001,

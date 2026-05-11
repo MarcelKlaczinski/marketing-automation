@@ -65,8 +65,9 @@ export const COST_OPS = {
   // === PageSpeed Insights API ===
   PAGESPEED_PSI_API: "pagespeed-psi-api",
 
-  // === Spec 49c: Gap title suggestion ===
-  GAP_TITLE_SUGGEST: "gap-title-suggest",
+  // === Spec 49c: Gap title suggestion + keyword enrichment ===
+  GAP_TITLE_SUGGEST:        "gap-title-suggest",
+  GAP_KEYWORD_OVERVIEW:     "gap-keyword-overview",  // DataForSEO keyword volume+difficulty lookup
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];
