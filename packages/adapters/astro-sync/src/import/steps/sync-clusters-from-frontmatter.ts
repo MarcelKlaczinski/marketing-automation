@@ -9,6 +9,14 @@ import { z } from "zod";
 
 const log = createLogger("astro-import:sync-clusters");
 
+// By-design collections without clusterKey (see audit/USECASES_DECISION.md)
+const EXCLUDED_FROM_CLUSTERING = [
+  "usecases",
+  "authors",
+  "tool-categories",
+  "special-landings",
+] as const;
+
 const InputSchema = z.object({
   projectId: z.string().uuid(),
 });
@@ -230,7 +238,8 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
       articlesLinked += linked.length;
     }
 
-    // Step 4: count articles that remain uncategorized (no clusterKey)
+    // Step 4: count articles that remain uncategorized (no clusterKey),
+    // excluding entity-style collections that intentionally have no clusterKey.
     const uncatResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(articles)
@@ -238,7 +247,8 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
         and(
           eq(articles.projectId, projectId),
           eq(articles.source, "imported"),
-          sql`${articles.clusterKey} IS NULL`
+          sql`${articles.clusterKey} IS NULL`,
+          notInArray(articles.collection, EXCLUDED_FROM_CLUSTERING as unknown as string[])
         )
       );
     const uncategorizedCount = uncatResult[0]?.count ?? 0;
@@ -267,7 +277,7 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
     }
 
     log.info(
-      { pillarsCreated, pillarsUpdated, clustersCreated, clustersUpdated, articlesLinked, uncategorizedCount, orphansDeleted },
+      { pillarsCreated, pillarsUpdated, clustersCreated, clustersUpdated, articlesLinked, uncategorizedCount, orphansDeleted, excludedCollections: EXCLUDED_FROM_CLUSTERING },
       "Cluster sync complete"
     );
 
