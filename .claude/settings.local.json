@@ -363,7 +363,7 @@
       "Bash(grep -rn \"sql\\\\`\" --include=\"*.ts\" packages/db/src/)",
       "Bash(grep -rn -A 2 'sql`' --include=\"*.ts\" packages/ apps/api/src/)",
       "Bash(bun --filter @marketing-auto/core test packages/core/test/sql-date-bind.test.ts)",
-      "Bash(redis-cli KEYS \"bull:*\")"
+      "Bash(xargs ls)"
     ]
   }
 }
