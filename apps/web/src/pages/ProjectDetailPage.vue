@@ -67,10 +67,7 @@
         </q-tab-panel>
 
         <q-tab-panel name="clusters" class="q-px-none">
-          <q-banner class="bg-info text-white">
-            <template #avatar><q-icon name="construction" /></template>
-            {{ $t('projects.detail.clustersStub') }}
-          </q-banner>
+          <ClustersPanel :slug="slug" />
         </q-tab-panel>
 
         <q-tab-panel name="settings" class="q-px-none">
@@ -84,6 +81,7 @@
 <script lang="ts">
 import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
 import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
+import ClustersPanel from "src/components/projects/ClustersPanel.vue";
 import ImportedArticlesPanel from "src/components/articles/ImportedArticlesPanel.vue";
 import ColdStartPanel from "src/components/projects/ColdStartPanel.vue";
 import ProjectOverviewPanel from "src/components/projects/ProjectOverviewPanel.vue";
@@ -108,6 +106,7 @@ export default defineComponent({
     ProjectSettingsPanel,
     ColdStartPanel,
     ArticlesPanel,
+    ClustersPanel,
     ImportedArticlesPanel,
     ProjectPauseBanner,
   },
