@@ -18,6 +18,7 @@ const InputSchema = z.object({
   projectId: z.string().uuid(),
   importRunId: z.string().uuid(),
   astroRepo: z.record(z.unknown()),
+  forceAll: z.boolean().default(false),
 });
 
 const OutputSchema = z.object({
@@ -28,7 +29,7 @@ type PipelineInput = z.infer<typeof InputSchema>;
 
 export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof OutputSchema>> {
   readonly name = "astro:repo-import";
-  readonly inputSchema = InputSchema;
+  readonly inputSchema = InputSchema as z.ZodType<z.infer<typeof InputSchema>>;
   readonly outputSchema = OutputSchema;
   readonly steps = [
     new ListContentFilesStep(),
@@ -52,6 +53,7 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
       return {
         projectId: pipelineInput.projectId,
         files: out.files,
+        forceAll: pipelineInput.forceAll ?? false,
       };
     }
 

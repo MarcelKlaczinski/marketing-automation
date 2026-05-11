@@ -1,13 +1,17 @@
 import { articles, db } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
+import { createLogger } from "@marketing-auto/shared";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+
+const log = createLogger("astro-import:filter-changed");
 
 const FileSchema = z.object({ path: z.string(), sha: z.string(), size: z.number() });
 
 const InputSchema = z.object({
   projectId: z.string().uuid(),
   files: z.array(FileSchema),
+  forceAll: z.boolean().default(false),
 });
 
 const OutputSchema = z.object({
@@ -21,7 +25,7 @@ export class FilterChangedFilesStep extends BaseStep<
   z.infer<typeof OutputSchema>
 > {
   readonly name = "filter-changed-files";
-  readonly inputSchema = InputSchema;
+  readonly inputSchema = InputSchema as z.ZodType<z.infer<typeof InputSchema>>;
   readonly outputSchema = OutputSchema;
 
   override estimatedCostEur(): number {
@@ -40,9 +44,16 @@ export class FilterChangedFilesStep extends BaseStep<
     const changed: z.infer<typeof FileSchema>[] = [];
     let unchangedCount = 0;
 
+    if (input.forceAll) {
+      log.info(
+        { totalFiles: input.files.length },
+        "forceAll=true: all files marked as changed regardless of git_sha"
+      );
+    }
+
     for (const file of input.files) {
       const rec = existingByPath.get(file.path);
-      if (!rec || rec.gitSha !== file.sha) {
+      if (input.forceAll || !rec || rec.gitSha !== file.sha) {
         changed.push(file);
       } else {
         unchangedCount++;

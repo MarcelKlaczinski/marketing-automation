@@ -259,8 +259,16 @@ projectRoutes.post("/:slug/resume-queues", async (c) => {
 });
 
 // Spec 44: Astro repo import trigger
+const astroImportBodySchema = z.object({
+  forceAll: z.boolean().default(false),
+});
+
 projectRoutes.post("/:slug/astro-import", async (c) => {
   const slug = c.req.param("slug");
+
+  const rawBody = await c.req.json().catch(() => ({}));
+  const { forceAll } = astroImportBodySchema.safeParse(rawBody).data ?? { forceAll: false };
+
   const [project] = await db
     .select({ id: projects.id, astroRepo: projects.astroRepo })
     .from(projects)
@@ -301,6 +309,7 @@ projectRoutes.post("/:slug/astro-import", async (c) => {
     const { importRunId, jobId } = await enqueueRepoImport({
       projectId: project.id,
       triggerSource: "manual",
+      forceAll,
     });
     return c.json({ ok: true, data: { importRunId, jobId } }, 202);
   } catch (e) {

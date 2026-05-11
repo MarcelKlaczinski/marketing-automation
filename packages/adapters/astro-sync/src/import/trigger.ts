@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 export async function enqueueRepoImport(input: {
   projectId: string;
   triggerSource: "manual" | "webhook" | "scheduled";
+  forceAll?: boolean;
 }): Promise<{ importRunId: string; jobId: string }> {
   const [project] = await db
     .select()
@@ -35,6 +36,7 @@ export async function enqueueRepoImport(input: {
       projectId: input.projectId,
       importRunId: run.id,
       astroRepo: project.astroRepo as Record<string, unknown>,
+      forceAll: input.forceAll ?? false,
     },
     jobOptions: { jobId: `repo-import-${run.id}` },
   });

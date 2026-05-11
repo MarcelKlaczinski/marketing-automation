@@ -95,9 +95,14 @@ console.log("After direct update — clusterKey:", after?.clusterKey);
 console.log("Direct update SUCCESS:", after?.clusterKey === result.typed.clusterKey);
 
 // Revert change so Section B can do it cleanly:
+const revertSet: { clusterKey: string | null; updatedAt?: Date } = {
+  clusterKey: before?.clusterKey ?? null,
+};
+if (before?.updatedAt) revertSet.updatedAt = before.updatedAt;
+
 await db
   .update(articles)
-  .set({ clusterKey: before?.clusterKey ?? null, updatedAt: before?.updatedAt })
+  .set(revertSet)
   .where(
     and(
       eq(articles.projectId, project.id),
