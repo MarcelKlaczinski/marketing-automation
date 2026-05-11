@@ -158,12 +158,14 @@ export async function enqueueColdStartCornerstoneList(input: {
       difficulty: number | null;
     }[];
   }[];
+  locales?: ("de" | "en")[];
 }): Promise<TriggerResult> {
   const projectSlug = await getProjectSlug(input.projectId);
   const pipelineInput = {
     projectSlug,
     approvedClusters: input.approvedClusters,
     projectId: input.projectId,
+    locales: input.locales ?? ["de", "en"],
   };
   const runId = await createQueuedRun(
     input.projectId,
