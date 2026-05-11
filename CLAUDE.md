@@ -98,6 +98,34 @@ when run from `packages/db`. The scripts in `packages/db/package.json` have this
 so always use `bun run check` / `bun run migrate` (not bare `bunx drizzle-kit …`).
 The root scripts (`bun run db:migrate`, `bun run db:check`, etc.) also handle this automatically.
 
+## SQL Date-Binding Convention
+
+Drizzle's typed operators (`gte`/`lte`/`gt`/`lt`/`eq`/`ne`) auto-serialize Date objects to ISO strings. `sql` template literals bypass this — postgres.js receives the raw Date and crashes.
+
+✅ CORRECT — Drizzle typed operators (Date objects fine):
+```typescript
+gte(table.createdAt, new Date())
+lte(table.expiresAt, oneHourFromNow)
+.values({ createdAt: new Date() })
+.set({ updatedAt: new Date() })
+```
+
+❌ WRONG — sql template with raw Date (production crash):
+```typescript
+sql`${table.createdAt} >= ${new Date()}`
+sql`expires_at < ${oneHourFromNow}`
+```
+
+✅ FIX — call .toISOString() before interpolating:
+```typescript
+sql`${table.createdAt} >= ${new Date().toISOString()}`
+sql`expires_at < ${oneHourFromNow.toISOString()}`
+```
+
+Crash symptom: `TypeError: "string" argument must be of type string or instance of Buffer. Received an instance of Date` at `postgres.js/bytes.js` (bind step).
+
+Regression test: `packages/core/test/sql-date-bind.test.ts`
+
 ## Workflow
 **Pipeline-Code geändert?** Worker muss neugestartet werden — siehe
 `apps/api/CLAUDE.md` → "Worker-Restart bei Pipeline-Code-Änderungen".
