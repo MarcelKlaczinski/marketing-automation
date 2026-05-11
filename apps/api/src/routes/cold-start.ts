@@ -172,7 +172,10 @@ coldStartRoutes.get("/:slug/cold-start/status", async (c) => {
       clusters: {
         status: clusterRunning.length > 0 ? "running" : clusterCount > 0 ? "complete" : "pending",
         count: clusterCount,
-        // Spec 49a: hint — "imported" when clusters came from frontmatter auto-sync (no LLM run)
+        // Spec 49a: hint for Phase3ClusterPlan UI. Currently always "imported" when clusters exist
+        // because cluster-propose has never been run for toolwiki. If cluster-propose is later run,
+        // the Phase3ClusterPlan component guards against showing the wrong banner by additionally
+        // checking `this.phase === "idle"` (polling run terminal = "idle" only when no run exists).
         source: clusterCount > 0 ? "imported" : null,
       },
       cornerstones: {

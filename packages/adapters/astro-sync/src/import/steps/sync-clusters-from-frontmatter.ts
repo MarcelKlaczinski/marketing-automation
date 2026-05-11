@@ -115,7 +115,13 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
         pillarsCreated += 1;
       }
     }
-    const uncategorizedPillarId = pillarByName.get("Uncategorized")!;
+    // Guaranteed non-null: the block above always inserts "Uncategorized" when absent.
+    // If the DB insert failed silently (returned empty rows), we surface a clear error
+    // rather than letting a downstream FK violation produce a cryptic message.
+    const uncategorizedPillarId = pillarByName.get("Uncategorized");
+    if (!uncategorizedPillarId) {
+      throw new Error("Failed to create or find Uncategorized pillar — cannot proceed with cluster sync");
+    }
 
     // Step 3: for each distinct clusterKey, upsert a cluster row
     const distinctClusterKeys = [
