@@ -18,6 +18,8 @@ export interface ArticleListItem {
   astroSyncedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  locale: string | null;
+  source: string | null;
 }
 
 export interface ArticleDetail {
@@ -38,16 +40,32 @@ export interface ArticleVersion {
   createdAt: string;
 }
 
+interface PaginationState {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 interface ArticlesState {
   byProject: Record<string, ArticleListItem[]>;
+  paginationByProject: Record<string, PaginationState>;
+  paginationByLane: Record<string, Record<string, PaginationState>>;
   detailById: Record<string, ArticleDetail | null>;
   versionsByArticle: Record<string, ArticleVersion[]>;
   loading: boolean;
 }
 
+type PaginatedArticlesResponse = {
+  ok: boolean;
+  data: { items: ArticleListItem[]; total: number; limit: number; offset: number };
+};
+
 export const useArticlesStore = defineStore("articles", {
   state: (): ArticlesState => ({
     byProject: {},
+    paginationByProject: {},
+    paginationByLane: {},
     detailById: {},
     versionsByArticle: {},
     loading: false,
@@ -57,13 +75,53 @@ export const useArticlesStore = defineStore("articles", {
     async fetchForProject(slug: string): Promise<void> {
       this.loading = true;
       try {
-        const res = await api.get<{ ok: boolean; data: ArticleListItem[] }>(
-          `/articles?projectSlug=${encodeURIComponent(slug)}`
+        const res = await api.get<PaginatedArticlesResponse>(
+          `/articles?projectSlug=${encodeURIComponent(slug)}&limit=50&offset=0`
         );
-        this.byProject[slug] = res.data.data;
+        const { items, total, limit, offset } = res.data.data;
+        this.byProject[slug] = items;
+        this.paginationByProject[slug] = { total, limit, offset, hasMore: offset + items.length < total };
+        this.paginationByLane[slug] = {};
       } finally {
         this.loading = false;
       }
+    },
+
+    async loadMoreForProject(slug: string): Promise<void> {
+      const state = this.paginationByProject[slug];
+      if (!state?.hasMore) return;
+      const offset = state.offset + state.limit;
+      const res = await api.get<PaginatedArticlesResponse>(
+        `/articles?projectSlug=${encodeURIComponent(slug)}&limit=${state.limit}&offset=${offset}`
+      );
+      const { items, total, limit, offset: rOffset } = res.data.data;
+      const existingIds = new Set((this.byProject[slug] ?? []).map((a) => a.id));
+      const newOnes = items.filter((a) => !existingIds.has(a.id));
+      this.byProject[slug] = [...(this.byProject[slug] ?? []), ...newOnes];
+      this.paginationByProject[slug] = { total, limit, offset: rOffset, hasMore: rOffset + items.length < total };
+    },
+
+    async loadMoreForLane(slug: string, lane: string): Promise<void> {
+      const laneState = this.paginationByLane[slug]?.[lane];
+      const offset = laneState ? laneState.offset + laneState.limit : 0;
+
+      const res = await api.get<PaginatedArticlesResponse>(
+        `/articles?projectSlug=${encodeURIComponent(slug)}&lane=${encodeURIComponent(lane)}&limit=50&offset=${offset}`
+      );
+      const { items, total, limit, offset: rOffset } = res.data.data;
+
+      const current = this.byProject[slug] ?? [];
+      const existingIds = new Set(current.map((a) => a.id));
+      const newOnes = items.filter((a) => !existingIds.has(a.id));
+      this.byProject[slug] = [...current, ...newOnes];
+
+      this.paginationByLane[slug] = this.paginationByLane[slug] ?? {};
+      this.paginationByLane[slug][lane] = {
+        total,
+        limit,
+        offset: rOffset,
+        hasMore: rOffset + items.length < total,
+      };
     },
 
     async fetchDetail(articleId: string): Promise<ArticleDetail | null> {

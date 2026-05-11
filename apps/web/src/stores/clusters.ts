@@ -16,14 +16,28 @@ export interface Cluster {
   cornerstoneCount: number;
 }
 
+interface PaginationState {
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 interface ClustersState {
   byProject: Record<string, Cluster[]>;
+  paginationByProject: Record<string, PaginationState>;
   loading: boolean;
 }
+
+type PaginatedClustersResponse = {
+  ok: boolean;
+  data: { items: Cluster[]; total: number; limit: number; offset: number };
+};
 
 export const useClustersStore = defineStore("clusters", {
   state: (): ClustersState => ({
     byProject: {},
+    paginationByProject: {},
     loading: false,
   }),
 
@@ -31,13 +45,31 @@ export const useClustersStore = defineStore("clusters", {
     async fetchForProject(slug: string): Promise<void> {
       this.loading = true;
       try {
-        const res = await api.get<{ ok: boolean; data: Cluster[] }>(
-          `/clusters?projectSlug=${encodeURIComponent(slug)}`
+        const res = await api.get<PaginatedClustersResponse>(
+          `/clusters?projectSlug=${encodeURIComponent(slug)}&limit=100&offset=0`
         );
-        this.byProject[slug] = res.data.data;
+        const { items, total, limit, offset } = res.data.data;
+        this.byProject[slug] = items;
+        this.paginationByProject[slug] = { total, limit, offset, hasMore: offset + items.length < total };
       } finally {
         this.loading = false;
       }
+    },
+
+    async loadMore(slug: string): Promise<void> {
+      const state = this.paginationByProject[slug];
+      if (!state?.hasMore) return;
+      const offset = state.offset + state.limit;
+
+      const res = await api.get<PaginatedClustersResponse>(
+        `/clusters?projectSlug=${encodeURIComponent(slug)}&limit=${state.limit}&offset=${offset}`
+      );
+      const { items, total, limit, offset: rOffset } = res.data.data;
+      const current = this.byProject[slug] ?? [];
+      const existingIds = new Set(current.map((c) => c.id));
+      const newOnes = items.filter((c) => !existingIds.has(c.id));
+      this.byProject[slug] = [...current, ...newOnes];
+      this.paginationByProject[slug] = { total, limit, offset: rOffset, hasMore: rOffset + items.length < total };
     },
 
     async create(

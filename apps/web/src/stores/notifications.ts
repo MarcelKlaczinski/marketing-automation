@@ -16,14 +16,33 @@ export interface NotificationRow {
 interface NotificationsState {
   list: NotificationRow[];
   unreadCount: number;
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
   loading: boolean;
   sseConnected: boolean;
 }
+
+type NotificationsListResponse = {
+  ok: boolean;
+  data: {
+    notifications: NotificationRow[];
+    unreadCount: number;
+    total: number;
+    limit: number;
+    offset: number;
+  };
+};
 
 export const useNotificationsStore = defineStore("notifications", {
   state: (): NotificationsState => ({
     list: [],
     unreadCount: 0,
+    total: 0,
+    limit: 50,
+    offset: 0,
+    hasMore: false,
     loading: false,
     sseConnected: false,
   }),
@@ -32,15 +51,33 @@ export const useNotificationsStore = defineStore("notifications", {
     async fetchList(): Promise<void> {
       this.loading = true;
       try {
-        const res = await api.get<{
-          ok: boolean;
-          data: { notifications: NotificationRow[]; unreadCount: number };
-        }>("/notifications?limit=50");
-        this.list = res.data.data.notifications;
-        this.unreadCount = res.data.data.unreadCount;
+        const res = await api.get<NotificationsListResponse>("/notifications?limit=50&offset=0");
+        const { notifications, unreadCount, total, limit, offset } = res.data.data;
+        this.list = notifications;
+        this.unreadCount = unreadCount;
+        this.total = total;
+        this.limit = limit;
+        this.offset = offset;
+        this.hasMore = offset + notifications.length < total;
       } finally {
         this.loading = false;
       }
+    },
+
+    async loadMore(): Promise<void> {
+      if (!this.hasMore) return;
+      const nextOffset = this.offset + this.limit;
+      const res = await api.get<NotificationsListResponse>(
+        `/notifications?limit=${this.limit}&offset=${nextOffset}`
+      );
+      const { notifications, total, limit, offset } = res.data.data;
+      const existingIds = new Set(this.list.map((n) => n.id));
+      const newOnes = notifications.filter((n) => !existingIds.has(n.id));
+      this.list = [...this.list, ...newOnes];
+      this.total = total;
+      this.limit = limit;
+      this.offset = offset;
+      this.hasMore = offset + notifications.length < total;
     },
 
     async fetchUnreadCount(): Promise<void> {
