@@ -1,9 +1,9 @@
 import { createNotification } from "@marketing-auto/core/notifications";
-import { db, users } from "@marketing-auto/db";
+import { articles, db, pagespeedRuns, users } from "@marketing-auto/db";
 import { Pipeline } from "@marketing-auto/pipelines/engine";
 import type { BaseStep } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { AstroBuildStep } from "./steps/astro-build.ts";
 import { CloneOrUpdateAstroRepoStep } from "./steps/clone-or-update.ts";
@@ -19,6 +19,7 @@ const log = createLogger("pagespeed:pipeline");
 const InputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
+  pagespeedRunId: z.string().uuid(),
 });
 
 const OutputSchema = z.object({
@@ -117,6 +118,7 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
       return {
         articleId: load.article.id,
         projectId: pipelineInput.projectId,
+        pagespeedRunId: pipelineInput.pagespeedRunId,
         mode: "local" as const,
         scores: out.scores,
         coreWebVitals: out.coreWebVitals,
@@ -137,9 +139,23 @@ export class PageSpeedValidationPipeline extends Pipeline<PipelineInput, Pipelin
   override async afterError(error: unknown, input: PipelineInput): Promise<void> {
     await this.killPreviewServer();
 
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const now = new Date();
+
+    // Reset article from transient 'validating' back so user can retry
+    await db
+      .update(articles)
+      .set({ status: "ready_to_publish", updatedAt: now })
+      .where(and(eq(articles.id, input.articleId), eq(articles.status, "validating")));
+
+    // Settle the pre-created pagespeedRuns row so it stops showing in "active"
+    await db
+      .update(pagespeedRuns)
+      .set({ status: "failed", errorMessage: errorMessage.slice(0, 500), finishedAt: now })
+      .where(eq(pagespeedRuns.id, input.pagespeedRunId));
+
     // Notify owners of pagespeed failure (warning — in-app only)
     try {
-      const errorMessage = error instanceof Error ? error.message : String(error);
       const owners = await db
         .select({ id: users.id })
         .from(users)

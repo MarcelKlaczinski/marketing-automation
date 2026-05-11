@@ -13,6 +13,30 @@
 - All responses follow `{ ok: true, data }` | `{ ok: false, error }` shape
 - Long-running operations: enqueue a BullMQ job, return job_id, client polls/subscribes via Web Push
 
+## Pagination Pattern (Spec 47)
+
+All list endpoints use `src/lib/pagination.ts`. Canonical shape:
+
+```typescript
+import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
+
+const myQuerySchema = paginationQuerySchema.extend({
+  projectSlug: z.string(),
+  // override default: paginationQuerySchema defaults limit=50
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
+const [rows, countRows] = await Promise.all([
+  db.select(...).from(t).where(cond).limit(q.limit).offset(q.offset),
+  db.select({ count: sql<number>`count(*)::int` }).from(t).where(cond),
+]);
+return c.json({ ok: true, data: paginated(rows, countRows, q) });
+```
+
+Response envelope: `{ items, total, limit, offset }`.
+
+**Pair-level pagination** (e.g. `/articles/imported` DE/EN pairs): paginate over `DISTINCT translationKey` ordered by `MAX(updatedAt)`, count distinct keys separately, then load article rows for those keys and group in memory. Never apply row-level `LIMIT/OFFSET` on grouped data.
+
 ## Worker Patterns
 - One worker per queue, queue name = step name (e.g., "draft-generation")
 - Steps must be idempotent (safe to re-run)
@@ -107,6 +131,7 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT import `requireAuth` from `"../middleware/require-auth"` — the file is `src/middleware/auth.ts`. Correct import: `import { requireAuth } from "../middleware/auth.ts"`. A wrong path silently crashes the server at startup with a module-not-found error.
 - DO NOT mount a route file at a specific prefix (e.g. `/api/articles`) if that file contains routes whose paths don't start with that prefix (e.g. `/projects/:slug/…`). Those routes become unreachable. Extract them into a separate named export (e.g. `legacyArticleRoutes`) and mount that separately at the broader prefix (`/api`). See `src/routes/articles.ts` + `src/server.ts` for the canonical example.
 - DO NOT register a named sub-route (e.g. `/across-projects`) after a wildcard param route (e.g. `/:id`) in the same Hono router — Hono matches in registration order, so `/:id` silently captures the named route as `id="across-projects"`. Always register specific named paths before wildcard params. See the ordering in `src/routes/articles.ts` (line ~87 `across-projects` before line ~128 `/:id`).
+- DO NOT use `z.string().optional()` for query params that must match a known enum set — an invalid value passes validation and produces a silent empty result instead of a 400. Use `z.enum(VALID_VALUES).optional()` so the boundary rejects bad input. See the `lane` param in `articles.ts` for the canonical example.
 
 ## Notifications Deploy Checklist (Spec 40)
 

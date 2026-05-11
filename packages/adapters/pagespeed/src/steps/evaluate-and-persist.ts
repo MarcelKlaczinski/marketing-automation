@@ -1,12 +1,14 @@
 import { articles, db, pagespeedRuns } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { CoreWebVitalsSchema, type PagespeedOutcome, PagespeedScoresSchema } from "../types.ts";
 
 type EvaluateAndPersistInput = {
   articleId: string;
   projectId: string;
+  /** Present for local mode (pre-created by trigger). Absent for API mode — triggers INSERT. */
+  pagespeedRunId?: string;
   mode: "local" | "api";
   scores: z.infer<typeof PagespeedScoresSchema>;
   coreWebVitals: z.infer<typeof CoreWebVitalsSchema>;
@@ -19,6 +21,7 @@ type EvaluateAndPersistInput = {
 const InputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
+  pagespeedRunId: z.string().uuid().optional(),
   mode: z.enum(["local", "api"]).default("local"),
   scores: PagespeedScoresSchema,
   coreWebVitals: CoreWebVitalsSchema,
@@ -89,9 +92,7 @@ export class EvaluateAndPersistStep extends BaseStep<
         .where(eq(articles.id, input.articleId));
     }
 
-    const runBase = {
-      projectId: input.projectId,
-      articleId: input.articleId,
+    const runUpdate = {
       pipelineRunId: ctx.pipelineRunId,
       status: "succeeded" as const,
       mode: input.mode,
@@ -102,22 +103,32 @@ export class EvaluateAndPersistStep extends BaseStep<
       failedCategories: failed.length > 0 ? failed : null,
       testedUrl: input.testedUrl,
       finishedAt: now,
-    };
-    const runValues = {
-      ...runBase,
       ...(input.reportPath !== null ? { reportPath: input.reportPath } : {}),
       ...(input.astroCommitSha !== null ? { astroCommitSha: input.astroCommitSha } : {}),
     };
 
-    const [run] = await db
-      .insert(pagespeedRuns)
-      .values(runValues)
-      .returning();
+    let resolvedRunId: string;
+
+    if (input.pagespeedRunId) {
+      // Local mode: UPDATE the pre-created 'pending' row so it never stays stuck
+      await db
+        .update(pagespeedRuns)
+        .set(runUpdate)
+        .where(and(eq(pagespeedRuns.id, input.pagespeedRunId), eq(pagespeedRuns.articleId, input.articleId)));
+      resolvedRunId = input.pagespeedRunId;
+    } else {
+      // API mode: no pre-created row — INSERT a new one
+      const [run] = await db
+        .insert(pagespeedRuns)
+        .values({ projectId: input.projectId, articleId: input.articleId, ...runUpdate })
+        .returning();
+      resolvedRunId = run!.id;
+    }
 
     return {
       outcome,
       failedThresholds: failed,
-      pagespeedRunId: run!.id,
+      pagespeedRunId: resolvedRunId,
     };
   }
 }

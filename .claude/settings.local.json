@@ -318,7 +318,13 @@
       "Bash(curl -s -X POST http://localhost:3000/api/projects/toolwiki/astro-import -H 'Content-Type: application/json' -b session=__CMDSUB_OUTPUT__)",
       "Bash(curl -s -X POST http://localhost:3051/api/projects/toolwiki/astro-import -H 'Content-Type: application/json')",
       "Bash(ls -la /Users/marcelklaczinski/.config/marketing-auto/github-app.pem 2>&1)",
-      "Bash(psql 'postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto' -c \"SELECT id, status, error_message, files_discovered, articles_inserted FROM astro_import_runs ORDER BY started_at DESC LIMIT 3;\")"
+      "Bash(psql 'postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto' -c \"SELECT id, status, error_message, files_discovered, articles_inserted FROM astro_import_runs ORDER BY started_at DESC LIMIT 3;\")",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline --date=short -20)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation branch -a)",
+      "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); [print\\(e['idx'], e['tag']\\) for e in j['entries']]\")",
+      "Bash(xargs -I{} grep -l \"Status\\\\|Phase\" {})",
+      "Bash(bun --filter @marketing-auto/adapter-pagespeed run typecheck)"
     ]
   }
 }

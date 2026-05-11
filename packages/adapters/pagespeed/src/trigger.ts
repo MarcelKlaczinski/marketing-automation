@@ -40,7 +40,7 @@ export async function enqueueArticleValidation(input: {
   const { jobId } = await enqueuePipeline({
     pipelineName: "article:pagespeed-validation",
     projectId: input.projectId,
-    input: { articleId: input.articleId, projectId: input.projectId },
+    input: { articleId: input.articleId, projectId: input.projectId, pagespeedRunId: run!.id },
     jobOptions: { jobId: `pagespeed-${input.articleId}` },
   });
 
