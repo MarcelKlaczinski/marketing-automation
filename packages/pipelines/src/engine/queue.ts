@@ -37,10 +37,12 @@ export function getPipelineQueue(): Queue {
   _queue = new Queue(QUEUE_NAME, {
     connection: getConnection(),
     defaultJobOptions: {
-      attempts: 3,
-      backoff: { type: "exponential", delay: 5000 }, // 5s, 10s, 20s
-      removeOnComplete: { count: 1000, age: 7 * 24 * 3600 },
-      removeOnFail: { count: 1000, age: 30 * 24 * 3600 },
+      // IMPORTANT: attempts: 1 — pipeline jobs make paid API calls.
+      // Auto-retry would charge the same Anthropic/Replicate call multiple times.
+      // To retry a failed run, re-trigger manually via the API endpoint.
+      attempts: 1,
+      removeOnComplete: { count: 100, age: 7 * 24 * 3600 },
+      removeOnFail: { count: 50, age: 30 * 24 * 3600 },
     },
   });
 

@@ -344,7 +344,26 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/trigger-force-import.ts apps/api/src/scripts/run-sync-clusters.ts audit/POST_FIX_VERIFICATION.md)",
       "Bash(ps -o lstart,etime -p 54784)",
       "Bash(grep -E \"\\\\.\\(vue|ts\\)$\")",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline --since=\"2026-05-08\")"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline --since=\"2026-05-08\")",
+      "Bash(bun --filter @marketing-auto/adapter-astro-sync tsc --noEmit)",
+      "Bash(curl -s -X POST http://localhost:3050/api/projects/toolwiki/astro-import -H 'Content-Type: application/json' -d '{\"forceAll\": true}')",
+      "Bash(bun --env-file .env /tmp/count-check.ts)",
+      "Bash(cp /tmp/count-check.ts apps/api/count-check.ts)",
+      "Bash(bun --env-file .env apps/api/count-check.ts)",
+      "Bash(git merge *)",
+      "Bash(git submodule *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" -X POST http://localhost:3050/api/projects/toolwiki/cold-start/voice-refinement/questions)",
+      "Bash(grep -rn 'sql`' --include=\"*.ts\" packages/ apps/api/src/)",
+      "Bash(grep -rn -B 5 'sql`' --include=\"*.ts\" packages/ apps/api/src/)",
+      "Bash(grep -v \"\\\\.ts:.*sql\\\\`\\\\`\")",
+      "Bash(xargs grep -l \"sql\\\\`\")",
+      "Bash(grep -rn \"sql\\\\`\" packages/pipelines/src/)",
+      "Bash(grep -A 3 -B 3 \"new Date\\\\|Date\\\\.now\\\\|sql\\\\`\")",
+      "Bash(grep -n \"sql\\\\`\\\\|new Date\\\\|Date\\\\.now\" apps/api/src/routes/articles.ts apps/api/src/routes/clusters.ts apps/api/src/routes/pillars.ts)",
+      "Bash(grep -rn \"sql\\\\`\" --include=\"*.ts\" packages/db/src/)",
+      "Bash(grep -rn -A 2 'sql`' --include=\"*.ts\" packages/ apps/api/src/)",
+      "Bash(bun --filter @marketing-auto/core test packages/core/test/sql-date-bind.test.ts)",
+      "Bash(redis-cli KEYS \"bull:*\")"
     ]
   }
 }
