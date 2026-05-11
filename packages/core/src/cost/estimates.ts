@@ -40,7 +40,9 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     [COST_OPS.DATAFORSEO_KEYWORD_RESEARCH]: 0.05,
     [COST_OPS.DATAFORSEO_BACKLINK_CHECK]: 0.3,
     // Spec 49c: small per-gap keyword overview (5-15 keywords, actual cost ~€0.002)
-    [COST_OPS.GAP_KEYWORD_OVERVIEW]: 0.01,
+    [COST_OPS.GAP_KEYWORD_OVERVIEW]:  0.01,
+    // Spec 49c: relatedKeywords fallback for Astro-imported clusters (no Cold-Start data)
+    [COST_OPS.GAP_RELATED_KEYWORDS]:  0.015,
   },
   replicate: {
     [COST_OPS.HERO_IMAGE]: 0.1,

@@ -13,7 +13,7 @@ import { clusters, db } from "@marketing-auto/db";
 import { loadProjectContext } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
-import type { KeywordOverviewItem } from "@marketing-auto/adapter-dataforseo";
+import type { KeywordOverviewItem, RelatedKeywordItem } from "@marketing-auto/adapter-dataforseo";
 
 const log = createLogger("gap-service");
 
@@ -44,11 +44,11 @@ export interface GapSuggestion {
 }
 
 /**
- * Format a KeywordOverviewItem into a compact hint line for the LLM prompt.
- * Example: "ki tools bildung — vol: 2,400/mo, difficulty: 32/100 (LOW)"
+ * Format a KeywordOverviewItem (Cold-Start cluster data) into a hint line.
+ * Example: "ki tools bildung — vol: 2,400/mo, difficulty: 32/100 (LOW) [informational]"
  */
-function formatKeywordHint(item: KeywordOverviewItem): string {
-  const vol = item.searchVolume != null
+function formatOverviewHint(item: KeywordOverviewItem): string {
+  const vol  = item.searchVolume != null
     ? `vol: ${item.searchVolume.toLocaleString("en")}/mo`
     : "vol: n/a";
   const diff = item.keywordDifficulty != null
@@ -56,6 +56,21 @@ function formatKeywordHint(item: KeywordOverviewItem): string {
     : "";
   const intent = item.mainIntent ? ` [${item.mainIntent}]` : "";
   return `- "${item.keyword}" — ${[vol, diff].filter(Boolean).join(", ")}${intent}`;
+}
+
+/**
+ * Format a RelatedKeywordItem (fallback discovery) into a hint line.
+ * competition is a 0–1 float; we render it as a rough percentage.
+ * Example: "ki tools bildung — vol: 2,400/mo, competition: 34%"
+ */
+function formatRelatedHint(item: RelatedKeywordItem): string {
+  const vol  = item.searchVolume != null
+    ? `vol: ${item.searchVolume.toLocaleString("en")}/mo`
+    : "vol: n/a";
+  const comp = item.competition != null
+    ? `competition: ${Math.round(item.competition * 100)}%`
+    : "";
+  return `- "${item.keyword}" — ${[vol, comp].filter(Boolean).join(", ")}`;
 }
 
 /**
@@ -101,9 +116,19 @@ export async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSug
       .slice(0, 15); // DataForSEO keywordOverview handles up to 700; 15 is plenty
   }
 
-  // ── Step 2: DataForSEO keyword overview — volume + difficulty per keyword ────
+  // ── Step 2: DataForSEO keyword enrichment — two paths ───────────────────────
+  //
+  // Path A (Cold-Start clusters): cluster.satelliteKeywords already has keyword
+  //   data from Phase 3 → call keywordOverview() to get volume + difficulty.
+  //
+  // Path B (Astro-imported clusters): satelliteKeywords is empty → use the
+  //   cluster name as a seed for relatedKeywords() to discover keywords on the fly.
+  //   Less accurate than Cold-Start data but far better than no keyword context.
+
   let keywordHintLines: string[] = [];
+
   if (rawKeywords.length > 0) {
+    // ── Path A: keywordOverview on existing cluster keywords ──────────────────
     try {
       const overview = await dataforseo.keywordOverview({
         projectId,
@@ -114,7 +139,7 @@ export async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSug
         languageCode:     dfsLocale.languageCode,
       });
 
-      // Sort by best score: high volume + low difficulty → top of list
+      // Sort: high volume + low difficulty first
       const scored = overview.items
         .filter((item) => item.keyword)
         .map((item) => ({
@@ -124,16 +149,39 @@ export async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSug
         .sort((a, b) => b.score - a.score)
         .slice(0, 10);
 
-      keywordHintLines = scored.map(({ item }) => formatKeywordHint(item));
-
-      log.info(
-        { gapId: gap.id, keywordCount: keywordHintLines.length },
-        "DataForSEO keyword overview enriched gap suggestion"
-      );
+      keywordHintLines = scored.map(({ item }) => formatOverviewHint(item));
+      log.info({ gapId: gap.id, keywordCount: keywordHintLines.length, path: "overview" },
+        "DataForSEO keywordOverview enriched gap suggestion");
     } catch (err) {
-      // DataForSEO is unavailable or not configured — fall back to raw keyword list
-      log.warn({ gapId: gap.id, err }, "DataForSEO keyword overview failed, using raw keyword list");
+      log.warn({ gapId: gap.id, err }, "DataForSEO keywordOverview failed, using raw keyword names");
       keywordHintLines = rawKeywords.map((k) => `- "${k}"`);
+    }
+
+  } else if (gap.clusterId && clusterName !== "unknown cluster") {
+    // ── Path B: relatedKeywords discovery from cluster name (Astro-imported) ──
+    try {
+      const related = await dataforseo.relatedKeywords({
+        projectId,
+        operation:        COST_OPS.GAP_RELATED_KEYWORDS,
+        estimatedCostEur: 0.015,
+        seed:             clusterName,
+        locationCode:     dfsLocale.locationCode,
+        languageCode:     dfsLocale.languageCode,
+        limit:            20,
+        minSearchVolume:  50, // filter out zero-volume long-tail noise
+      });
+
+      // Sort by volume desc; competition (0–1) as secondary proxy for difficulty
+      const sorted = related.items
+        .filter((item) => item.keyword)
+        .sort((a, b) => (b.searchVolume ?? 0) - (a.searchVolume ?? 0))
+        .slice(0, 10);
+
+      keywordHintLines = sorted.map((item) => formatRelatedHint(item));
+      log.info({ gapId: gap.id, keywordCount: keywordHintLines.length, path: "related", seed: clusterName },
+        "DataForSEO relatedKeywords used as fallback for Astro-imported cluster");
+    } catch (err) {
+      log.warn({ gapId: gap.id, err }, "DataForSEO relatedKeywords fallback failed, proceeding without keyword data");
     }
   }
 

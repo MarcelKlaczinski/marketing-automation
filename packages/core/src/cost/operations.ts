@@ -67,7 +67,8 @@ export const COST_OPS = {
 
   // === Spec 49c: Gap title suggestion + keyword enrichment ===
   GAP_TITLE_SUGGEST:        "gap-title-suggest",
-  GAP_KEYWORD_OVERVIEW:     "gap-keyword-overview",  // DataForSEO keyword volume+difficulty lookup
+  GAP_KEYWORD_OVERVIEW:     "gap-keyword-overview",   // keywordOverview() when cluster has Cold-Start data
+  GAP_RELATED_KEYWORDS:     "gap-related-keywords",   // relatedKeywords() fallback for Astro-imported clusters
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];
