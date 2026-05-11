@@ -73,6 +73,8 @@ function formatKeywordHint(item: KeywordOverviewItem): string {
  */
 export async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSuggestion | null> {
   const { projectId, gap } = input;
+  // justified: gap.metadata is typed as Record<string,unknown> (jsonb); we narrow to known field
+  // types here for safe access. All fields are guarded with ?? fallbacks below.
   const meta = (gap.metadata ?? {}) as Record<string, string | number | string[] | undefined>;
 
   const clusterName = (meta.clusterName as string | undefined) ?? "unknown cluster";
@@ -185,6 +187,8 @@ Choose the cornerstone keyword from the list above that has the best ranking opp
       estimatedCostEur: 0.01,
     });
 
+    // justified: anthropic.messages() returns json: unknown; we parse as Partial<GapSuggestion>
+    // and validate all required fields explicitly below before trusting any value.
     const parsed = result.json as Partial<GapSuggestion>;
     if (!parsed.title || !parsed.slug || !parsed.metaDescription || !parsed.heroImagePrompt) {
       log.warn({ gapId: gap.id, parsed }, "Incomplete suggestion from LLM");

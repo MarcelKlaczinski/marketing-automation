@@ -5,7 +5,7 @@ import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapte
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
-import { suggestGapTitle, type GapSuggestion } from "../lib/gap-service.ts";
+import { suggestGapTitle } from "../lib/gap-service.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -574,17 +574,16 @@ projectRoutes.post("/:slug/content-gaps/batch", async (c) => {
       gap,
     });
     if (!suggestion) continue;
-    const s = suggestion as GapSuggestion & { cornerstoneKeyword?: string };
     await db
       .update(contentGaps)
       .set({
         metadata: {
           ...gap.metadata,
-          suggestedTitle:           s.title,
-          suggestedSlug:            s.slug,
-          suggestedMetaDescription: s.metaDescription,
-          suggestedHeroImagePrompt: s.heroImagePrompt,
-          ...(s.cornerstoneKeyword ? { suggestedCornerstoneKeyword: s.cornerstoneKeyword } : {}),
+          suggestedTitle:           suggestion.title,
+          suggestedSlug:            suggestion.slug,
+          suggestedMetaDescription: suggestion.metaDescription,
+          suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+          ...(suggestion.cornerstoneKeyword ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword } : {}),
         },
         updatedAt: new Date(),
       })
@@ -624,17 +623,16 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
   const suggestion = await suggestGapTitle({ projectId: project.id, gap });
   if (!suggestion) return c.json({ ok: false, error: "LLM suggestion failed" }, 500);
 
-  const s = suggestion as GapSuggestion & { cornerstoneKeyword?: string };
   await db
     .update(contentGaps)
     .set({
       metadata: {
         ...gap.metadata,
-        suggestedTitle:           s.title,
-        suggestedSlug:            s.slug,
-        suggestedMetaDescription: s.metaDescription,
-        suggestedHeroImagePrompt: s.heroImagePrompt,
-        ...(s.cornerstoneKeyword ? { suggestedCornerstoneKeyword: s.cornerstoneKeyword } : {}),
+        suggestedTitle:           suggestion.title,
+        suggestedSlug:            suggestion.slug,
+        suggestedMetaDescription: suggestion.metaDescription,
+        suggestedHeroImagePrompt: suggestion.heroImagePrompt,
+        ...(suggestion.cornerstoneKeyword ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword } : {}),
       },
       updatedAt: new Date(),
     })
