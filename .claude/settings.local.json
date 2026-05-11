@@ -341,7 +341,10 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/src/import/steps/sync-clusters-from-frontmatter.ts packages/adapters/astro-sync/test/sync-clusters-orphan-deletion.test.ts)",
       "Bash(curl -s http://localhost:3050/api/projects/toolwiki/astro-import)",
       "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -tAc \"SELECT status FROM astro_import_runs WHERE id = '4df25de8-3c40-4a66-acd2-85fae3abd35e';\")",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/trigger-force-import.ts apps/api/src/scripts/run-sync-clusters.ts audit/POST_FIX_VERIFICATION.md)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/trigger-force-import.ts apps/api/src/scripts/run-sync-clusters.ts audit/POST_FIX_VERIFICATION.md)",
+      "Bash(ps -o lstart,etime -p 54784)",
+      "Bash(grep -E \"\\\\.\\(vue|ts\\)$\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline --since=\"2026-05-08\")"
     ]
   }
 }
