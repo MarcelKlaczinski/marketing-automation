@@ -74,11 +74,12 @@ export async function checkCostBudget(
 
   const now = new Date();
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDayIso = startOfDay.toISOString();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
   const [spendRow] = await db
     .select({
-      daySpend: sql<string>`coalesce(sum(case when ${costLogs.createdAt} >= ${startOfDay} then ${costLogs.costEur} else 0 end), 0)::text`,
+      daySpend: sql<string>`coalesce(sum(case when ${costLogs.createdAt} >= ${startOfDayIso} then ${costLogs.costEur} else 0 end), 0)::text`,
       monthSpend: sql<string>`coalesce(sum(${costLogs.costEur}), 0)::text`,
     })
     .from(costLogs)
