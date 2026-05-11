@@ -91,5 +91,20 @@ export default {
       suffix: "EUR/month",
       invalid: "Invalid amount (e.g. 30 or 30.00)",
     },
+    costLimits: {
+      title: "Cost Limits",
+      description:
+        "Maximum API spend per day and month (in EUR). Pipelines are paused when a limit is exceeded.",
+      daily: "Per Day",
+      monthly: "Per Month",
+      anthropic: "Anthropic (Claude)",
+      replicate: "Replicate (Image generation)",
+      dataforseo: "DataForSEO (Research)",
+      suffixDay: "€/day",
+      suffixMonth: "€/month",
+      noLimit: "No limit",
+      disable: "Disable limits",
+      reset: "Reset to defaults",
+    },
   },
 };

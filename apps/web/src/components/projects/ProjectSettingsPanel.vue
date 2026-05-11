@@ -107,6 +107,108 @@
       />
     </div>
 
+    <!-- Cost Limits -->
+    <div class="settings-section">
+      <div class="settings-section__title">{{ $t('projects.settings.costLimits.title') }}</div>
+      <p class="text-caption q-mb-md">{{ $t('projects.settings.costLimits.description') }}</p>
+
+      <div class="row q-col-gutter-md">
+        <div class="col-12 col-md-6">
+          <div class="text-subtitle2 q-mb-sm">{{ $t('projects.settings.costLimits.daily') }}</div>
+          <q-input
+            v-model="costLimitsForm.daily.anthropic"
+            outlined
+            dense
+            type="number"
+            :min="0"
+            step="0.01"
+            :label="$t('projects.settings.costLimits.anthropic')"
+            :suffix="$t('projects.settings.costLimits.suffixDay')"
+            :placeholder="$t('projects.settings.costLimits.noLimit')"
+            class="q-mb-sm"
+          />
+          <q-input
+            v-model="costLimitsForm.daily.replicate"
+            outlined
+            dense
+            type="number"
+            :min="0"
+            step="0.01"
+            :label="$t('projects.settings.costLimits.replicate')"
+            :suffix="$t('projects.settings.costLimits.suffixDay')"
+            :placeholder="$t('projects.settings.costLimits.noLimit')"
+            class="q-mb-sm"
+          />
+          <q-input
+            v-model="costLimitsForm.daily.dataforseo"
+            outlined
+            dense
+            type="number"
+            :min="0"
+            step="0.01"
+            :label="$t('projects.settings.costLimits.dataforseo')"
+            :suffix="$t('projects.settings.costLimits.suffixDay')"
+            :placeholder="$t('projects.settings.costLimits.noLimit')"
+          />
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="text-subtitle2 q-mb-sm">{{ $t('projects.settings.costLimits.monthly') }}</div>
+          <q-input
+            v-model="costLimitsForm.monthly.anthropic"
+            outlined
+            dense
+            type="number"
+            :min="0"
+            step="0.01"
+            :label="$t('projects.settings.costLimits.anthropic')"
+            :suffix="$t('projects.settings.costLimits.suffixMonth')"
+            :placeholder="$t('projects.settings.costLimits.noLimit')"
+            class="q-mb-sm"
+          />
+          <q-input
+            v-model="costLimitsForm.monthly.replicate"
+            outlined
+            dense
+            type="number"
+            :min="0"
+            step="0.01"
+            :label="$t('projects.settings.costLimits.replicate')"
+            :suffix="$t('projects.settings.costLimits.suffixMonth')"
+            :placeholder="$t('projects.settings.costLimits.noLimit')"
+            class="q-mb-sm"
+          />
+          <q-input
+            v-model="costLimitsForm.monthly.dataforseo"
+            outlined
+            dense
+            type="number"
+            :min="0"
+            step="0.01"
+            :label="$t('projects.settings.costLimits.dataforseo')"
+            :suffix="$t('projects.settings.costLimits.suffixMonth')"
+            :placeholder="$t('projects.settings.costLimits.noLimit')"
+          />
+        </div>
+      </div>
+
+      <div class="row q-mt-sm q-gutter-sm">
+        <q-btn
+          flat
+          dense
+          color="warning"
+          :label="$t('projects.settings.costLimits.disable')"
+          @click="onDisableLimits"
+        />
+        <q-btn
+          flat
+          dense
+          :label="$t('projects.settings.costLimits.reset')"
+          @click="onResetLimits"
+        />
+      </div>
+    </div>
+
     <div class="row q-mt-lg">
       <q-space />
       <q-btn
@@ -126,6 +228,42 @@ import { HttpError } from "src/lib/http-error";
 import { useProjectsStore } from "src/stores/projects";
 import type { AstroRepoConfig, PagespeedThresholds, Project } from "src/stores/projects";
 import { type PropType, defineComponent } from "vue";
+
+interface CostLimitsForm {
+  daily: { anthropic: string; replicate: string; dataforseo: string };
+  monthly: { anthropic: string; replicate: string; dataforseo: string };
+}
+
+const DEFAULT_COST_LIMITS_FORM: CostLimitsForm = {
+  daily: { anthropic: "20", replicate: "5", dataforseo: "10" },
+  monthly: { anthropic: "200", replicate: "50", dataforseo: "100" },
+};
+
+const EMPTY_COST_LIMITS_FORM: CostLimitsForm = {
+  daily: { anthropic: "", replicate: "", dataforseo: "" },
+  monthly: { anthropic: "", replicate: "", dataforseo: "" },
+};
+
+function parseCostLimit(s: string): number | undefined {
+  if (s === "") return undefined;
+  const n = parseFloat(s);
+  return isNaN(n) || n < 0 ? undefined : n;
+}
+
+function buildCostRecord(src: {
+  anthropic: string;
+  replicate: string;
+  dataforseo: string;
+}): Record<string, number> {
+  const r: Record<string, number> = {};
+  const a = parseCostLimit(src.anthropic);
+  if (a !== undefined) r.anthropic = a;
+  const rep = parseCostLimit(src.replicate);
+  if (rep !== undefined) r.replicate = rep;
+  const d = parseCostLimit(src.dataforseo);
+  if (d !== undefined) r.dataforseo = d;
+  return r;
+}
 
 const DEFAULT_ASTRO_REPO: AstroRepoConfig = {
   owner: "",
@@ -178,6 +316,18 @@ export default defineComponent({
         ...(this.project.pagespeedThresholds ?? {}),
       } as PagespeedThresholds,
       linkRebuildBudgetMonthly: this.project.linkRebuildBudgetMonthly ?? "30.00",
+      costLimitsForm: {
+        daily: {
+          anthropic: (this.project.costLimits?.daily?.["anthropic"] ?? "").toString(),
+          replicate: (this.project.costLimits?.daily?.["replicate"] ?? "").toString(),
+          dataforseo: (this.project.costLimits?.daily?.["dataforseo"] ?? "").toString(),
+        },
+        monthly: {
+          anthropic: (this.project.costLimits?.monthly?.["anthropic"] ?? "").toString(),
+          replicate: (this.project.costLimits?.monthly?.["replicate"] ?? "").toString(),
+          dataforseo: (this.project.costLimits?.monthly?.["dataforseo"] ?? "").toString(),
+        },
+      } as CostLimitsForm,
       _initialSnapshot: "",
     };
   },
@@ -199,6 +349,7 @@ export default defineComponent({
         domain: this.domain,
         pagespeedThresholds: this.pagespeedThresholds,
         linkRebuildBudgetMonthly: this.linkRebuildBudgetMonthly,
+        costLimitsForm: this.costLimitsForm,
       });
     },
 
@@ -213,6 +364,10 @@ export default defineComponent({
           domain: this.domain || null,
           pagespeedThresholds: this.pagespeedThresholds,
           linkRebuildBudgetMonthly: this.linkRebuildBudgetMonthly,
+          costLimits: {
+            daily: buildCostRecord(this.costLimitsForm.daily),
+            monthly: buildCostRecord(this.costLimitsForm.monthly),
+          },
         });
 
         this._initialSnapshot = this.snapshot();
@@ -223,6 +378,14 @@ export default defineComponent({
       } finally {
         this.saving = false;
       }
+    },
+
+    onResetLimits(): void {
+      this.costLimitsForm = JSON.parse(JSON.stringify(DEFAULT_COST_LIMITS_FORM)) as CostLimitsForm;
+    },
+
+    onDisableLimits(): void {
+      this.costLimitsForm = JSON.parse(JSON.stringify(EMPTY_COST_LIMITS_FORM)) as CostLimitsForm;
     },
   },
 });
