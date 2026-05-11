@@ -101,7 +101,6 @@ import { defineComponent, ref } from "vue";
 import { Notify } from "quasar";
 import { usePipelineRunPolling } from "src/composables/usePipelineRunPolling";
 import { api } from "src/lib/api-client";
-import { useColdStartStore } from "src/stores/cold-start";
 import CornerstonePairCard from "src/components/cornerstones/CornerstonePairCard.vue";
 import type { CornerstonePair } from "src/components/cornerstones/types";
 
@@ -122,7 +121,6 @@ export default defineComponent({
   setup() {
     const runId = ref<string | null>(null);
     return {
-      coldStartStore: useColdStartStore(),
       runId,
       polling: usePipelineRunPolling(runId),
     };
@@ -149,8 +147,8 @@ export default defineComponent({
   computed: {
     localeOptions(): Array<{ label: string; value: Locale }> {
       return [
-        { label: "Deutsch (DE)", value: "de" },
-        { label: "English (EN)", value: "en" },
+        { label: this.$t("coldStart.phase4.localeOptionDe") as string, value: "de" },
+        { label: this.$t("coldStart.phase4.localeOptionEn") as string, value: "en" },
       ];
     },
 
@@ -189,6 +187,7 @@ export default defineComponent({
       if (r?.status === "completed") {
         void this.fetchPairs();
       } else if (r?.status === "failed") {
+        // $t() returns string | object; string assignment requires the cast
         this.errorMsg = r.error ?? (this.$t("coldStart.phase4.failed") as string);
       }
     },
@@ -290,6 +289,7 @@ export default defineComponent({
         }
         Notify.create({
           type: "positive",
+          // $t() returns string | object; Notify.create expects string
           message: this.$t("coldStart.phase4.articlesEnqueued", { total: totalEnqueued }) as string,
           timeout: 4000,
         });

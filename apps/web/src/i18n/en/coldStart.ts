@@ -95,6 +95,8 @@ export default {
     idleDescriptionMultiLang:
       "For each of the {count} approved clusters, one cornerstone spec per language will be generated.",
     localesLabel: "Languages for generation",
+    localeOptionDe: "German (DE)",
+    localeOptionEn: "English (EN)",
     reviewIntroMultiLang:
       "Review the DE+EN pairs. Approve them individually or as a pair, then generate the articles.",
     generateArticles: "{count} cluster(s): generate articles",

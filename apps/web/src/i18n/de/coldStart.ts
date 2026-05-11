@@ -96,6 +96,8 @@ export default {
     idleDescriptionMultiLang:
       "Für jeden der {count} genehmigten Cluster wird pro Sprache ein Cornerstone-Spec generiert.",
     localesLabel: "Sprachen für Generierung",
+    localeOptionDe: "Deutsch (DE)",
+    localeOptionEn: "Englisch (EN)",
     reviewIntroMultiLang:
       "Überprüfe die DE+EN-Pärchen. Genehmige sie einzeln oder als Paar, dann generiere die Artikel.",
     generateArticles: "{count} Cluster: Artikel generieren",
