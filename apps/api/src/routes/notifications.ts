@@ -9,27 +9,37 @@ import {
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
+import { paginationQuerySchema } from "../lib/pagination.ts";
 import { requireAuth } from "../middleware/auth.ts";
 
 export const notificationRoutes = new Hono();
 notificationRoutes.use(requireAuth);
 
-notificationRoutes.get("/", async (c) => {
+const listQuerySchema = paginationQuerySchema.extend({
+  unreadOnly: z.coerce.boolean().optional().default(false),
+  since: z.string().datetime().optional(),
+});
+
+notificationRoutes.get("/", zValidator("query", listQuerySchema), async (c) => {
   const user = c.get("user")!;
-  const limit = parseInt(c.req.query("limit") ?? "50", 10);
-  const sinceRaw = c.req.query("since");
-  const since = sinceRaw ? new Date(sinceRaw) : undefined;
-  const unreadOnly = c.req.query("unreadOnly") === "true";
+  const q = c.req.valid("query");
 
-  const listOpts: { limit: number; unreadOnly: boolean; since?: Date } = { limit, unreadOnly };
-  if (since !== undefined) listOpts.since = since;
+  const listOpts: Parameters<typeof listNotifications>[1] = {
+    limit: q.limit,
+    offset: q.offset,
+    unreadOnly: q.unreadOnly,
+  };
+  if (q.since) listOpts.since = new Date(q.since);
 
-  const [list, unreadCount] = await Promise.all([
+  const [{ notifications: list, total }, unreadCount] = await Promise.all([
     listNotifications(user.id, listOpts),
     getUnreadCount(user.id),
   ]);
 
-  return c.json({ ok: true, data: { notifications: list, unreadCount } });
+  return c.json({
+    ok: true,
+    data: { notifications: list, unreadCount, total, limit: q.limit, offset: q.offset },
+  });
 });
 
 notificationRoutes.get("/unread-count", async (c) => {

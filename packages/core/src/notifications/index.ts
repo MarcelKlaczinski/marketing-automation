@@ -162,34 +162,53 @@ async function dispatchToWebPushSubscribers(notification: NotificationRow): Prom
   );
 }
 
+export interface ListNotificationsOptions {
+  limit?: number;
+  offset?: number;
+  since?: Date;
+  unreadOnly?: boolean;
+}
+
 export async function listNotifications(
   userId: string,
-  opts: { limit?: number; since?: Date; unreadOnly?: boolean } = {}
-): Promise<NotificationRow[]> {
+  opts: ListNotificationsOptions = {}
+): Promise<{ notifications: NotificationRow[]; total: number }> {
   const limit = opts.limit ?? 50;
+  const offset = opts.offset ?? 0;
   const filters = [eq(notifications.userId, userId)];
   if (opts.since) filters.push(gte(notifications.createdAt, opts.since));
   if (opts.unreadOnly) filters.push(isNull(notifications.readAt));
+  const whereClause = and(...filters);
 
-  const rows = await db
-    .select()
-    .from(notifications)
-    .where(and(...filters))
-    .orderBy(desc(notifications.createdAt))
-    .limit(limit);
+  const [rows, countRows] = await Promise.all([
+    db
+      .select()
+      .from(notifications)
+      .where(whereClause)
+      .orderBy(desc(notifications.createdAt))
+      .limit(limit)
+      .offset(offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(notifications)
+      .where(whereClause),
+  ]);
 
-  return rows.map((r) => ({
-    id: r.id,
-    userId: r.userId,
-    type: r.type,
-    severity: r.severity as NotificationSeverity,
-    title: r.title,
-    message: r.message,
-    link: r.link,
-    metadata: (r.metadata ?? {}) as Record<string, unknown>,
-    readAt: r.readAt?.toISOString() ?? null,
-    createdAt: r.createdAt.toISOString(),
-  }));
+  return {
+    notifications: rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      type: r.type,
+      severity: r.severity as NotificationSeverity,
+      title: r.title,
+      message: r.message,
+      link: r.link,
+      metadata: (r.metadata ?? {}) as Record<string, unknown>,
+      readAt: r.readAt?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    total: countRows[0]?.count ?? 0,
+  };
 }
 
 export async function markAsRead(userId: string, ids: string[]): Promise<number> {

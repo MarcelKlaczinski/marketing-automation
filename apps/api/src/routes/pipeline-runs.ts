@@ -1,3 +1,4 @@
+import { zValidator } from "@hono/zod-validator";
 import {
   articles,
   astroSyncRuns,
@@ -9,8 +10,10 @@ import {
   projects,
   schemaExtensionRuns,
 } from "@marketing-auto/db";
-import { and, desc, eq, gte, inArray, like, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, like, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
+import { z } from "zod";
+import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { requireAuth } from "../middleware/auth.ts";
 
 export type ActivityType =
@@ -397,25 +400,40 @@ pipelineRunsRoutes.get("/active", async (c) => {
   return c.json({ ok: true, data: { entries, since: since.toISOString(), activeCount } });
 });
 
-pipelineRunsRoutes.get("/project/:projectId", async (c) => {
-  const projectId = c.req.param("projectId");
-  const limit = Math.min(Number(c.req.query("limit") ?? 50), 200);
-  const pipelineNamePrefix = c.req.query("pipelineNamePrefix");
-
-  const conditions = [eq(pipelineRuns.projectId, projectId)];
-  if (pipelineNamePrefix) {
-    conditions.push(like(pipelineRuns.pipelineName, `${pipelineNamePrefix}%`));
-  }
-
-  const rows = await db
-    .select()
-    .from(pipelineRuns)
-    .where(and(...conditions))
-    .orderBy(desc(pipelineRuns.createdAt))
-    .limit(limit);
-
-  return c.json({ ok: true, data: rows });
+const projectRunsQuerySchema = paginationQuerySchema.extend({
+  pipelineNamePrefix: z.string().optional(),
 });
+
+pipelineRunsRoutes.get(
+  "/project/:projectId",
+  zValidator("query", projectRunsQuerySchema),
+  async (c) => {
+    const projectId = c.req.param("projectId");
+    const q = c.req.valid("query");
+
+    const conditions = [eq(pipelineRuns.projectId, projectId)];
+    if (q.pipelineNamePrefix) {
+      conditions.push(like(pipelineRuns.pipelineName, `${q.pipelineNamePrefix}%`));
+    }
+    const whereClause = and(...conditions);
+
+    const [rows, countRows] = await Promise.all([
+      db
+        .select()
+        .from(pipelineRuns)
+        .where(whereClause)
+        .orderBy(desc(pipelineRuns.createdAt))
+        .limit(q.limit)
+        .offset(q.offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(pipelineRuns)
+        .where(whereClause),
+    ]);
+
+    return c.json({ ok: true, data: paginated(rows, countRows, q) });
+  }
+);
 
 pipelineRunsRoutes.get("/:runId", async (c) => {
   const runId = c.req.param("runId");

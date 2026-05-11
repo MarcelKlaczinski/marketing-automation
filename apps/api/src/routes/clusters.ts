@@ -3,47 +3,62 @@ import { articles, clusters, contentPillars, db, projects } from "@marketing-aut
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { requireAuth } from "../middleware/auth.ts";
 
 export const clusterRoutes = new Hono();
 clusterRoutes.use(requireAuth);
 
-// GET /api/clusters?projectSlug=foo[&pillarId=...]
-clusterRoutes.get("/", async (c) => {
-  const projectSlug = c.req.query("projectSlug");
-  const pillarId = c.req.query("pillarId");
+// GET /api/clusters?projectSlug=foo[&pillarId=...][&limit=100&offset=0]
+const clustersListQuerySchema = paginationQuerySchema
+  .extend({
+    projectSlug: z.string(),
+    pillarId: z.string().uuid().optional(),
+  })
+  .extend({
+    limit: z.coerce.number().int().min(1).max(200).default(100),
+  });
 
-  if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
+clusterRoutes.get("/", zValidator("query", clustersListQuerySchema), async (c) => {
+  const q = c.req.valid("query");
 
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
-    .where(eq(projects.slug, projectSlug))
+    .where(eq(projects.slug, q.projectSlug))
     .limit(1);
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
-  const whereClause = pillarId
-    ? and(eq(clusters.projectId, project.id), eq(clusters.pillarId, pillarId))
-    : eq(clusters.projectId, project.id);
+  const conditions = [eq(clusters.projectId, project.id)];
+  if (q.pillarId) conditions.push(eq(clusters.pillarId, q.pillarId));
+  const whereClause = and(...conditions);
 
-  const rows = await db
-    .select({
-      id: clusters.id,
-      name: clusters.name,
-      pillarId: clusters.pillarId,
-      pillarName: contentPillars.name,
-      primaryKeyword: clusters.primaryKeyword,
-      cornerstoneKeywords: clusters.cornerstoneKeywords,
-      pillarArticleId: clusters.pillarArticleId,
-      position: clusters.position,
-      createdAt: clusters.createdAt,
-      articleCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id})::int, 0)`,
-      cornerstoneCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id} and ${articles.cornerstoneSpecId} is not null)::int, 0)`,
-    })
-    .from(clusters)
-    .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
-    .where(whereClause)
-    .orderBy(asc(clusters.position), asc(clusters.createdAt));
+  const [rows, countRows] = await Promise.all([
+    db
+      .select({
+        id: clusters.id,
+        name: clusters.name,
+        pillarId: clusters.pillarId,
+        pillarName: contentPillars.name,
+        primaryKeyword: clusters.primaryKeyword,
+        cornerstoneKeywords: clusters.cornerstoneKeywords,
+        pillarArticleId: clusters.pillarArticleId,
+        position: clusters.position,
+        createdAt: clusters.createdAt,
+        articleCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id})::int, 0)`,
+        cornerstoneCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id} and ${articles.cornerstoneSpecId} is not null)::int, 0)`,
+      })
+      .from(clusters)
+      .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
+      .where(whereClause)
+      .orderBy(asc(clusters.position), asc(clusters.createdAt))
+      .limit(q.limit)
+      .offset(q.offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(clusters)
+      .where(whereClause),
+  ]);
 
   const pillarArticleIds = rows
     .map((r) => r.pillarArticleId)
@@ -69,7 +84,7 @@ clusterRoutes.get("/", async (c) => {
     pillarArticleTitle: r.pillarArticleId ? (titleMap.get(r.pillarArticleId) ?? null) : null,
   }));
 
-  return c.json({ ok: true, data: enriched });
+  return c.json({ ok: true, data: paginated(enriched, countRows, q) });
 });
 
 // POST /api/clusters

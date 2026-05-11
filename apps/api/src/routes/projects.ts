@@ -6,6 +6,7 @@ import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
+import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import {
   checkTriggerAllowed,
@@ -309,22 +310,40 @@ projectRoutes.post("/:slug/astro-import", async (c) => {
 });
 
 // Spec 44: List recent import runs for a project
-projectRoutes.get("/:slug/astro-import-runs", async (c) => {
-  const slug = c.req.param("slug");
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.slug, slug))
-    .limit(1);
-
-  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
-
-  const runs = await db
-    .select()
-    .from(astroImportRuns)
-    .where(eq(astroImportRuns.projectId, project.id))
-    .orderBy(desc(astroImportRuns.startedAt))
-    .limit(20);
-
-  return c.json({ ok: true, data: runs });
+const importRunsQuerySchema = paginationQuerySchema.extend({
+  limit: z.coerce.number().int().min(1).max(50).default(10),
 });
+
+projectRoutes.get(
+  "/:slug/astro-import-runs",
+  zValidator("query", importRunsQuerySchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const q = c.req.valid("query");
+
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+    if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+    const whereClause = eq(astroImportRuns.projectId, project.id);
+
+    const [runs, countRows] = await Promise.all([
+      db
+        .select()
+        .from(astroImportRuns)
+        .where(whereClause)
+        .orderBy(desc(astroImportRuns.startedAt))
+        .limit(q.limit)
+        .offset(q.offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(astroImportRuns)
+        .where(whereClause),
+    ]);
+
+    return c.json({ ok: true, data: paginated(runs, countRows, q) });
+  }
+);
