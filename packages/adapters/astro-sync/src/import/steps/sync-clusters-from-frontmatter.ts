@@ -4,7 +4,7 @@
 import { articles, clusters, contentPillars, db } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const log = createLogger("astro-import:sync-clusters");
@@ -20,6 +20,7 @@ const OutputSchema = z.object({
   clustersUpdated: z.number(),
   articlesLinked: z.number(),
   uncategorizedCount: z.number(),
+  orphansDeleted: z.number(),
 });
 
 export class SyncClustersFromFrontmatterStep extends BaseStep<
@@ -242,11 +243,34 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
       );
     const uncategorizedCount = uncatResult[0]?.count ?? 0;
 
+    // Step 5: delete cluster rows no longer referenced by any article (orphans after key rename)
+    let orphansDeleted = 0;
+    if (distinctClusterKeys.length > 0) {
+      const orphaned = await db
+        .delete(clusters)
+        .where(
+          and(
+            eq(clusters.projectId, projectId),
+            notInArray(clusters.name, distinctClusterKeys)
+          )
+        )
+        .returning({ id: clusters.id, name: clusters.name });
+
+      orphansDeleted = orphaned.length;
+
+      if (orphansDeleted > 0) {
+        log.info(
+          { count: orphansDeleted, names: orphaned.map((o) => o.name) },
+          "Deleted orphaned cluster rows (no articles reference them)"
+        );
+      }
+    }
+
     log.info(
-      { pillarsCreated, pillarsUpdated, clustersCreated, clustersUpdated, articlesLinked, uncategorizedCount },
+      { pillarsCreated, pillarsUpdated, clustersCreated, clustersUpdated, articlesLinked, uncategorizedCount, orphansDeleted },
       "Cluster sync complete"
     );
 
-    return { pillarsCreated, pillarsUpdated, clustersCreated, clustersUpdated, articlesLinked, uncategorizedCount };
+    return { pillarsCreated, pillarsUpdated, clustersCreated, clustersUpdated, articlesLinked, uncategorizedCount, orphansDeleted };
   }
 }
