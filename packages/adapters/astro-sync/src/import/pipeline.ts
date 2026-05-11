@@ -8,6 +8,7 @@ import { FilterChangedFilesStep } from "./steps/filter-changed-files.ts";
 import { LinkTranslationPairsStep } from "./steps/link-translation-pairs.ts";
 import { ListContentFilesStep } from "./steps/list-content-files.ts";
 import { ParseFrontmatterBatchStep } from "./steps/parse-frontmatter-batch.ts";
+import { SyncClustersFromFrontmatterStep } from "./steps/sync-clusters-from-frontmatter.ts";
 import { UpdateImportRunStep } from "./steps/update-import-run.ts";
 import { UpsertArticlesStep } from "./steps/upsert-articles.ts";
 
@@ -35,6 +36,7 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
     new ParseFrontmatterBatchStep(),
     new UpsertArticlesStep(),
     new LinkTranslationPairsStep(),
+    new SyncClustersFromFrontmatterStep(), // Spec 49a: auto-populate clusters from clusterKey frontmatter
     new UpdateImportRunStep(),
   ] as const;
 
@@ -73,7 +75,11 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
       return { projectId: pipelineInput.projectId };
     }
 
-    if (fromStep.name === "link-translation-pairs" && toStep.name === "update-import-run") {
+    if (fromStep.name === "link-translation-pairs" && toStep.name === "sync-clusters-from-frontmatter") {
+      return { projectId: pipelineInput.projectId };
+    }
+
+    if (fromStep.name === "sync-clusters-from-frontmatter" && toStep.name === "update-import-run") {
       const list = getStepOutput<{ headCommitSha: string; files: unknown[] }>(
         "list-content-files"
       )!;
@@ -88,7 +94,9 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
       const upsert = getStepOutput<{ inserted: number; updated: number; failed: number }>(
         "upsert-articles"
       )!;
-      const link = output as { totalPairs: number; orphans: number; unkeyed: number };
+      const link = getStepOutput<{ totalPairs: number; orphans: number; unkeyed: number }>(
+        "link-translation-pairs"
+      )!;
 
       return {
         importRunId: pipelineInput.importRunId,
