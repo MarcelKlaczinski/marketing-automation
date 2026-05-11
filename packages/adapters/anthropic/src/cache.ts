@@ -68,7 +68,7 @@ export function readFixture(cacheKey: string): CachedResponse | null {
   if (!existsSync(path)) return null;
   try {
     const raw = readFileSync(path, "utf-8");
-    const parsed = JSON.parse(raw) as CachedResponse;
+    const parsed = JSON.parse(raw) as CachedResponse; // JSON.parse returns any; schemaVersion validated below
     if (parsed.schemaVersion !== 1) {
       log.warn(
         { cacheKey, version: parsed.schemaVersion },
