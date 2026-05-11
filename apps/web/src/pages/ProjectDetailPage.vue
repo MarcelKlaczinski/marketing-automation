@@ -52,7 +52,18 @@
         </q-tab-panel>
 
         <q-tab-panel name="articles" class="q-px-none">
-          <ArticlesPanel :slug="slug" />
+          <q-tabs v-model="articlesTab" align="left" class="q-mb-md">
+            <q-tab name="generated" :label="$t('articles.tabs.generated')" />
+            <q-tab name="imported" :label="$t('articles.tabs.imported')" />
+          </q-tabs>
+          <q-tab-panels v-model="articlesTab" animated keep-alive>
+            <q-tab-panel name="generated" class="q-px-none">
+              <ArticlesPanel :slug="slug" />
+            </q-tab-panel>
+            <q-tab-panel name="imported" class="q-px-none">
+              <ImportedArticlesPanel :slug="slug" />
+            </q-tab-panel>
+          </q-tab-panels>
         </q-tab-panel>
 
         <q-tab-panel name="clusters" class="q-px-none">
@@ -73,6 +84,7 @@
 <script lang="ts">
 import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
 import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
+import ImportedArticlesPanel from "src/components/articles/ImportedArticlesPanel.vue";
 import ColdStartPanel from "src/components/projects/ColdStartPanel.vue";
 import ProjectOverviewPanel from "src/components/projects/ProjectOverviewPanel.vue";
 import ProjectSettingsPanel from "src/components/projects/ProjectSettingsPanel.vue";
@@ -96,6 +108,7 @@ export default defineComponent({
     ProjectSettingsPanel,
     ColdStartPanel,
     ArticlesPanel,
+    ImportedArticlesPanel,
     ProjectPauseBanner,
   },
 
@@ -109,6 +122,7 @@ export default defineComponent({
 
   data: () => ({
     activeTab: "overview" as TabName,
+    articlesTab: "generated" as "generated" | "imported",
   }),
 
   computed: {

@@ -303,7 +303,22 @@
       "Bash(bun --filter @marketing-auto/adapter-astro-sync test)",
       "Bash(bun --filter @marketing-auto/db tsc --noEmit)",
       "Bash(bun --filter \"@marketing-auto/db\" run typecheck)",
-      "Bash(grep -n \"DO NOT pass a bare column\\\\|DO NOT use.*isNull\\\\|DO NOT use \\\\`bun add\\\\|DO NOT use \\\\.rowCount\\\\|DO NOT derive Cold-Start\\\\|DO NOT destructure\\\\|DO NOT write a new pipeline\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)"
+      "Bash(grep -n \"DO NOT pass a bare column\\\\|DO NOT use.*isNull\\\\|DO NOT use \\\\`bun add\\\\|DO NOT use \\\\.rowCount\\\\|DO NOT derive Cold-Start\\\\|DO NOT destructure\\\\|DO NOT write a new pipeline\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)",
+      "Bash(bun --filter @marketing-auto/pipelines tsc --noEmit)",
+      "Bash(bun --cwd packages/pipelines tsc --noEmit)",
+      "Bash(bun --cwd apps/api tsc --noEmit)",
+      "Bash(bun --cwd apps/web vue-tsc --noEmit)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(bun --filter \"*pipelines*\" tsc --noEmit)",
+      "Bash(bun --filter @marketing-auto/api --env-file .env run src/scripts/add-project.ts toolwiki \"toolwiki.ai\" ai_education educational)",
+      "Bash(bun --env-file ../../.env src/scripts/add-project.ts toolwiki \"toolwiki.ai\" ai_education educational)",
+      "Bash(GITHUB_OWNER=\"MarcelKlaczinski\" GITHUB_INSTALLATION_ID=\"129941086\" bun --env-file ../../.env src/scripts/configure-toolwiki-astro-repo.ts)",
+      "Bash(GITHUB_OWNER=\"MarcelKlaczinski\" GITHUB_INSTALLATION_ID=\"129941086\" bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/scripts/configure-toolwiki-astro-repo.ts)",
+      "Bash(psql 'postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto' -t -A -c \"SELECT token FROM auth_sessions LIMIT 1;\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects/toolwiki/astro-import -H 'Content-Type: application/json' -b session=__CMDSUB_OUTPUT__)",
+      "Bash(curl -s -X POST http://localhost:3051/api/projects/toolwiki/astro-import -H 'Content-Type: application/json')",
+      "Bash(ls -la /Users/marcelklaczinski/.config/marketing-auto/github-app.pem 2>&1)",
+      "Bash(psql 'postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto' -c \"SELECT id, status, error_message, files_discovered, articles_inserted FROM astro_import_runs ORDER BY started_at DESC LIMIT 3;\")"
     ]
   }
 }
