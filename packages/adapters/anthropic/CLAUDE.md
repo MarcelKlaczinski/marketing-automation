@@ -40,6 +40,48 @@ Common cache breakers:
 - Marketing context updated mid-run (briefly invalidates cache)
 - Cross-organization or cross-workspace requests (caches isolated)
 
+## Dev-Mode Response Cache (Spec 22.6)
+
+Fixture-based replay cache controlled by `ANTHROPIC_CACHE_MODE` env-var:
+
+- `off` (default, production): always live API, no fixture I/O
+- `auto`: replay if fixture exists, else call live + record
+- `record`: always call live, always write fixture
+- `replay`: only replay; cache miss = error (for CI / reproducible tests)
+
+Fixtures live at `packages/adapters/anthropic/fixtures/<sha256-16>.json` — committed to git.
+
+### Workflow
+
+1. First run (new prompts): set `ANTHROPIC_CACHE_MODE=auto`, run the pipeline. Real API calls
+   happen; fixtures are recorded automatically.
+2. Subsequent dev work: `ANTHROPIC_CACHE_MODE=auto` (or `replay` for strict). All cached calls
+   return instantly at $0 cost.
+3. When a prompt changes, its cache key changes → next run does a live call and records a new
+   fixture. Old fixture becomes orphan; run `fixtures prune` occasionally.
+4. Force re-record one call: pass `forceRefresh: true` in `MessagesInput`.
+
+### Hard Rules
+
+- NEVER set `record` or `auto` in production — always `ANTHROPIC_CACHE_MODE=off` (the default).
+- Web-search calls (`webSearch.enabled=true`) are NEVER cached — results go stale.
+- `replay` mode in CI requires committed fixtures for every prompt the test path touches.
+- Inspect fixtures before committing: `bun --filter @marketing-auto/adapter-anthropic fixtures show <key>`.
+
+### CLI
+
+```bash
+bun --filter @marketing-auto/adapter-anthropic fixtures list
+bun --filter @marketing-auto/adapter-anthropic fixtures show <key>
+bun --filter @marketing-auto/adapter-anthropic fixtures delete <key>
+bun --filter @marketing-auto/adapter-anthropic fixtures prune 60
+```
+
+### Cache Key
+
+sha256 of: `model` + `systemPrefix` + `systemSuffix` + `userMessage` + sampling params + `jsonMode`.
+Excluded (run-correlation only, don't affect LLM output): `projectId`, `pipelineRunId`, `articleId`, `operation`, `estimatedCostEur`.
+
 ## Common Mistakes
 
 - DO NOT pass system as a string — must be the array of TextBlockParam (the adapter handles this; if you ever shortcut around the adapter, remember this)
@@ -47,3 +89,4 @@ Common cache breakers:
 - DO NOT exceed model `max_tokens` (adapter clamps automatically; don't fight it)
 - DO NOT request `temperature: 1.5` or wild values — Anthropic has a 0-1 range
 - DO NOT instruct the user message "respond with JSON" — use `jsonMode: true`
+- DO NOT enable `ANTHROPIC_CACHE_MODE=record` or `=auto` in production — default is `off`
