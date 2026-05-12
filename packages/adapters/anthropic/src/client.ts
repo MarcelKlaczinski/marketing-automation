@@ -102,8 +102,15 @@ function extractText(content: Anthropic.Messages.ContentBlock[]): string {
 function tryParseJson(raw: string): { ok: true; value: unknown } | { ok: false; error: unknown } {
   let cleaned = raw.trim();
 
-  // Strip markdown code fences
-  if (cleaned.startsWith("```")) {
+  // Strip markdown code fences — handle both:
+  //   (a) fence at start of string
+  //   (b) prose before fence (Sonnet sometimes adds preamble)
+  const fenceIdx = cleaned.search(/```(?:json)?[ \t]*\n/i);
+  if (fenceIdx !== -1) {
+    const afterFence = cleaned.slice(fenceIdx).replace(/^```(?:json)?[ \t]*\n/i, "");
+    const closingFence = afterFence.indexOf("```");
+    cleaned = (closingFence !== -1 ? afterFence.slice(0, closingFence) : afterFence).trim();
+  } else if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "");
   }
 
@@ -111,17 +118,33 @@ function tryParseJson(raw: string): { ok: true; value: unknown } | { ok: false; 
   try {
     return { ok: true, value: JSON.parse(cleaned) };
   } catch (firstErr) {
-    // Fallback: model may have prepended prose before the JSON object.
-    // Find the first '{' and re-attempt from there.
-    // brace > 0 (not >= 0): if the string already starts with '{', the first
-    // JSON.parse attempt above already failed on it — retrying from 0 is pointless.
-    // Only retry when there is actual prose prefix (brace > 0).
-    const brace = cleaned.indexOf("{");
-    if (brace > 0) {
+    // Fallback 1: model prepended prose before the JSON object — find first '{'.
+    const objStart = cleaned.indexOf("{");
+    if (objStart > 0) {
       try {
-        return { ok: true, value: JSON.parse(cleaned.slice(brace)) };
+        return { ok: true, value: JSON.parse(cleaned.slice(objStart)) };
       } catch {
-        // ignore — fall through to error
+        // ignore — fall through
+      }
+    }
+    // Fallback 2: trailing prose after the JSON object (e.g. "{"key":"val"}\nNote: ...").
+    // Extract the first complete JSON object by counting braces.
+    // Handles Sonnet responses that add commentary after the closing brace.
+    if (objStart !== -1) {
+      let depth = 0;
+      let end = -1;
+      for (let i = objStart; i < cleaned.length; i++) {
+        if (cleaned[i] === "{") depth++;
+        else if (cleaned[i] === "}") {
+          if (--depth === 0) { end = i; break; }
+        }
+      }
+      if (end > objStart) {
+        try {
+          return { ok: true, value: JSON.parse(cleaned.slice(objStart, end + 1)) };
+        } catch {
+          // ignore — fall through to error
+        }
       }
     }
     return { ok: false, error: firstErr };
