@@ -522,7 +522,10 @@
       "Bash(bun --env-file .env apps/api/src/scripts/q-runs.ts)",
       "Bash(bun --env-file .env apps/api/src/scripts/gen-missing-variants.ts)",
       "Bash(bun --cwd packages/pipelines run typecheck)",
-      "Bash(kill 1063 62842 43675)"
+      "Bash(kill 1063 62842 43675)",
+      "Bash(bun --env-file .env apps/api/src/scripts/fix-code-assistenten.ts)",
+      "Bash(bun --env-file .env apps/api/src/scripts/fix-code-assistenten-extras.ts)",
+      "Bash(psql -U marcelklaczinski marketing_automation -c \"SELECT slug, hero_image_r2_key, hero_image_public_url FROM articles WHERE slug = 'code-assistenten' LIMIT 1;\")"
     ]
   }
 }

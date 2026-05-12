@@ -36,6 +36,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import yamlLib from "yaml";
 import { HERO_VARIANTS, hasVariants, heroPublicPath } from "@marketing-auto/shared/hero-variants";
+import { LOCAL_UPLOADS_ROOT } from "@marketing-auto/adapter-storage";
 import { requireAuth } from "../middleware/auth.ts";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { triggerResultToResponse, triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
@@ -214,6 +215,28 @@ function buildFrontmatter(
   // Overlay extras on top (LLM / user values win over all defaults above)
   Object.assign(fm, extras);
 
+  // Sanitize fields against the collection schema so Astro Zod validation never
+  // rejects the MDX (which silently produces a 404 instead of a render error).
+  // Two cases: enum values the LLM hallucinated, and array fields with a .min()
+  // constraint our schema parser doesn't extract (e.g. toolSlugs requires ≥2).
+  if (schema?.length) {
+    for (const field of schema) {
+      if (!(field.name in fm)) continue;
+      const val = fm[field.name];
+      if (field.enumValues?.length && typeof val === "string" && !field.enumValues.includes(val)) {
+        // Coerce to first allowed value — keeps the field populated and schema-valid
+        log.warn({ field: field.name, value: val, allowed: field.enumValues }, "buildFrontmatter: coercing invalid enum value");
+        fm[field.name] = field.enumValues[0];
+      }
+    }
+  }
+  // toolSlugs has a .min(2) constraint in the Astro schema (our parser doesn't
+  // extract .min()). The LLM occasionally writes it with 0-1 items for non-
+  // comparison articles. Remove it rather than break getStaticPaths().
+  if (Array.isArray(fm.toolSlugs) && (fm.toolSlugs as unknown[]).length < 2) {
+    delete fm.toolSlugs;
+  }
+
   // Static columns that always come from DB (not overrideable via extras).
   // When variants have been generated (slug-based r2Key), use the public/gen/ path
   // so Astro serves the image from its static directory (no localhost dependency).
@@ -275,7 +298,7 @@ async function writeArticleToAstroRepo(
         const pathname = rawUrl.startsWith("http") ? new URL(rawUrl).pathname : rawUrl;
         const key = pathname.replace(/^\/uploads\//, "");
         const prefix = key.split("/").slice(0, -1).join("/");
-        const uploadsRoot = path.join(".", "uploads");
+        const uploadsRoot = LOCAL_UPLOADS_ROOT;
         const destDir = path.join(repoPath, "public", "gen", article.slug);
         await mkdir(destDir, { recursive: true });
 
