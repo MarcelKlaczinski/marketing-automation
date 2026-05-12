@@ -18,6 +18,7 @@ import { cornerstoneSpecRoutes } from "./routes/cornerstone-specs.ts";
 import { notificationRoutes } from "./routes/notifications.ts";
 import { pushSubscriptionRoutes } from "./routes/push-subscriptions.ts";
 import { systemRoutes } from "./routes/system.ts";
+import { socialPostRoutes, socialPostDetailRoutes } from "./routes/social-posts.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -64,6 +65,8 @@ app.route("/api", cornerstoneSpecRoutes);
 app.route("/api/notifications", notificationRoutes);
 app.route("/api/push", pushSubscriptionRoutes);
 app.route("/api/admin", adminRoutes);
+app.route("/api/articles", socialPostRoutes);
+app.route("/api/social-posts", socialPostDetailRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 
