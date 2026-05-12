@@ -525,7 +525,14 @@
       "Bash(kill 1063 62842 43675)",
       "Bash(bun --env-file .env apps/api/src/scripts/fix-code-assistenten.ts)",
       "Bash(bun --env-file .env apps/api/src/scripts/fix-code-assistenten-extras.ts)",
-      "Bash(psql -U marcelklaczinski marketing_automation -c \"SELECT slug, hero_image_r2_key, hero_image_public_url FROM articles WHERE slug = 'code-assistenten' LIMIT 1;\")"
+      "Bash(psql -U marcelklaczinski marketing_automation -c \"SELECT slug, hero_image_r2_key, hero_image_public_url FROM articles WHERE slug = 'code-assistenten' LIMIT 1;\")",
+      "Bash(bun --filter @marketing-auto/db run migrate)",
+      "Bash(psql -U marketing_automation marketing_automation -c \"\\\\d pipeline_chains\")",
+      "Bash(PGPASSWORD=dev_password_change_me psql -U marketing_auto -h localhost marketing_auto -c \"\\\\d pipeline_chains\")",
+      "Bash(bun --filter @marketing-auto/api test)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff packages/pipelines/src/article/localize/pipeline.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show 6cb1a99 --stat)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/gen-missing-variants.ts apps/api/test/lib/chain-orchestrator.test.ts)"
     ]
   }
 }
