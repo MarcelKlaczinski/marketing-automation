@@ -4,6 +4,7 @@ export {
   getFile,
   deleteObject,
   presignedUrl,
+  isR2Configured,
   type PutObjectInput,
   type PutObjectResult,
 } from "./r2.ts";

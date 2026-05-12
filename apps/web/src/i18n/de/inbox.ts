@@ -4,6 +4,7 @@ export default {
   setupIncomplete: 'Einrichtung unvollständig — einige Funktionen sind nicht verfügbar.',
   openInstaller: 'Einrichtung öffnen',
   refresh: 'Aktualisieren',
+  cancelRun: 'Job abbrechen',
 
   allQuiet: {
     title: 'Alles ruhig',

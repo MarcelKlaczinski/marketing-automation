@@ -34,6 +34,9 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
 
     // Spec 49c: gap title suggestion (Claude Haiku, ~1000 tokens total)
     [COST_OPS.GAP_TITLE_SUGGEST]: 0.01,
+
+    // Spec 50: frontmatter field suggestion (Claude Haiku, ~1500 tokens total)
+    [COST_OPS.FRONTMATTER_SUGGEST]: 0.02,
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,

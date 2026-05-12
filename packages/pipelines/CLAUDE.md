@@ -101,6 +101,54 @@ returns a stable `cacheablePrefix` (skill + project context) and a variable
 Never inline-concat skill content with step instructions yourself. The
 caching boundary matters for cost and consistency.
 
+### `frontmatterSchema` injection (Spec 50)
+
+`buildSystemPrompt()` accepts an optional `frontmatterSchema?: FrontmatterFieldDescriptor[]`
+(imported from `@marketing-auto/db`). When provided, it appends a
+"# Frontmatter Requirements" block to `cacheablePrefix` listing required/recommended
+fields with their types, allowed values, and format hints. This block is project-level
+(not per-article), so it benefits from Anthropic's prompt-cache TTL.
+
+**Pattern** for any step that writes to an Astro collection:
+1. `TopicIntakeStep`: loads `project.astroCollectionSchemas?.["blog"] ?? null` and
+   returns it as `frontmatterSchema` in its output.
+2. Downstream steps (`OutlineStep`, `DraftStep`): accept `frontmatterSchema` in
+   `InputSchema` as `z.array(z.unknown()).nullable().optional()`, cast to
+   `FrontmatterFieldDescriptor[]` when passing to `buildSystemPrompt()`.
+3. `DraftStep` additionally instructs the LLM to output a
+   `<!-- FRONTMATTER_EXTRAS: {...JSON...} -->` block at end of body; it parses
+   this, strips it from `bodyMd`, and saves to `articles.frontmatterExtras`.
+
+### Tagged-block output pattern (multi-field LLM responses)
+
+When a step needs the LLM to return multiple distinct fields (e.g. localization: title,
+slug, outline JSON, body, extras), instruct it to wrap each field in XML-like tags and
+parse with a `parseBlock()` helper:
+
+```typescript
+function parseBlock(text: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`, "i");
+  const m = text.match(re);
+  if (!m) return null;
+  return m[0].replace(new RegExp(`^<${tag}>\\s*`, "i"), "")
+             .replace(new RegExp(`\\s*<\\/${tag}>$`, "i"), "").trim();
+}
+// Usage: parseBlock(raw, "TITLE") ?? fallback
+```
+
+Always provide a fallback for every `parseBlock()` call — the LLM may omit a tag
+under token pressure. See `src/article/localize/pipeline.ts` for the canonical example.
+
+### HubCarousel MDX injection (DraftStep post-processing)
+
+`DraftStep` injects the `HubCarousel` Astro component into every generated draft:
+- Import statement prepended at the top of `bodyMd`
+- `<HubCarousel excludeSlug="...">` inserted before the last `##` heading (= Fazit position)
+- Idempotent: skips injection if `"HubCarousel"` already appears in the body
+
+This must be preserved when adding post-processing steps — do not strip or move the
+import. The component is required by the Astro blog layout for cluster navigation.
+
 ## afterComplete Hook
 
 `Pipeline` has an optional `afterComplete?(output, input): Promise<void>` hook called by the runner after all steps succeed. Use it for post-pipeline side-effects that must happen outside the step chain (e.g., auto-enqueuing a follow-up pipeline). The runner wraps it in its own `try-catch` — failures log a `warn` but do NOT mark the pipeline as failed or trigger BullMQ retries. If `afterComplete` fails silently, manual recovery is needed (e.g., `article:continue`).
@@ -245,3 +293,4 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT use `console.log`/`console.error` in `afterComplete` or `afterError` — these hooks have no `StepContext`, so declare a module-level `const log = createLogger("pipelines:my-pipeline")` at the top of `pipeline.ts` and use it there
 - DO NOT create an external audit row in a trigger function without also wiring `afterComplete`/`afterError` on the pipeline to settle its `status`, metric columns, and `finishedAt`. Thread the row ID through the pipeline input schema as an optional field so the pipeline can find and update the row. See `ClusterLinkRebuildPipeline` + `enqueueClusterLinkRebuild` in `internal-linking/` for the pattern.
 - DO NOT hardcode audience/market/search-engine strings in Cold-Start step instructions — read `projects.targetLocales` from DB inside `execute()` and use `buildLocaleContext()` from `src/cold-start/_lib/locale-context.ts` to derive locale-specific values. The locale DB query adds one fast indexed read per step; it's intentional. See `IdentifyCompetitorsStep` and `GenerateClusterCandidatesStep` for the pattern.
+- DO NOT use `article:localize` in translate mode when the source article has no `bodyMd` — the API gate returns 422, but step code also throws. Always generate the draft pipeline first. Use `fresh` mode to create a stub article without a body, then generate outline + draft independently for the target locale.

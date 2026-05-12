@@ -7,6 +7,7 @@ import { DraftStep } from "./steps/draft.ts";
 import { HeroImageStep } from "./steps/hero-image.ts";
 import { OutlineStep } from "./steps/outline.ts";
 import { PersistArticleStep } from "./steps/persist-article.ts";
+import { PersistBodyStep } from "./steps/persist-body.ts";
 import { PersistOutlineStep } from "./steps/persist-outline.ts";
 import { ResearchStep } from "./steps/research.ts";
 import { SelfReviewStep } from "./steps/self-review.ts";
@@ -38,6 +39,8 @@ type TopicIntakeOutput = {
   approvalMode: "manual" | "auto";
   locale: "de" | "en";
   translationKey: string | null;
+  suggestedTitle: string | null;
+  frontmatterSchema: unknown[] | null;
 };
 
 export class ArticleOutlinePipeline extends Pipeline<
@@ -83,6 +86,8 @@ export class ArticleOutlinePipeline extends Pipeline<
         projectSlug: t.projectSlug,
         research: output,
         locale: t.locale,
+        suggestedTitle: t.suggestedTitle,
+        frontmatterSchema: t.frontmatterSchema,
         ...(pipelineInput.modelOverride && { modelOverride: pipelineInput.modelOverride }),
       };
     }
@@ -148,6 +153,7 @@ type DraftTopicIntakeOutput = {
   approvalMode: "manual" | "auto";
   locale: "de" | "en";
   translationKey: string | null;
+  frontmatterSchema: unknown[] | null;
 };
 
 type DraftStepOutput = {
@@ -182,6 +188,7 @@ export class ArticleDraftPipeline extends Pipeline<
   readonly steps = [
     new TopicIntakeStep(),
     new DraftStep(),
+    new PersistBodyStep(),   // checkpoint: saves body_md immediately so draft is never lost
     new SelfReviewStep(),
     new HeroImageStep(),
     new AssemblyStep(),
@@ -195,7 +202,7 @@ export class ArticleDraftPipeline extends Pipeline<
     pipelineInput: z.infer<typeof DraftInputSchema>,
     getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
-    // topic-intake → draft: pass articleId, projectId, projectSlug, locale + optional modelOverride
+    // topic-intake → draft: pass articleId, projectId, projectSlug, locale, frontmatterSchema + optional modelOverride
     if (fromStep.name === "topic-intake" && toStep.name === "draft") {
       const t = output as DraftTopicIntakeOutput;
       const base = {
@@ -203,6 +210,7 @@ export class ArticleDraftPipeline extends Pipeline<
         projectId: pipelineInput.projectId,
         projectSlug: t.projectSlug,
         locale: t.locale,
+        frontmatterSchema: t.frontmatterSchema,
       };
       if (
         pipelineInput.modelOverride === "claude-opus-4-7" ||
@@ -213,15 +221,25 @@ export class ArticleDraftPipeline extends Pipeline<
       return base;
     }
 
-    // draft → self-review: body + word count + cornerstone keyword + projectSlug
-    if (fromStep.name === "draft" && toStep.name === "self-review") {
+    // draft → persist-body: pass body + wordCount + articleId for immediate checkpoint
+    if (fromStep.name === "draft" && toStep.name === "persist-body") {
       const d = output as DraftStepOutput;
+      return {
+        articleId: pipelineInput.articleId,
+        bodyMd:    d.bodyMd,
+        wordCount: d.wordCount,
+      };
+    }
+
+    // persist-body → self-review: body + cornerstone keyword + projectSlug
+    if (fromStep.name === "persist-body" && toStep.name === "self-review") {
+      const d = output as DraftStepOutput; // persist-body passes through bodyMd + wordCount
       const t = getStepOutput<DraftTopicIntakeOutput>("topic-intake")!;
       return {
-        bodyMd: d.bodyMd,
-        wordCount: d.wordCount,
+        bodyMd:             d.bodyMd,
+        wordCount:          d.wordCount,
         cornerstoneKeyword: t.cornerstoneKeyword,
-        projectSlug: t.projectSlug,
+        projectSlug:        t.projectSlug,
       };
     }
 

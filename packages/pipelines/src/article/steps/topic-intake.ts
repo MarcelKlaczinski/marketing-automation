@@ -1,4 +1,4 @@
-import { articles, clusters, db, projects } from "@marketing-auto/db";
+import { type FrontmatterFieldDescriptor, articles, clusters, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -18,6 +18,12 @@ const OutputSchema = z.object({
   approvalMode: z.enum(["manual", "auto"]),
   locale: z.enum(["de", "en"]),
   translationKey: z.string().nullable(),
+  // Article title from DB — passed as a hint to the outline step so the LLM
+  // can reuse an editorially chosen title instead of inventing one from scratch.
+  suggestedTitle: z.string().nullable(),
+  // Spec 50: frontmatter field descriptors for the "blog" collection (or null if
+  // not yet extracted). Passed to Outline + Draft steps for prompt injection.
+  frontmatterSchema: z.array(z.unknown()).nullable(),
 });
 
 export class TopicIntakeStep extends BaseStep<
@@ -79,6 +85,10 @@ export class TopicIntakeStep extends BaseStep<
     // locale defaults to "de" for articles created before multi-language was introduced
     const locale = (article.locale as "de" | "en") ?? "de";
 
+    // Spec 50: extract blog collection schema if available
+    const schemas = project.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
+    const frontmatterSchema = schemas?.["blog"] ?? null;
+
     return {
       cornerstoneKeyword: article.cornerstoneKeyword,
       clusterName: cluster.name,
@@ -88,6 +98,8 @@ export class TopicIntakeStep extends BaseStep<
       approvalMode: (article.approvalMode ?? "manual") as "manual" | "auto",
       locale,
       translationKey: article.translationKey ?? null,
+      suggestedTitle: article.title ?? null,
+      frontmatterSchema: frontmatterSchema as unknown[] | null,
     };
   }
 }

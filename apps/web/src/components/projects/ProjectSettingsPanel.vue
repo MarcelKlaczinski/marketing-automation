@@ -52,6 +52,24 @@
           :label="$t('projects.settings.astroRepo.assetsRoot')"
           class="col-12 col-md-6"
         />
+        <q-input
+          v-model="astroRepo.localPath"
+          outlined
+          dense
+          :label="$t('projects.settings.astroRepo.localPath')"
+          :hint="$t('projects.settings.astroRepo.localPathHint')"
+          placeholder="/Users/you/projects/my-astro-site"
+          class="col-12"
+        />
+        <q-input
+          v-model="astroRepo.previewPath"
+          outlined
+          dense
+          :label="$t('projects.settings.astroRepo.previewPath')"
+          :hint="$t('projects.settings.astroRepo.previewPathHint')"
+          placeholder="/{locale}/blog/{slug}"
+          class="col-12"
+        />
       </div>
     </div>
 
@@ -272,6 +290,8 @@ const DEFAULT_ASTRO_REPO: AstroRepoConfig = {
   defaultBranch: "main",
   contentRoot: "src/content",
   assetsRoot: "src/assets",
+  localPath: "",
+  previewPath: "",
 };
 
 const DEFAULT_PAGESPEED: PagespeedThresholds = {
@@ -359,8 +379,24 @@ export default defineComponent({
         const repoComplete =
           !!this.astroRepo.owner && !!this.astroRepo.name && this.astroRepo.installationId > 0;
 
+        // exactOptionalPropertyTypes: build conditionally to avoid { localPath: undefined }
+        let astroRepoPayload: AstroRepoConfig | null = null;
+        if (repoComplete) {
+          const base: AstroRepoConfig = {
+            owner: this.astroRepo.owner,
+            name: this.astroRepo.name,
+            installationId: this.astroRepo.installationId,
+            defaultBranch: this.astroRepo.defaultBranch,
+            contentRoot: this.astroRepo.contentRoot,
+            assetsRoot: this.astroRepo.assetsRoot,
+          };
+          if (this.astroRepo.localPath?.trim()) base.localPath = this.astroRepo.localPath.trim();
+          if (this.astroRepo.previewPath?.trim()) base.previewPath = this.astroRepo.previewPath.trim();
+          astroRepoPayload = base;
+        }
+
         await this.projectsStore.update(this.project.slug, {
-          astroRepo: repoComplete ? this.astroRepo : null,
+          astroRepo: astroRepoPayload,
           domain: this.domain || null,
           pagespeedThresholds: this.pagespeedThresholds,
           linkRebuildBudgetMonthly: this.linkRebuildBudgetMonthly,

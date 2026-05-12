@@ -88,7 +88,7 @@ export const ResearchResultSchema = z.object({
    * Synthesis of what the top ranking pages cover.
    * Fed into outline generation.
    */
-  competitorSynthesis: z.string().min(200).max(3000),
+  competitorSynthesis: z.string().min(200),
 });
 
 export type ResearchResult = z.infer<typeof ResearchResultSchema>;
@@ -105,7 +105,8 @@ export class ArticlePipelineError extends Error {
       | "draft"
       | "review"
       | "image"
-      | "assembly",
+      | "assembly"
+      | "localize",
     public readonly originalCause?: unknown
   ) {
     super(message);

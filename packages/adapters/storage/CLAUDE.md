@@ -39,6 +39,22 @@ the bucket to be set to "public access" in the Cloudflare dashboard.
 
 For production: set up a custom domain. The fallback exists for dev convenience only.
 
+## Local Dev Fallback (no R2 configured)
+
+When R2 credentials are absent (vault + env vars both missing), `putObject` automatically
+falls back to writing files to `<cwd>/uploads/<key>` and returns a URL of the form
+`${APP_BASE_URL}/uploads/<key>` (e.g. `http://localhost:3000/uploads/...`).
+
+The API server serves `/uploads/*` via Hono's `serveStatic` middleware — no extra config needed.
+Generated images show up in the UI, and the `uploads/` directory in the project root acts as a
+temporary local R2 bucket.
+
+To check whether R2 is configured:
+```typescript
+import { isR2Configured } from "@marketing-auto/adapter-storage";
+const hasR2 = await isR2Configured(); // false = local fallback active
+```
+
 ## Common Mistakes
 
 - DO NOT call `r2.put` from request-handling code unless you control the input — body size

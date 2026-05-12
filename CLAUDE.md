@@ -81,6 +81,9 @@ Designed to evolve into SaaS.
 - DO NOT rely on CASCADE alone to clean up test rows when the API/workers are running — background schedulers (e.g. `cluster:link-rebuild`) read approved rows and INSERT into `pipeline_runs` with the test `project_id`; if `afterEach` deletes the project first the FK fires. Always delete child rows explicitly in dependency order before deleting the project: `articles → clusters → contentPillars → projects`. Pattern used in `packages/adapters/astro-sync/test/sync-clusters.test.ts`
 - DO NOT add a new Cold-Start step that reads project-level config (e.g. `targetLocales`) without loading it from `projects` via `db.select()` inside `execute()` — the step's `inputSchema` only receives what the previous step or bridge produces; project config must be queried directly. When the config is already in the pipeline input (e.g. `projectSlug`), add the field to the step's `inputSchema` — the pipeline runner passes the full pipeline input to the first step, and Zod silently strips unknown fields for subsequent steps. See `FetchCompetitorKeywordsStep` in `packages/pipelines/src/cold-start/02-competitor-analysis/steps.ts` for the canonical pattern
 - DO NOT set `article.cornerstoneKeyword` to `slugify(title)` when creating an article programmatically — `TopicIntakeStep` matches `article.cornerstoneKeyword` against entries in `cluster.satelliteKeywords[].cornerstoneKeyword` to find satellite keywords for SERP research. A slugified title never matches, producing `satelliteKeywords = []` and degraded outline quality. Always derive `cornerstoneKeyword` from the cluster's actual keyword data (e.g. via `gap.metadata.suggestedCornerstoneKeyword` populated by `gap-service.ts`) or from `cornerstoneSpecs.cornerstoneKeyword` for spec-to-article generation
+- DO NOT assume an Astro content entry will be reachable at its URL after syncing — Astro silently excludes entries from `getStaticPaths()` when the collection's Zod schema validation fails (e.g. missing required fields like `date`, `category`, `excerpt`). The result is a 404 with no server-side error. Always verify `buildFrontmatter()` satisfies all required collection fields. Use `ExtractCollectionSchemasStep` (Spec 50) to keep the schema stored in DB and inject it into the generation prompt
+- DO NOT pass `frontmatterSchema` to `buildSystemPrompt()` as a raw `z.unknown()` array without casting — the function expects `FrontmatterFieldDescriptor[]` (from `@marketing-auto/db`). Import the type at the top of the step file and cast: `frontmatterSchema as FrontmatterFieldDescriptor[]`
+- DO NOT use `sql\`${col} != ${value}\`` for inequality comparisons in Drizzle — the `!=` operator is not handled by parameter binding and silently produces incorrect queries. Use `ne(col, value)` from `drizzle-orm` instead. The `ne()` operator is listed alongside `eq`, `gt`, `lt` etc. in the SQL Date-Binding Convention above and auto-serializes values correctly
 
 ## Local DB Setup
 
@@ -159,6 +162,7 @@ Implemented specs (do not re-implement):
 - /specs/44-astro-import.md
 - /specs/49b-content-gap-detection.md
 - /specs/49c-gap-generation.md
+- /specs/50-astro-schema-awareness.md
 
 ## Project Marketing Contexts
 

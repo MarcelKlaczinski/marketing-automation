@@ -7,7 +7,7 @@ const InputSchema = z.object({
     slug: z.string(),
     metaDescription: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
-    heroImagePublicUrl: z.string().url(),
+    heroImagePublicUrl: z.string().url().nullable(),
   }),
   project: z.object({
     slug: z.string(),
@@ -158,13 +158,13 @@ function buildHowTo(input: {
   name: string;
   steps: Array<{ name: string; text: string }>;
   totalTime: string | null;
-  heroImageUrl: string;
+  heroImageUrl: string | null;
 }): Record<string, unknown> {
   const obj: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "HowTo",
     name: input.name,
-    image: input.heroImageUrl,
+    ...(input.heroImageUrl ? { image: input.heroImageUrl } : {}),
     step: input.steps.map((s, i) => ({
       "@type": "HowToStep",
       position: i + 1,

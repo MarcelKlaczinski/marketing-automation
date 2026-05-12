@@ -69,6 +69,9 @@ export const COST_OPS = {
   GAP_TITLE_SUGGEST:        "gap-title-suggest",
   GAP_KEYWORD_OVERVIEW:     "gap-keyword-overview",   // keywordOverview() when cluster has Cold-Start data
   GAP_RELATED_KEYWORDS:     "gap-related-keywords",   // relatedKeywords() fallback for Astro-imported clusters
+
+  // === Spec 50: Frontmatter field suggestion (Haiku) ===
+  FRONTMATTER_SUGGEST:      "frontmatter-suggest",    // Haiku-powered category/intentType/faq suggestion
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

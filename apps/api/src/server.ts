@@ -2,6 +2,7 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
+import { serveStatic } from "hono/bun";
 import { sessionLoader } from "./middleware/auth.ts";
 import { articleRoutes, legacyArticleRoutes } from "./routes/articles.ts";
 import { authRoutes } from "./routes/auth.ts";
@@ -38,6 +39,14 @@ app.use(
   honoLogger((message) => log.info(message))
 );
 app.use("*", sessionLoader);
+
+// Local-dev static uploads (served when R2 is not configured — images saved to ./uploads/)
+// Path traversal guard: reject any request containing ".." before serveStatic runs.
+app.use("/uploads/*", async (c, next) => {
+  if (c.req.path.includes("..")) return c.json({ ok: false, error: "Not Found" }, 404);
+  await next();
+});
+app.use("/uploads/*", serveStatic({ root: "./" }));
 
 // Public routes
 app.route("/health", healthRoutes);

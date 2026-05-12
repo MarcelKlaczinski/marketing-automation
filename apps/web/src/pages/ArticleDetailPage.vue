@@ -13,6 +13,30 @@
     <template v-else>
       <ArticleDetailHeader :detail="detail" @back="$router.back()" />
 
+      <!-- ── Language switcher (only when a translation sibling exists) ─── -->
+      <div v-if="translationSibling || articleLocale" class="locale-switcher q-mt-sm q-mb-xs">
+        <q-btn-toggle
+          :model-value="articleLocale"
+          :options="localeOptions"
+          dense
+          rounded
+          unelevated
+          toggle-color="primary"
+          color="white"
+          text-color="grey-8"
+          @update:model-value="onSwitchLocale"
+        />
+        <q-badge
+          v-if="translationSibling"
+          :color="translationSiblingStatusColor"
+          :label="$t('articles.status.' + translationSibling.status)"
+          class="q-ml-sm"
+        />
+        <span v-else class="text-caption text-grey-6 q-ml-sm">
+          {{ $t('articles.locale.noTranslation', { locale: targetLocaleLabel }) }}
+        </span>
+      </div>
+
       <div class="row q-col-gutter-lg q-mt-md">
         <div class="col-12 col-lg-8">
           <q-tabs
@@ -28,6 +52,7 @@
             <q-tab name="metadata" :label="$t('articles.detail.tabs.metadata')" icon="label" />
             <q-tab name="history" :label="$t('articles.detail.tabs.history')" icon="history" />
             <q-tab name="validation" :label="$t('articles.detail.tabs.validation')" icon="task_alt" />
+            <q-tab name="frontmatter" :label="$t('articles.detail.tabs.frontmatter') as string" icon="code" />
           </q-tabs>
 
           <q-tab-panels v-model="activeTab" animated class="bg-transparent">
@@ -42,6 +67,9 @@
             </q-tab-panel>
             <q-tab-panel name="validation" class="q-px-none">
               <ArticleValidationPanel :detail="detail" />
+            </q-tab-panel>
+            <q-tab-panel name="frontmatter" class="q-px-none">
+              <ArticleFrontmatterPanel :detail="detail" />
             </q-tab-panel>
           </q-tab-panels>
         </div>
@@ -58,15 +86,16 @@
 import ArticleActionPanel from "src/components/articles/ArticleActionPanel.vue";
 import ArticleBodyPanel from "src/components/articles/ArticleBodyPanel.vue";
 import ArticleDetailHeader from "src/components/articles/ArticleDetailHeader.vue";
+import ArticleFrontmatterPanel from "src/components/articles/ArticleFrontmatterPanel.vue";
 import ArticleHistoryPanel from "src/components/articles/ArticleHistoryPanel.vue";
 import ArticleMetadataPanel from "src/components/articles/ArticleMetadataPanel.vue";
 import ArticleValidationPanel from "src/components/articles/ArticleValidationPanel.vue";
 import { useArticlesStore } from "src/stores/articles";
 import { defineComponent } from "vue";
 
-type TabName = "body" | "metadata" | "history" | "validation";
+type TabName = "body" | "metadata" | "history" | "validation" | "frontmatter";
 
-const VALID_TABS: TabName[] = ["body", "metadata", "history", "validation"];
+const VALID_TABS: TabName[] = ["body", "metadata", "history", "validation", "frontmatter"];
 
 export default defineComponent({
   name: "ArticleDetailPage",
@@ -78,6 +107,7 @@ export default defineComponent({
     ArticleHistoryPanel,
     ArticleValidationPanel,
     ArticleActionPanel,
+    ArticleFrontmatterPanel,
   },
 
   props: {
@@ -96,6 +126,50 @@ export default defineComponent({
   computed: {
     detail() {
       return this.articlesStore.detailById[this.id] ?? null;
+    },
+
+    articleLocale(): string {
+      return ((this.detail?.article as Record<string, unknown>)?.locale as string | null) ?? "de";
+    },
+
+    translationSibling(): { id: string; locale: string; status: string } | null {
+      return ((this.detail?.article as Record<string, unknown>)?.translationSibling as { id: string; locale: string; status: string } | null) ?? null;
+    },
+
+    targetLocaleLabel(): string {
+      return this.articleLocale === "de" ? "English" : "Deutsch";
+    },
+
+    localeOptions(): Array<{ label: string; value: string; disable?: boolean }> {
+      const sibling = this.translationSibling;
+      const currentLocale = this.articleLocale;
+      return [
+        {
+          label: "DE",
+          value: "de",
+          disable: currentLocale === "de" || (currentLocale !== "de" && !sibling),
+        },
+        {
+          label: "EN",
+          value: "en",
+          disable: currentLocale === "en" || (currentLocale !== "en" && !sibling),
+        },
+      ];
+    },
+
+    translationSiblingStatusColor(): string {
+      const status = this.translationSibling?.status ?? "";
+      const colorMap: Record<string, string> = {
+        final_review: "orange",
+        ready_to_publish: "positive",
+        published: "positive",
+        proposed: "grey",
+        approved: "grey",
+        generating: "primary",
+        drafting: "primary",
+        failed: "negative",
+      };
+      return colorMap[status] ?? "grey";
     },
   },
 
@@ -118,6 +192,16 @@ export default defineComponent({
       }
     },
 
+    onSwitchLocale(locale: string | null): void {
+      if (!locale || locale === this.articleLocale) return;
+      const sibling = this.translationSibling;
+      if (!sibling) return; // button should be disabled if no sibling, but guard anyway
+      void this.$router.push({
+        path: `/articles/${sibling.id}`,
+        query: { tab: this.activeTab },
+      });
+    },
+
     onTabChange(newTab: string | number | null): void {
       if (typeof newTab !== "string") return;
       void this.$router.replace({ query: { ...this.$route.query, tab: newTab } });
@@ -129,3 +213,10 @@ export default defineComponent({
   },
 });
 </script>
+
+<style lang="scss" scoped>
+.locale-switcher {
+  display: flex;
+  align-items: center;
+}
+</style>

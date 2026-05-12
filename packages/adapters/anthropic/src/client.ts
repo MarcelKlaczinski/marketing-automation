@@ -101,13 +101,30 @@ function extractText(content: Anthropic.Messages.ContentBlock[]): string {
 
 function tryParseJson(raw: string): { ok: true; value: unknown } | { ok: false; error: unknown } {
   let cleaned = raw.trim();
+
+  // Strip markdown code fences
   if (cleaned.startsWith("```")) {
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "");
   }
+
+  // Direct parse (fast path)
   try {
     return { ok: true, value: JSON.parse(cleaned) };
-  } catch (e) {
-    return { ok: false, error: e };
+  } catch (firstErr) {
+    // Fallback: model may have prepended prose before the JSON object.
+    // Find the first '{' and re-attempt from there.
+    // brace > 0 (not >= 0): if the string already starts with '{', the first
+    // JSON.parse attempt above already failed on it — retrying from 0 is pointless.
+    // Only retry when there is actual prose prefix (brace > 0).
+    const brace = cleaned.indexOf("{");
+    if (brace > 0) {
+      try {
+        return { ok: true, value: JSON.parse(cleaned.slice(brace)) };
+      } catch {
+        // ignore — fall through to error
+      }
+    }
+    return { ok: false, error: firstErr };
   }
 }
 

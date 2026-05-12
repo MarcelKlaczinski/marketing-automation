@@ -440,6 +440,52 @@ export async function enqueueSchemaExtensionPipeline(
   return { jobId };
 }
 
+export type HeroPreRunInput = PreRunInput & { promptOverride?: string };
+
+export async function enqueueHeroImageGenerationPipeline(
+  input: HeroPreRunInput
+): Promise<{ jobId: string }> {
+  const pipelineInput: Record<string, unknown> = {
+    articleId: input.articleId,
+    projectId: input.projectId,
+  };
+  if (input.promptOverride) pipelineInput.promptOverride = input.promptOverride;
+
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:hero-generation",
+    projectId: input.projectId,
+    input: pipelineInput,
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
+export type LocalizePreRunInput = PreRunInput & {
+  sourceArticleId: string;
+  targetLocale: "de" | "en";
+  mode: "translate" | "fresh";
+  projectSlug: string;
+};
+
+export async function enqueueLocalizeArticlePipeline(
+  input: LocalizePreRunInput
+): Promise<{ jobId: string }> {
+  const { jobId } = await enqueuePipeline({
+    pipelineName: "article:localize",
+    projectId: input.projectId,
+    input: {
+      sourceArticleId: input.sourceArticleId,
+      targetArticleId: input.articleId, // articleId = pre-created target article
+      targetLocale: input.targetLocale,
+      mode: input.mode,
+      projectId: input.projectId,
+      projectSlug: input.projectSlug,
+    },
+    preRunId: input.preRunId,
+  });
+  return { jobId };
+}
+
 export type ApiPreRunInput = PreRunInput & { url: string };
 
 export async function enqueuePagespeedApiValidationPipeline(

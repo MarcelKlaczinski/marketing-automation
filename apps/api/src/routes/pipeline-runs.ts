@@ -10,7 +10,7 @@ import {
   projects,
   schemaExtensionRuns,
 } from "@marketing-auto/db";
-import { and, desc, eq, gte, inArray, like, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
@@ -58,7 +58,7 @@ function classifyPipelineName(name: string): ActivityType {
   if (name === "article:draft") return "article_draft";
   if (name === "article:sync") return "astro_sync";
   if (name === "article:validate-pagespeed") return "pagespeed";
-  if (name === "article:extend-schema") return "schema_extension";
+  if (name === "article:schema-extension") return "schema_extension";
   if (name === "article:link-rebuild") return "link_rebuild";
   return "other";
 }
@@ -91,18 +91,20 @@ function buildPipelineTitle(
 
 function buildPipelineSubtitle(
   pipelineName: string,
-  articleInfo: { title: string | null; cornerstoneKeyword: string | null } | null | undefined
+  articleInfo: { title: string | null; cornerstoneKeyword: string | null } | null | undefined,
+  currentStep?: string
 ): string | null {
+  const stepSuffix = currentStep ? ` · ${currentStep}` : "";
   if (articleInfo) {
-    if (pipelineName === "article:outline") return "Outline generation";
-    if (pipelineName === "article:draft") return "Draft generation";
-    return null;
+    if (pipelineName === "article:outline") return `Outline generation${stepSuffix}`;
+    if (pipelineName === "article:draft") return `Draft generation${stepSuffix}`;
+    return stepSuffix || null;
   }
   if (pipelineName.startsWith("cold-start:")) {
     const phase = pipelineName.replace("cold-start:", "");
-    return `Cold-start phase: ${phase}`;
+    return `Cold-start phase: ${phase}${stepSuffix}`;
   }
-  return null;
+  return stepSuffix || null;
 }
 
 export const pipelineRunsRoutes = new Hono();
@@ -144,6 +146,9 @@ pipelineRunsRoutes.get("/active", async (c) => {
     .leftJoin(projects, eq(pipelineRuns.projectId, projects.id))
     .where(
       and(
+        // Only top-level pipeline rows — step-level rows (step_name IS NOT NULL) would cause
+        // one pipeline invocation to appear N times (once per step) in the activity feed.
+        isNull(pipelineRuns.stepName),
         or(
           inArray(pipelineRuns.status, ["queued", "running"] as Array<"queued" | "running">),
           and(
@@ -157,6 +162,35 @@ pipelineRunsRoutes.get("/active", async (c) => {
       )
     )
     .orderBy(desc(pipelineRuns.createdAt));
+
+  // For running top-level rows, fetch the currently active step name so the UI can
+  // show progress ("Draft generation · step: self-review") without polling per-step.
+  const runningParentIds = pipelineRunRows
+    .filter((r) => r.status === "running")
+    .map((r) => r.id);
+
+  const currentStepMap = new Map<string, string>(); // parentRunId → stepName
+  if (runningParentIds.length > 0) {
+    const stepRows = await db
+      .select({
+        parentRunId: pipelineRuns.parentRunId,
+        stepName: pipelineRuns.stepName,
+      })
+      .from(pipelineRuns)
+      .where(
+        and(
+          inArray(pipelineRuns.parentRunId, runningParentIds),
+          inArray(pipelineRuns.status, ["running", "queued"] as Array<"running" | "queued">)
+        )
+      )
+      .orderBy(desc(pipelineRuns.createdAt));
+    // Keep only the most recent (first) step per parent
+    for (const row of stepRows) {
+      if (row.parentRunId && row.stepName && !currentStepMap.has(row.parentRunId)) {
+        currentStepMap.set(row.parentRunId, row.stepName);
+      }
+    }
+  }
 
   // Batch-fetch article info for pipeline runs that reference an articleId in input.
   // Cast justified: pipelineRuns.input is JSONB typed as Record<string,unknown>; we know
@@ -283,7 +317,7 @@ pipelineRunsRoutes.get("/active", async (c) => {
       projectName: pr.projectName ?? null,
       projectSlug: pr.projectSlug ?? null,
       title: buildPipelineTitle(pr.pipelineName, articleInfo),
-      subtitle: buildPipelineSubtitle(pr.pipelineName, articleInfo),
+      subtitle: buildPipelineSubtitle(pr.pipelineName, articleInfo, currentStepMap.get(pr.id)),
       errorMessage: pr.errorMessage ?? null,
       articleId: articleInfo?.id ?? null,
       articleSlug: articleInfo?.slug ?? null,
@@ -434,6 +468,30 @@ pipelineRunsRoutes.get(
     return c.json({ ok: true, data: paginated(rows, countRows, q) });
   }
 );
+
+// ─── PATCH /api/pipeline-runs/:id/cancel ──────────────────────────────────────
+pipelineRunsRoutes.patch("/:id/cancel", async (c) => {
+  const id = c.req.param("id");
+
+  const [run] = await db
+    .select({ id: pipelineRuns.id, status: pipelineRuns.status })
+    .from(pipelineRuns)
+    .where(eq(pipelineRuns.id, id))
+    .limit(1);
+
+  if (!run) return c.json({ ok: false, error: "Run not found" }, 404);
+
+  if (!["queued", "running"].includes(run.status)) {
+    return c.json({ ok: false, error: "Only queued or running runs can be cancelled" }, 409);
+  }
+
+  await db
+    .update(pipelineRuns)
+    .set({ status: "cancelled", completedAt: new Date() })
+    .where(eq(pipelineRuns.id, id));
+
+  return c.json({ ok: true });
+});
 
 pipelineRunsRoutes.get("/:runId", async (c) => {
   const runId = c.req.param("runId");

@@ -13,9 +13,12 @@
         <div class="run-row__info">
           <span class="run-row__label">{{ $t(run.labelKey) }}</span>
           <span class="run-row__time">{{ formatTime(run.startedAt) }}</span>
+          <span v-if="run.status === 'running' && run.stepName" class="run-row__step">
+            {{ run.stepName }}
+          </span>
         </div>
         <div :class="['run-row__status', `run-row__status--${run.status}`]">
-          <q-spinner v-if="run.status === 'pending'" size="10px" />
+          <q-spinner v-if="['pending', 'running', 'queued'].includes(run.status)" size="10px" />
           <span>{{ $t(statusI18nKey(run.status)) }}</span>
         </div>
       </div>
@@ -37,9 +40,14 @@ interface RunRow {
   labelKey: string;
   status: string;
   startedAt: string | null;
+  stepName?: string | null;
+  errorMessage?: string | null;
 }
 
 const STATUS_I18N: Record<string, string> = {
+  queued: "articles.runs.status.queued",
+  running: "articles.runs.status.running",
+  completed: "articles.runs.status.completed",
   pending: "articles.runs.status.pending",
   succeeded: "articles.runs.status.succeeded",
   failed: "articles.runs.status.failed",
@@ -53,10 +61,6 @@ export default defineComponent({
   props: {
     detail: { type: Object as PropType<ArticleDetail>, required: true },
     articleId: { type: String, required: true },
-  },
-
-  setup() {
-    return { articlesStore: useArticlesStore() };
   },
 
   data: () => ({
@@ -79,6 +83,8 @@ export default defineComponent({
           labelKey: "articles.runs.type.sync",
           status: r.status as string,
           startedAt: r.startedAt as string | null,
+          stepName: null,
+          errorMessage: null,
         });
       }
 
@@ -91,6 +97,8 @@ export default defineComponent({
           labelKey: "articles.runs.type.pagespeed",
           status: r.status as string,
           startedAt: r.startedAt as string | null,
+          stepName: null,
+          errorMessage: null,
         });
       }
 
@@ -103,6 +111,25 @@ export default defineComponent({
           labelKey: "articles.runs.type.schema",
           status: r.status as string,
           startedAt: r.startedAt as string | null,
+          stepName: null,
+          errorMessage: null,
+        });
+      }
+
+      for (const raw of (this.detail.recentRuns.pipeline ?? [])) {
+        const r = raw as Record<string, unknown>;
+        const name = r.pipelineName as string;
+        rows.push({
+          key: `pipeline-${r.id as string}`,
+          icon: name === "article:outline" ? "list" : "description",
+          iconColor: name === "article:outline" ? "teal" : "deep-purple",
+          labelKey: name === "article:outline"
+            ? "articles.runs.type.outline"
+            : "articles.runs.type.draft",
+          status: r.status as string,
+          startedAt: r.startedAt as string | null,
+          stepName: r.stepName as string | null,
+          errorMessage: r.errorMessage as string | null,
         });
       }
 
@@ -116,7 +143,7 @@ export default defineComponent({
     },
 
     hasInFlightRuns(): boolean {
-      return this.combinedRuns.some((r) => r.status === "pending");
+      return this.combinedRuns.some((r) => ["pending", "running", "queued"].includes(r.status));
     },
   },
 
@@ -141,7 +168,7 @@ export default defineComponent({
     startPolling(): void {
       if (this.timer !== null) return;
       this.timer = setInterval(() => {
-        void this.articlesStore.fetchDetail(this.articleId);
+        void useArticlesStore().fetchDetail(this.articleId);
       }, POLL_INTERVAL_MS);
     },
 
@@ -216,6 +243,12 @@ export default defineComponent({
   color: var(--q-text-secondary, rgba(0, 0, 0, 0.45));
 }
 
+.run-row__step {
+  font-size: 10px;
+  color: var(--q-primary, #3f51b5);
+  font-style: italic;
+}
+
 .run-row__status {
   display: inline-flex;
   align-items: center;
@@ -228,9 +261,16 @@ export default defineComponent({
   border-radius: 999px;
   flex-shrink: 0;
 
-  &--pending {
+  &--queued,
+  &--pending,
+  &--running {
     background: rgba(63, 81, 181, 0.1);
     color: var(--q-primary, #3f51b5);
+  }
+
+  &--completed {
+    background: rgba(33, 186, 69, 0.1);
+    color: var(--q-positive, #21ba45);
   }
 
   &--succeeded {

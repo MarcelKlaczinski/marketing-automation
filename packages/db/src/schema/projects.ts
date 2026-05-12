@@ -59,6 +59,11 @@ export const projects = pgTable(
     // Spec 49b: timestamp of last content-gap detection run (zero-cost step)
     gapsLastDetectedAt: timestamp("gaps_last_detected_at", { withTimezone: true }),
 
+    // Spec 50: Astro content collection schemas extracted during import.
+    // Keyed by collection name ("blog", "ki-wissen", etc.) → array of field descriptors.
+    // Updated on every successful astro:repo-import run.
+    astroCollectionSchemas: jsonb("astro_collection_schemas").$type<AstroCollectionSchemas>(),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -132,6 +137,21 @@ export type PagespeedThresholds = {
   bestPractices: number;
   seo: number;
 };
+
+// Spec 50: Frontmatter schema descriptor for a single field in an Astro collection
+export type FrontmatterFieldDescriptor = {
+  name: string;
+  type: "string" | "number" | "boolean" | "date" | "image" | "string_array" | "object_array" | "object" | "unknown";
+  required: boolean;
+  hasDefault: boolean;
+  /** Enum values for z.enum([...]) fields, e.g. ["Guides & Tutorials", "Tool-Reviews", ...] */
+  enumValues?: string[];
+  /** Human-readable description of the object shape, e.g. for faq: "{ question: string, answer: string }[]" */
+  objectShape?: string;
+};
+
+// Keyed by Astro collection name → fields
+export type AstroCollectionSchemas = Record<string, FrontmatterFieldDescriptor[]>;
 
 export const projectCredentials = pgTable(
   "project_credentials",

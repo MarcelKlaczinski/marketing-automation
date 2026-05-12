@@ -48,6 +48,27 @@ Each project that wants to sync needs `projects.astro_repo` (set via Drizzle Stu
 
 The installation ID comes from `bun --filter @marketing-auto/adapter-astro-sync list-installations`.
 
+## Collection Schema Extraction (Spec 50)
+
+On every Astro import run, `ExtractCollectionSchemasStep` (first step in `AstroImportPipeline`) fetches `src/content/config.ts` from GitHub, calls `parseAllCollectionSchemas()`, and persists the result to `projects.astroCollectionSchemas` (JSONB). Downstream pipeline steps (`TopicIntakeStep`, `OutlineStep`, `DraftStep`) read this and inject the field descriptors into the LLM system prompt so every generated article satisfies the Astro Zod schema at publish time.
+
+`parseAllCollectionSchemas()` uses bracket-balanced extraction to parse the full `z.object({...})` body for each `defineCollection`. Field classifier produces `FrontmatterFieldDescriptor` objects with:
+- `type`: `"string" | "string_array" | "object_array" | "number" | "boolean" | "date" | "unknown"`
+- `enumValues?: string[]` — extracted from `z.enum([...])`
+- `objectShape?: string` — inner field names for `object_array` (e.g. `"{ question, answer }"`)
+
+**FRONTMATTER_EXTRAS protocol**: `DraftStep` instructs the LLM to output a structured HTML comment at the very end of the draft body:
+```
+<!-- FRONTMATTER_EXTRAS: {"category":"Guides & Tutorials","tags":["ki","chatbot"]} -->
+```
+The step parses this with a regex, strips it from `bodyMd`, and saves to `articles.frontmatterExtras`. `buildFrontmatter()` in `apps/api/src/routes/articles.ts` merges these extras (highest priority) with schema defaults and static columns.
+
+**Type-cast pattern for adapter vs DB types**: `ExtractCollectionSchemasStep` returns a value typed as `FrontmatterField[]` (adapter-local) but must persist as `AstroCollectionSchemas` (DB type). Use `as unknown as import("@marketing-auto/db").AstroCollectionSchemas` with a justification comment explaining the structural identity.
+
+**Astro silent-exclusion trap**: Astro silently excludes content entries from `getStaticPaths()` when the collection's Zod schema fails validation (missing required fields like `date`, `category`, `excerpt`). The result is a 404 with no console error. Always ensure `buildFrontmatter()` produces all required fields for the target collection — check `unpopulatedRequired` in step output after a sync.
+
+**Config file path — Astro v4 vs v5**: Astro v4 puts `config.ts` inside `contentRoot` (e.g. `src/content/config.ts`). Astro v5 puts it one level up as `src/content.config.ts`. `ExtractCollectionSchemasStep` tries both patterns plus repo-root fallbacks — no code change needed when switching Astro versions.
+
 ## Common Mistakes
 
 - DO NOT commit when `articles.status !== "final_review"` — adapter throws

@@ -4,6 +4,7 @@ export default {
   setupIncomplete: 'Setup incomplete — some features are unavailable.',
   openInstaller: 'Open setup',
   refresh: 'Refresh',
+  cancelRun: 'Cancel job',
 
   allQuiet: {
     title: 'All quiet',

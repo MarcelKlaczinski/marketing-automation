@@ -5,6 +5,7 @@ import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { DetectContentGapsStep } from "./steps/detect-content-gaps.ts";
+import { ExtractCollectionSchemasStep } from "./steps/extract-collection-schemas.ts";
 import { FilterChangedFilesStep } from "./steps/filter-changed-files.ts";
 import { LinkTranslationPairsStep } from "./steps/link-translation-pairs.ts";
 import { ListContentFilesStep } from "./steps/list-content-files.ts";
@@ -33,6 +34,7 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
   readonly inputSchema = InputSchema as z.ZodType<z.infer<typeof InputSchema>>;
   readonly outputSchema = OutputSchema;
   readonly steps = [
+    new ExtractCollectionSchemasStep(),    // Spec 50: extract + persist frontmatter schemas from content.config.ts
     new ListContentFilesStep(),
     new FilterChangedFilesStep(),
     new ParseFrontmatterBatchStep(),
@@ -50,6 +52,10 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
     pipelineInput: PipelineInput,
     getStepOutput: <T = unknown>(stepName: string) => T | undefined
   ): unknown {
+    if (fromStep.name === "extract-collection-schemas" && toStep.name === "list-content-files") {
+      return { astroRepo: pipelineInput.astroRepo };
+    }
+
     if (fromStep.name === "list-content-files" && toStep.name === "filter-changed-files") {
       const out = output as { headCommitSha: string; files: unknown[] };
       return {

@@ -1,5 +1,6 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
+import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
@@ -19,6 +20,10 @@ const InputSchema = z.object({
   research: z.unknown(),
   modelOverride: z.string().optional(),
   locale: z.enum(["de", "en"]).optional(),
+  // Editor-chosen title hint — null means LLM should invent one freely
+  suggestedTitle: z.string().nullable().optional(),
+  // Spec 50: frontmatter schema for this collection — injected into system prompt
+  frontmatterSchema: z.array(z.unknown()).nullable().optional(),
 });
 
 export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOutline> {
@@ -27,7 +32,7 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
   readonly outputSchema = ArticleOutlineSchemaOutput;
 
   override estimatedCostEur(): number {
-    return 0.3;
+    return 0.6; // Opus 4.7 @ up to 8k output tokens
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
@@ -65,12 +70,34 @@ You have access to:
 - Cluster context (this article is part of "${input.clusterName}", pillar "${input.clusterPillar}")
 - Satellite keywords (must appear naturally; do not stuff)
 
-Output JSON matching the ArticleOutlineSchema schema EXACTLY.
+Output a single JSON object with EXACTLY this shape (no extra keys, no markdown):
+{
+  "title": "string — 20-120 chars, keyword-rich SERP title",
+  "slug": "string — kebab-case a-z0-9- only, max 60 chars",
+  "metaDescription": "string — 80-180 chars, action-oriented",
+  "introAngle": "string — 100-2000 chars, explains the opening hook",
+  "sections": [
+    {
+      "h2": "string — 5-150 chars, specific section heading",
+      "intent": "string — 20-500 chars, what this section achieves",
+      "keyPoints": ["string min 10 chars", "..."],
+      "estimatedWords": 200,
+      "targetKeywords": ["optional satellite keyword", "..."]
+    }
+  ],
+  "heroImagePrompt": "string — 30-500 chars, specific Flux 1.1 Pro prompt",
+  "heroImageStyle": "photorealistic" | "illustrated" | "3d_render" | "minimalist",
+  "estimatedTotalWords": 1500
+}
+Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWords 800-5000.
     `.trim();
     const promptBase = {
       skills: ["copywriting", "content-strategy", "ai-seo", "schema-markup"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: outlineInstructions,
+      ...(input.frontmatterSchema?.length
+        ? { frontmatterSchema: input.frontmatterSchema as FrontmatterFieldDescriptor[] }
+        : {}),
     };
     const prompt = await buildSystemPrompt(
       input.locale ? { ...promptBase, locale: input.locale } : promptBase
@@ -81,6 +108,10 @@ Output JSON matching the ArticleOutlineSchema schema EXACTLY.
       `**Cornerstone keyword**: ${input.cornerstoneKeyword}`,
       `**Cluster**: ${input.clusterName} (pillar: ${input.clusterPillar})`,
       `**Satellite keywords to weave in**: ${input.satelliteKeywords.join(", ")}`,
+      input.suggestedTitle
+        ? `**Suggested title** (editorially chosen — use it verbatim if it is already SERP-strong; ` +
+          `only change it if you have a clear SEO reason): "${input.suggestedTitle}"`
+        : "",
       "",
       "# SERP analysis",
       research.competitorSynthesis,
@@ -108,7 +139,7 @@ Output JSON matching the ArticleOutlineSchema schema EXACTLY.
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
       userMessage: userMsg,
-      maxTokens: 4000,
+      maxTokens: 8000,
       jsonMode: true,
       estimatedCostEur: this.estimatedCostEur(),
     });

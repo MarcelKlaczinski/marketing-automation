@@ -1,3 +1,4 @@
+import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
 import { loadProjectContext, loadSkill, loadSkills } from "../skills/loader.ts";
 
 export type SystemPromptInput = {
@@ -13,6 +14,12 @@ export type SystemPromptInput = {
    * Omit for locale-neutral steps (research synthesis, schema markup, etc.).
    */
   locale?: "de" | "en";
+  /**
+   * Spec 50: Frontmatter schema for the target Astro collection (e.g. "blog").
+   * When provided, injects a "Frontmatter Requirements" block into the cacheable
+   * prefix so LLM-generated content includes all required structured fields.
+   */
+  frontmatterSchema?: FrontmatterFieldDescriptor[];
 };
 
 export type SystemPromptResult = {
@@ -48,6 +55,10 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
         ? "\n\n---\n\n# Market Context\n\nThis output is for the **global English market (en-US)**. Write in clear, direct English. Use US/global cultural and business context. Avoid German-specific references."
         : "";
 
+  const frontmatterBlock = input.frontmatterSchema
+    ? buildFrontmatterBlock(input.frontmatterSchema)
+    : "";
+
   const cacheablePrefix = [
     "# Marketing Skill Reference",
     skillContent,
@@ -57,6 +68,7 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
     "# Project Marketing Context",
     projectContext,
     localeBlock,
+    frontmatterBlock,
   ].join("\n");
 
   const variableSuffix = ["---", "", "# Task-Specific Instructions", input.stepInstructions].join(
@@ -68,4 +80,65 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
     variableSuffix,
     full: `${cacheablePrefix}\n\n${variableSuffix}`,
   };
+}
+
+/**
+ * Spec 50: Builds a human-readable "Frontmatter Requirements" block for injection
+ * into the system prompt. Tells the LLM which structured fields must appear in
+ * the FRONTMATTER_EXTRAS block at the end of its output.
+ */
+function buildFrontmatterBlock(fields: FrontmatterFieldDescriptor[]): string {
+  if (!fields.length) return "";
+
+  const required = fields.filter((f) => f.required);
+  const structured = fields.filter(
+    (f) => !f.required && (f.enumValues?.length || f.type === "object_array" || f.type === "string_array")
+  );
+
+  const lines: string[] = [
+    "",
+    "---",
+    "",
+    "# Frontmatter Requirements (Astro Content Collection)",
+    "",
+    "At the end of your response, output a FRONTMATTER_EXTRAS block with structured metadata.",
+    "Format: `<!-- FRONTMATTER_EXTRAS: {...JSON...} -->`",
+    "The JSON must satisfy this schema:",
+    "",
+  ];
+
+  if (required.length) {
+    lines.push("## Required fields");
+    for (const f of required) {
+      const typePart = f.enumValues?.length
+        ? `enum: ${f.enumValues.map((v) => `"${v}"`).join(" | ")}`
+        : f.objectShape
+          ? `${f.type} of ${f.objectShape}`
+          : f.type;
+      lines.push(`- \`${f.name}\` (${typePart})`);
+    }
+    lines.push("");
+  }
+
+  if (structured.length) {
+    lines.push("## Recommended structured fields (include when content warrants it)");
+    for (const f of structured) {
+      const typePart = f.enumValues?.length
+        ? `enum: ${f.enumValues.map((v) => `"${v}"`).join(" | ")}`
+        : f.objectShape
+          ? `${f.type} of ${f.objectShape}`
+          : f.type;
+      lines.push(`- \`${f.name}\` (${typePart})`);
+    }
+    lines.push("");
+  }
+
+  lines.push(
+    "Example output (at the very end, after the article body):",
+    "```",
+    "<!-- FRONTMATTER_EXTRAS: {\"category\":\"Guides & Tutorials\",\"intentType\":\"tutorial\",\"tags\":[\"ki\",\"chatbots\"],\"faq\":[{\"question\":\"...\",\"answer\":\"...\"}]} -->",
+    "```",
+  );
+
+  return lines.join("\n");
 }

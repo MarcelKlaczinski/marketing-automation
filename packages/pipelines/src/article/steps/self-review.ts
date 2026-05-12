@@ -61,9 +61,30 @@ Realistic scoring:
 - 50-69: criticals exist, blocking
 - <50: structural problems, suggest re-running with stricter outline
 
-Output JSON: { "score": number, "issues": [...], "shouldBlock": boolean, "summary": string }
-shouldBlock = true if ANY critical issues OR score < 70.
-summary = 1-2 sentence overall verdict.
+Output a single JSON object with EXACTLY this shape (no markdown, no preamble):
+{
+  "score": 82,
+  "issues": [
+    {
+      "severity": "warning",
+      "category": "weak_intro",
+      "location": "intro",
+      "description": "Opening is too generic and doesn't hook the reader immediately.",
+      "suggestion": "Start with a concrete stat or a specific reader pain point."
+    }
+  ],
+  "shouldBlock": false,
+  "summary": "Solid draft with one weak section. Publishable after fixing the intro."
+}
+
+Rules:
+- severity: one of "critical", "warning", "suggestion"
+- category: one of "voice_drift", "factual_concern", "weak_intro", "weak_conclusion", "section_imbalance", "keyword_stuffing", "missing_examples", "verbose", "other"
+- location: name of the H2 section, or "intro", or "conclusion"
+- description: required — specific description of the problem
+- suggestion: optional — what to do to fix it
+- shouldBlock: true if ANY critical issue exists OR score < 70
+- If no issues found, set issues to an empty array []
       `.trim(),
     });
 
@@ -81,19 +102,33 @@ summary = 1-2 sentence overall verdict.
       "Now produce your review.",
     ].join("\n");
 
-    const result = await anthropic.messages({
-      projectId: ctx.projectId,
-      pipelineRunId: ctx.pipelineRunId,
-      operation: COST_OPS.ARTICLE_SELF_REVIEW,
-      model: "claude-haiku-4-5",
-      systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
-      userMessage: userMsg,
-      maxTokens: 3000,
-      jsonMode: true,
-      estimatedCostEur: this.estimatedCostEur(),
-    });
+    let raw: unknown;
+    try {
+      const result = await anthropic.messages({
+        projectId: ctx.projectId,
+        pipelineRunId: ctx.pipelineRunId,
+        operation: COST_OPS.ARTICLE_SELF_REVIEW,
+        model: "claude-haiku-4-5",
+        systemPrefix: prompt.cacheablePrefix,
+        systemSuffix: prompt.variableSuffix,
+        userMessage: userMsg,
+        maxTokens: 3000,
+        jsonMode: true,
+        estimatedCostEur: this.estimatedCostEur(),
+      });
+      raw = result.json;
+    } catch (err) {
+      // Graceful skip: non-JSON or API error — draft is already persisted by PersistBodyStep.
+      // Return a neutral score so the pipeline reaches PersistArticleStep.
+      ctx.log.warn({ err }, "SelfReviewStep: LLM call failed — returning neutral fallback score");
+      return { score: 70, issues: [], shouldBlock: false, summary: "Self-review unavailable — manual review required." };
+    }
 
-    return OutputSchema.parse(result.json);
+    const parsed = OutputSchema.safeParse(raw);
+    if (!parsed.success) {
+      ctx.log.warn({ errors: parsed.error.issues }, "SelfReviewStep: output schema mismatch — returning neutral fallback");
+      return { score: 70, issues: [], shouldBlock: false, summary: "Self-review schema error — manual review required." };
+    }
+    return parsed.data;
   }
 }

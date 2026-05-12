@@ -70,6 +70,10 @@ export default {
       defaultBranch: "Default Branch",
       contentRoot: "Content Root",
       assetsRoot: "Assets Root",
+      localPath: "Lokaler Pfad (Dev Preview)",
+      localPathHint: "Absoluter Pfad zum lokal geklonten Astro-Repo — nur für lokale Vorschau nötig.",
+      previewPath: "Vorschau-URL-Pfad",
+      previewPathHint: "Pfad-Template für die lokale Vorschau. Platzhalter: {locale}, {slug}. Standard: /{locale}/blog/{slug}",
     },
     publishDomain: {
       title: "Publish Domain",

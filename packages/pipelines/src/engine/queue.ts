@@ -135,6 +135,12 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
     {
       connection: getConnection(),
       concurrency,
+      // LLM pipeline jobs can take 5–15 minutes. BullMQ default lockDuration is 30s,
+      // renewed every 15s. Set to 10 min so a slow event loop never causes a false stall.
+      // stalledInterval must be > lockDuration to avoid the worker fighting itself.
+      lockDuration: 10 * 60 * 1000, // 10 minutes
+      stalledInterval: 15 * 60 * 1000, // check for stalled jobs every 15 minutes
+      maxStalledCount: 0, // no auto-retry on stall — avoids duplicate paid API calls
     }
   );
 

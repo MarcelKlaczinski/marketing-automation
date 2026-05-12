@@ -14,8 +14,9 @@ const InputSchema = z.object({
 
 const OutputSchema = z.object({
   r2Key: z.string(),
-  publicUrl: z.string().url(),
+  publicUrl: z.string(), // may be empty string when image generation is skipped
   altText: z.string(),
+  skipped: z.boolean().optional(),
 });
 
 export class HeroImageStep extends BaseStep<
@@ -40,17 +41,31 @@ export class HeroImageStep extends BaseStep<
 
     const outline = ArticleOutlineSchema.parse(article.outline);
 
-    const result = await replicate.generateImage({
-      projectId: ctx.projectId,
-      pipelineRunId: ctx.pipelineRunId,
-      articleId: input.articleId,
-      operation: COST_OPS.HERO_IMAGE,
-      model: "flux-1.1-pro",
-      prompt: outline.heroImagePrompt,
-      aspectRatio: "16:9",
-      storagePrefix: `${input.projectSlug}/articles/hero`,
-      estimatedCostEur: this.estimatedCostEur(),
-    });
+    let result: { r2Key: string; publicUrl: string } | null = null;
+    try {
+      result = await replicate.generateImage({
+        projectId: ctx.projectId,
+        pipelineRunId: ctx.pipelineRunId,
+        articleId: input.articleId,
+        operation: COST_OPS.HERO_IMAGE,
+        model: "flux-1.1-pro",
+        prompt: outline.heroImagePrompt,
+        aspectRatio: "16:9",
+        storagePrefix: `${input.projectSlug}/articles/hero`,
+        estimatedCostEur: this.estimatedCostEur(),
+      });
+    } catch (err) {
+      // Graceful skip: Replicate not configured or quota error.
+      // Draft + self-review are already done — do NOT fail the pipeline.
+      // The article lands in final_review without a hero image; image can be added later.
+      ctx.log.warn(
+        { err, articleId: input.articleId },
+        "HeroImageStep: image generation failed — skipping, draft will still be persisted"
+      );
+      // Provide a minimal alt-text from the title so the article is not left
+      // with a completely empty alt attribute if the image is added manually later.
+      return { r2Key: "", publicUrl: "", altText: outline.title, skipped: true };
+    }
 
     // Alt-text is locale-native. The heroImagePrompt is English (model requirement),
     // so DE articles use title-only to avoid mixing languages in screen-reader text.

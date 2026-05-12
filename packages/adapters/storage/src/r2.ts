@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { S3Client } from "bun";
@@ -82,7 +84,49 @@ export type PutObjectResult = {
   contentType: string;
 };
 
+/**
+ * Checks whether R2 credentials are available (vault or env vars).
+ * Does NOT throw — returns false when R2 is unconfigured (e.g. local dev).
+ */
+export async function isR2Configured(): Promise<boolean> {
+  try {
+    await resolveR2Config();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Local-disk fallback for development when R2 is not configured.
+ * Writes to `<cwd>/uploads/<key>` and returns a localhost URL via APP_BASE_URL.
+ */
+async function putObjectLocal(input: PutObjectInput): Promise<PutObjectResult> {
+  // Guard against path traversal — keys must not escape the uploads directory
+  if (input.key.includes("..")) {
+    throw new Error(`R2 local fallback: invalid key containing ".." — ${input.key}`);
+  }
+  const contentType = input.contentType ?? "application/octet-stream";
+  const localPath = join(process.cwd(), "uploads", input.key);
+  await mkdir(dirname(localPath), { recursive: true });
+
+  // Bun.write handles Buffer | ArrayBuffer | Uint8Array | Blob | string natively
+  const bytesStored = await Bun.write(localPath, input.body as Parameters<typeof Bun.write>[1]);
+
+  const baseUrl = getEnv().APP_BASE_URL.replace(/\/$/, "");
+  const publicUrl = `${baseUrl}/uploads/${input.key}`;
+
+  log.info({ key: input.key, localPath, bytesStored, contentType }, "R2 not configured — saved locally");
+
+  return { key: input.key, publicUrl, bytesStored, contentType };
+}
+
 export async function putObject(input: PutObjectInput): Promise<PutObjectResult> {
+  // Transparent local fallback: when R2 is not configured (dev/testing), write to disk.
+  if (!(await isR2Configured())) {
+    return putObjectLocal(input);
+  }
+
   const { client, config } = await getClientAndConfig();
   const file = client.file(input.key);
 

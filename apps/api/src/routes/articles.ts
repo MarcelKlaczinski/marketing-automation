@@ -1,6 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { COST_OPS, estimateCostEur } from "@marketing-auto/core";
 import {
+  type FrontmatterFieldDescriptor,
   articleVersions,
   articles,
   astroSyncRuns,
@@ -8,9 +9,11 @@ import {
   contentPillars,
   db,
   pagespeedRuns,
+  pipelineRuns,
   projects,
   schemaExtensionRuns,
 } from "@marketing-auto/db";
+import { suggestFrontmatterFields } from "../lib/frontmatter-service.ts";
 import {
   continueArticleGeneration,
   enqueueArticleDraftPipeline,
@@ -20,11 +23,138 @@ import {
   enqueuePagespeedApiValidationPipeline,
   enqueuePagespeedValidationPipeline,
   enqueueSchemaExtensionPipeline,
+  enqueueHeroImageGenerationPipeline,
+  enqueueLocalizeArticlePipeline,
+  slugify,
 } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
+
+// ─── simple YAML serializer (no external dep needed for basic scalar/array types) ─
+function toYaml(obj: Record<string, unknown>): string {
+  const lines: string[] = ["---"];
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    if (typeof v === "boolean" || typeof v === "number") {
+      lines.push(`${k}: ${v}`);
+    } else if (typeof v === "string") {
+      // Use block scalar for multiline, quoted scalar for single-line
+      if (v.includes("\n")) {
+        lines.push(`${k}: |`);
+        for (const line of v.split("\n")) lines.push(`  ${line}`);
+      } else {
+        lines.push(`${k}: ${JSON.stringify(v)}`);
+      }
+    } else if (Array.isArray(v)) {
+      if (v.length === 0) {
+        lines.push(`${k}: []`);
+      } else {
+        lines.push(`${k}:`);
+        for (const item of v) lines.push(`  - ${JSON.stringify(item)}`);
+      }
+    } else if (typeof v === "object") {
+      // Serialize objects as JSON scalar (covers schemaJsonLd)
+      lines.push(`${k}: ${JSON.stringify(JSON.stringify(v))}`);
+    }
+  }
+  lines.push("---");
+  return lines.join("\n");
+}
+
+// ─── shared frontmatter builder ────────────────────────────────────────────────
+
+/**
+ * Spec 50: Builds a frontmatter object that satisfies the Astro blog collection schema.
+ *
+ * Field priority (highest → lowest):
+ * 1. article.frontmatterExtras — LLM-generated or user-edited values (category, intentType, faq, tags…)
+ * 2. Schema-derived defaults — required fields get sensible defaults if not in extras
+ * 3. Static article columns — title, slug, heroImage, wordCount, clusterRole, clusterKey, etc.
+ *
+ * When `schema` is provided the function uses it to know which fields are required
+ * and which have enum constraints. Without a schema it falls back to a minimal
+ * hardcoded set for the blog collection.
+ */
+function buildFrontmatter(
+  article: {
+    title: string | null;
+    metaDescription: string | null;
+    slug: string;
+    locale: string | null;
+    heroImageAltText: string | null;
+    cornerstoneKeyword: string | null;
+    wordCount: number | null;
+    heroImagePublicUrl: string | null;
+    schemaJsonLd: unknown;
+    frontmatterExtras: unknown;
+    clusterRole: string | null;
+    clusterKey: string | null;
+  },
+  cluster: { name: string; pillar: string | null } | null,
+  schema?: FrontmatterFieldDescriptor[]
+): Record<string, unknown> {
+  const today = new Date().toISOString().split("T")[0]!;
+  const locale = (article.locale as string | null) ?? "de";
+
+  // Merge LLM/user-edited extras (may contain category, intentType, tags, faq…)
+  const extras = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
+
+  // Build the base frontmatter from static article columns
+  const fm: Record<string, unknown> = {
+    title: article.title ?? "",
+    slug: article.slug,
+    locale,
+    pubDate: today,
+    heroImageAlt: article.heroImageAltText ?? "",
+    cluster: cluster?.name ?? "",
+    pillar: cluster?.pillar ?? "",
+    cornerstoneKeyword: article.cornerstoneKeyword ?? "",
+    wordCount: article.wordCount ?? 0,
+    draft: false,
+    featured: false,
+    ads: false,
+    // Cluster role + key from article columns (set by SyncClustersFromFrontmatterStep)
+    ...(article.clusterRole ? { clusterRole: article.clusterRole } : {}),
+    ...(article.clusterKey ? { clusterKey: article.clusterKey } : {}),
+  };
+
+  // Apply schema-required fields with defaults if not already in extras
+  if (schema?.length) {
+    for (const field of schema.filter((f) => f.required)) {
+      if (!(field.name in extras) && !(field.name in fm)) {
+        if (field.name === "date" || field.name === "pubDate") {
+          fm[field.name] = today;
+        } else if (field.name === "excerpt" || field.name === "description") {
+          fm[field.name] = article.metaDescription ?? "";
+        } else if (field.enumValues?.length) {
+          fm[field.name] = field.enumValues[0]; // first enum value as default
+        } else if (field.type === "string_array") {
+          fm[field.name] = [];
+        } else if (field.type === "boolean") {
+          fm[field.name] = field.hasDefault ? undefined : false; // let Astro default handle it
+        }
+      }
+    }
+  } else {
+    // Fallback hardcoded required fields for blog collection
+    fm.date = today;
+    fm.category = extras.category ?? "Guides & Tutorials";
+    fm.excerpt = article.metaDescription ?? "";
+  }
+
+  // Overlay extras on top (LLM / user values win over defaults)
+  Object.assign(fm, extras);
+
+  // Static columns that always come from DB (not overrideable via extras)
+  if (article.heroImagePublicUrl) fm.heroImage = article.heroImagePublicUrl;
+  if (article.schemaJsonLd) fm.schemaJsonLd = article.schemaJsonLd;
+
+  return fm;
+}
 import { requireAuth } from "../middleware/auth.ts";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { triggerResultToResponse, triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
@@ -307,7 +437,7 @@ articleRoutes.get("/imported/:id", async (c) => {
           eq(articles.projectId, article.projectId),
           eq(articles.source, "imported"),
           eq(articles.translationKey, article.translationKey),
-          sql`${articles.id} != ${id}`
+          ne(articles.id, id)
         )
       )
       .limit(1);
@@ -315,6 +445,217 @@ articleRoutes.get("/imported/:id", async (c) => {
   }
 
   return c.json({ ok: true, data: { article, pendant } });
+});
+
+// ─── pipeline-run cleanup ─────────────────────────────────────────────────────
+
+articleRoutes.post("/pipeline-runs/fix-stuck", async (c) => {
+  const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const rows = await db
+    .update(pipelineRuns)
+    .set({ status: "failed", errorMessage: "Stuck run reset by admin cleanup" })
+    .where(and(eq(pipelineRuns.status, "running"), lt(pipelineRuns.startedAt, thirtyMinAgo)))
+    .returning({ id: pipelineRuns.id });
+  log.info({ fixed: rows.length }, "Stuck pipeline runs reset by admin cleanup");
+  return c.json({ ok: true, data: { fixed: rows.length } });
+});
+
+// ─── frontmatter preview + extras ─────────────────────────────────────────────
+
+articleRoutes.get("/:id/frontmatter", async (c) => {
+  const id = c.req.param("id");
+
+  const [article] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  const [[cluster], [project]] = await Promise.all([
+    article.clusterId
+      ? db
+          .select({ name: clusters.name, pillar: clusters.pillar })
+          .from(clusters)
+          .where(eq(clusters.id, article.clusterId))
+          .limit(1)
+      : Promise.resolve([null]),
+    db
+      .select({ astroCollectionSchemas: projects.astroCollectionSchemas })
+      .from(projects)
+      .where(eq(projects.id, article.projectId))
+      .limit(1),
+  ]);
+
+  const schemas = project?.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
+  const collectionSchema = schemas?.["blog"] ?? undefined;
+
+  const fm = buildFrontmatter(article, cluster ?? null, collectionSchema);
+  const yaml = toYaml(fm);
+
+  return c.json({
+    ok: true,
+    data: {
+      yaml,
+      slug: article.slug,
+      extras: (article.frontmatterExtras ?? {}) as Record<string, unknown>,
+      schema: collectionSchema ?? null,
+    },
+  });
+});
+
+// PATCH /:id/frontmatter-extras — save user-edited / LLM-suggested extras
+articleRoutes.patch(
+  "/:id/frontmatter-extras",
+  zValidator(
+    "json",
+    z.object({
+      extras: z.record(z.unknown()),
+    })
+  ),
+  async (c) => {
+    const id = c.req.param("id");
+    const { extras } = c.req.valid("json");
+
+    const [article] = await db.select({ id: articles.id }).from(articles).where(eq(articles.id, id)).limit(1);
+    if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+    await db
+      .update(articles)
+      .set({ frontmatterExtras: extras, frontmatterUpdatedAt: new Date() })
+      .where(eq(articles.id, id));
+
+    return c.json({ ok: true, data: { saved: true } });
+  }
+);
+
+// POST /:id/frontmatter-suggest — Haiku-powered field suggestions
+articleRoutes.post("/:id/frontmatter-suggest", async (c) => {
+  const id = c.req.param("id");
+
+  const [article] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  const [project] = await db
+    .select({ astroCollectionSchemas: projects.astroCollectionSchemas })
+    .from(projects)
+    .where(eq(projects.id, article.projectId))
+    .limit(1);
+
+  const schemas = project?.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
+  const schema = schemas?.["blog"] ?? null;
+
+  if (!schema) {
+    return c.json(
+      { ok: false, error: "No schema stored for this project yet. Run an Astro import first." },
+      422
+    );
+  }
+
+  // Use first ~600 words of body as context
+  const bodyExcerpt = article.bodyMd
+    ? article.bodyMd.split(/\s+/).slice(0, 600).join(" ")
+    : null;
+
+  const suggestions = await suggestFrontmatterFields({
+    projectId: article.projectId,
+    pipelineRunId: crypto.randomUUID(), // one-off cost-tracking run
+    title: article.title,
+    metaDescription: article.metaDescription,
+    bodyExcerpt,
+    schema,
+    currentExtras: (article.frontmatterExtras ?? {}) as Record<string, unknown>,
+  });
+
+  return c.json({ ok: true, data: suggestions });
+});
+
+// ─── local Astro dev preview ──────────────────────────────────────────────────
+
+articleRoutes.post("/:id/local-preview", async (c) => {
+  const id = c.req.param("id");
+  const [article] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  // Read localPath + collection schemas from project
+  const [project] = await db
+    .select({ astroRepo: projects.astroRepo, astroCollectionSchemas: projects.astroCollectionSchemas })
+    .from(projects)
+    .where(eq(projects.id, article.projectId))
+    .limit(1);
+
+  const astroRepo = project?.astroRepo as {
+    localPath?: string;
+    previewPath?: string;
+  } | null;
+  const schemas = project?.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
+  const collectionSchema = schemas?.["blog"] ?? undefined;
+  const repoPath = astroRepo?.localPath ?? null;
+  if (!repoPath) {
+    return c.json(
+      {
+        ok: false,
+        error:
+          "No local Astro path configured. Set astroRepo.localPath on the project (e.g. via Drizzle Studio).",
+      },
+      422
+    );
+  }
+
+  const [cluster] = article.clusterId
+    ? await db
+        .select({ name: clusters.name, pillar: clusters.pillar })
+        .from(clusters)
+        .where(eq(clusters.id, article.clusterId))
+        .limit(1)
+    : [null];
+
+  const locale = (article.locale as string | null) ?? "de";
+
+  const fm = buildFrontmatter(article, cluster ?? null, collectionSchema);
+  const yamlStr = toYaml(fm);
+
+  const mdxContent = [
+    yamlStr,
+    "",
+    "<!-- AUTO-GENERATED preview — do not commit -->",
+    "",
+    article.bodyMd ?? "",
+  ].join("\n");
+
+  // Write into the locale subdirectory (src/content/blog/de/ or /en/)
+  // matching the Astro content collection structure used by toolwiki/ki-wissensraum.
+  const blogDir = path.join(repoPath, "src", "content", "blog", locale);
+  await mkdir(blogDir, { recursive: true });
+  const mdxPath = path.join(blogDir, `${article.slug}.mdx`);
+  await Bun.write(mdxPath, mdxContent);
+
+  // Copy local hero image if it's a local URL
+  if (article.heroImagePublicUrl) {
+    const url = article.heroImagePublicUrl;
+    if (url.startsWith("/uploads/") || url.includes("localhost")) {
+      const basename = path.basename(url);
+      const key = url.replace(/^\/uploads\//, "");
+      const srcFile = path.join(".", "uploads", key);
+      const destDir = path.join(repoPath, "src", "assets", "hero");
+      await mkdir(destDir, { recursive: true });
+      const destFile = path.join(destDir, basename);
+      try {
+        const srcBuf = await Bun.file(srcFile).arrayBuffer();
+        await Bun.write(destFile, srcBuf);
+      } catch {
+        log.warn({ srcFile, destFile }, "Could not copy hero image for local preview");
+      }
+    }
+  }
+
+  // Build preview URL: use configurable template or fall back to /{locale}/blog/{slug}
+  const pathTemplate = astroRepo?.previewPath ?? "/{locale}/blog/{slug}";
+  const previewPath = pathTemplate
+    .replace("{locale}", locale)
+    .replace("{slug}", article.slug);
+  const previewUrl = `http://localhost:4321${previewPath}`;
+
+  return c.json({
+    ok: true,
+    data: { url: previewUrl, slug: article.slug, repoPath },
+  });
 });
 
 // ─── detail ───────────────────────────────────────────────────────────────────
@@ -325,9 +666,30 @@ articleRoutes.get("/:id", async (c) => {
   const [article] = await db.select().from(articles).where(eq(articles.id, id)).limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
 
+  const [proj] = await db
+    .select({ slug: projects.slug, astroRepo: projects.astroRepo })
+    .from(projects)
+    .where(eq(projects.id, article.projectId))
+    .limit(1);
+
   const [cluster] = article.clusterId
     ? await db.select().from(clusters).where(eq(clusters.id, article.clusterId)).limit(1)
     : [null];
+
+  // Look up translation sibling (same translationKey, opposite locale)
+  const translationSibling = article.translationKey
+    ? await db
+        .select({ id: articles.id, locale: articles.locale, status: articles.status })
+        .from(articles)
+        .where(
+          and(
+            eq(articles.projectId, article.projectId),
+            eq(articles.translationKey, article.translationKey),
+            ne(articles.id, article.id)
+          )
+        )
+        .limit(1)
+    : [];
 
   const [pillar] = cluster?.pillarId
     ? await db.select().from(contentPillars).where(eq(contentPillars.id, cluster.pillarId)).limit(1)
@@ -354,16 +716,43 @@ articleRoutes.get("/:id", async (c) => {
       .limit(5),
   ]);
 
+  // Fetch outline + draft pipeline runs linked to this article
+  const pipelineRunIds = [
+    (article as { outlinePipelineRunId?: string | null }).outlinePipelineRunId,
+    (article as { draftPipelineRunId?: string | null }).draftPipelineRunId,
+  ].filter((runId): runId is string => runId != null);
+
+  const recentPipeline = pipelineRunIds.length > 0
+    ? await db
+        .select({
+          id: pipelineRuns.id,
+          pipelineName: pipelineRuns.pipelineName,
+          status: pipelineRuns.status,
+          stepName: pipelineRuns.stepName,
+          startedAt: pipelineRuns.startedAt,
+          completedAt: pipelineRuns.completedAt,
+          errorMessage: pipelineRuns.errorMessage,
+        })
+        .from(pipelineRuns)
+        .where(inArray(pipelineRuns.id, pipelineRunIds))
+    : [];
+
   return c.json({
     ok: true,
     data: {
-      article,
+      article: {
+        ...article,
+        projectSlug: proj?.slug ?? null,
+        projectAstroLocalPath: (proj?.astroRepo as { localPath?: string } | null)?.localPath ?? null,
+        translationSibling: translationSibling[0] ?? null, // { id, locale, status } or null
+      },
       cluster,
       pillar,
       recentRuns: {
         sync: recentSync,
         pagespeed: recentPagespeed,
         schema: recentSchema,
+        pipeline: recentPipeline,
       },
     },
   });
@@ -555,6 +944,165 @@ articleRoutes.post("/:id/generate-draft", async (c) => {
     enqueue: enqueueArticleDraftPipeline,
   });
   log.info({ articleId: id, ...result }, "Draft pipeline triggered via HTTP");
+  return triggerResultToResponse(c, result);
+});
+
+const generateHeroBodySchema = z.object({
+  promptOverride: z.string().min(10).max(1000).optional(),
+});
+
+articleRoutes.post("/:id/generate-hero-image", async (c) => {
+  const id = c.req.param("id");
+  const [article] = await db
+    .select({ id: articles.id, projectId: articles.projectId, outline: articles.outline })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+  if (!article.outline) return c.json({ ok: false, error: "Article has no outline yet — generate outline first" }, 422);
+
+  const rawBody = await c.req.json().catch(() => ({}));
+  const { promptOverride } = generateHeroBodySchema.safeParse(rawBody).data ?? {};
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:hero-generation",
+    projectId: article.projectId,
+    uniqueKey: { field: "articleId", value: article.id },
+    costEstimate: { service: "replicate", operation: COST_OPS.HERO_IMAGE },
+    extraInput: { articleId: article.id, ...(promptOverride ? { promptOverride } : {}) },
+    enqueue: enqueueHeroImageGenerationPipeline,
+  });
+  log.info({ articleId: id, ...result }, "Hero image pipeline triggered via HTTP");
+  return triggerResultToResponse(c, result);
+});
+
+// ─── localize ─────────────────────────────────────────────────────────────────
+
+const localizeBodySchema = z.object({
+  targetLocale: z.enum(["de", "en"]),
+  mode: z.enum(["translate", "fresh"]).default("translate"),
+});
+
+articleRoutes.post("/:id/localize", async (c) => {
+  const id = c.req.param("id");
+
+  const [sourceArticle] = await db
+    .select({
+      id: articles.id,
+      projectId: articles.projectId,
+      locale: articles.locale,
+      title: articles.title,
+      slug: articles.slug,
+      metaDescription: articles.metaDescription,
+      cornerstoneKeyword: articles.cornerstoneKeyword,
+      bodyMd: articles.bodyMd,
+      translationKey: articles.translationKey,
+      clusterId: articles.clusterId,
+      collection: articles.collection,
+      cornerstoneSpecId: articles.cornerstoneSpecId,
+    })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+  if (!sourceArticle) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  const rawBody = await c.req.json().catch(() => ({}));
+  const parsed = localizeBodySchema.safeParse(rawBody);
+  if (!parsed.success) return c.json({ ok: false, error: parsed.error.message }, 400);
+  const { targetLocale, mode } = parsed.data;
+
+  if (sourceArticle.locale === targetLocale) {
+    return c.json({ ok: false, error: "Source and target locale are the same" }, 400);
+  }
+
+  if (mode === "translate" && !sourceArticle.bodyMd) {
+    return c.json({ ok: false, error: "Article has no draft body — run draft pipeline first or use fresh mode" }, 422);
+  }
+
+  // Look up project slug for pipeline prompt building
+  const [proj] = await db
+    .select({ slug: projects.slug })
+    .from(projects)
+    .where(eq(projects.id, sourceArticle.projectId))
+    .limit(1);
+  if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  // Ensure translationKey is set on source article (generate from slug if missing)
+  let translationKey = sourceArticle.translationKey;
+  if (!translationKey) {
+    translationKey = slugify(sourceArticle.slug);
+    await db
+      .update(articles)
+      .set({ translationKey, updatedAt: new Date() })
+      .where(eq(articles.id, sourceArticle.id));
+  }
+
+  // Check if a translation already exists for this locale + translationKey
+  const [existing] = await db
+    .select({ id: articles.id, status: articles.status })
+    .from(articles)
+    .where(
+      and(
+        eq(articles.projectId, sourceArticle.projectId),
+        eq(articles.translationKey, translationKey),
+        eq(articles.locale, targetLocale)
+      )
+    )
+    .limit(1);
+
+  let targetArticleId: string;
+
+  if (existing) {
+    // Re-use existing target article if not currently running
+    if (existing.status === "generating" || existing.status === "drafting") {
+      return c.json({ ok: false, error: "A localization is already in progress for this article" }, 409);
+    }
+    targetArticleId = existing.id;
+    await db
+      .update(articles)
+      .set({ status: "generating", updatedAt: new Date() })
+      .where(eq(articles.id, targetArticleId));
+  } else {
+    // Create the target article stub
+    const [created] = await db
+      .insert(articles)
+      .values({
+        projectId: sourceArticle.projectId,
+        clusterId: sourceArticle.clusterId,
+        locale: targetLocale,
+        translationKey,
+        title: sourceArticle.title ?? "",
+        slug: `${sourceArticle.slug}-${targetLocale}`, // temp — pipeline will overwrite
+        metaDescription: sourceArticle.metaDescription,
+        cornerstoneKeyword: sourceArticle.cornerstoneKeyword,
+        collection: sourceArticle.collection ?? "blog",
+        source: "generated",
+        status: "generating",
+        approvalMode: "manual",
+      })
+      .returning({ id: articles.id });
+    targetArticleId = created!.id;
+  }
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:localize",
+    projectId: sourceArticle.projectId,
+    uniqueKey: { field: "targetArticleId", value: targetArticleId },
+    costEstimate: { service: "anthropic", estimatedCostEur: mode === "translate" ? 1.2 : 0.05 },
+    extraInput: {
+      sourceArticleId: sourceArticle.id,
+      targetArticleId,
+      targetLocale,
+      mode,
+      projectSlug: proj.slug,
+    },
+    enqueue: enqueueLocalizeArticlePipeline,
+  });
+
+  log.info(
+    { sourceArticleId: id, targetArticleId, targetLocale, mode, ...result },
+    "Localize pipeline triggered via HTTP"
+  );
   return triggerResultToResponse(c, result);
 });
 

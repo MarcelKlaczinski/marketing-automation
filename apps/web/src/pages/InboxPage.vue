@@ -22,7 +22,7 @@
     </div>
 
     <!-- Setup-incomplete banner (existing) -->
-    <q-banner v-if="!systemStatusStore.allConfigured" class="bg-warning text-dark q-mb-md">
+    <q-banner v-if="!setupComplete" class="bg-warning text-dark q-mb-md">
       <template #avatar>
         <q-icon name="warning" />
       </template>
@@ -68,7 +68,7 @@
         class="q-mt-xl"
       >
         <q-list separator class="bordered-list">
-          <InboxRunRow v-for="run in runningRuns" :key="run.id" :entry="run" />
+          <InboxRunRow v-for="run in runningRuns" :key="run.id" :entry="run" @cancelled="refresh" />
         </q-list>
       </InboxSection>
 
@@ -119,14 +119,6 @@ export default defineComponent({
     NotificationItem,
   },
 
-  setup() {
-    return {
-      authStore: useAuthStore(),
-      systemStatusStore: useSystemStatusStore(),
-      notificationsStore: useNotificationsStore(),
-    };
-  },
-
   data: () => ({
     tasks: [] as InboxArticle[],
     activeRuns: [] as InboxRunEntry[],
@@ -136,7 +128,10 @@ export default defineComponent({
 
   computed: {
     userEmail(): string {
-      return this.authStore.user?.email ?? '';
+      return useAuthStore().user?.email ?? '';
+    },
+    setupComplete(): boolean {
+      return useSystemStatusStore().allConfigured;
     },
     runningRuns(): InboxRunEntry[] {
       return this.activeRuns.filter((r) => r.status === 'queued' || r.status === 'running');
@@ -164,10 +159,10 @@ export default defineComponent({
     async refresh(): Promise<void> {
       this.loading = true;
       try {
-        await Promise.all([
-          this.fetchTasks(),
-          this.fetchActiveRuns(),
-          this.fetchRecentNotifications(),
+        await Promise.allSettled([
+          this.fetchTasks().catch(() => { /* leave tasks as [] */ }),
+          this.fetchActiveRuns().catch(() => { /* leave activeRuns as [] */ }),
+          this.fetchRecentNotifications().catch(() => { /* leave recentNotifications as [] */ }),
         ]);
       } finally {
         this.loading = false;
@@ -200,7 +195,7 @@ export default defineComponent({
 
     async onNotificationClick(n: NotificationRow): Promise<void> {
       if (!n.readAt) {
-        await this.notificationsStore.markAsRead([n.id]);
+        await useNotificationsStore().markAsRead([n.id]);
       }
       if (n.link) {
         void this.$router.push(n.link);

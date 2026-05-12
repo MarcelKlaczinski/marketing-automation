@@ -2,7 +2,7 @@ import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { getInstallationOctokit } from "../github-auth.ts";
-import { type AstroRepoConfig, AstroSyncError, type FrontmatterField } from "../types.ts";
+import { type AstroCollectionSchemas, type AstroRepoConfig, AstroSyncError, type FrontmatterField } from "../types.ts";
 
 const log = createLogger("astro-sync:schema");
 
@@ -19,9 +19,20 @@ const OutputSchema = z.object({
         type: z.string(),
         required: z.boolean(),
         hasDefault: z.boolean(),
+        enumValues: z.array(z.string()).optional(),
+        objectShape: z.string().optional(),
       })
     ),
   }),
+  // Spec 50: all collections keyed by name
+  allCollectionSchemas: z.record(z.array(z.object({
+    name: z.string(),
+    type: z.string(),
+    required: z.boolean(),
+    hasDefault: z.boolean(),
+    enumValues: z.array(z.string()).optional(),
+    objectShape: z.string().optional(),
+  }))),
   configFileSha: z.string(),
 });
 
@@ -84,12 +95,14 @@ export class ResolveSchemaStep extends BaseStep<
     log.debug({ foundPath, contentLength: content.length }, "Astro content config loaded");
 
     const fields = parseBlogSchema(content);
+    const allCollectionSchemas = parseAllCollectionSchemas(content);
 
     return {
       collectionInfo: {
         collectionName: "blog" as const,
         fields,
       },
+      allCollectionSchemas,
       configFileSha: sha,
     };
   }
@@ -115,6 +128,41 @@ export function parseBlogSchema(configSource: string): FrontmatterField[] {
   }
 
   return extractFields(schemaBody);
+}
+
+/**
+ * Spec 50: Parses ALL named collections from content.config.ts.
+ * Returns a Record keyed by collection name → fields array.
+ * Best-effort: missing or unparseable collections are simply omitted.
+ */
+export function parseAllCollectionSchemas(configSource: string): AstroCollectionSchemas {
+  const schemas: AstroCollectionSchemas = {};
+
+  // Find all `const <name> = defineCollection(` or `<name>: defineCollection(` patterns
+  const collectionPattern = /(?:const\s+(\w+)\s*=\s*defineCollection|(\w+)\s*:\s*defineCollection)\s*\(/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = collectionPattern.exec(configSource)) !== null) {
+    const collectionName = match[1] ?? match[2];
+    if (!collectionName) continue;
+
+    // Extract the z.object({...}) body for this collection
+    const searchFrom = match.index;
+    const zObjPattern = /z\.object\s*\(\s*\{/;
+    const relMatch = configSource.slice(searchFrom).match(zObjPattern);
+    if (!relMatch?.index) continue;
+
+    const openBraceIdx = searchFrom + relMatch.index + relMatch[0].length - 1;
+    const schemaBody = bracketBalanced(configSource, openBraceIdx);
+    if (!schemaBody) continue;
+
+    const fields = extractFields(schemaBody);
+    if (fields.length > 0) {
+      schemas[collectionName] = fields;
+    }
+  }
+
+  return schemas;
 }
 
 function extractBlogSchemaBody(source: string): string | null {
@@ -179,8 +227,37 @@ function classifyField(name: string, definition: string): FrontmatterField {
   const isNullable = /\.nullable\(\)/.test(definition);
 
   let type: FrontmatterField["type"] = "unknown";
+  let enumValues: string[] | undefined;
+  let objectShape: string | undefined;
+
+  // z.array(z.object(...)) → object_array (check before string_array + object)
+  if (/z\.array\s*\(\s*z\.object\s*\(/.test(definition)) {
+    type = "object_array";
+    // Try to extract inner field names for a human-readable shape description
+    const innerMatch = definition.match(/z\.object\s*\(\s*\{([^}]+)\}/);
+    if (innerMatch?.[1]) {
+      const innerFields = innerMatch[1]
+        .split(",")
+        .map((f) => f.trim().split(":")[0]?.trim())
+        .filter(Boolean);
+      if (innerFields.length > 0) {
+        objectShape = `{ ${innerFields.join(", ")} }`;
+      }
+    }
+  }
   // string_array before string — z.array(z.string()) also contains z.string()
-  if (/z\.array\s*\(\s*z\.string\(\)\s*\)/.test(definition)) type = "string_array";
+  else if (/z\.array\s*\(\s*z\.string\(\)\s*\)/.test(definition)) type = "string_array";
+  // z.enum([...]) — extract values
+  else if (/z\.enum\s*\(/.test(definition)) {
+    type = "string";
+    const enumMatch = definition.match(/z\.enum\s*\(\s*\[([^\]]+)\]/);
+    if (enumMatch?.[1]) {
+      enumValues = enumMatch[1]
+        .split(",")
+        .map((v) => v.trim().replace(/^['"]|['"]$/g, ""))
+        .filter(Boolean);
+    }
+  }
   else if (/z\.string\(\)/.test(definition)) type = "string";
   else if (/z\.number\(\)/.test(definition)) type = "number";
   else if (/z\.boolean\(\)/.test(definition)) type = "boolean";
@@ -188,10 +265,13 @@ function classifyField(name: string, definition: string): FrontmatterField {
   else if (/\bimage\s*\(\s*\)/.test(definition)) type = "image";
   else if (/z\.object\s*\(/.test(definition)) type = "object";
 
-  return {
+  const field: FrontmatterField = {
     name,
     type,
     required: !isOptional && !isNullable && !hasDefault,
     hasDefault,
   };
+  if (enumValues) field.enumValues = enumValues;
+  if (objectShape) field.objectShape = objectShape;
+  return field;
 }

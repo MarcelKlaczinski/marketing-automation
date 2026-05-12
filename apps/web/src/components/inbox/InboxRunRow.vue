@@ -20,13 +20,26 @@
     </q-item-section>
 
     <q-item-section side>
-      <q-icon name="chevron_right" size="20px" color="grey-6" />
+      <q-btn
+        v-if="entry.status === 'running' || entry.status === 'queued'"
+        flat
+        round
+        dense
+        icon="stop_circle"
+        color="negative"
+        size="sm"
+        :loading="cancelling"
+        :aria-label="$t('inbox.cancelRun') as string"
+        @click.stop="onCancel"
+      />
+      <q-icon v-else name="chevron_right" size="20px" color="grey-6" />
     </q-item-section>
   </q-item>
 </template>
 
 <script lang="ts">
 import { defineComponent, type PropType } from 'vue';
+import { api } from 'src/lib/api-client';
 
 export interface InboxRunEntry {
   id: string;
@@ -47,6 +60,12 @@ export default defineComponent({
     entry: { type: Object as PropType<InboxRunEntry>, required: true },
   },
 
+  emits: ['cancelled'],
+
+  data: () => ({
+    cancelling: false,
+  }),
+
   computed: {
     elapsed(): string | null {
       if (!this.entry.startedAt) return null;
@@ -64,6 +83,18 @@ export default defineComponent({
         void this.$router.push({ name: 'article-detail', params: { id: this.entry.articleId } });
       } else {
         void this.$router.push({ name: 'activity' });
+      }
+    },
+
+    async onCancel(): Promise<void> {
+      this.cancelling = true;
+      try {
+        await api.patch(`/pipeline-runs/${this.entry.id}/cancel`);
+        this.$emit('cancelled', this.entry.id);
+      } catch {
+        // Silently ignore — polling will refresh state
+      } finally {
+        this.cancelling = false;
       }
     },
   },

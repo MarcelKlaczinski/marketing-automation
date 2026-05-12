@@ -177,6 +177,10 @@ const updateProjectSchema = z.object({
       defaultBranch: z.string().default("main"),
       contentRoot: z.string().default("src/content"),
       assetsRoot: z.string().default("src/assets"),
+      // Local filesystem path for dev preview — optional, machine-specific
+      localPath: z.string().min(1).optional(),
+      // URL path template for local preview, e.g. "/{locale}/blog/{slug}" (default)
+      previewPath: z.string().min(1).optional(),
     })
     .nullable()
     .optional(),

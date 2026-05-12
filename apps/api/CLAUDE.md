@@ -76,18 +76,28 @@ Daemon-Process unverändert weiter.
 **Wie**:
 
 ```bash
-# Aktuellen Worker-PID finden
-ps aux | grep "workers/index" | grep -v grep
+# PID-Datei zeigt den aktuell laufenden Worker
+cat tmp/worker.pid
 
-# Restart (oder via npm-script):
+# Restart: neuer Worker liest PID-Datei, sendet SIGTERM an alten Prozess und startet dann selbst
 bun --filter @marketing-auto/api run worker:restart
 ```
 
-**npm-Script** (`apps/api/package.json`):
+## Single-Worker-Garantie (PID-Datei)
 
-```json
-"worker:restart": "pkill -f 'apps/api/src/workers/index' || true; sleep 1; bun --env-file ../../.env apps/api/src/workers/index.ts &"
-```
+Der Worker schreibt beim Start seine PID in `tmp/worker.pid` (Projektroot).
+Bei jedem Start wird geprüft, ob ein Prozess mit der gespeicherten PID noch läuft — falls ja,
+wird ihm SIGTERM gesendet und 2s gewartet, bevor der neue Worker die Queue übernimmt.
+
+- `tmp/worker.pid` ist in `.gitignore` — kein Commit nötig
+- `pkill` ist **nicht mehr nötig** — `worker:restart` startet einfach einen neuen Worker, der
+  den alten automatisch ablöst
+- Stale PID-Datei (Prozess tot) wird beim nächsten Start stillschweigend ignoriert
+
+**BullMQ `lockDuration`**: Auf 10 Minuten gesetzt (default: 30s). LLM-Jobs dauern bis zu 15 min.
+Würde der Lock ablaufen, könnte BullMQ den Job als "stalled" markieren und einem anderen Worker
+geben — was doppelte API-Kosten verursachen würde. `maxStalledCount: 0` deaktiviert Auto-Retry
+bei Stalls zusätzlich.
 
 ## Tests
 - Run with `bun --filter @marketing-auto/api test`. The script `cd`s to repo root before invoking `bun test` so `.env` auto-loads — `server.ts` calls `getEnv()` at import, which would fail without it. Same recursion gotcha as `packages/db` / `packages/core`: don't run `bun run test` from inside the package.

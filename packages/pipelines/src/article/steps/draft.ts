@@ -1,6 +1,6 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
-import { articles, db } from "@marketing-auto/db";
+import { type FrontmatterFieldDescriptor, articles, db } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -13,6 +13,8 @@ const InputSchema = z.object({
   projectSlug: z.string(),
   modelOverride: z.string().optional(),
   locale: z.enum(["de", "en"]).optional(),
+  // Spec 50: frontmatter schema — injected into prompt so LLM outputs FRONTMATTER_EXTRAS block
+  frontmatterSchema: z.array(z.unknown()).nullable().optional(),
 });
 
 const OutputSchema = z.object({
@@ -62,13 +64,24 @@ Hard rules:
 8. Use concrete examples, specific numbers, real product names where applicable
 9. NO em-dashes used as filler. NO "delve", "navigate", "leverage", "robust" unless context demands them.
 10. NO internal links — do not invent anchor tags or placeholder links. Spec 24 handles linking.
+11. After the conclusion, output a FRONTMATTER_EXTRAS block (see Frontmatter Requirements in system prompt).
+    This block is stripped before publishing — it is metadata only.
 
-Output: pure Markdown, ready to publish. No frontmatter, no JSON wrapping.
+Output format:
+[article body in Markdown]
+
+<!-- FRONTMATTER_EXTRAS: {"category":"...","intentType":"...","tags":[...],"faq":[{"question":"...","answer":"..."},...]} -->
     `.trim();
     const promptBase = {
       skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing-context"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: draftInstructions,
+      ...(input.frontmatterSchema?.length
+        ? {
+            // Spec 50: InputSchema accepts z.unknown() for bridge flexibility; runtime type guaranteed by caller
+            frontmatterSchema: input.frontmatterSchema as FrontmatterFieldDescriptor[]
+          }
+        : {}),
     };
     const prompt = await buildSystemPrompt(
       input.locale ? { ...promptBase, locale: input.locale } : promptBase
@@ -115,7 +128,47 @@ Output: pure Markdown, ready to publish. No frontmatter, no JSON wrapping.
       estimatedCostEur: this.estimatedCostEur(),
     });
 
-    const bodyMd = result.raw;
+    // Spec 50: Extract and strip the FRONTMATTER_EXTRAS block from the draft body.
+    // Pattern: <!-- FRONTMATTER_EXTRAS: {...} -->
+    const extrasMatch = result.raw.match(
+      /<!--\s*FRONTMATTER_EXTRAS:\s*(\{[\s\S]*?\})\s*-->/
+    );
+    let bodyMd = result.raw;
+    let frontmatterExtras: Record<string, unknown> | null = null;
+
+    if (extrasMatch?.[1]) {
+      try {
+        frontmatterExtras = JSON.parse(extrasMatch[1]) as Record<string, unknown>;
+      } catch {
+        // best-effort — invalid JSON means we just skip extras
+      }
+      // Strip the block from the published body
+      bodyMd = result.raw.replace(/\n*<!--\s*FRONTMATTER_EXTRAS:[\s\S]*?-->\s*$/, "").trimEnd();
+    }
+
+    // Inject HubCarousel: import at the top, component before the last ## section (Fazit).
+    // The HubCarousel renders related cluster articles and must always be present in MDX.
+    const hubImport = `import HubCarousel from '@/components/content/HubCarousel.astro';`;
+    const excludeSlug = article.slug ?? input.articleId;
+
+    // Prepend import (only if not already present — idempotent on re-generation)
+    if (!bodyMd.includes("HubCarousel")) {
+      // Find the last H2 heading to place <HubCarousel> just before it
+      const lastH2Match = [...bodyMd.matchAll(/^## /gm)].at(-1);
+      if (lastH2Match?.index !== undefined) {
+        const idx = lastH2Match.index;
+        bodyMd =
+          hubImport +
+          "\n\n" +
+          bodyMd.slice(0, idx).trimEnd() +
+          `\n\n<HubCarousel excludeSlug="${excludeSlug}" />\n\n` +
+          bodyMd.slice(idx);
+      } else {
+        // No H2 found — append at end
+        bodyMd = hubImport + "\n\n" + bodyMd + `\n\n<HubCarousel excludeSlug="${excludeSlug}" />`;
+      }
+    }
+
     const wordCount = bodyMd.trim().split(/\s+/).length;
 
     if (wordCount < 500) {
@@ -123,6 +176,14 @@ Output: pure Markdown, ready to publish. No frontmatter, no JSON wrapping.
         `Draft too short: ${wordCount} words. Outline estimated ${outline.estimatedTotalWords}.`,
         "draft"
       );
+    }
+
+    // Persist frontmatterExtras to DB alongside the body
+    if (frontmatterExtras) {
+      await db
+        .update(articles)
+        .set({ frontmatterExtras })
+        .where(eq(articles.id, input.articleId));
     }
 
     return { bodyMd, wordCount };

@@ -162,6 +162,13 @@
       "when": 1780000000000,
       "tag": "0022_gap_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1780100000000,
+      "tag": "0023_astro_collection_schemas",
+      "breakpoints": true
     }
   ]
 }

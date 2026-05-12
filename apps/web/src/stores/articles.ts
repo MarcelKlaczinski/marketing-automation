@@ -30,6 +30,7 @@ export interface ArticleDetail {
     sync: Record<string, unknown>[];
     pagespeed: Record<string, unknown>[];
     schema: Record<string, unknown>[];
+    pipeline: Record<string, unknown>[];
   };
 }
 
@@ -219,6 +220,18 @@ export const useArticlesStore = defineStore("articles", {
         ok: boolean;
         data: { runId: string; jobId: string; deduped: boolean };
       }>(`/articles/${articleId}/extend-schema`);
+      return res.data.data;
+    },
+
+    async triggerLocalize(
+      articleId: string,
+      targetLocale: "de" | "en",
+      mode: "translate" | "fresh"
+    ): Promise<{ runId: string; jobId: string; deduped: boolean }> {
+      const res = await api.post<{
+        ok: boolean;
+        data: { runId: string; jobId: string; deduped: boolean };
+      }>(`/articles/${articleId}/localize`, { targetLocale, mode });
       return res.data.data;
     },
   },

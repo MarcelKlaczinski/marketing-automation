@@ -23,19 +23,23 @@ export const FrontmatterFieldSchema = z.object({
     "date",
     "image",
     "string_array",
+    "object_array",
     "object",
     "unknown",
   ]),
   required: z.boolean(),
   hasDefault: z.boolean(),
+  // Populated for z.enum([...]) fields — lists the valid options
+  enumValues: z.array(z.string()).optional(),
+  // Human-readable shape description for object/object_array fields
+  // e.g. "{ question: string, answer: string }" for faq items
+  objectShape: z.string().optional(),
 });
 export type FrontmatterField = z.infer<typeof FrontmatterFieldSchema>;
 
-export const ContentCollectionInfoSchema = z.object({
-  collectionName: z.literal("blog"),
-  fields: z.array(FrontmatterFieldSchema),
-});
-export type ContentCollectionInfo = z.infer<typeof ContentCollectionInfoSchema>;
+// Spec 50: all collections extracted from content.config.ts
+export const AstroCollectionSchemasSchema = z.record(z.array(FrontmatterFieldSchema));
+export type AstroCollectionSchemas = z.infer<typeof AstroCollectionSchemasSchema>;
 
 // ───── Sync result ────────────────────────────────────────────────────────────
 

@@ -17,7 +17,7 @@ const OutputSchema = z.object({
     metaDescription: z.string(),
     bodyMd: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
-    heroImagePublicUrl: z.string().url(),
+    heroImagePublicUrl: z.string().url().nullable(),
   }),
   project: z.object({
     slug: z.string(),
@@ -85,7 +85,7 @@ export class LoadArticleStep extends BaseStep<
         metaDescription: article.metaDescription ?? "",
         bodyMd: article.bodyMd!,
         schemaJsonLd: (article.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
-        heroImagePublicUrl: article.heroImagePublicUrl!,
+        heroImagePublicUrl: article.heroImagePublicUrl ?? null,
       },
       project: {
         slug: project.slug,

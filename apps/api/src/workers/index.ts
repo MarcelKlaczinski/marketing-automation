@@ -1,3 +1,5 @@
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
 import { RepoImportPipeline } from "@marketing-auto/adapter-astro-sync/import";
 import {
@@ -8,6 +10,8 @@ import {
   ArticleDraftPipeline,
   ArticleOutlinePipeline,
   ClusterLinkRebuildPipeline,
+  HeroImageGenerationPipeline,
+  LocalizeArticlePipeline,
   ClusterProposePipeline,
   CompetitorAnalysisPipeline,
   CompetitorQuestionsPipeline,
@@ -29,11 +33,67 @@ import { runArticleSchedulerTick } from "./article-scheduler.ts";
 const log = createLogger("worker");
 const env = getEnv();
 
+// ─── PID file ────────────────────────────────────────────────────────────────
+// Guarantees at most one worker process is active at any time.
+// On startup: gracefully shut down any previous worker found in the PID file.
+// On exit: remove the PID file so the next start doesn't wait unnecessarily.
+
+const PID_FILE = join(process.cwd(), "tmp", "worker.pid");
+
+async function acquirePidLock(): Promise<void> {
+  await mkdir(join(process.cwd(), "tmp"), { recursive: true });
+
+  let existingPid: number | null = null;
+  try {
+    const contents = await readFile(PID_FILE, "utf8");
+    existingPid = parseInt(contents.trim(), 10);
+  } catch {
+    // No PID file — first start or clean state.
+  }
+
+  if (existingPid !== null && !Number.isNaN(existingPid)) {
+    try {
+      // Signal 0 checks if the process is alive without sending a real signal.
+      process.kill(existingPid, 0);
+      // Process is alive — send SIGTERM and wait briefly for it to exit.
+      log.warn({ pid: existingPid }, "Found running worker — sending SIGTERM");
+      process.kill(existingPid, "SIGTERM");
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code === "ESRCH") {
+        // Process doesn't exist — stale PID file, safe to ignore.
+      } else {
+        // EPERM or other: can't signal the process (different user, system restriction).
+        // Log and continue — new worker starts regardless; old one may still be running.
+        log.warn({ pid: existingPid, code }, "Could not signal existing worker — starting anyway");
+      }
+    }
+  }
+
+  await writeFile(PID_FILE, String(process.pid), "utf8");
+  log.info({ pid: process.pid, pidFile: PID_FILE }, "PID lock acquired");
+}
+
+async function releasePidLock(): Promise<void> {
+  try {
+    await unlink(PID_FILE);
+  } catch {
+    // Already gone — that's fine.
+  }
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 async function main() {
+  await acquirePidLock();
+
   log.info("Starting workers");
 
   pipelineRegistry.register(new ArticleOutlinePipeline());
   pipelineRegistry.register(new ArticleDraftPipeline());
+  pipelineRegistry.register(new HeroImageGenerationPipeline());
+  pipelineRegistry.register(new LocalizeArticlePipeline());
   pipelineRegistry.register(new ArticleSyncPipeline());
   pipelineRegistry.register(new SchemaExtensionPipeline());
   pipelineRegistry.register(new ClusterLinkRebuildPipeline());
@@ -85,6 +145,7 @@ async function main() {
     await pipelineWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
+    await releasePidLock();
     process.exit(0);
   };
 
@@ -94,5 +155,5 @@ async function main() {
 
 main().catch((err) => {
   log.error({ err }, "Worker startup failed");
-  process.exit(1);
+  releasePidLock().finally(() => process.exit(1));
 });

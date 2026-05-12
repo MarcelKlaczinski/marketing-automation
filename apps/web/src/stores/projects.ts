@@ -8,6 +8,9 @@ export interface AstroRepoConfig {
   defaultBranch: string;
   contentRoot: string;
   assetsRoot: string;
+  localPath?: string;
+  /** URL path template for local preview, e.g. "/{locale}/blog/{slug}" */
+  previewPath?: string;
 }
 
 export interface PagespeedThresholds {
