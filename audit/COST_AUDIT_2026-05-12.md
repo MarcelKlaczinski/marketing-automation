@@ -220,19 +220,19 @@ affects any future Opus usage.
 - **Change**: Default model `"claude-opus-4-7"` → `"claude-sonnet-4-6"`
 - **estimatedCostEur**: Updated from `0.6` → `0.07`
 - **Saving**: ~€0.186/chain
-- **Commit**: TBD
+- **Commit**: `780686c`
 
 ### Opt B: Schema detection: Sonnet → Haiku
 - **File**: `packages/pipelines/src/schema-extension/steps/detect-rich-types.ts`
 - **Change**: Model `"claude-sonnet-4-6"` → `"claude-haiku-4-5-20251001"`
 - **Saving**: ~€0.066/chain
-- **Commit**: TBD
+- **Commit**: `94981dc`
 
 ### Opt C: Localize structure-translation call: Sonnet → Haiku
 - **File**: `packages/pipelines/src/article/localize/pipeline.ts`
 - **Change**: Model `"claude-sonnet-4-6"` → `"claude-haiku-4-5-20251001"` for Call 2
 - **Saving**: ~€0.057/chain
-- **Commit**: TBD
+- **Commit**: `258c61d`
 
 ---
 
