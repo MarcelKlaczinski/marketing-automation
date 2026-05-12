@@ -282,6 +282,7 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
         outputTokens: msg.usage.output_tokens,
         cacheReadTokens: msg.usage.cache_read_input_tokens ?? 0,
         cacheWriteTokens: msg.usage.cache_creation_input_tokens ?? 0,
+        cacheTtl: input.cacheTtl ?? "1h",
       }),
     metadata: (msg: Anthropic.Messages.Message) => ({
       model: input.model,

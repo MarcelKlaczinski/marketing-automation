@@ -36,12 +36,23 @@ describe("anthropicCostEur", () => {
     expect(eur).toBeCloseTo(0.276, 2);
   });
 
-  it("includes cache write costs", () => {
+  it("includes cache write costs at 1h rate (default)", () => {
+    const eur = anthropicCostEur({
+      model: "claude-sonnet-4-6",
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheWriteTokens: 1_000_000, // $6.00 * 0.92 = €5.52
+    });
+    expect(eur).toBeCloseTo(5.52, 2);
+  });
+
+  it("includes cache write costs at 5m rate", () => {
     const eur = anthropicCostEur({
       model: "claude-sonnet-4-6",
       inputTokens: 0,
       outputTokens: 0,
       cacheWriteTokens: 1_000_000, // $3.75 * 0.92 = €3.45
+      cacheTtl: "5m",
     });
     expect(eur).toBeCloseTo(3.45, 2);
   });
