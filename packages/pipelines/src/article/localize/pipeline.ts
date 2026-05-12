@@ -226,7 +226,11 @@ ${targetLang.lang} (${targetLang.market}).
    <HubCarousel .../>, import statements, etc. must not be altered.
 5. Code blocks: do NOT translate. Keep all code exactly as-is.
 6. Technical terms: keep in their canonical English form (API, JSON, SSO, OAuth, etc.).
-7. Markdown structure: preserve all heading levels (##, ###), list structure, bold/italic.
+7. Markdown structure: preserve all heading LEVELS (##, ###), list structure, bold/italic.
+   Translate ALL heading TEXT — including standardised section names:
+   DE→EN: "## Kurzantwort" → "## Quick Answer", "## Fazit" → "## Conclusion"
+   EN→DE: "## Quick Answer" → "## Kurzantwort", "## Conclusion" → "## Fazit"
+   Never keep a German heading in an EN article or vice versa.
     `.trim();
 
     // ── Call 1: metadata + body ──────────────────────────────────────────────
@@ -390,10 +394,13 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
         wordCount,
         outline,
         frontmatterExtras,
-        // Carry over hero image from source
+        // Carry over hero image from source; generate locale-appropriate alt text
+        // (source alt text is in the source locale and must not be copied verbatim)
         heroImageR2Key: sourceArticle.heroImageR2Key,
         heroImagePublicUrl: sourceArticle.heroImagePublicUrl,
-        heroImageAltText: sourceArticle.heroImageAltText,
+        heroImageAltText: input.targetLocale === "de"
+          ? `${title} – Beitragsbild`
+          : `${title} — Hero Image`,
         status: "final_review",
         draftPipelineRunId: ctx.pipelineRunId,
         updatedAt: new Date(),

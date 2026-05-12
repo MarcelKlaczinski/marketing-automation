@@ -7,6 +7,7 @@
 - `src/webhooks/`         Inbound webhooks (added later)
 - `src/middleware/`       Custom Hono middleware (auth, cost-context)
 - `src/lib/`              Local utilities (logger setup, helpers)
+  - `src/lib/chain-orchestrator.ts`  Per-gap automation chain (Spec 49d)
 
 ## Service Layer Pattern (`src/lib/<domain>-service.ts`)
 
@@ -272,4 +273,75 @@ To verify toolwiki has niche set (applied by migration 0020):
 ```sql
 SELECT slug, target_locales, target_niche FROM projects WHERE slug = 'toolwiki';
 -- Expected: target_locales=["de-DE","en-US"], target_niche="ai-tool-wiki"
+```
+
+## Pipeline Chains (Per-Gap Automation, Spec 49d)
+
+Pipeline chains orchestrate multiple existing pipelines into a single automated workflow:
+
+```
+Gap → Outline → Draft+Hero → Schema-DE → Localize→EN → Schema-EN → [Astro-Transfer]
+```
+
+### Trigger
+
+```
+POST /api/projects/:slug/content-gaps/:id/automate
+```
+
+Only for `missing_spoke_type` and `cluster_too_small` gaps. Returns `{ chainId }`.
+
+### State Machine
+
+State is persisted in the `pipeline_chains` table (`status`, `current_step`, `step_runs` JSONB).
+
+```
+queued → running → completed
+                ↓
+              failed → (resume) → running
+              cancelled (terminal)
+```
+
+### Chain Advancement
+
+Each relevant pipeline's `afterComplete` hook calls `advanceChain()` when `chainId` is present in its input. The orchestrator determines the next step and enqueues it. No auto-retry on failure (cost-anti-drain convention).
+
+- **`outline`** → draft (approvalMode="manual" prevents auto-continue)
+- **`draft`** → schema-de (chainId suppresses normal auto-schema-extension)
+- **`schema-de`** → localize (creates EN sibling stub first via `createEnSibling()`)
+- **`localize`** → schema-en (uses `chain.siblingArticleId` as target)
+- **`schema-en`** → astro-transfer (only if `project.autoPublish=true`) or complete
+- **`astro-transfer`** → complete
+
+### Failure Recovery
+
+UI shows Resume button when `status=failed`. Call:
+```
+POST /api/projects/:slug/pipeline-chains/:id/resume
+```
+Picks up at `failedStep`, clears error fields, re-enqueues the step.
+
+### Auto-Publish
+
+`projects.auto_publish` (boolean, default false) controls whether Astro-Transfer runs automatically. toolwiki has this set to `true`.
+
+### Chain Management API
+
+- `GET  /api/projects/:slug/pipeline-chains`            — list chains (filterable by status)
+- `GET  /api/projects/:slug/pipeline-chains/:chainId`   — chain detail + step_runs + cost
+- `POST /api/projects/:slug/pipeline-chains/:chainId/resume` — resume failed chain
+- `POST /api/projects/:slug/pipeline-chains/:chainId/cancel` — cancel running chain
+
+### Worker Registration
+
+Chain callbacks are registered at worker startup in `src/workers/index.ts`:
+```typescript
+registerChainCallbacks(chainCallbacks);
+registerSchemaChainCallbacks(chainCallbacks);
+registerLocalizeChainCallbacks({ advanceChain: chainCallbacks.advanceChain });
+```
+
+After any pipeline code change, restart the worker:
+```bash
+bun --filter @marketing-auto/api run worker:restart
 ```

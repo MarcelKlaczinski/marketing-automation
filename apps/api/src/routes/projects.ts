@@ -1,11 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
-import { DEFAULT_COST_LIMITS, getPauseInfo, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, projects } from "@marketing-auto/db";
+import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
+import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, pipelineChains, projects } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
+import { startChain, resumeChain, cancelChain } from "../lib/chain-orchestrator.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
@@ -853,3 +854,249 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
 });
 
 // suggestGapTitle() lives in src/lib/gap-service.ts (adapter calls must not be in routes)
+
+// ─── POST /:slug/content-gaps/:id/automate ────────────────────────────────────
+// Full automation chain: outline → draft → schema-de → localize → schema-en → [astro-transfer]
+// Only for missing_spoke_type + cluster_too_small gaps (not missing_hub, not missing_translation).
+
+const automateBodySchema = z.object({
+  title:  z.string().optional(),
+  locale: z.string().optional(),
+});
+
+projectRoutes.post("/:slug/content-gaps/:id/automate", async (c) => {
+  const slug  = c.req.param("slug");
+  const gapId = c.req.param("id");
+  const rawBody = await c.req.json().catch(() => ({}));
+  const body    = automateBodySchema.safeParse(rawBody).data ?? {};
+
+  const [project] = await db
+    .select({ id: projects.id, autoPublish: projects.autoPublish })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [gap] = await db
+    .select({
+      id:                contentGaps.id,
+      gapType:           contentGaps.gapType,
+      clusterId:         contentGaps.clusterId,
+      intentType:        contentGaps.intentType,
+      locale:            contentGaps.locale,
+      status:            contentGaps.status,
+      metadata:          contentGaps.metadata,
+      filledByArticleId: contentGaps.filledByArticleId,
+    })
+    .from(contentGaps)
+    .where(and(eq(contentGaps.id, gapId), eq(contentGaps.projectId, project.id)))
+    .limit(1);
+  if (!gap) return c.json({ ok: false, error: "Gap not found" }, 404);
+  if (gap.status === "dismissed" || gap.status === "resolved")
+    return c.json({ ok: false, error: "Gap is already closed" }, 409);
+
+  if (gap.gapType === "missing_translation")
+    return c.json({ ok: false, error: "Translation generation not yet implemented" }, 400);
+  if (gap.gapType === "missing_hub")
+    return c.json({ ok: false, error: "Hub gaps use cornerstone spec workflow — use /generate instead" }, 400);
+
+  // Check for already-running chain for this gap (idempotency)
+  const [existingChain] = await db
+    .select({ id: pipelineChains.id, status: pipelineChains.status })
+    .from(pipelineChains)
+    .where(
+      and(
+        eq(pipelineChains.gapId, gapId),
+        sql`${pipelineChains.status} IN ('queued', 'running')`
+      )
+    )
+    .limit(1);
+  if (existingChain) {
+    return c.json({ ok: true, data: { chainId: existingChain.id, deduped: true } }, 200);
+  }
+
+  // Project-pause guard
+  if (await isProjectPaused(project.id)) {
+    const info = await getPauseInfo(project.id);
+    return c.json({ ok: false, error: "project_paused", data: info }, 423);
+  }
+
+  // Cost pre-flight: full chain ~$0.65 ≈ $0.65 ÷ ~0.92 ≈ €0.71 (conservative)
+  const costCheck = await checkCostBudget(project.id, "anthropic", 0.71);
+  if (!costCheck.ok) {
+    return c.json({ ok: false, error: "cost_limit_exceeded", data: costCheck }, 402);
+  }
+
+  // Create article if it doesn't already exist for this gap
+  const locale = body.locale ?? gap.locale ?? "de";
+  const meta   = gap.metadata ?? {};
+  const proposedTitle =
+    body.title ??
+    meta.suggestedTitle ??
+    (meta.clusterName ? `${meta.clusterName} – Übersicht` : "Neuer Artikel");
+  const articleSlug        = meta.suggestedSlug ?? `gap-${gapId.slice(0, 8)}`;
+  const cornerstoneKeyword =
+    (meta.suggestedCornerstoneKeyword as string | undefined) ?? slugify(proposedTitle);
+
+  // Re-use article already linked to gap if one exists
+  let articleId: string;
+  if (gap.filledByArticleId) {
+    articleId = gap.filledByArticleId;
+  } else {
+    const articleInsert: typeof articles.$inferInsert = {
+      projectId:          project.id,
+      clusterId:          gap.clusterId ?? null,
+      source:             "generated",
+      status:             "proposed",
+      locale,
+      collection:         "blog",
+      clusterRole:        "spoke",
+      cornerstoneKeyword,
+      title:              proposedTitle,
+      slug:               articleSlug,
+      approvalMode:       "manual",
+      ...(gap.intentType ? { intentType: gap.intentType } : {}),
+    };
+    const [newArticle] = await db
+      .insert(articles)
+      .values(articleInsert)
+      .returning({ id: articles.id });
+    if (!newArticle) return c.json({ ok: false, error: "Failed to create article" }, 500);
+    articleId = newArticle.id;
+
+    await db
+      .update(contentGaps)
+      .set({
+        filledByArticleId:     articleId,
+        generationTriggeredAt: new Date(),
+        status:                "in_progress",
+        updatedAt:             new Date(),
+      })
+      .where(eq(contentGaps.id, gapId));
+  }
+
+  const { chainId } = await startChain({ projectId: project.id, gapId, articleId });
+
+  log.info({ gapId, articleId, chainId, slug }, "Full-automation chain started");
+  return c.json({ ok: true, data: { chainId, articleId, deduped: false } }, 202);
+});
+
+// ─── GET /:slug/pipeline-chains — list chains for project ─────────────────────
+
+const chainListQuerySchema = paginationQuerySchema.extend({
+  status: z.enum(["queued", "running", "paused", "completed", "failed", "cancelled"]).optional(),
+});
+
+projectRoutes.get("/:slug/pipeline-chains", zValidator("query", chainListQuerySchema), async (c) => {
+  const slug = c.req.param("slug");
+  const q    = c.req.valid("query");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const where = q.status
+    ? and(eq(pipelineChains.projectId, project.id), eq(pipelineChains.status, q.status))
+    : eq(pipelineChains.projectId, project.id);
+
+  const [rows, countRows] = await Promise.all([
+    db
+      .select()
+      .from(pipelineChains)
+      .where(where)
+      .orderBy(desc(pipelineChains.createdAt))
+      .limit(q.limit)
+      .offset(q.offset),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pipelineChains)
+      .where(where),
+  ]);
+
+  return c.json({ ok: true, data: paginated(rows, countRows, q) });
+});
+
+// ─── GET /:slug/pipeline-chains/:chainId — chain detail ──────────────────────
+
+projectRoutes.get("/:slug/pipeline-chains/:chainId", async (c) => {
+  const slug    = c.req.param("slug");
+  const chainId = c.req.param("chainId");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [chain] = await db
+    .select()
+    .from(pipelineChains)
+    .where(and(eq(pipelineChains.id, chainId), eq(pipelineChains.projectId, project.id)))
+    .limit(1);
+  if (!chain) return c.json({ ok: false, error: "Chain not found" }, 404);
+
+  return c.json({ ok: true, data: chain });
+});
+
+// ─── POST /:slug/pipeline-chains/:chainId/resume ──────────────────────────────
+
+projectRoutes.post("/:slug/pipeline-chains/:chainId/resume", async (c) => {
+  const slug    = c.req.param("slug");
+  const chainId = c.req.param("chainId");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [chain] = await db
+    .select({ id: pipelineChains.id, status: pipelineChains.status, projectId: pipelineChains.projectId })
+    .from(pipelineChains)
+    .where(and(eq(pipelineChains.id, chainId), eq(pipelineChains.projectId, project.id)))
+    .limit(1);
+  if (!chain) return c.json({ ok: false, error: "Chain not found" }, 404);
+  if (chain.status !== "failed" && chain.status !== "paused") {
+    return c.json({ ok: false, error: `Chain is not resumable (status: ${chain.status})` }, 409);
+  }
+
+  if (await isProjectPaused(project.id)) {
+    const info = await getPauseInfo(project.id);
+    return c.json({ ok: false, error: "project_paused", data: info }, 423);
+  }
+
+  const { resumedStep } = await resumeChain(chainId);
+  return c.json({ ok: true, data: { chainId, resumedStep } }, 202);
+});
+
+// ─── POST /:slug/pipeline-chains/:chainId/cancel ──────────────────────────────
+
+projectRoutes.post("/:slug/pipeline-chains/:chainId/cancel", async (c) => {
+  const slug    = c.req.param("slug");
+  const chainId = c.req.param("chainId");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [chain] = await db
+    .select({ id: pipelineChains.id, status: pipelineChains.status })
+    .from(pipelineChains)
+    .where(and(eq(pipelineChains.id, chainId), eq(pipelineChains.projectId, project.id)))
+    .limit(1);
+  if (!chain) return c.json({ ok: false, error: "Chain not found" }, 404);
+  if (chain.status === "completed" || chain.status === "cancelled" || chain.status === "failed") {
+    return c.json({ ok: false, error: `Chain already in terminal state (status: ${chain.status})` }, 409);
+  }
+
+  await cancelChain(chainId);
+  return c.json({ ok: true, data: { chainId, status: "cancelled" } });
+});
