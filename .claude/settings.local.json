@@ -532,7 +532,25 @@
       "Bash(bun --filter @marketing-auto/api test)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff packages/pipelines/src/article/localize/pipeline.ts)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show 6cb1a99 --stat)",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/gen-missing-variants.ts apps/api/test/lib/chain-orchestrator.test.ts)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/scripts/gen-missing-variants.ts apps/api/test/lib/chain-orchestrator.test.ts)",
+      "Bash(curl -s http://localhost:3051)",
+      "Bash(curl -s http://localhost:3052)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show 3ce7eaa --stat)",
+      "Bash(redis-cli keys *)",
+      "Bash(redis-cli lrange *)",
+      "Bash(redis-cli zrange *)",
+      "Bash(psql -U marketing_auto -h localhost marketing_auto -c ' *)",
+      "Bash(PGPASSWORD=dev_password_change_me psql -U marketing_auto -h localhost marketing_auto -c \"\\\\d pagespeed_runs\")",
+      "Bash(PGPASSWORD=dev_password_change_me psql -U marketing_auto -h localhost marketing_auto -c \"\\\\d pipeline_runs\")",
+      "Bash(redis-cli del *)",
+      "Bash(redis-cli llen *)",
+      "Bash(psql marketing_auto -c \"SELECT slug, title, cornerstone_keyword, cluster_key, body_md FROM articles WHERE id = 'e3a57d9a-babd-4b35-95b3-4e55e9eeace3' LIMIT 1;\")",
+      "Bash(psql marketing_auto -c \"\\\\d content_gaps\")",
+      "Bash(psql marketing_auto -c \"SELECT mc.marketing_context_md FROM projects p JOIN projects mc ON p.id = mc.id WHERE p.slug = 'toolwiki';\")",
+      "Bash(psql marketing_auto -c \"SELECT marketing_context_md FROM projects WHERE slug = 'toolwiki';\")",
+      "Bash(psql -U postgres -d marketing_automation -c ' *)",
+      "Bash(bun --filter @marketing-auto/adapter-anthropic test)",
+      "Bash(redis-cli KEYS \"*dfb98fcc*\")"
     ]
   }
 }

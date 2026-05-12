@@ -88,6 +88,10 @@ Rules:
      Example: "ChatGPT teal-green (#10A37F) card", "Claude orange gradient sphere".
    - Short text labels (1-3 words) ARE allowed when they aid comprehension — e.g. tier
      names on pricing cards ("Free", "Plus", "Pro"). Keep text under 3 words per label.
+   - ALL text labels MUST be in English, even for German articles. Image generation models
+     render English text reliably; German labels produce illegible artifacts. English labels
+     are universally acceptable in the DACH market for UI/card elements.
+     ✓ "Reactive" not "Reaktiv", "Learning" not "Lernend", "Overview" not "Übersicht"
    - AVOID: people, faces, screens showing UI, dense paragraphs of text, watermarks.
    - Style enum picks the Flux rendering mode — choose what best fits the scene.
    Target: 80-200 words. Longer is better than vague.

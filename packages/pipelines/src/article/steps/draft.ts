@@ -66,10 +66,15 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
       : "";
 
     const draftInstructions = `
-You are writing the FULL DRAFT of an article based on the approved outline.
+You are writing the FULL DRAFT of an article for toolwiki.ai — an AI tool wiki.
+
+SCOPE CHECK: Every article must be primarily about AI/ML tools, AI features, AI concepts,
+or AI use cases. If the outline topic has no meaningful AI connection, stop immediately
+and output ONLY: {"draftRefused": true, "reason": "topic is not AI-related"}
 
 Hard rules:
 1. Write in the project's voice (loaded from marketing-context.md). NEVER drift.
+   Anchor every section to the AI angle — never let non-AI context become the focus.
 2. Match the outline EXACTLY — same H2s, same key points per section, same order.
    EXCEPTION: always insert a "## Kurzantwort" section immediately after the intro
    (rule 5b below). This section is required regardless of what the outline says.
