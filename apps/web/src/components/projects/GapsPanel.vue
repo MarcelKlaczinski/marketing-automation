@@ -278,6 +278,22 @@
                 </q-tooltip>
               </q-btn>
 
+              <!-- Vollautomatik button (spoke/small gaps only) -->
+              <q-btn
+                v-if="(gap.status === 'open' || gap.status === 'in_progress') && canAutomate(gap.gapType)"
+                flat
+                round
+                dense
+                size="sm"
+                icon="bolt"
+                color="deep-purple"
+                :loading="automatingIds.has(gap.id)"
+                :disable="automatingIds.has(gap.id)"
+                @click="automateGap(gap)"
+              >
+                <q-tooltip>{{ $t('articles.automation.triggerButton') as string }}</q-tooltip>
+              </q-btn>
+
               <!-- Mark in-progress -->
               <q-btn
                 v-if="gap.status === 'open'"
@@ -307,6 +323,16 @@
               </q-btn>
             </div>
           </div>
+
+          <!-- Inline chain status (shown after Vollautomatik is triggered) -->
+          <div v-if="gapChainIds[gap.id]" class="q-mt-sm">
+            <ArticleChainStatus
+              :slug="slug"
+              :chain-id="gapChainIds[gap.id]!"
+              @done="onChainDone(gap)"
+              @cancelled="onChainCancelled(gap)"
+            />
+          </div>
         </q-card-section>
       </q-card>
     </div>
@@ -329,6 +355,7 @@ import { useNotify } from "src/composables/useNotify";
 import { HttpError } from "src/lib/http-error";
 import { api } from "src/lib/api-client";
 import { defineComponent } from "vue";
+import ArticleChainStatus from "src/components/articles/ArticleChainStatus.vue";
 
 type GapType    = "missing_hub" | "missing_translation" | "missing_spoke_type" | "cluster_too_small";
 type GapStatus  = "open" | "in_progress" | "resolved" | "dismissed";
@@ -387,6 +414,8 @@ const STATUS_COLORS: Record<GapStatus, string> = {
 export default defineComponent({
   name: "GapsPanel",
 
+  components: { ArticleChainStatus },
+
   props: {
     slug: { type: String, required: true },
   },
@@ -408,6 +437,9 @@ export default defineComponent({
     hasMore:            false,
     suggestingIds:      new Set<string>(),
     generatingIds:      new Set<string>(),
+    automatingIds:      new Set<string>(),
+    // Map from gapId → chainId for showing inline chain status
+    gapChainIds:        {} as Record<string, string>,
 
     filterOptions: [
       { value: "all" as FilterValue,                 labelKey: "gaps.filters.all" },
@@ -558,6 +590,47 @@ export default defineComponent({
         next.delete(gap.id);
         this.generatingIds = next;
       }
+    },
+
+    canAutomate(gapType: GapType): boolean {
+      return gapType === "missing_spoke_type" || gapType === "cluster_too_small";
+    },
+
+    async automateGap(gap: ContentGap): Promise<void> {
+      if (!this.canAutomate(gap.gapType)) return;
+      this.automatingIds = new Set([...this.automatingIds, gap.id]);
+      try {
+        const res = await api.post<{ ok: boolean; data: { chainId: string; articleId?: string; deduped: boolean } }>(
+          `/projects/${this.slug}/content-gaps/${gap.id}/automate`
+        );
+        const { chainId } = res.data.data;
+        this.gapChainIds = { ...this.gapChainIds, [gap.id]: chainId };
+
+        // Update gap status inline
+        const idx = this.gaps.findIndex((g) => g.id === gap.id);
+        if (idx !== -1) {
+          this.gaps[idx] = { ...this.gaps[idx]!, status: "in_progress" };
+        }
+      } catch (e) {
+        if (e instanceof HttpError) this.notify.error(e.userMessage);
+      } finally {
+        const next = new Set(this.automatingIds);
+        next.delete(gap.id);
+        this.automatingIds = next;
+      }
+    },
+
+    onChainDone(gap: ContentGap): void {
+      const idx = this.gaps.findIndex((g) => g.id === gap.id);
+      if (idx !== -1) {
+        this.gaps[idx] = { ...this.gaps[idx]!, status: "in_progress" };
+      }
+    },
+
+    onChainCancelled(gap: ContentGap): void {
+      const next = { ...this.gapChainIds };
+      delete next[gap.id];
+      this.gapChainIds = next;
     },
 
     async patchGap(gapId: string, newStatus: GapStatus): Promise<void> {

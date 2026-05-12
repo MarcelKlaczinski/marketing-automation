@@ -217,6 +217,34 @@ export default {
     rejected: "Rejected",
   },
 
+  automation: {
+    title: "Full-Automation Status",
+    triggerButton: "Auto-Generate",
+    steps: {
+      outline:          "Outline",
+      draft:            "Draft + Hero",
+      "schema-de":      "Schema (DE)",
+      localize:         "Localize → EN",
+      "schema-en":      "Schema (EN)",
+      "astro-transfer": "Astro Transfer",
+    },
+    states: {
+      done:    "Done",
+      running: "Running…",
+      pending: "Pending",
+      failed:  "Failed",
+    },
+    totalCost: "Total",
+    resume: "Resume",
+    cancel: "Cancel",
+    cancelled: "Cancelled",
+    resumeSuccess: "Chain resumed",
+    cancelSuccess: "Chain cancelled",
+    error: "Error: {msg}",
+    disabled_translation: "Translation gaps not supported",
+    disabled_hub: "Hub gaps use the cornerstone spec workflow",
+  },
+
   metadata: {
     title: "Title",
     slug: "Slug (URL path)",

@@ -217,6 +217,34 @@ export default {
     rejected: "Abgelehnt",
   },
 
+  automation: {
+    title: "Vollautomatik-Status",
+    triggerButton: "Vollautomatik",
+    steps: {
+      outline:       "Outline",
+      draft:         "Draft + Hero",
+      "schema-de":   "Schema (DE)",
+      localize:      "Lokalisierung → EN",
+      "schema-en":   "Schema (EN)",
+      "astro-transfer": "Astro-Transfer",
+    },
+    states: {
+      done:    "Fertig",
+      running: "Läuft…",
+      pending: "Wartend",
+      failed:  "Fehlgeschlagen",
+    },
+    totalCost: "Gesamt",
+    resume: "Fortsetzen",
+    cancel: "Abbrechen",
+    cancelled: "Abgebrochen",
+    resumeSuccess: "Chain wird fortgesetzt",
+    cancelSuccess: "Chain abgebrochen",
+    error: "Fehler: {msg}",
+    disabled_translation: "Übersetzungs-Lücken nicht unterstützt",
+    disabled_hub: "Hub-Lücken verwenden den Cornerstone-Workflow",
+  },
+
   metadata: {
     title: "Titel",
     slug: "Slug (URL-Pfad)",
