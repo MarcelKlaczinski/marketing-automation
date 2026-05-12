@@ -9,6 +9,7 @@ import { db, projectBrandAssets, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import {
   getBrandTokens,
+  resolveLogo,
   resolveToolIcon,
   getProjectAssets,
   upsertBrandAsset,
@@ -137,6 +138,61 @@ describe("brand-asset-service", () => {
       const icon2 = await resolveToolIcon(projectId, "zzz-nonexistent-tool-xyz");
       if (icon1.type === "avatar" && icon2.type === "avatar") {
         expect(icon1.hue).toBe(icon2.hue);
+      }
+    });
+  });
+
+  describe("resolveLogo", () => {
+    it("returns wordmark from DB record", async () => {
+      await upsertBrandAsset({
+        projectId,
+        assetType: "logo",
+        assetKey: "main",
+        source: "wordmark",
+        sourceRef: "test.ai",
+        displayName: "test.ai Wordmark",
+        metadata: {},
+      });
+
+      const logo = await resolveLogo(projectId);
+      expect(logo.type).toBe("wordmark");
+      if (logo.type === "wordmark") {
+        expect(logo.text).toBe("test.ai");
+      }
+    });
+
+    it("falls back to websiteUrl wordmark when no logo asset exists", async () => {
+      // Delete any existing logo asset first
+      await db
+        .delete(projectBrandAssets)
+        .where(
+          eq(projectBrandAssets.projectId, projectId)
+        );
+
+      const logo = await resolveLogo(projectId);
+      // brandTokens.social.websiteUrl = "test.ai"
+      expect(logo.type).toBe("wordmark");
+      if (logo.type === "wordmark") {
+        expect(logo.text).toBe("test.ai");
+      }
+    });
+
+    it("returns svg for logo with source=inline-svg", async () => {
+      const testSvg = "<svg><text>TW</text></svg>";
+      await upsertBrandAsset({
+        projectId,
+        assetType: "logo",
+        assetKey: "main",
+        source: "inline-svg",
+        inlineSvg: testSvg,
+        displayName: "SVG Logo",
+        metadata: {},
+      });
+
+      const logo = await resolveLogo(projectId);
+      expect(logo.type).toBe("svg");
+      if (logo.type === "svg") {
+        expect(logo.svg).toBe(testSvg);
       }
     });
   });

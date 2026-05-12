@@ -34,6 +34,19 @@ if (!project) {
 // biome-ignore lint/suspicious/noConsoleLog: script output
 console.log(`Seeding tool icons for project '${projectSlug}' (${project.id})...`);
 
+// 0. Seed logo wordmark
+await upsertBrandAsset({
+  projectId: project.id,
+  assetType: "logo",
+  assetKey: "main",
+  source: "wordmark",
+  sourceRef: "toolwiki.ai",
+  displayName: "toolwiki.ai Wordmark",
+  metadata: {},
+});
+// biome-ignore lint/suspicious/noConsoleLog: script output
+console.log("✓ Logo (wordmark: toolwiki.ai) seeded");
+
 const toolArticles = await db.query.articles.findMany({
   where: and(eq(articles.projectId, project.id), eq(articles.collectionType, "tool")),
   columns: { slug: true, title: true },
