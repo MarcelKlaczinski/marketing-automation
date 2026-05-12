@@ -105,19 +105,21 @@ Hard rules:
 
 FRONTMATTER_EXTRAS fields — output every field that applies:
 
-  IMPORTANT: Use ONLY values listed in the "# Frontmatter Requirements" section of the system
-  prompt for any enum field (category, intentType, bottomLinksVariant, winner, listicleType).
-  Using a value not in that list will cause Astro schema validation to fail.
+  IMPORTANT: Use ONLY the exact string values listed below for enum fields.
+  Never invent variants (no underscores, no capitalization, no abbreviations).
+  Using any value not in these lists causes a hard schema error that breaks the article.
 
   ALWAYS include:
   - "author": slug from the author list above (or omit if list is empty)
-  - "category": pick the best matching value from the allowed enum in Frontmatter Requirements
-  - "intentType": pick the best matching value from the allowed enum in Frontmatter Requirements
+  - "category": pick from the allowed enum in "# Frontmatter Requirements" (exact value, no modifications)
+  - "intentType": pick EXACTLY ONE of these values — copy it character-for-character:
+      "overview" | "pricing" | "features" | "use-cases" | "comparison" | "tutorial" | "review" | "ethics" | "general"
+      Note: "use-cases" has a hyphen, NOT an underscore. "general" is the fallback when nothing else fits.
   - "tags": 5-8 specific tags matching the article topic (strings array)
   - "faq": 5-8 Q&A pairs the article answers — write in the article's locale, concrete answers (each answer 2-4 sentences)
 
   ALWAYS include:
-  - "bottomLinksVariant": pick from the allowed enum in Frontmatter Requirements.
+  - "bottomLinksVariant": pick from the allowed enum in "# Frontmatter Requirements".
     Guidance: tool-review/comparison → "tool", tutorial/guide → "learning",
     pricing/business → "business", comparison → "comparison", general → "default"
 
@@ -125,12 +127,20 @@ FRONTMATTER_EXTRAS fields — output every field that applies:
   - "primaryTool": slug of the main tool this article is about (e.g. "chatgpt", "midjourney") — include for tool-focused articles
   - "seoTitle": a shorter/punchier title for <title> tag if the article title is too long (max 60 chars) — omit if title already fits
   - "seoDescription": compelling meta description (max 160 chars, includes primary keyword) — omit if metaDescription already suffices
-  - "toolSlugs": array of 2-8 tool slugs being compared — ONLY for comparison/review articles (intentType "comparison" or "review")
-  - "winner": pick from allowed enum — ONLY when toolSlugs is set and there is a clear winner
-  - "verdict": 1-2 sentence summary of the comparison outcome — ONLY when toolSlugs is set
-  - "testMethodology": 1-3 sentences how you tested — ONLY for review/comparison with hands-on testing
+
+  COMPARISON/REVIEW FIELDS — include ONLY when ALL three conditions are true:
+    (a) intentType is "comparison" or "review"
+    (b) the article directly compares or reviews 2 or more named tools
+    (c) you can list at least 2 real tool slugs
+  If any condition is false, OMIT these fields entirely — do not write empty arrays or placeholder values:
+  - "toolSlugs": array of exactly 2-8 tool slugs that are compared (e.g. ["chatgpt", "claude", "gemini"])
+  - "winner": pick from the allowed winner enum — ONLY when there is a clear single winner
+  - "verdict": 1-2 sentence summary of the comparison outcome
+  - "testMethodology": 1-3 sentences how you tested — ONLY for hands-on testing articles
   - "useCaseVerdicts": array of {useCase, winner, reason} — ONLY for "depends" winner comparisons
-  - "listicleType": pick from allowed enum — ONLY for listicle-style articles (top-X, alternatives)
+
+  LISTICLE FIELDS — include ONLY for top-X or "alternatives to X" articles:
+  - "listicleType": pick from allowed enum in "# Frontmatter Requirements"
 
 Output format:
 [intro paragraphs — no # H1]
