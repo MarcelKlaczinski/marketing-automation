@@ -10,28 +10,44 @@ export type ThemeTokens = {
   eyebrowColor: string;
 };
 
+const DARK_DEFAULTS = {
+  surfaceDark: "oklch(16% 0.02 250)",
+  primary:     "oklch(64% 0.16 248)",
+  accent:      "oklch(72% 0.15 168)",
+};
+
+const LIGHT_DEFAULTS = {
+  wikiCream: "#fef9ec",
+  surface:   "#ffffff",
+  ink:       "oklch(20% 0.025 250)",
+  inkMuted:  "oklch(45% 0.025 250)",
+  primary:   "oklch(64% 0.16 248)",
+  accent:    "oklch(72% 0.15 168)",
+};
+
 export function getThemeTokens(
-  brandTokens: BrandTokens,
+  brandTokens: BrandTokens | undefined,
   theme: "dark" | "light"
 ): ThemeTokens {
+  const c = brandTokens?.colors;
   if (theme === "dark") {
     return {
-      bg:           brandTokens.colors.surfaceDark,
+      bg:           c?.surfaceDark   ?? DARK_DEFAULTS.surfaceDark,
       surface:      "oklch(22% 0.02 248)",
       ink:          "oklch(95% 0.01 250)",
       inkMuted:     "oklch(70% 0.025 250)",
-      brand:        brandTokens.colors.primary,
-      accent:       brandTokens.colors.accent,
+      brand:        c?.primary        ?? DARK_DEFAULTS.primary,
+      accent:       c?.accent         ?? DARK_DEFAULTS.accent,
       eyebrowColor: "oklch(85% 0.10 168)",
     };
   }
   return {
-    bg:           brandTokens.colors.wikiCream,
-    surface:      brandTokens.colors.surface,
-    ink:          brandTokens.colors.ink,
-    inkMuted:     brandTokens.colors.inkMuted,
-    brand:        brandTokens.colors.primary,
-    accent:       brandTokens.colors.accent,
+    bg:           c?.wikiCream  ?? LIGHT_DEFAULTS.wikiCream,
+    surface:      c?.surface    ?? LIGHT_DEFAULTS.surface,
+    ink:          c?.ink        ?? LIGHT_DEFAULTS.ink,
+    inkMuted:     c?.inkMuted   ?? LIGHT_DEFAULTS.inkMuted,
+    brand:        c?.primary    ?? LIGHT_DEFAULTS.primary,
+    accent:       c?.accent     ?? LIGHT_DEFAULTS.accent,
     eyebrowColor: "oklch(48% 0.14 248)",
   };
 }

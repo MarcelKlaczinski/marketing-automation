@@ -4,14 +4,14 @@
  */
 
 import { bundle } from "@remotion/bundler";
-import { renderStill } from "@remotion/renderer";
+import { getCompositions, renderStill } from "@remotion/renderer";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { readFile, rm, mkdir } from "node:fs/promises";
 import type { ListCarouselInput } from "./src/compositions/list-carousel/types.ts";
 
-const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "src/index.tsx");
+const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 
 let bundleUrl: string | null = null;
 
@@ -34,34 +34,28 @@ export async function renderListCarousel(input: ListCarouselInput): Promise<Rend
   const totalSlides = 1 + input.tools.length + 1;
   const slides: Buffer[] = [];
 
+  // Resolve actual composition from bundle to get correct dimensions + metadata.
+  // Then override props per-slide — in Remotion 4.x inputProps don't reliably
+  // override when schema is registered; setting composition.props directly is the
+  // supported programmatic path for server-side rendering.
+  const compositions = await getCompositions(serveUrl);
+  const baseComposition = compositions.find((c) => c.id === "ListCarousel");
+  if (!baseComposition) throw new Error("ListCarousel composition not found in bundle");
+
   const outDir = resolve(tmpdir(), `social-render-${Date.now()}`);
   await mkdir(outDir, { recursive: true });
 
   try {
     for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
       const outPath = resolve(outDir, `slide-${slideIndex}.png`);
+      const slideProps = { ...input, slideIndex } as Record<string, unknown>;
 
       await renderStill({
-        composition: {
-          id: "ListCarousel",
-          width: 1080,
-          height: 1080,
-          fps: 30,
-          durationInFrames: 1,
-          defaultProps: {},
-          props: {},
-          defaultCodec: null,
-          defaultOutName: null,
-          defaultVideoImageFormat: null,
-          defaultPixelFormat: null,
-          defaultProResProfile: null,
-          defaultSampleRate: null,
-        },
+        composition: { ...baseComposition, props: slideProps },
         serveUrl,
         output: outPath,
         frame: 0,
         imageFormat: "png",
-        inputProps: { ...input, slideIndex },
       });
 
       const buf = await readFile(outPath);
