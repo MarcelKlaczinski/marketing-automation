@@ -1,0 +1,29 @@
+{
+  "name": "@marketing-auto/social",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.tsx",
+  "scripts": {
+    "studio": "remotion studio src/index.tsx",
+    "render": "remotion render src/index.tsx ListCarousel",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "remotion": "^4.0.290",
+    "@remotion/bundler": "^4.0.290",
+    "@remotion/renderer": "^4.0.290",
+    "@remotion/cli": "^4.0.290",
+    "@lobehub/icons-static-png": "^1.90.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "@marketing-auto/db": "workspace:*"
+  }
+}
