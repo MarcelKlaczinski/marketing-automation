@@ -35,9 +35,10 @@ if (!existsSync(srcPath)) {
 // biome-ignore lint/suspicious/noConsoleLog: script output
 console.log("Source:", srcPath);
 
-// ─── Load sharp (ESM namespace — must use .default) ───────────────────────────
+// ─── Load sharp (Bun ESM returns { default: fn }, not fn directly) ───────────
+type SharpCallable = (input: string) => import("sharp").Sharp;
 const mod = await import("sharp");
-const sharp = (mod.default ?? mod) as unknown as (typeof import("sharp"))["default"];
+const sharp = (mod as unknown as { default: SharpCallable }).default ?? (mod as unknown as SharpCallable);
 
 const srcMeta = await sharp(srcPath).metadata();
 // biome-ignore lint/suspicious/noConsoleLog: script output

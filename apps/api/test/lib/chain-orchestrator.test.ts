@@ -16,7 +16,7 @@ mock.module("@marketing-auto/pipelines", () => ({
 }));
 
 import { articles, contentGaps, db, pipelineChains, projects } from "@marketing-auto/db";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 // Dynamic import AFTER mock is registered
 const { startChain, advanceChain, failChain, resumeChain, cancelChain } =
