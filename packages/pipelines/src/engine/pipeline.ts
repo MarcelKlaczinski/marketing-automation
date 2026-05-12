@@ -43,8 +43,10 @@ export abstract class Pipeline<TInput = unknown, TOutput = unknown> {
    * Called by the runner after all steps complete successfully.
    * Use to trigger side-effects that must happen outside the step chain
    * (e.g., auto-enqueuing a follow-up pipeline).
+   *
+   * runId is the pipeline_runs row ID — useful for chain advancement cost aggregation (Spec 49d).
    */
-  afterComplete?(output: TOutput, pipelineInput: TInput): Promise<void>;
+  afterComplete?(output: TOutput, pipelineInput: TInput, runId: string): Promise<void>;
 
   /**
    * Called by the runner when any step fails (throws).

@@ -177,7 +177,7 @@ export async function runPipeline<TInput, TOutput>(
       // would re-run expensive LLM steps. A warning log leaves the pipeline as "completed"
       // so Marcel can still manually continue via article:continue if needed.
       try {
-        await pipeline.afterComplete(finalOutput as TOutput, validatedInput as TInput);
+        await pipeline.afterComplete(finalOutput as TOutput, validatedInput as TInput, runId);
       } catch (afterErr) {
         pipelineLog.warn(
           { err: afterErr },

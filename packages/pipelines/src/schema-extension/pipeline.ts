@@ -5,9 +5,22 @@ import { DetectRichTypesStep } from "./steps/detect-rich-types.ts";
 import { LoadArticleStep } from "./steps/load-article.ts";
 import { PersistSchemaStep } from "./steps/persist-schema.ts";
 
+// Lazy chain callbacks (Spec 49d — registered at worker startup to avoid circular dep)
+let _advanceChain: ((chainId: string, step: string, runId: string) => Promise<void>) | null = null;
+
+export function registerSchemaChainCallbacks(callbacks: {
+  advanceChain: (chainId: string, step: string, runId: string) => Promise<void>;
+  failChain:    (chainId: string, step: string, error: string)  => Promise<void>;
+}): void {
+  _advanceChain = callbacks.advanceChain;
+}
+
 const InputSchema = z.object({
-  articleId: z.string().uuid(),
-  projectId: z.string().uuid(),
+  articleId:  z.string().uuid(),
+  projectId:  z.string().uuid(),
+  // Spec 49d: chain tracking — chainStep is "schema-de" or "schema-en"
+  chainId:   z.string().uuid().optional(),
+  chainStep: z.string().optional(),
 });
 
 const OutputSchema = z.object({
@@ -95,6 +108,17 @@ export class SchemaExtensionPipeline extends Pipeline<
     }
 
     return output;
+  }
+
+  /** Spec 49d: if part of a chain, advance to next step (schema-de → localize, schema-en → done). */
+  override async afterComplete(
+    _output: z.infer<typeof OutputSchema>,
+    pipelineInput: z.infer<typeof InputSchema>,
+    runId: string
+  ): Promise<void> {
+    if (pipelineInput.chainId && pipelineInput.chainStep && _advanceChain) {
+      await _advanceChain(pipelineInput.chainId, pipelineInput.chainStep, runId);
+    }
   }
 
   /**

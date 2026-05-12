@@ -14,14 +14,28 @@ import { SelfReviewStep } from "./steps/self-review.ts";
 import { TopicIntakeStep } from "./steps/topic-intake.ts";
 import { continueArticleGeneration } from "./trigger.ts";
 
+// Lazy import to avoid circular dependency (chain-orchestrator is in apps/api, not packages)
+let _advanceChain: ((chainId: string, step: string, runId: string) => Promise<void>) | null = null;
+
+/** Called once at worker startup to wire in chain callbacks (Spec 49d). */
+export function registerChainCallbacks(callbacks: {
+  advanceChain: (chainId: string, step: string, runId: string) => Promise<void>;
+  failChain:    (chainId: string, step: string, error: string)  => Promise<void>;
+}): void {
+  _advanceChain = callbacks.advanceChain;
+}
+
 const log = createLogger("pipelines:article-draft");
 
 // ───── Job 1: Outline Pipeline ────────────────────────────────────────────────
 
 const OutlineInputSchema = z.object({
-  articleId: z.string().uuid(),
-  projectId: z.string().uuid(),
+  articleId:    z.string().uuid(),
+  projectId:    z.string().uuid(),
   modelOverride: z.string().optional(),
+  // Spec 49d: chain tracking — present only when triggered by chain orchestrator
+  chainId:   z.string().uuid().optional(),
+  chainStep: z.string().optional(),
 });
 
 // Outline is in DB after PersistOutlineStep — pipeline output only needs nextAction signal.
@@ -107,13 +121,19 @@ export class ArticleOutlinePipeline extends Pipeline<
   }
 
   /**
-   * After all steps succeed: if approvalMode = "auto", immediately enqueue the draft pipeline.
-   * afterComplete failures are caught by the runner (logs warn, does not re-trigger retries).
+   * After all steps succeed:
+   * - Chain run (chainId present): advance chain to 'draft' step.
+   * - Normal run (approvalMode="auto"): enqueue draft pipeline directly.
    */
   override async afterComplete(
     output: z.infer<typeof OutlineOutputSchema>,
-    pipelineInput: z.infer<typeof OutlineInputSchema>
+    pipelineInput: z.infer<typeof OutlineInputSchema>,
+    runId: string
   ): Promise<void> {
+    if (pipelineInput.chainId && _advanceChain) {
+      await _advanceChain(pipelineInput.chainId, "outline", runId);
+      return;
+    }
     if (output.nextAction === "auto_continue") {
       const continueInput: Parameters<typeof continueArticleGeneration>[0] = {
         articleId: pipelineInput.articleId,
@@ -133,9 +153,12 @@ export class ArticleOutlinePipeline extends Pipeline<
 // ───── Job 2: Draft Pipeline ──────────────────────────────────────────────────
 
 const DraftInputSchema = z.object({
-  articleId: z.string().uuid(),
-  projectId: z.string().uuid(),
+  articleId:    z.string().uuid(),
+  projectId:    z.string().uuid(),
   modelOverride: z.string().optional(),
+  // Spec 49d: chain tracking
+  chainId:   z.string().uuid().optional(),
+  chainStep: z.string().optional(),
 });
 
 const DraftOutputSchema = z.object({
@@ -285,8 +308,15 @@ export class ArticleDraftPipeline extends Pipeline<
 
   override async afterComplete(
     _output: z.infer<typeof DraftOutputSchema>,
-    pipelineInput: z.infer<typeof DraftInputSchema>
+    pipelineInput: z.infer<typeof DraftInputSchema>,
+    runId: string
   ): Promise<void> {
+    // Chain run: advance chain (orchestrator handles schema-de trigger, not auto-enqueue)
+    if (pipelineInput.chainId && _advanceChain) {
+      await _advanceChain(pipelineInput.chainId, "draft", runId);
+      return;
+    }
+    // Normal run: auto-trigger schema extension
     try {
       await enqueueSchemaExtension({
         articleId: pipelineInput.articleId,

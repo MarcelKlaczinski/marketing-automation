@@ -1,1 +1,1 @@
-export { LocalizeArticlePipeline } from "./pipeline.ts";
+export { LocalizeArticlePipeline, registerLocalizeChainCallbacks } from "./pipeline.ts";

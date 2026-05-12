@@ -18,6 +18,15 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { articles, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
+
+// Lazy chain callbacks (Spec 49d — registered at worker startup to avoid circular dep)
+let _advanceChain: ((chainId: string, step: string, runId: string) => Promise<void>) | null = null;
+
+export function registerLocalizeChainCallbacks(callbacks: {
+  advanceChain: (chainId: string, step: string, runId: string) => Promise<void>;
+}): void {
+  _advanceChain = callbacks.advanceChain;
+}
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { Pipeline } from "../../engine/pipeline.ts";
@@ -414,10 +423,13 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
 const InputSchema = z.object({
   sourceArticleId: z.string().uuid(),
   targetArticleId: z.string().uuid(),
-  targetLocale: z.enum(["de", "en"]),
-  mode: z.enum(["translate", "fresh"]),
-  projectId: z.string().uuid(),
-  projectSlug: z.string(),
+  targetLocale:    z.enum(["de", "en"]),
+  mode:            z.enum(["translate", "fresh"]),
+  projectId:       z.string().uuid(),
+  projectSlug:     z.string(),
+  // Spec 49d: chain tracking
+  chainId:         z.string().uuid().optional(),
+  chainStep:       z.string().optional(),
 });
 
 type PipelineInput = z.infer<typeof InputSchema>;
@@ -428,6 +440,17 @@ export class LocalizeArticlePipeline extends Pipeline<PipelineInput, z.infer<typ
   readonly outputSchema = StepOutputSchema;
 
   readonly steps = [new LocalizeArticleStep()];
+
+  /** Spec 49d: if part of a chain, advance to schema-en step. */
+  override async afterComplete(
+    _output: z.infer<typeof StepOutputSchema>,
+    input: PipelineInput,
+    runId: string
+  ): Promise<void> {
+    if (input.chainId && _advanceChain) {
+      await _advanceChain(input.chainId, "localize", runId);
+    }
+  }
 
   /** Reset target article to 'proposed' so the user can re-trigger without manual DB intervention. */
   override async afterError(_error: unknown, input: PipelineInput): Promise<void> {

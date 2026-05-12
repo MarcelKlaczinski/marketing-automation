@@ -1,4 +1,4 @@
-export { SchemaExtensionPipeline } from "./pipeline.ts";
+export { SchemaExtensionPipeline, registerSchemaChainCallbacks } from "./pipeline.ts";
 export { enqueueSchemaExtension } from "./trigger.ts";
 export {
   SchemaExtensionError,

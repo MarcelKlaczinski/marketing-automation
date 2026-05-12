@@ -22,10 +22,14 @@ import {
   VoiceSynthesisPipeline,
   closePipelineInfrastructure,
   pipelineRegistry,
+  registerChainCallbacks,
+  registerLocalizeChainCallbacks,
+  registerSchemaChainCallbacks,
   registerScheduledJob,
   startPipelineWorker,
   startScheduler,
 } from "@marketing-auto/pipelines";
+import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
@@ -134,6 +138,17 @@ async function main() {
   } else {
     log.info("Article scheduler disabled (ARTICLE_SCHEDULER_ENABLED not set)");
   }
+
+  // Spec 49d: wire chain advancement callbacks into pipeline afterComplete hooks
+  const chainCallbacks = {
+    advanceChain: (chainId: string, step: string, runId: string) =>
+      advanceChain(chainId, step as import("@marketing-auto/db").ChainStep, runId),
+    failChain: (chainId: string, step: string, error: string) =>
+      failChain(chainId, step as import("@marketing-auto/db").ChainStep, error),
+  };
+  registerChainCallbacks(chainCallbacks);
+  registerSchemaChainCallbacks(chainCallbacks);
+  registerLocalizeChainCallbacks({ advanceChain: chainCallbacks.advanceChain });
 
   const pipelineWorker = startPipelineWorker({ concurrency: 5 });
   const schedulerWorker = await startScheduler();
