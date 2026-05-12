@@ -4,6 +4,7 @@ import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TOOL_SLUG_TO_LOBE } from "./tool-icon-mapping.ts";
 
 const log = createLogger("brand-asset-service");
 
@@ -49,25 +50,14 @@ export const brandTokensSchema = z.object({
 
 export type ParsedBrandTokens = z.infer<typeof brandTokensSchema>;
 
-// ─── Resolved icon shapes ─────────────────────────────────────────────────────
+// ─── Resolved icon / logo shapes ─────────────────────────────────────────────
 
 export type ResolvedIcon =
   | { type: "path"; filePath: string; sourceRef: string }   // lobe-icons: absolute path to PNG
   | { type: "url"; url: string }                             // r2 or external URL
   | { type: "svg"; svg: string }                             // inline SVG
+  | { type: "wordmark"; text: string }                       // text-only logo / domain wordmark
   | { type: "avatar"; initials: string; hue: number };      // deterministic HSL fallback
-
-// ─── Tool-slug → lobe-icons name mapping (edge cases) ────────────────────────
-
-const TOOL_SLUG_TO_LOBE: Record<string, string> = {
-  chatgpt: "openai",
-  "gpt-4": "openai",
-  "gpt-4o": "openai",
-  "claude-ai": "claude",
-  "gemini-ai": "gemini",
-  "dall-e": "openai",
-  "stable-diffusion": "stablediffusion",
-};
 
 // ─── lobe-icons path resolution ──────────────────────────────────────────────
 
@@ -192,6 +182,41 @@ export async function upsertBrandAsset(
   const row = rows[0];
   if (!row) throw new Error("upsertBrandAsset: no row returned");
   return row;
+}
+
+export async function resolveLogo(projectId: string, theme: "dark" | "light" = "dark"): Promise<ResolvedIcon> {
+  const tokens = await getBrandTokens(projectId);
+  const logoKey = tokens.social?.logoAssetKey ?? "main";
+
+  const asset = await db.query.projectBrandAssets.findFirst({
+    where: and(
+      eq(projectBrandAssets.projectId, projectId),
+      eq(projectBrandAssets.assetType, "logo"),
+      eq(projectBrandAssets.assetKey, logoKey)
+    ),
+  });
+
+  if (asset) {
+    if (asset.source === "wordmark" && asset.sourceRef) {
+      return { type: "wordmark", text: asset.sourceRef };
+    }
+    if (asset.source === "inline-svg" && asset.inlineSvg) {
+      return { type: "svg", svg: asset.inlineSvg };
+    }
+    if (asset.source === "r2" && asset.sourceRef) {
+      return { type: "url", url: `https://pub.toolwiki.ai/${asset.sourceRef}` };
+    }
+    if (asset.source === "lobe-icons" && asset.sourceRef) {
+      const lobeSlug = asset.sourceRef.replace(/-color$|-text$/, "");
+      const filePath = await findLobeIcon(lobeSlug, theme);
+      if (filePath) return { type: "path", filePath, sourceRef: asset.sourceRef };
+    }
+  }
+
+  // Fallback: domain as wordmark
+  const fallbackText = tokens.social?.websiteUrl ?? tokens.social?.instagramHandle ?? projectId;
+  log.debug({ projectId, logoKey }, "no logo asset found — using websiteUrl fallback");
+  return { type: "wordmark", text: fallbackText };
 }
 
 // Re-export for use in seed script
