@@ -3,6 +3,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
@@ -413,5 +414,50 @@ export const contentGaps = pgTable(
     clusterIdx: index("content_gaps_cluster_idx").on(t.clusterId),
     statusIdx:  index("content_gaps_status_idx").on(t.projectId, t.status),
     typeIdx:    index("content_gaps_type_idx").on(t.projectId, t.gapType),
+  })
+);
+
+// ─── Spec 49d: Pipeline Chains ────────────────────────────────────────────────
+
+export type ChainStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";
+export type ChainStep =
+  | "outline"
+  | "draft"
+  | "schema-de"
+  | "localize"
+  | "schema-en"
+  | "astro-transfer";
+
+export const pipelineChains = pgTable(
+  "pipeline_chains",
+  {
+    id:               uuid("id").primaryKey().defaultRandom(),
+    projectId:        uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    // No DB-level FK to contentGaps — avoids issues if gap is deleted mid-chain
+    gapId:            uuid("gap_id"),
+    // No DB-level FK to articles — avoids circular dep; article_id references the DE article
+    articleId:        uuid("article_id"),
+    siblingArticleId: uuid("sibling_article_id"),
+
+    status:        text("status").$type<ChainStatus>().notNull().default("queued"),
+    currentStep:   text("current_step").$type<ChainStep>(),
+    failedStep:    text("failed_step").$type<ChainStep>(),
+    failedAt:      timestamp("failed_at",   { withTimezone: true }),
+    errorMessage:  text("error_message"),
+
+    // Per-step pipeline_run IDs for audit: { "outline": "uuid", "draft": "uuid", ... }
+    stepRuns:      jsonb("step_runs").$type<Partial<Record<ChainStep, string>>>().notNull().default({}),
+    totalCostEur:  numeric("total_cost_eur", { precision: 10, scale: 4 }).notNull().default("0"),
+    autoPublish:   boolean("auto_publish").notNull().default(false),
+
+    createdAt:     timestamp("created_at",   { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:     timestamp("updated_at",   { withTimezone: true }).notNull().defaultNow(),
+    completedAt:   timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    projectIdx: index("pipeline_chains_project_idx").on(t.projectId),
+    gapIdx:     index("pipeline_chains_gap_idx").on(t.gapId),
+    articleIdx: index("pipeline_chains_article_idx").on(t.articleId),
+    statusIdx:  index("pipeline_chains_status_idx").on(t.projectId, t.status),
   })
 );

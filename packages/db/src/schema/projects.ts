@@ -1,4 +1,4 @@
-import { index, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import {
   credentialServiceEnum,
   industryEnum,
@@ -63,6 +63,10 @@ export const projects = pgTable(
     // Keyed by collection name ("blog", "ki-wissen", etc.) → array of field descriptors.
     // Updated on every successful astro:repo-import run.
     astroCollectionSchemas: jsonb("astro_collection_schemas").$type<AstroCollectionSchemas>(),
+
+    // Spec 49d: if true, automation chain triggers Astro-Transfer automatically after Schema-EN.
+    // Default false (safe for new projects). Set true for toolwiki via migration 0024.
+    autoPublish: boolean("auto_publish").notNull().default(false),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

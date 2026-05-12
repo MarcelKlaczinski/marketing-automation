@@ -169,6 +169,13 @@
       "when": 1780100000000,
       "tag": "0023_astro_collection_schemas",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1780200000000,
+      "tag": "0024_pipeline_chains",
+      "breakpoints": true
     }
   ]
 }
