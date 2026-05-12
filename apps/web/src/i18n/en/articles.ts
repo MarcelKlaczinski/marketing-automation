@@ -98,6 +98,9 @@ export default {
       faq: "FAQ",
       clusterRole: "Cluster Role",
     },
+    heroImage: "Hero Image",
+    heroImageAlt: "Hero image preview",
+    heroVariants: "Image variants",
   },
 
   body: {
@@ -153,6 +156,7 @@ export default {
     localizeFreshHint: "The title is translated and a new stub article is created. Then generate outline and draft separately for the target market.",
     localizeStart: "Start",
     localizeTriggered: "{locale} version is being created",
+    siblingGenerating: "{locale} version is currently being generated…",
     localeLabel: { en: "English", de: "Deutsch" },
   },
 
@@ -183,6 +187,18 @@ export default {
     back: "Back",
     cornerstone: "Cornerstone Article",
     lastUpdated: "Last updated",
+  },
+
+  statusGuide: {
+    proposed:         "Approve the article, then generate an outline",
+    approved:         "Generate outline → AI analyses keyword & SERP",
+    outline_review:   "Review the outline, then generate the draft",
+    final_review:     "Review the draft → extend Schema.org or sync to Astro",
+    ready_to_publish: "Sync to Astro → article will be published",
+    published:        "Validate PageSpeed for a full quality check",
+    running:          "Pipeline running — please wait…",
+    blocked:          "Fix PageSpeed issues, then re-validate",
+    failed:           "Pipeline failed — check recent runs for details",
   },
 
   status: {

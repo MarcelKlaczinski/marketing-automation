@@ -116,16 +116,22 @@ export default defineComponent({
         });
       }
 
+      const PIPELINE_META: Record<string, { icon: string; iconColor: string; labelKey: string }> = {
+        "article:outline":          { icon: "list",        iconColor: "teal",        labelKey: "articles.runs.type.outline" },
+        "article:draft":            { icon: "description", iconColor: "deep-purple", labelKey: "articles.runs.type.draft" },
+        "article:hero-generation":  { icon: "image",       iconColor: "orange",      labelKey: "articles.runs.type.hero" },
+        "article:localize":         { icon: "translate",   iconColor: "blue",        labelKey: "articles.runs.type.localize" },
+      };
+
       for (const raw of (this.detail.recentRuns.pipeline ?? [])) {
         const r = raw as Record<string, unknown>;
         const name = r.pipelineName as string;
+        const meta = PIPELINE_META[name] ?? { icon: "bolt", iconColor: "grey", labelKey: "articles.runs.type.draft" };
         rows.push({
           key: `pipeline-${r.id as string}`,
-          icon: name === "article:outline" ? "list" : "description",
-          iconColor: name === "article:outline" ? "teal" : "deep-purple",
-          labelKey: name === "article:outline"
-            ? "articles.runs.type.outline"
-            : "articles.runs.type.draft",
+          icon: meta.icon,
+          iconColor: meta.iconColor,
+          labelKey: meta.labelKey,
           status: r.status as string,
           startedAt: r.startedAt as string | null,
           stepName: r.stepName as string | null,

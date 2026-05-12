@@ -46,6 +46,7 @@ export async function enqueueColdStartVoiceQuestions(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-voice-questions-${input.projectId}` },
   });
   return { runId, jobId };
 }
@@ -74,6 +75,7 @@ export async function enqueueColdStartVoiceSynthesize(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-voice-synthesis-${input.projectId}` },
   });
   return { runId, jobId };
 }
@@ -93,6 +95,7 @@ export async function enqueueColdStartCompetitorQuestions(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-competitor-questions-${input.projectId}` },
   });
   return { runId, jobId };
 }
@@ -113,6 +116,7 @@ export async function enqueueColdStartCompetitorAnalysis(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-competitor-analysis-${input.projectId}` },
   });
   return { runId, jobId };
 }
@@ -139,6 +143,7 @@ export async function enqueueColdStartClusterPropose(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-cluster-propose-${input.projectId}` },
   });
   return { runId, jobId };
 }
@@ -177,6 +182,7 @@ export async function enqueueColdStartCornerstoneList(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-cornerstone-list-${input.projectId}` },
   });
   return { runId, jobId };
 }
@@ -196,6 +202,7 @@ export async function enqueueColdStartGoLiveChecklist(input: {
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: runId,
+    jobOptions: { jobId: `cold-start-go-live-${input.projectId}` },
   });
   return { runId, jobId };
 }

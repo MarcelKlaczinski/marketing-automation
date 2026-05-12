@@ -14,4 +14,8 @@ export default {
   comingSoon: "Will be implemented in a later session.",
   acknowledge: "Acknowledge",
   loadMore: "Load more",
+  justNow: "Just now",
+  minutesAgo: "{n} min ago",
+  hoursAgo: "{n} hr ago",
+  daysAgo: "{n} days ago",
 };

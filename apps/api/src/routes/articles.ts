@@ -29,40 +29,66 @@ import {
 } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
+import yamlLib from "yaml";
+import { HERO_VARIANTS, hasVariants, heroPublicPath } from "@marketing-auto/shared/hero-variants";
+import { requireAuth } from "../middleware/auth.ts";
+import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
+import { triggerResultToResponse, triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
+import { recalcPillarArticleId } from "./clusters.ts";
 
-// ─── simple YAML serializer (no external dep needed for basic scalar/array types) ─
-function toYaml(obj: Record<string, unknown>): string {
-  const lines: string[] = ["---"];
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === null || v === undefined) continue;
-    if (typeof v === "boolean" || typeof v === "number") {
-      lines.push(`${k}: ${v}`);
-    } else if (typeof v === "string") {
-      // Use block scalar for multiline, quoted scalar for single-line
-      if (v.includes("\n")) {
-        lines.push(`${k}: |`);
-        for (const line of v.split("\n")) lines.push(`  ${line}`);
-      } else {
-        lines.push(`${k}: ${JSON.stringify(v)}`);
-      }
-    } else if (Array.isArray(v)) {
-      if (v.length === 0) {
-        lines.push(`${k}: []`);
-      } else {
-        lines.push(`${k}:`);
-        for (const item of v) lines.push(`  - ${JSON.stringify(item)}`);
-      }
-    } else if (typeof v === "object") {
-      // Serialize objects as JSON scalar (covers schemaJsonLd)
-      lines.push(`${k}: ${JSON.stringify(JSON.stringify(v))}`);
-    }
+// ─── MDX body sanitizer ────────────────────────────────────────────────────────
+/**
+ * Strips JSX component tags that appear in the body without a matching import.
+ * The LLM occasionally hallucinates <AuthorBox />, <ToolCard />, etc. — components
+ * that are either handled by the layout (AuthorBox) or simply non-existent.
+ * Regex operates on the full body to also catch multi-line tags, but deliberately
+ * skips fenced code blocks (```…```) by restoring them after the strip pass.
+ */
+function sanitizeMdxComponents(body: string): string {
+  // Collect all imported component names from the body (e.g. "HubCarousel")
+  const imported = new Set<string>();
+  for (const m of body.matchAll(/^import\s+(\w+)\s+from\s+['"][^'"]+['"]/gm)) {
+    imported.add(m[1]!);
   }
-  lines.push("---");
-  return lines.join("\n");
+
+  // Temporarily remove fenced code blocks so we don't strip tags inside them
+  const codeBlocks: string[] = [];
+  const withoutCode = body.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `\x00CODE_BLOCK_${codeBlocks.length - 1}\x00`;
+  });
+
+  // Strip self-closing and open/close tags for components that are NOT imported
+  // and are NOT HubCarousel (added by DraftStep — always safe)
+  const sanitized = withoutCode.replace(
+    /<([A-Z][a-zA-Z]*)([^>]*)\/?>[\s\S]*?<\/\1>|<([A-Z][a-zA-Z]*)([^>]*)\/>/g,
+    (match, openTag, _attrs, selfTag) => {
+      const name = openTag ?? selfTag;
+      if (!name) return match;
+      if (imported.has(name)) return match; // keep imported components
+      // Strip unimported component — replace with nothing (removes the whole tag)
+      return "";
+    }
+  );
+
+  // Restore code blocks
+  return sanitized.replace(/\x00CODE_BLOCK_(\d+)\x00/g, (_, idx) => codeBlocks[Number(idx)] ?? "");
+}
+
+// ─── YAML serializer — wraps the `yaml` library for consistent output ─────────
+function toYaml(obj: Record<string, unknown>): string {
+  const body = yamlLib
+    .stringify(obj, {
+      lineWidth: -1,
+      defaultStringType: "QUOTE_DOUBLE",
+    })
+    .trimEnd();
+  return `---\n${body}\n---`;
 }
 
 // ─── shared frontmatter builder ────────────────────────────────────────────────
@@ -89,10 +115,19 @@ function buildFrontmatter(
     cornerstoneKeyword: string | null;
     wordCount: number | null;
     heroImagePublicUrl: string | null;
+    heroImageR2Key?: string | null;
     schemaJsonLd: unknown;
     frontmatterExtras: unknown;
     clusterRole: string | null;
     clusterKey: string | null;
+    // Extended DB columns (all present on the full articles row)
+    translationKey?: string | null;
+    author?: string | null;
+    category?: string | null;
+    tags?: string[] | null;
+    intentType?: string | null;
+    updatedAt?: Date | null;
+    importMetadata?: { readingTimeMinutes?: number } | null;
   },
   cluster: { name: string; pillar: string | null } | null,
   schema?: FrontmatterFieldDescriptor[]
@@ -103,33 +138,59 @@ function buildFrontmatter(
   // Merge LLM/user-edited extras (may contain category, intentType, tags, faq…)
   const extras = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
 
+  // Compute readingTime string from importMetadata or wordCount
+  const readingMinutes =
+    article.importMetadata?.readingTimeMinutes ??
+    (Math.ceil((article.wordCount ?? 0) / 250) || 1);
+  const readingTime = locale === "de"
+    ? `${readingMinutes} Min. Lesezeit`
+    : `${readingMinutes} min read`;
+
   // Build the base frontmatter from static article columns
   const fm: Record<string, unknown> = {
     title: article.title ?? "",
     slug: article.slug,
     locale,
-    pubDate: today,
+    // Toolwiki uses `date` and `updated`, not pubDate/publishedAt
+    date: today,
+    updated: article.updatedAt ? article.updatedAt.toISOString().split("T")[0] : today,
     heroImageAlt: article.heroImageAltText ?? "",
-    cluster: cluster?.name ?? "",
-    pillar: cluster?.pillar ?? "",
+    // seoTitle defaults to title; extras can override with a shorter SEO variant
+    seoTitle: article.title ?? "",
+    // seoDescription / excerpt both default to metaDescription
+    seoDescription: article.metaDescription ?? "",
+    excerpt: article.metaDescription ?? "",
+    // Author from DB column (set by import or user)
+    ...(article.author ? { author: article.author } : {}),
+    readingTime,
+    featured: false,
+    speakable: true,
+    // Tags from DB column (lower priority than extras)
+    ...(article.tags?.length ? { tags: article.tags } : {}),
     cornerstoneKeyword: article.cornerstoneKeyword ?? "",
     wordCount: article.wordCount ?? 0,
     draft: false,
-    featured: false,
-    ads: false,
-    // Cluster role + key from article columns (set by SyncClustersFromFrontmatterStep)
+    // Cluster role + key from article columns; fall back to cluster.name when column is null
     ...(article.clusterRole ? { clusterRole: article.clusterRole } : {}),
-    ...(article.clusterKey ? { clusterKey: article.clusterKey } : {}),
+    ...(article.clusterKey
+      ? { clusterKey: article.clusterKey }
+      : cluster?.name
+        ? { clusterKey: cluster.name }
+        : {}),
+    // intentType from dedicated DB column
+    ...(article.intentType ? { intentType: article.intentType } : {}),
+    // translationKey for DE/EN pair linking
+    ...(article.translationKey ? { translationKey: article.translationKey } : {}),
   };
 
-  // Apply schema-required fields with defaults if not already in extras
+  // Apply schema-required fields with defaults if not already in extras.
+  // NOTE: when the stored schema is stale/empty this loop is a no-op — the
+  // safety-net below always runs to cover the common toolwiki/blog required fields.
   if (schema?.length) {
     for (const field of schema.filter((f) => f.required)) {
       if (!(field.name in extras) && !(field.name in fm)) {
-        if (field.name === "date" || field.name === "pubDate") {
-          fm[field.name] = today;
-        } else if (field.name === "excerpt" || field.name === "description") {
-          fm[field.name] = article.metaDescription ?? "";
+        if (field.name === "pubDate") {
+          fm[field.name] = today; // legacy schemas that use pubDate instead of date
         } else if (field.enumValues?.length) {
           fm[field.name] = field.enumValues[0]; // first enum value as default
         } else if (field.type === "string_array") {
@@ -139,28 +200,113 @@ function buildFrontmatter(
         }
       }
     }
-  } else {
-    // Fallback hardcoded required fields for blog collection
-    fm.date = today;
-    fm.category = extras.category ?? "Guides & Tutorials";
-    fm.excerpt = article.metaDescription ?? "";
   }
 
-  // Overlay extras on top (LLM / user values win over defaults)
+  // Safety-net: category is required in virtually every Astro blog schema.
+  if (!("category" in fm) && !("category" in extras)) {
+    const catField = schema?.find((f) => f.name === "category");
+    fm.category =
+      (article.category as string | undefined) ??
+      catField?.enumValues?.[0] ??
+      "Guides & Tutorials";
+  }
+
+  // Overlay extras on top (LLM / user values win over all defaults above)
   Object.assign(fm, extras);
 
-  // Static columns that always come from DB (not overrideable via extras)
-  if (article.heroImagePublicUrl) fm.heroImage = article.heroImagePublicUrl;
+  // Static columns that always come from DB (not overrideable via extras).
+  // When variants have been generated (slug-based r2Key), use the public/gen/ path
+  // so Astro serves the image from its static directory (no localhost dependency).
+  // Use the slug embedded in the R2 key as the folder name — translated articles
+  // (EN) share the DE hero and must point at the DE slug folder, not their own slug.
+  if (article.heroImageR2Key && hasVariants(article.heroImageR2Key)) {
+    const heroSourceSlug =
+      article.heroImageR2Key.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? article.slug;
+    fm.heroImage = heroPublicPath(heroSourceSlug);
+  } else if (
+    article.heroImagePublicUrl &&
+    !article.heroImagePublicUrl.includes("localhost") &&
+    !article.heroImagePublicUrl.includes("127.0.0.1")
+  ) {
+    // Only use the raw publicUrl when it is a real external/CDN URL.
+    // Localhost URLs (dev-only upload server) are never written to Astro frontmatter
+    // — they would break in production or in a team member's checkout.
+    fm.heroImage = article.heroImagePublicUrl;
+  }
   if (article.schemaJsonLd) fm.schemaJsonLd = article.schemaJsonLd;
 
   return fm;
 }
-import { requireAuth } from "../middleware/auth.ts";
-import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
-import { triggerResultToResponse, triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
-import { recalcPillarArticleId } from "./clusters.ts";
 
 const log = createLogger("routes:articles");
+
+/** Extract the slug embedded in an R2 hero key, e.g. "proj/articles/hero/my-slug.webp" → "my-slug". */
+function heroSourceSlugFromR2Key(r2Key: string, fallback: string): string {
+  return r2Key.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? fallback;
+}
+
+/** Write a single article as MDX into the local Astro repo. Returns the slug written. */
+async function writeArticleToAstroRepo(
+  article: typeof import("@marketing-auto/db").articles.$inferSelect,
+  repoPath: string,
+  cluster: { name: string; pillar: string | null } | null,
+  collectionSchema: FrontmatterFieldDescriptor[] | undefined,
+  opts: { skipImages?: boolean } = {}
+): Promise<void> {
+  const locale = (article.locale as string | null) ?? "de";
+  const collection = (article.collection as string | null) ?? "blog";
+  const fm = buildFrontmatter(article, cluster, collectionSchema);
+  const yamlStr = toYaml(fm);
+  const strippedBody = (article.bodyMd ?? "").replace(/\s*<!--\s*FRONTMATTER_EXTRAS:[\s\S]*/g, "").trimEnd();
+  const cleanBody = sanitizeMdxComponents(strippedBody);
+  const mdxContent = [yamlStr, "", cleanBody].join("\n");
+
+  const collectionDir = path.join(repoPath, "src", "content", collection, locale);
+  await mkdir(collectionDir, { recursive: true });
+  await Bun.write(path.join(collectionDir, `${article.slug}.mdx`), mdxContent);
+
+  // Copy local hero images into public/gen/<slug>/
+  // skipImages=true when a sibling shares the same hero (files already copied under the primary slug folder).
+  if (!opts.skipImages && article.heroImagePublicUrl) {
+    const rawUrl = article.heroImagePublicUrl;
+    const isLocal = rawUrl.includes("localhost") || rawUrl.includes("127.0.0.1") || rawUrl.startsWith("/uploads/");
+    if (isLocal) {
+      try {
+        const pathname = rawUrl.startsWith("http") ? new URL(rawUrl).pathname : rawUrl;
+        const key = pathname.replace(/^\/uploads\//, "");
+        const prefix = key.split("/").slice(0, -1).join("/");
+        const uploadsRoot = path.join(".", "uploads");
+        const destDir = path.join(repoPath, "public", "gen", article.slug);
+        await mkdir(destDir, { recursive: true });
+
+        const srcBase = path.join(uploadsRoot, key);
+        if (existsSync(srcBase)) {
+          await Bun.write(path.join(destDir, "hero.webp"), await Bun.file(srcBase).arrayBuffer());
+        }
+
+        if (article.heroImageR2Key && hasVariants(article.heroImageR2Key)) {
+          // Variant files on disk are named after the slug embedded in the R2 key,
+          // which may differ from article.slug when this is a translated article
+          // (e.g. EN article shares DE hero: R2 key "…/chatgpt-preise-2026.webp" but slug is "chatgpt-pricing-2026").
+          const sourceSlug = article.heroImageR2Key.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? article.slug;
+          for (const variant of HERO_VARIANTS) {
+            for (const fmt of ["webp", "avif"] as const) {
+              const srcVar = path.join(uploadsRoot, prefix, `${sourceSlug}${variant.suffix}.${fmt}`);
+              if (existsSync(srcVar)) {
+                await Bun.write(
+                  path.join(destDir, `hero${variant.suffix}.${fmt}`),
+                  await Bun.file(srcVar).arrayBuffer()
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        log.warn({ slug: article.slug, err }, "Could not copy hero image for local preview — continuing");
+      }
+    }
+  }
+}
 
 export const articleRoutes = new Hono();
 
@@ -486,7 +632,41 @@ articleRoutes.get("/:id/frontmatter", async (c) => {
   const schemas = project?.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
   const collectionSchema = schemas?.["blog"] ?? undefined;
 
-  const fm = buildFrontmatter(article, cluster ?? null, collectionSchema);
+  // If frontmatterExtras is null/empty but bodyMd still contains the FRONTMATTER_EXTRAS
+  // marker (LLM omitted closing -->), extract and persist it now so the panel can display
+  // the fields (category, intentType, tags, faq, …) immediately without re-drafting.
+  let resolvedExtras = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const hasExtras = Object.keys(resolvedExtras).length > 0;
+  if (!hasExtras && article.bodyMd) {
+    const extrasStartIdx = article.bodyMd.indexOf("<!-- FRONTMATTER_EXTRAS:");
+    if (extrasStartIdx !== -1) {
+      const extrasRaw = article.bodyMd.slice(extrasStartIdx);
+      const jsonMatch = extrasRaw.match(/<!--\s*FRONTMATTER_EXTRAS:\s*(\{[\s\S]*)/);
+      if (jsonMatch?.[1]) {
+        const jsonStr = jsonMatch[1].replace(/\s*-->\s*$/, "").trimEnd();
+        try {
+          const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+          if (Object.keys(parsed).length > 0) {
+            resolvedExtras = parsed;
+            // Persist so future loads are fast and DraftStep's snapshot is up-to-date
+            await db
+              .update(articles)
+              .set({ frontmatterExtras: parsed, frontmatterUpdatedAt: new Date() })
+              .where(eq(articles.id, id));
+            log.info({ articleId: id }, "Backfilled frontmatterExtras from bodyMd FRONTMATTER_EXTRAS marker");
+          }
+        } catch {
+          // JSON was malformed — skip silently
+        }
+      }
+    }
+  }
+
+  const fm = buildFrontmatter(
+    { ...article, frontmatterExtras: resolvedExtras },
+    cluster ?? null,
+    collectionSchema
+  );
   const yaml = toYaml(fm);
 
   return c.json({
@@ -494,7 +674,7 @@ articleRoutes.get("/:id/frontmatter", async (c) => {
     data: {
       yaml,
       slug: article.slug,
-      extras: (article.frontmatterExtras ?? {}) as Record<string, unknown>,
+      extras: resolvedExtras,
       schema: collectionSchema ?? null,
     },
   });
@@ -582,7 +762,8 @@ articleRoutes.post("/:id/local-preview", async (c) => {
 
   const astroRepo = project?.astroRepo as {
     localPath?: string;
-    previewPath?: string;
+    collectionPaths?: Record<string, string>;
+    previewPath?: string; // backward-compat fallback
   } | null;
   const schemas = project?.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
   const collectionSchema = schemas?.["blog"] ?? undefined;
@@ -606,50 +787,62 @@ articleRoutes.post("/:id/local-preview", async (c) => {
         .limit(1)
     : [null];
 
-  const locale = (article.locale as string | null) ?? "de";
+  // Write the requested article
+  await writeArticleToAstroRepo(article, repoPath, cluster ?? null, collectionSchema);
+  log.info({ slug: article.slug, locale: article.locale }, "Written article MDX to Astro repo");
 
-  const fm = buildFrontmatter(article, cluster ?? null, collectionSchema);
-  const yamlStr = toYaml(fm);
+  // Also write the translation sibling (if it exists and has a body)
+  if (article.translationKey) {
+    const [sibling] = await db
+      .select()
+      .from(articles)
+      .where(
+        and(
+          eq(articles.translationKey, article.translationKey),
+          eq(articles.projectId, article.projectId),
+          ne(articles.id, article.id)
+        )
+      )
+      .limit(1);
 
-  const mdxContent = [
-    yamlStr,
-    "",
-    "<!-- AUTO-GENERATED preview — do not commit -->",
-    "",
-    article.bodyMd ?? "",
-  ].join("\n");
+    if (sibling?.bodyMd) {
+      const [siblingCluster] = sibling.clusterId
+        ? await db
+            .select({ name: clusters.name, pillar: clusters.pillar })
+            .from(clusters)
+            .where(eq(clusters.id, sibling.clusterId))
+            .limit(1)
+        : [null];
 
-  // Write into the locale subdirectory (src/content/blog/de/ or /en/)
-  // matching the Astro content collection structure used by toolwiki/ki-wissensraum.
-  const blogDir = path.join(repoPath, "src", "content", "blog", locale);
-  await mkdir(blogDir, { recursive: true });
-  const mdxPath = path.join(blogDir, `${article.slug}.mdx`);
-  await Bun.write(mdxPath, mdxContent);
+      // Skip image copy for the sibling when both articles share the same hero source slug
+      // (i.e. the sibling's R2 key points to the same file already copied under the primary's folder).
+      // When the sibling has its own separately-generated hero (different source slug), copy normally.
+      const primarySourceSlug = article.heroImageR2Key
+        ? heroSourceSlugFromR2Key(article.heroImageR2Key, article.slug)
+        : null;
+      const siblingSourceSlug = sibling.heroImageR2Key
+        ? heroSourceSlugFromR2Key(sibling.heroImageR2Key, sibling.slug)
+        : null;
+      const siblingSkipImages = primarySourceSlug !== null && primarySourceSlug === siblingSourceSlug;
 
-  // Copy local hero image if it's a local URL
-  if (article.heroImagePublicUrl) {
-    const url = article.heroImagePublicUrl;
-    if (url.startsWith("/uploads/") || url.includes("localhost")) {
-      const basename = path.basename(url);
-      const key = url.replace(/^\/uploads\//, "");
-      const srcFile = path.join(".", "uploads", key);
-      const destDir = path.join(repoPath, "src", "assets", "hero");
-      await mkdir(destDir, { recursive: true });
-      const destFile = path.join(destDir, basename);
-      try {
-        const srcBuf = await Bun.file(srcFile).arrayBuffer();
-        await Bun.write(destFile, srcBuf);
-      } catch {
-        log.warn({ srcFile, destFile }, "Could not copy hero image for local preview");
-      }
+      await writeArticleToAstroRepo(sibling, repoPath, siblingCluster ?? null, collectionSchema, { skipImages: siblingSkipImages });
+      log.info({ slug: sibling.slug, locale: sibling.locale, skipImages: siblingSkipImages }, "Written sibling article MDX to Astro repo");
     }
   }
 
-  // Build preview URL: use configurable template or fall back to /{locale}/blog/{slug}
-  const pathTemplate = astroRepo?.previewPath ?? "/{locale}/blog/{slug}";
+  // Build preview URL for the requested article
+  const locale = (article.locale as string | null) ?? "de";
+  const collection = (article.collection as string | null) ?? "blog";
+  const smartDefault = "/{locale}/{collection}/{slug}";
+  const pathTemplate =
+    astroRepo?.collectionPaths?.[collection] ??
+    (collection === "blog" ? astroRepo?.previewPath : undefined) ??
+    smartDefault;
   const previewPath = pathTemplate
     .replace("{locale}", locale)
-    .replace("{slug}", article.slug);
+    .replace("{collection}", collection)
+    .replace("{slug}", article.slug)
+    .replace(/\/?$/, "/");
   const previewUrl = `http://localhost:4321${previewPath}`;
 
   return c.json({
@@ -716,26 +909,51 @@ articleRoutes.get("/:id", async (c) => {
       .limit(5),
   ]);
 
-  // Fetch outline + draft pipeline runs linked to this article
+  // Fetch outline + draft pipeline runs linked to this article via FK columns
   const pipelineRunIds = [
     (article as { outlinePipelineRunId?: string | null }).outlinePipelineRunId,
     (article as { draftPipelineRunId?: string | null }).draftPipelineRunId,
   ].filter((runId): runId is string => runId != null);
 
-  const recentPipeline = pipelineRunIds.length > 0
-    ? await db
-        .select({
-          id: pipelineRuns.id,
-          pipelineName: pipelineRuns.pipelineName,
-          status: pipelineRuns.status,
-          stepName: pipelineRuns.stepName,
-          startedAt: pipelineRuns.startedAt,
-          completedAt: pipelineRuns.completedAt,
-          errorMessage: pipelineRuns.errorMessage,
-        })
-        .from(pipelineRuns)
-        .where(inArray(pipelineRuns.id, pipelineRunIds))
-    : [];
+  const pipelineRunsSelect = {
+    id: pipelineRuns.id,
+    pipelineName: pipelineRuns.pipelineName,
+    status: pipelineRuns.status,
+    stepName: pipelineRuns.stepName,
+    startedAt: pipelineRuns.startedAt,
+    completedAt: pipelineRuns.completedAt,
+    errorMessage: pipelineRuns.errorMessage,
+  };
+
+  const [fkRuns, heroRuns, localizeRuns] = await Promise.all([
+    pipelineRunIds.length > 0
+      ? db.select(pipelineRunsSelect).from(pipelineRuns).where(inArray(pipelineRuns.id, pipelineRunIds))
+      : Promise.resolve([]),
+    // hero-generation: show only the 2 most recent (one current, one previous if user regenerated)
+    db.select(pipelineRunsSelect).from(pipelineRuns)
+      .where(and(
+        eq(pipelineRuns.pipelineName, "article:hero-generation"),
+        sql`${pipelineRuns.input}->>'articleId' = ${id}`,
+      ))
+      .orderBy(desc(pipelineRuns.createdAt))
+      .limit(2),
+    // localize: only where this article is the TARGET (not the source)
+    // We don't show source-article localize runs here — those belong to the sibling's page
+    db.select(pipelineRunsSelect).from(pipelineRuns)
+      .where(and(
+        eq(pipelineRuns.pipelineName, "article:localize"),
+        sql`${pipelineRuns.input}->>'targetArticleId' = ${id}`,
+      ))
+      .orderBy(desc(pipelineRuns.createdAt))
+      .limit(2),
+  ]);
+
+  const seenIds = new Set<string>();
+  const recentPipeline = [...fkRuns, ...heroRuns, ...localizeRuns].filter((r) => {
+    if (seenIds.has(r.id)) return false;
+    seenIds.add(r.id);
+    return true;
+  });
 
   return c.json({
     ok: true,
@@ -954,7 +1172,7 @@ const generateHeroBodySchema = z.object({
 articleRoutes.post("/:id/generate-hero-image", async (c) => {
   const id = c.req.param("id");
   const [article] = await db
-    .select({ id: articles.id, projectId: articles.projectId, outline: articles.outline })
+    .select({ id: articles.id, projectId: articles.projectId, outline: articles.outline, slug: articles.slug })
     .from(articles)
     .where(eq(articles.id, id))
     .limit(1);
@@ -969,7 +1187,11 @@ articleRoutes.post("/:id/generate-hero-image", async (c) => {
     projectId: article.projectId,
     uniqueKey: { field: "articleId", value: article.id },
     costEstimate: { service: "replicate", operation: COST_OPS.HERO_IMAGE },
-    extraInput: { articleId: article.id, ...(promptOverride ? { promptOverride } : {}) },
+    extraInput: {
+      articleId: article.id,
+      articleSlug: article.slug,
+      ...(promptOverride ? { promptOverride } : {}),
+    },
     enqueue: enqueueHeroImageGenerationPipeline,
   });
   log.info({ articleId: id, ...result }, "Hero image pipeline triggered via HTTP");
@@ -1090,8 +1312,8 @@ articleRoutes.post("/:id/localize", async (c) => {
     uniqueKey: { field: "targetArticleId", value: targetArticleId },
     costEstimate: { service: "anthropic", estimatedCostEur: mode === "translate" ? 1.2 : 0.05 },
     extraInput: {
+      articleId: targetArticleId, // PreRunInput convention — enqueueLocalizeArticlePipeline maps this to targetArticleId
       sourceArticleId: sourceArticle.id,
-      targetArticleId,
       targetLocale,
       mode,
       projectSlug: proj.slug,

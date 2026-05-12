@@ -17,7 +17,7 @@ const OutputSchema = z.object({
 });
 
 type LoadArticleOutput = {
-  article: { id: string; bodyMd: string; title: string };
+  article: { id: string; bodyMd: string; title: string; heroImageR2Key: string | null; [k: string]: unknown };
   project: { slug: string; name: string; domain: string };
   cluster: { name: string; pillar: string } | null;
 };

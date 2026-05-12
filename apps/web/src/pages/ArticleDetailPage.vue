@@ -182,6 +182,16 @@ export default defineComponent({
     await this.loadDetail();
   },
 
+  watch: {
+    // Vue Router reuses this component when navigating between /articles/A → /articles/B.
+    // created() doesn't fire again — watch id to reload detail for the new article.
+    id: {
+      handler(): void {
+        void this.loadDetail();
+      },
+    },
+  },
+
   methods: {
     async loadDetail(): Promise<void> {
       this.loading = true;

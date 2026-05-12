@@ -1,3 +1,4 @@
+import { hasVariants } from "@marketing-auto/shared/hero-variants";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 
@@ -5,9 +6,11 @@ const InputSchema = z.object({
   article: z.object({
     title: z.string(),
     slug: z.string(),
+    locale: z.string().nullable(),
     metaDescription: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
     heroImagePublicUrl: z.string().url().nullable(),
+    heroImageR2Key: z.string().nullable(),
   }),
   project: z.object({
     slug: z.string(),
@@ -49,7 +52,22 @@ export class BuildJsonLdStep extends BaseStep<
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
     const baseUrl = `https://${input.project.domain}`;
-    const articleUrl = `${baseUrl}/blog/${input.article.slug}`;
+    const localePath = input.article.locale ? `/${input.article.locale}` : "";
+    const articleUrl = `${baseUrl}${localePath}/blog/${input.article.slug}`;
+
+    // Use absolute production URL for the hero image:
+    // - If variants have been generated (slug-based r2Key), point at the Astro static path
+    // - Otherwise, use the stored public URL only when it is not a localhost dev URL
+    const heroImageAbsoluteUrl = (() => {
+      if (input.article.heroImageR2Key && hasVariants(input.article.heroImageR2Key)) {
+        return `${baseUrl}/gen/${input.article.slug}/hero.webp`;
+      }
+      const raw = input.article.heroImagePublicUrl;
+      if (raw && !raw.includes("localhost") && !raw.includes("127.0.0.1")) {
+        return raw;
+      }
+      return null;
+    })();
 
     const additions: Array<Record<string, unknown>> = [];
     const addedTypes: Array<"BreadcrumbList" | "FAQPage" | "HowTo"> = [];
@@ -58,6 +76,7 @@ export class BuildJsonLdStep extends BaseStep<
     additions.push(
       buildBreadcrumb({
         baseUrl,
+        localePath,
         articleTitle: input.article.title,
         articleUrl,
         cluster: input.cluster,
@@ -82,7 +101,7 @@ export class BuildJsonLdStep extends BaseStep<
           name: input.detection.howToName,
           steps: input.detection.howToSteps,
           totalTime: input.detection.howToTotalTime,
-          heroImageUrl: input.article.heroImagePublicUrl,
+          heroImageUrl: heroImageAbsoluteUrl,
         })
       );
       addedTypes.push("HowTo");
@@ -103,13 +122,14 @@ export class BuildJsonLdStep extends BaseStep<
 
 function buildBreadcrumb(input: {
   baseUrl: string;
+  localePath: string;
   articleTitle: string;
   articleUrl: string;
   cluster: { name: string; pillar: string } | null;
 }): Record<string, unknown> {
   const items: Array<Record<string, unknown>> = [
     { "@type": "ListItem", position: 1, name: "Home", item: input.baseUrl },
-    { "@type": "ListItem", position: 2, name: "Blog", item: `${input.baseUrl}/blog` },
+    { "@type": "ListItem", position: 2, name: "Blog", item: `${input.baseUrl}${input.localePath}/blog` },
   ];
 
   let position = 3;

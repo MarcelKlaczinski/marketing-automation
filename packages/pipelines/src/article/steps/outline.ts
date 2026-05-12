@@ -60,8 +60,19 @@ Rules:
    - Each section lists 2-10 key points the draft must hit
    - Each section has an estimated word count summing to 800-3500 total
    - Sections naturally weave in satellite keywords where relevant
-6. **Hero image**: A specific prompt for Flux 1.1 Pro. NOT generic ("a person at a desk").
-   Specific composition + style + mood. Include style enum.
+6. **Hero image**: A highly specific prompt for Flux 1.1 Pro.
+   Rules:
+   - Describe a concrete scene with 1-3 physical objects. No abstract concepts.
+   - Include composition (overhead flatlay / 3/4 angle / close-up), lighting (diffused window
+     light / studio rim light), background (cream, dark slate, marble, etc.) and mood.
+   - For articles about a specific product/tool (ChatGPT, Claude, Midjourney, etc.):
+     reference its brand color and/or visual identity (icon shape, UI style) concretely.
+     Example: "ChatGPT teal-green (#10A37F) card", "Claude orange gradient sphere".
+   - Short text labels (1-3 words) ARE allowed when they aid comprehension — e.g. tier
+     names on pricing cards ("Free", "Plus", "Pro"). Keep text under 3 words per label.
+   - AVOID: people, faces, screens showing UI, dense paragraphs of text, watermarks.
+   - Style enum picks the Flux rendering mode — choose what best fits the scene.
+   Target: 80-200 words. Longer is better than vague.
 7. **Estimated total words**: Realistic; do not pad.
 
 You have access to:
@@ -85,7 +96,7 @@ Output a single JSON object with EXACTLY this shape (no extra keys, no markdown)
       "targetKeywords": ["optional satellite keyword", "..."]
     }
   ],
-  "heroImagePrompt": "string — 30-500 chars, specific Flux 1.1 Pro prompt",
+  "heroImagePrompt": "string — 80-800 chars, specific Flux 1.1 Pro prompt (see rule 6 above)",
   "heroImageStyle": "photorealistic" | "illustrated" | "3d_render" | "minimalist",
   "estimatedTotalWords": 1500
 }

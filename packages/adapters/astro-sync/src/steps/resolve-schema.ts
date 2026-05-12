@@ -146,12 +146,15 @@ export function parseAllCollectionSchemas(configSource: string): AstroCollection
     const collectionName = match[1] ?? match[2];
     if (!collectionName) continue;
 
-    // Extract the z.object({...}) body for this collection
+    // Extract the z.object({...}) body for this collection.
+    // Allow whitespace/newlines between `z` and `.object` because many projects
+    // write the schema as `schema: z\n  .object({...})` (chained multiline style).
     const searchFrom = match.index;
-    const zObjPattern = /z\.object\s*\(\s*\{/;
+    const zObjPattern = /z\s*\.object\s*\(\s*\{/;
     const relMatch = configSource.slice(searchFrom).match(zObjPattern);
     if (!relMatch?.index) continue;
 
+    // openBraceIdx: position of the `{` that opens the object body
     const openBraceIdx = searchFrom + relMatch.index + relMatch[0].length - 1;
     const schemaBody = bracketBalanced(configSource, openBraceIdx);
     if (!schemaBody) continue;
@@ -173,7 +176,8 @@ function extractBlogSchemaBody(source: string): string | null {
 
   // From that reference, locate the first `z.object({` — handles both
   // `schema: z.object({` and `schema: ({ image }) => z.object({` patterns.
-  const zObjPattern = /z\.object\s*\(\s*\{/;
+  // Also handles multiline chaining: `schema: z\n  .object({` via `z\s*\.object`.
+  const zObjPattern = /z\s*\.object\s*\(\s*\{/;
   const relMatch = source.slice(searchFrom).match(zObjPattern);
   if (!relMatch?.index) return null;
 
@@ -201,21 +205,72 @@ function bracketBalanced(source: string, openBraceIdx: number): string | null {
   return null;
 }
 
+/**
+ * Counts unbalanced open brackets `( [ {` in a string.
+ * Returns > 0 when the string has unclosed brackets (definition continues on next line).
+ */
+function openBracketDepth(s: string): number {
+  let depth = 0;
+  let inStr: string | null = null;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (ch === inStr && s[i - 1] !== "\\") inStr = null;
+    } else if (ch === "'" || ch === '"' || ch === "`") {
+      inStr = ch;
+    } else if (ch === "(" || ch === "[" || ch === "{") {
+      depth++;
+    } else if (ch === ")" || ch === "]" || ch === "}") {
+      depth--;
+    }
+  }
+  return depth;
+}
+
 function extractFields(schemaBody: string): FrontmatterField[] {
   const fields: FrontmatterField[] = [];
+  const lines = schemaBody.split("\n");
+  let i = 0;
 
-  // Match field definitions: `fieldName: z.type()...` or `fieldName: image()...`
-  // Handles multi-line definitions and chained methods like `.optional()`, `.default(...)`.
-  const fieldRegex = /(?:^|,)\s*([a-zA-Z_$][\w$]*)\s*:\s*([^,\n]+(?:\([^)]*\)[^,\n]*)*)/g;
-  let m: RegExpExecArray | null;
+  while (i < lines.length) {
+    const rawLine = lines[i] ?? "";
+    const line = rawLine.trimStart();
 
-  while ((m = fieldRegex.exec(schemaBody)) !== null) {
-    const name = m[1];
-    const definition = m[2];
-    if (!name || !definition) continue;
-    // Skip comment-looking fragments
-    if (name.startsWith("//") || name.startsWith("*")) continue;
+    // Skip blank lines and comment lines (// … or * … or /* … */)
+    if (!line || /^\s*(?:\/\/|\/\*|\*)/.test(line)) {
+      i++;
+      continue;
+    }
+
+    // Try to match `fieldName: definition` at the start of the trimmed line.
+    // Only top-level field names are valid identifiers without leading punctuation.
+    const m = line.match(/^([a-zA-Z_$][\w$]*)\s*:\s*(.*)/);
+    if (!m) {
+      i++;
+      continue;
+    }
+
+    const name = m[1]!;
+    let definition = (m[2] ?? "").trim();
+
+    // Extend definition across subsequent lines until brackets are balanced.
+    // This handles: multi-line z.enum([...]), z.array(z.object({...})), .regex(p, msg), etc.
+    while (openBracketDepth(definition) > 0 && i + 1 < lines.length) {
+      i++;
+      definition += " " + (lines[i] ?? "").trim();
+    }
+
+    // Strip trailing comma (field separator) and leading/trailing whitespace
+    definition = definition.replace(/,\s*$/, "").trim();
+
+    // Skip JSDoc and TS comment fragments that accidentally matched
+    if (name === "param" || name === "returns" || name === "type" || name === "default") {
+      i++;
+      continue;
+    }
+
     fields.push(classifyField(name, definition));
+    i++;
   }
 
   return fields;

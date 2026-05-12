@@ -16,11 +16,13 @@ const mockCtx = (): StepContext => ({
 const BASE_ARTICLE = {
   title: "KI-Tools im Vergleich",
   slug: "ki-tools-vergleich",
+  locale: "de" as string | null,
   metaDescription: "Die besten KI-Tools für Content Creator.",
   schemaJsonLd: [
     { "@context": "https://schema.org", "@type": "Article", headline: "KI-Tools im Vergleich" },
   ],
   heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+  heroImageR2Key: null as string | null,
 };
 
 const BASE_PROJECT = {
@@ -115,7 +117,7 @@ describe("BuildJsonLdStep", () => {
     expect(items[0]!["name"]).toBe("Home");
     expect(items[1]!["name"]).toBe("Blog");
     expect(items[2]!["name"]).toBe(BASE_ARTICLE.title);
-    expect(items[2]!["item"]).toBe("https://ki-wissensraum.de/blog/ki-tools-vergleich");
+    expect(items[2]!["item"]).toBe("https://ki-wissensraum.de/de/blog/ki-tools-vergleich");
   });
 
   it("BreadcrumbList with cluster has 4 items: Home → Blog → Cluster → Article", async () => {

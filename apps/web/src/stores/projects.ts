@@ -9,7 +9,14 @@ export interface AstroRepoConfig {
   contentRoot: string;
   assetsRoot: string;
   localPath?: string;
-  /** URL path template for local preview, e.g. "/{locale}/blog/{slug}" */
+  /**
+   * Per-collection URL path templates for local preview.
+   * Key = collection name (e.g. "blog"), value = path template.
+   * Supported tokens: {locale}, {collection}, {slug}.
+   * Smart default when absent: /{locale}/{collection}/{slug}
+   */
+  collectionPaths?: Record<string, string>;
+  /** @deprecated use collectionPaths — kept for backward compat (blog-only fallback) */
   previewPath?: string;
 }
 

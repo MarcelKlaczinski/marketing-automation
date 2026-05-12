@@ -54,11 +54,12 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
     }
 
     if (fromStep.name === "resolve-schema" && toStep.name === "download-hero") {
-      const load = getStepOutput<{ article: { heroImagePublicUrl: string; slug: string } }>(
-        "load-article"
-      )!;
+      const load = getStepOutput<{
+        article: { heroImagePublicUrl: string; heroImageR2Key: string | null; slug: string };
+      }>("load-article")!;
       return {
         heroImagePublicUrl: load.article.heroImagePublicUrl,
+        heroImageR2Key: load.article.heroImageR2Key ?? "",
         articleSlug: load.article.slug,
       };
     }
@@ -70,12 +71,12 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
         astroRepo: { contentRoot: string };
       }>("load-article")!;
       const schema = getStepOutput<{ collectionInfo: unknown }>("resolve-schema")!;
-      const hero = output as { astroAssetPath: string };
+      const hero = output as { heroPublicPath: string };
       return {
         article: load.article,
         cluster: load.cluster,
         collectionInfo: schema.collectionInfo,
-        heroAstroAssetPath: hero.astroAssetPath,
+        heroPublicPath: hero.heroPublicPath,
         astroRepoRoot: load.astroRepo.contentRoot,
       };
     }
@@ -85,13 +86,20 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
         article: { title: string; slug: string; cornerstoneKeyword: string };
         astroRepo: unknown;
       }>("load-article")!;
-      const hero = getStepOutput<{ base64: string; astroAssetPath: string }>("download-hero")!;
+      const hero = getStepOutput<{
+        files: Array<{ repoPath: string; base64: string; contentType: string }>;
+      }>("download-hero")!;
       const render = output as { mdxPath: string; mdxContent: string };
       return {
         astroRepo: load.astroRepo,
         files: [
           { path: render.mdxPath, contentType: "text" as const, content: render.mdxContent },
-          { path: hero.astroAssetPath, contentType: "base64" as const, content: hero.base64 },
+          // All hero image files (base + up to 22 variants)
+          ...hero.files.map((f) => ({
+            path: f.repoPath,
+            contentType: "base64" as const,
+            content: f.base64,
+          })),
         ],
         commitMessage: `feat(blog): publish "${load.article.title}"\n\nAuto-generated from Marketing Automation Platform.\nCornerstone keyword: ${load.article.cornerstoneKeyword ?? "n/a"}\nArticle slug: ${load.article.slug}`,
       };
@@ -100,7 +108,7 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
     if (fromStep.name === "commit-to-github" && toStep.name === "update-db-status") {
       const load = getStepOutput<{ article: { id: string } }>("load-article")!;
       const render = getStepOutput<{ frontmatter: Record<string, unknown> }>("render-mdx")!;
-      const hero = getStepOutput<{ astroAssetPath: string }>("download-hero")!;
+      const hero = getStepOutput<{ heroPublicPath: string }>("download-hero")!;
       const commit = output as {
         commitSha: string;
         filesCommitted: string[];
@@ -113,7 +121,7 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
         filesCommitted: commit.filesCommitted,
         bytesCommitted: commit.bytesCommitted,
         frontmatter: render.frontmatter,
-        heroAstroAssetPath: hero.astroAssetPath,
+        heroPublicPath: hero.heroPublicPath,
       };
     }
 

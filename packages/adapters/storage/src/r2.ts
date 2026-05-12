@@ -1,11 +1,19 @@
 import { mkdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { S3Client } from "bun";
 import type { S3File } from "bun";
 
 const log = createLogger("storage-r2");
+
+/**
+ * Absolute path to the local uploads directory.
+ * Resolved from this file's location so it is cwd-independent — the worker can
+ * be started from any directory and will always write to the same place.
+ * packages/adapters/storage/src → ../../../../apps/api/uploads
+ */
+export const LOCAL_UPLOADS_ROOT = resolve(import.meta.dir, "../../../../apps/api/uploads");
 
 interface R2Config {
   accountId: string;
@@ -107,13 +115,17 @@ async function putObjectLocal(input: PutObjectInput): Promise<PutObjectResult> {
     throw new Error(`R2 local fallback: invalid key containing ".." — ${input.key}`);
   }
   const contentType = input.contentType ?? "application/octet-stream";
-  const localPath = join(process.cwd(), "uploads", input.key);
+  const localPath = join(LOCAL_UPLOADS_ROOT, input.key);
   await mkdir(dirname(localPath), { recursive: true });
 
   // Bun.write handles Buffer | ArrayBuffer | Uint8Array | Blob | string natively
   const bytesStored = await Bun.write(localPath, input.body as Parameters<typeof Bun.write>[1]);
 
-  const baseUrl = getEnv().APP_BASE_URL.replace(/\/$/, "");
+  // Use the API's own URL for local uploads — the API (not the frontend) serves /uploads/*.
+  // APP_BASE_URL is the frontend origin; API_PORT is the port Hono binds to.
+  const { API_PORT, API_HOST } = getEnv();
+  const apiHost = API_HOST === "0.0.0.0" ? "localhost" : API_HOST;
+  const baseUrl = `http://${apiHost}:${API_PORT}`;
   const publicUrl = `${baseUrl}/uploads/${input.key}`;
 
   log.info({ key: input.key, localPath, bytesStored, contentType }, "R2 not configured — saved locally");

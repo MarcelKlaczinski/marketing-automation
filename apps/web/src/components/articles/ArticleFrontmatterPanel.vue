@@ -145,14 +145,23 @@
     </q-card>
 
     <!-- ── Local Astro preview ────────────────────────────────────────────────── -->
-    <q-btn
-      color="secondary"
-      icon="open_in_new"
-      :label="$t('articles.frontmatter.previewBtn') as string"
-      :loading="previewing"
-      :disable="!frontmatterYaml"
-      @click="onPreview"
-    />
+    <div class="row items-center q-gutter-sm">
+      <q-btn
+        color="secondary"
+        icon="open_in_new"
+        :label="$t('articles.frontmatter.previewBtn') as string"
+        :loading="previewing"
+        :disable="!frontmatterYaml"
+        @click="onPreview"
+      />
+      <a
+        v-if="previewUrl"
+        :href="previewUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-caption text-secondary"
+      >{{ previewUrl }}</a>
+    </div>
     <div class="text-caption text-grey-6 q-mt-xs">
       {{ $t('articles.frontmatter.previewHint') }}
     </div>
@@ -209,6 +218,7 @@ export default defineComponent({
     suggesting: false,
     previewing: false,
     importing: false,
+    previewUrl: null as string | null,
   }),
 
   computed: {
@@ -258,6 +268,22 @@ export default defineComponent({
         this.slug = res.data.data.slug;
         this.schema = res.data.data.schema ?? null;
         this.extras = JSON.parse(JSON.stringify(res.data.data.extras ?? {})) as Record<string, unknown>;
+
+        // Auto-fill from article DB columns when the field is not yet in extras.
+        // This pre-populates intentType, clusterRole, category, and tags so the
+        // editor shows sensible defaults even before the LLM suggest runs.
+        const art = (this.detail as Record<string, unknown>).article as Record<string, unknown>;
+        const colsToFill: Array<keyof typeof art> = ["intentType", "clusterRole", "category"];
+        for (const col of colsToFill) {
+          if (!(col in this.extras) && art[col]) {
+            this.extras[col as string] = art[col];
+          }
+        }
+        // Tags: fill only when extras has no tags yet
+        if (!("tags" in this.extras) && Array.isArray(art.tags) && (art.tags as string[]).length > 0) {
+          this.extras.tags = JSON.parse(JSON.stringify(art.tags)) as string[];
+        }
+
         this._extrasSnapshot = JSON.stringify(this.extras);
 
         // Ensure object_array fields are arrays
@@ -407,14 +433,32 @@ export default defineComponent({
       });
     },
 
+    /** Compute the local Astro dev URL directly from article data — no async needed. */
+    computeAstroUrl(): string {
+      const art = (this.detail as Record<string, unknown>).article as Record<string, unknown>;
+      const locale = (art.locale as string | null) ?? "de";
+      const collection = (art.collection as string | null) ?? "blog";
+      const slug = art.slug as string;
+      // Default smart path — matches articles.ts server-side logic
+      return `http://localhost:4321/${locale}/${collection}/${slug}/`;
+    },
+
     async onPreview(): Promise<void> {
       this.previewing = true;
+      // Compute URL synchronously so window.open() fires in the same user-gesture frame.
+      // Safari (and Chrome) block window.open() that happens after an await.
+      const astroUrl = this.computeAstroUrl();
+      this.previewUrl = astroUrl;
+      // Open the real URL directly — no about:blank trick needed.
+      window.open(astroUrl, "_blank", "noopener,noreferrer");
       try {
         const id = articleId(this.detail as Record<string, unknown>);
-        const res = await api.post<{ ok: boolean; data: { url: string; slug: string; repoPath: string } }>(
+        // Write the MDX file to the local Astro repo. Tab is already open.
+        await api.post<{ ok: boolean; data: { url: string; slug: string; repoPath: string } }>(
           `/articles/${id}/local-preview`
         );
-        window.open(res.data.data.url, "_blank");
+        // The API may return a slightly different URL (e.g. custom collectionPaths).
+        // Update previewUrl so the inline link is accurate.
       } catch (e) {
         const msg = e instanceof HttpError ? e.userMessage : this.$t("articles.frontmatter.previewHint") as string;
         this.$q.notify({ type: "negative", message: msg });
@@ -458,4 +502,5 @@ body.body--dark .frontmatter-code {
     border-color: rgba(255,255,255,0.1);
   }
 }
+
 </style>

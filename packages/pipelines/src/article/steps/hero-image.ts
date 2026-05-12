@@ -33,13 +33,34 @@ export class HeroImageStep extends BaseStep<
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const [article] = await db
-      .select({ outline: articles.outline, locale: articles.locale })
+      .select({
+        outline: articles.outline,
+        locale: articles.locale,
+        heroImageR2Key: articles.heroImageR2Key,
+        heroImagePublicUrl: articles.heroImagePublicUrl,
+      })
       .from(articles)
       .where(eq(articles.id, input.articleId))
       .limit(1);
     if (!article?.outline) throw new ArticlePipelineError("Article missing outline", "image");
 
     const outline = ArticleOutlineSchema.parse(article.outline);
+
+    // Skip if a hero image already exists (generated manually or propagated from DE sibling).
+    // Generating a new one here would create a DE/EN mismatch every time draft runs.
+    // Return existing publicUrl so PersistArticleStep doesn't overwrite it with "".
+    if (article.heroImageR2Key) {
+      ctx.log.info(
+        { articleId: input.articleId, existingKey: article.heroImageR2Key },
+        "HeroImageStep: hero already exists — skipping generation"
+      );
+      return {
+        r2Key: article.heroImageR2Key,
+        publicUrl: article.heroImagePublicUrl ?? "",
+        altText: outline.title,
+        skipped: true,
+      };
+    }
 
     let result: { r2Key: string; publicUrl: string } | null = null;
     try {

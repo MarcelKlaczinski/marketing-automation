@@ -1,11 +1,12 @@
 <template>
   <div class="action-panel">
+    <!-- ── Status progress + active run ──────────────────────────────────── -->
+    <div class="action-panel__section">
+      <ArticleStatusCard :detail="detail" />
+    </div>
+
     <div class="action-panel__section">
       <div class="action-panel__title">{{ $t('articles.actions.pipelineActions') }}</div>
-      <div v-if="activePipelineRun" class="active-run-banner">
-        <q-spinner size="12px" color="primary" />
-        <span>{{ $t('articles.actions.runningStep', { step: activePipelineRun.stepName || activePipelineRun.pipelineName }) }}</span>
-      </div>
       <div class="action-list">
         <PipelineActionRow
           v-for="action in availableActions"
@@ -31,8 +32,8 @@
 
         <!-- ── Localize (create translation / fresh version) ──────────── -->
         <button
-          :class="['action-row', { 'action-row--disabled': localizing }]"
-          :disabled="localizing"
+          :class="['action-row', { 'action-row--disabled': localizing || siblingGenerating }]"
+          :disabled="localizing || siblingGenerating"
           type="button"
           @click="localizeDialogOpen = true"
         >
@@ -40,16 +41,73 @@
           <span class="action-row__label">
             {{ $t('articles.actions.createLocaleVersion', { locale: targetLocaleLabel }) }}
           </span>
-          <q-badge v-if="translationSibling" color="positive" :label="translationSibling.status" class="q-mr-xs" />
-          <q-spinner v-if="localizing" size="14px" color="primary" class="action-row__spinner" />
+          <q-badge
+            v-if="translationSibling"
+            :color="siblingGenerating ? 'warning' : 'positive'"
+            :label="translationSibling.status"
+            class="q-mr-xs"
+          />
+          <q-spinner v-if="localizing || siblingGenerating" size="14px" color="primary" class="action-row__spinner" />
           <q-icon v-else name="chevron_right" size="14px" class="action-row__chevron" />
         </button>
+        <!-- Sibling in-progress info -->
+        <div v-if="siblingGenerating" class="action-row-info action-row-info--warning">
+          <q-icon name="info" size="12px" />
+          {{ $t('articles.actions.siblingGenerating', { locale: targetLocaleLabel }) }}
+        </div>
       </div>
     </div>
 
     <div class="action-panel__section">
       <div class="action-panel__title">{{ $t('articles.actions.lastRunStatus') }}</div>
       <ArticleRecentRunsList :detail="detail" :article-id="articleId" />
+    </div>
+
+    <!-- ── Hero image preview (with loading overlay while generating) ──── -->
+    <div v-if="heroImagePublicUrl || heroGenerating" class="action-panel__section action-panel__section--image">
+      <div class="action-panel__title">{{ $t('articles.frontmatter.heroImage') }}</div>
+      <div class="hero-img-wrapper">
+        <img
+          v-if="heroImagePublicUrl"
+          :src="heroImagePublicUrl"
+          :alt="$t('articles.frontmatter.heroImageAlt') as string"
+          class="hero-sidebar-img--full"
+          :class="{ 'hero-sidebar-img--dimmed': heroGenerating }"
+        />
+        <div v-else-if="heroGenerating" class="hero-img-placeholder" />
+        <div v-if="heroGenerating" class="hero-img-overlay">
+          <q-spinner size="40px" color="white" />
+        </div>
+      </div>
+      <!-- Variant gallery — only visible after generation pipeline produced variants -->
+      <template v-if="heroVariantGroups.length > 0">
+        <div class="action-panel__title q-mt-sm">{{ $t('articles.frontmatter.heroVariants') }}</div>
+        <div
+          v-for="group in heroVariantGroups"
+          :key="group.ratio"
+          class="hero-variant-group"
+        >
+          <div class="text-caption text-grey-6 q-mb-xs">{{ group.ratio }}</div>
+          <div class="hero-variant-row">
+            <a
+              v-for="v in group.variants"
+              :key="v.suffix"
+              :href="v.url"
+              target="_blank"
+              rel="noopener"
+              class="hero-variant-item"
+            >
+              <img
+                :src="v.url"
+                :alt="v.width + 'px'"
+                :class="['hero-variant-thumb', 'hero-variant-thumb--' + group.ratio.replace(':','x')]"
+                loading="lazy"
+              />
+              <div class="hero-variant-label">{{ v.width }}px</div>
+            </a>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- ── Hero image prompt dialog ───────────────────────────────────────── -->
@@ -154,6 +212,7 @@ import type { ArticleDetail } from "src/stores/articles";
 import { useProjectsStore } from "src/stores/projects";
 import { type PropType, defineComponent } from "vue";
 import ArticleRecentRunsList from "./ArticleRecentRunsList.vue";
+import ArticleStatusCard from "./ArticleStatusCard.vue";
 import PipelineActionRow from "./PipelineActionRow.vue";
 import type { ActionDef } from "./PipelineActionRow.vue";
 
@@ -166,7 +225,7 @@ interface PipelineAction extends ActionDef {
 export default defineComponent({
   name: "ArticleActionPanel",
 
-  components: { PipelineActionRow, ArticleRecentRunsList },
+  components: { PipelineActionRow, ArticleRecentRunsList, ArticleStatusCard },
 
   props: {
     detail: { type: Object as PropType<ArticleDetail>, required: true },
@@ -279,6 +338,11 @@ export default defineComponent({
       return typeof t === "string" && t.trim().length > 0 ? t.trim() : null;
     },
 
+    hasOutline(): boolean {
+      const outline = (this.detail.article as Record<string, unknown>).outline;
+      return outline != null;
+    },
+
     heroOutlinePrompt(): string {
       const outline = (this.detail.article as Record<string, unknown>).outline as Record<string, unknown> | null | undefined;
       return (outline?.heroImagePrompt as string | undefined) ?? "";
@@ -309,6 +373,64 @@ export default defineComponent({
       return ((this.detail.article as Record<string, unknown>).translationSibling as { id: string; locale: string; status: string } | null) ?? null;
     },
 
+    siblingGenerating(): boolean {
+      const s = this.translationSibling?.status;
+      return s === "generating" || s === "drafting";
+    },
+
+    heroImagePublicUrl(): string | null {
+      const url = ((this.detail.article as Record<string, unknown>).heroImagePublicUrl as string | null) ?? null;
+      if (!url) return null;
+      // Cache-buster: ensures the browser reloads the image when it changes after regeneration
+      const updatedAt = (this.detail.article as Record<string, unknown>).updatedAt as string | null;
+      const v = updatedAt ? new Date(updatedAt).getTime() : Date.now();
+      return `${url}?v=${v}`;
+    },
+
+    heroImageR2Key(): string | null {
+      return ((this.detail.article as Record<string, unknown>).heroImageR2Key as string | null) ?? null;
+    },
+
+    /**
+     * Returns one entry per variant (WebP only, 11 total) when the r2Key is
+     * slug-based (post-generation). UUID-named keys = no variants yet → empty array.
+     */
+    heroVariants(): Array<{ ratio: string; suffix: string; width: number; url: string }> {
+      const r2Key = this.heroImageR2Key;
+      const baseUrl = this.heroImagePublicUrl;
+      if (!r2Key || !baseUrl) return [];
+      // UUID-named r2Key means the variant pipeline hasn't run yet
+      const basename = r2Key.split("/").at(-1)?.replace(/\.[^.]+$/, "") ?? "";
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+      if (uuidRe.test(basename)) return [];
+      const specs = [
+        { suffix: "-16x9-640",  width: 640,  ratio: "16:9" },
+        { suffix: "-16x9-960",  width: 960,  ratio: "16:9" },
+        { suffix: "-16x9-1280", width: 1280, ratio: "16:9" },
+        { suffix: "-16x9-1600", width: 1600, ratio: "16:9" },
+        { suffix: "-16x9-1920", width: 1920, ratio: "16:9" },
+        { suffix: "-4x3-320",   width: 320,  ratio: "4:3"  },
+        { suffix: "-4x3-480",   width: 480,  ratio: "4:3"  },
+        { suffix: "-4x3-640",   width: 640,  ratio: "4:3"  },
+        { suffix: "-1x1-400",   width: 400,  ratio: "1:1"  },
+        { suffix: "-1x1-800",   width: 800,  ratio: "1:1"  },
+        { suffix: "-1x1-1200",  width: 1200, ratio: "1:1"  },
+      ];
+      // Build variant URL by replacing the trailing `.webp` extension of the base URL
+      return specs.map((v) => ({
+        ...v,
+        url: baseUrl.replace(/\.webp$/, `${v.suffix}.webp`),
+      }));
+    },
+
+    heroVariantGroups(): Array<{ ratio: string; variants: Array<{ suffix: string; width: number; url: string }> }> {
+      const map: Record<string, Array<{ suffix: string; width: number; url: string }>> = {};
+      for (const v of this.heroVariants) {
+        (map[v.ratio] ??= []).push({ suffix: v.suffix, width: v.width, url: v.url });
+      }
+      return Object.entries(map).map(([ratio, variants]) => ({ ratio, variants }));
+    },
+
     availableActions(): PipelineAction[] {
       const active = this.activePipelineRun;
       return this.actions.map((a) => {
@@ -327,6 +449,11 @@ export default defineComponent({
         // Disable local PageSpeed when no local Astro path is configured for the project
         if (a.id === "validate-pagespeed-local" && !this.hasLocalAstroPath) {
           return { ...a, enabled: false, disabledTooltipKey: "articles.actions.pagespeedNotSynced" };
+        }
+        // Draft: also enable when status is 'proposed' but an outline already exists
+        // (e.g. fresh-mode localized articles that have an outline but not yet a draft)
+        if (a.id === "draft" && this.articleStatus === "proposed" && this.hasOutline) {
+          return { ...a, enabled: true };
         }
         return { ...a, enabled: a.enabledWhen(this.articleStatus) };
       });
@@ -513,16 +640,119 @@ export default defineComponent({
 
 .action-row__spinner { flex-shrink: 0; }
 
-
-.active-run-banner {
+.action-row-info {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 11px;
-  color: var(--q-primary, #3f51b5);
-  margin-bottom: 8px;
   padding: 4px 8px;
-  background: rgba(63, 81, 181, 0.06);
   border-radius: 4px;
+  margin-top: 2px;
+
+  &--warning {
+    color: var(--q-warning, #f2c037);
+    background: rgba(242, 192, 55, 0.1);
+  }
+}
+
+.action-panel__section--image {
+  padding: 12px;
+}
+
+// Full-resolution hero — natural 16:9 proportions, no hard crop
+.hero-img-wrapper {
+  position: relative;
+  margin-top: 8px;
+}
+
+.hero-sidebar-img--full {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  display: block;
+
+  &.hero-sidebar-img--dimmed {
+    opacity: 0.4;
+  }
+}
+
+.hero-img-placeholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  background: var(--q-grey-3, #e0e0e0);
+
+  body.body--dark & {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.hero-img-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+// Variant gallery
+.hero-variant-group {
+  margin-top: 8px;
+}
+
+.hero-variant-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hero-variant-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover .hero-variant-thumb {
+    border-color: var(--q-primary, #3f51b5);
+    opacity: 0.85;
+  }
+}
+
+.hero-variant-thumb {
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--q-grey-3, #e0e0e0);
+  display: block;
+
+  // 16:9 → 160×90px
+  &--16x9 {
+    width: 160px;
+    height: 90px;
+  }
+  // 4:3 → 120×90px
+  &--4x3 {
+    width: 120px;
+    height: 90px;
+  }
+  // 1:1 → 90×90px
+  &--1x1 {
+    width: 90px;
+    height: 90px;
+  }
+
+  body.body--dark & {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+
+.hero-variant-label {
+  font-size: 9px;
+  color: var(--q-text-secondary, rgba(0, 0, 0, 0.45));
+  line-height: 1;
 }
 </style>

@@ -5,6 +5,7 @@ export {
   deleteObject,
   presignedUrl,
   isR2Configured,
+  LOCAL_UPLOADS_ROOT,
   type PutObjectInput,
   type PutObjectResult,
 } from "./r2.ts";

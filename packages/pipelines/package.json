@@ -15,17 +15,19 @@
     "test": "cd ../.. && bun test packages/pipelines/test"
   },
   "dependencies": {
-    "@marketing-auto/shared": "workspace:*",
-    "@marketing-auto/db": "workspace:*",
-    "@marketing-auto/core": "workspace:*",
-    "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/adapter-anthropic": "workspace:*",
+    "@marketing-auto/adapter-astro-sync": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",
     "@marketing-auto/adapter-replicate": "workspace:*",
-    "@marketing-auto/adapter-astro-sync": "workspace:*",
-    "drizzle-orm": "^0.36.0",
+    "@marketing-auto/adapter-storage": "workspace:*",
+    "@marketing-auto/core": "workspace:*",
+    "@marketing-auto/cost-tracker": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/shared": "workspace:*",
     "bullmq": "^5.21.0",
+    "drizzle-orm": "^0.36.0",
     "ioredis": "^5.4.1",
+    "sharp": "^0.34.5",
     "yaml": "^2.6.0",
     "zod": "^3.23.8"
   }

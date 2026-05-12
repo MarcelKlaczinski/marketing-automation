@@ -173,6 +173,9 @@ Output ONLY these four tagged blocks, nothing else:
   }
 
   // ── Translate mode: full cultural adaptation of body + outline + extras ────
+  // Two separate API calls to stay within the 8192 output-token limit:
+  //   Call 1 — metadata + body (the content that must never be truncated)
+  //   Call 2 — outline JSON + frontmatter extras JSON (structural data, small)
 
   private async handleTranslateMode(
     input: z.infer<typeof StepInputSchema>,
@@ -195,7 +198,7 @@ Output ONLY these four tagged blocks, nothing else:
       ? JSON.stringify(sourceArticle.frontmatterExtras, null, 2)
       : null;
 
-    const translateInstructions = `
+    const culturalRules = `
 You are a professional localisation specialist and content strategist.
 
 Translate this article from ${sourceLang.lang} (${sourceLang.market}) to
@@ -215,91 +218,152 @@ ${targetLang.lang} (${targetLang.market}).
 5. Code blocks: do NOT translate. Keep all code exactly as-is.
 6. Technical terms: keep in their canonical English form (API, JSON, SSO, OAuth, etc.).
 7. Markdown structure: preserve all heading levels (##, ###), list structure, bold/italic.
+    `.trim();
 
-## Output format
-Return EXACTLY these tagged blocks in order — nothing else:
+    // ── Call 1: metadata + body ──────────────────────────────────────────────
+
+    const bodyInstructions = `${culturalRules}
+
+## Output format — return EXACTLY these tagged blocks, nothing else:
 
 <TITLE>article title in ${targetLang.lang}</TITLE>
 <SLUG>url-slug-in-${input.targetLocale}</SLUG>
 <META_DESCRIPTION>meta description in ${targetLang.lang} (max 160 chars)</META_DESCRIPTION>
 <KEYWORD>cornerstone keyword in ${targetLang.lang}</KEYWORD>
-${outlineJson ? `<OUTLINE>
-translated outline JSON (same structure, translate all string values)
-</OUTLINE>` : ""}
 <BODY>
 full translated article body in Markdown (preserving all MDX/imports)
-</BODY>
-${extrasJson ? `<EXTRAS>
-translated frontmatter extras JSON (same structure, translate string values — keep enum values like intentType, category in English)
-</EXTRAS>` : ""}
-    `.trim();
+</BODY>`;
 
-    const prompt = await buildSystemPrompt({
+    const bodyPrompt = await buildSystemPrompt({
       skills: ["copywriting", "copy-editing", "ai-seo"],
       projectIdOrSlug: input.projectSlug,
-      stepInstructions: translateInstructions,
+      stepInstructions: bodyInstructions,
     });
 
-    const userParts = [
+    const bodyUserMsg = [
       `## Source metadata`,
       `Title: ${sourceArticle.title ?? ""}`,
       `Slug: ${sourceArticle.slug}`,
       `Meta: ${sourceArticle.metaDescription ?? ""}`,
       `Keyword: ${sourceArticle.cornerstoneKeyword ?? ""}`,
       "",
-    ];
+      `## Source body (Markdown)`,
+      sourceArticle.bodyMd,
+      "",
+      "Now translate and culturally adapt the metadata and body as instructed.",
+    ].join("\n");
 
-    if (outlineJson) {
-      userParts.push("## Source outline JSON", outlineJson, "");
-    }
-
-    userParts.push("## Source body (Markdown)", sourceArticle.bodyMd, "");
-
-    if (extrasJson) {
-      userParts.push("## Source frontmatter extras JSON", extrasJson, "");
-    }
-
-    userParts.push("Now translate and adapt everything as instructed.");
-
-    const result = await anthropic.messages({
+    const bodyResult = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.ARTICLE_DRAFT,
       model: "claude-sonnet-4-6",
-      systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
-      userMessage: userParts.join("\n"),
-      maxTokens: 16000,
-      estimatedCostEur: this.estimatedCostEur(),
+      systemPrefix: bodyPrompt.cacheablePrefix,
+      systemSuffix: bodyPrompt.variableSuffix,
+      userMessage: bodyUserMsg,
+      maxTokens: 8000,
+      estimatedCostEur: this.estimatedCostEur() * 0.8,
     });
 
-    const raw = result.raw;
+    if (bodyResult.stopReason === "max_tokens") {
+      log.error(
+        { targetArticleId: input.targetArticleId, rawPreview: bodyResult.raw.slice(0, 300) },
+        "Localize body call truncated at max_tokens"
+      );
+      throw new ArticlePipelineError(
+        "Translation truncated at token limit — article body too long. Re-trigger to retry.",
+        "localize"
+      );
+    }
 
+    const raw = bodyResult.raw;
     const title = parseBlock(raw, "TITLE") ?? sourceArticle.title ?? "";
     const slug = parseBlock(raw, "SLUG") ?? slugify(title);
     const metaDescription = parseBlock(raw, "META_DESCRIPTION") ?? sourceArticle.metaDescription ?? "";
     const cornerstoneKeyword = parseBlock(raw, "KEYWORD") ?? sourceArticle.cornerstoneKeyword ?? "";
 
-    let outline = sourceArticle.outline;
-    const outlineBlock = parseBlock(raw, "OUTLINE");
-    if (outlineBlock) {
-      try {
-        const parsed = JSON.parse(outlineBlock);
-        outline = ArticleOutlineSchema.parse(parsed);
-      } catch {
-        log.warn({ targetArticleId: input.targetArticleId }, "Could not parse translated outline JSON — keeping source");
-      }
+    // BODY is required — if missing, the LLM skipped it or response was malformed
+    const bodyMd = parseBlock(raw, "BODY");
+    if (!bodyMd) {
+      log.error(
+        { targetArticleId: input.targetArticleId, rawPreview: raw.slice(0, 500) },
+        "Localize response missing <BODY> block — translation failed silently"
+      );
+      throw new ArticlePipelineError(
+        "Translation failed: LLM response did not contain <BODY> block. Re-trigger to retry.",
+        "localize"
+      );
     }
 
-    const bodyMd = parseBlock(raw, "BODY") ?? sourceArticle.bodyMd;
+    // ── Call 2: outline + frontmatter extras (JSON only, small output) ──────
+    let outline = sourceArticle.outline;
+    let frontmatterExtras: Record<string, unknown> = (sourceArticle.frontmatterExtras as Record<string, unknown> | null) ?? {};
 
-    let frontmatterExtras: Record<string, unknown> = sourceArticle.frontmatterExtras as Record<string, unknown> ?? {};
-    const extrasBlock = parseBlock(raw, "EXTRAS");
-    if (extrasBlock) {
-      try {
-        frontmatterExtras = JSON.parse(extrasBlock) as Record<string, unknown>;
-      } catch {
-        log.warn({ targetArticleId: input.targetArticleId }, "Could not parse translated extras JSON — keeping source");
+    if (outlineJson || extrasJson) {
+      const structureInstructions = `${culturalRules}
+
+## Task
+Translate ONLY the JSON structures below. Keep all JSON keys as-is; translate string values only.
+Keep enum values (intentType, category, schemaType, etc.) in English — do not translate them.
+Adapt market-specific content in string values the same way as the article body.
+
+## Output format — return EXACTLY these tagged blocks that are provided, nothing else:
+${outlineJson ? `<OUTLINE>\ntranslated outline JSON (same structure)\n</OUTLINE>` : ""}
+${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n</EXTRAS>` : ""}`;
+
+      const structurePrompt = await buildSystemPrompt({
+        skills: ["copywriting", "ai-seo"],
+        projectIdOrSlug: input.projectSlug,
+        stepInstructions: structureInstructions,
+      });
+
+      const structureUserParts: string[] = [
+        `## Translated article title (for context): ${title}`,
+        "",
+      ];
+      if (outlineJson) {
+        structureUserParts.push("## Source outline JSON", outlineJson, "");
+      }
+      if (extrasJson) {
+        structureUserParts.push("## Source frontmatter extras JSON", extrasJson, "");
+      }
+      structureUserParts.push("Translate the JSON structures as instructed.");
+
+      const structureResult = await anthropic.messages({
+        projectId: ctx.projectId,
+        pipelineRunId: ctx.pipelineRunId,
+        operation: COST_OPS.ARTICLE_OUTLINE,
+        model: "claude-sonnet-4-6",
+        systemPrefix: structurePrompt.cacheablePrefix,
+        systemSuffix: structurePrompt.variableSuffix,
+        userMessage: structureUserParts.join("\n"),
+        maxTokens: 4000,
+        estimatedCostEur: this.estimatedCostEur() * 0.2,
+      });
+
+      const raw2 = structureResult.raw;
+
+      if (outlineJson) {
+        const outlineBlock = parseBlock(raw2, "OUTLINE");
+        if (outlineBlock) {
+          try {
+            const parsed = JSON.parse(outlineBlock);
+            outline = ArticleOutlineSchema.parse(parsed);
+          } catch {
+            log.warn({ targetArticleId: input.targetArticleId }, "Could not parse translated outline JSON — keeping source");
+          }
+        }
+      }
+
+      if (extrasJson) {
+        const extrasBlock = parseBlock(raw2, "EXTRAS");
+        if (extrasBlock) {
+          try {
+            frontmatterExtras = JSON.parse(extrasBlock) as Record<string, unknown>;
+          } catch {
+            log.warn({ targetArticleId: input.targetArticleId }, "Could not parse translated extras JSON — keeping source");
+          }
+        }
       }
     }
 
@@ -364,4 +428,17 @@ export class LocalizeArticlePipeline extends Pipeline<PipelineInput, z.infer<typ
   readonly outputSchema = StepOutputSchema;
 
   readonly steps = [new LocalizeArticleStep()];
+
+  /** Reset target article to 'proposed' so the user can re-trigger without manual DB intervention. */
+  override async afterError(_error: unknown, input: PipelineInput): Promise<void> {
+    try {
+      await db
+        .update(articles)
+        .set({ status: "proposed", updatedAt: new Date() })
+        .where(eq(articles.id, input.targetArticleId));
+      log.info({ targetArticleId: input.targetArticleId }, "Localize pipeline failed — target article reset to proposed");
+    } catch (e) {
+      log.warn({ targetArticleId: input.targetArticleId, err: e }, "Failed to reset target article status in afterError");
+    }
+  }
 }

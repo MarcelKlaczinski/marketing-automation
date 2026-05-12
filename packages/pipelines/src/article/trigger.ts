@@ -372,6 +372,7 @@ export async function enqueueArticleOutlinePipeline(
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId },
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-outline-${input.articleId}` },
   });
   return { jobId };
 }
@@ -382,6 +383,7 @@ export async function enqueueArticleDraftPipeline(input: PreRunInput): Promise<{
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId },
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-draft-${input.articleId}` },
   });
   return { jobId };
 }
@@ -399,6 +401,7 @@ export async function enqueueArticleSyncPipeline(input: PreRunInput): Promise<{ 
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId },
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-astro-sync-${input.articleId}` },
   });
   return { jobId };
 }
@@ -424,6 +427,7 @@ export async function enqueuePagespeedValidationPipeline(
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId },
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-pagespeed-${input.articleId}` },
   });
   return { jobId };
 }
@@ -436,11 +440,15 @@ export async function enqueueSchemaExtensionPipeline(
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId },
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-schema-ext-${input.articleId}` },
   });
   return { jobId };
 }
 
-export type HeroPreRunInput = PreRunInput & { promptOverride?: string };
+export type HeroPreRunInput = PreRunInput & {
+  promptOverride?: string;
+  articleSlug: string;
+};
 
 export async function enqueueHeroImageGenerationPipeline(
   input: HeroPreRunInput
@@ -448,6 +456,7 @@ export async function enqueueHeroImageGenerationPipeline(
   const pipelineInput: Record<string, unknown> = {
     articleId: input.articleId,
     projectId: input.projectId,
+    articleSlug: input.articleSlug,
   };
   if (input.promptOverride) pipelineInput.promptOverride = input.promptOverride;
 
@@ -456,6 +465,7 @@ export async function enqueueHeroImageGenerationPipeline(
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-hero-${input.articleId}` },
   });
   return { jobId };
 }
@@ -482,6 +492,8 @@ export async function enqueueLocalizeArticlePipeline(
       projectSlug: input.projectSlug,
     },
     preRunId: input.preRunId,
+    // BullMQ-level dedup: prevents a second job from being queued if the first is still pending/active
+    jobOptions: { jobId: `article-localize-${input.articleId}` },
   });
   return { jobId };
 }
@@ -507,6 +519,7 @@ export async function enqueuePagespeedApiValidationPipeline(
     projectId: input.projectId,
     input: { articleId: input.articleId, projectId: input.projectId, url: input.url },
     preRunId: input.preRunId,
+    jobOptions: { jobId: `article-pagespeed-api-${input.articleId}` },
   });
   return { jobId };
 }

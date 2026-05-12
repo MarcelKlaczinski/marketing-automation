@@ -179,7 +179,10 @@ const updateProjectSchema = z.object({
       assetsRoot: z.string().default("src/assets"),
       // Local filesystem path for dev preview — optional, machine-specific
       localPath: z.string().min(1).optional(),
-      // URL path template for local preview, e.g. "/{locale}/blog/{slug}" (default)
+      // Per-collection URL path templates, e.g. { "blog": "/{locale}/blog/{slug}" }
+      // Smart default when absent: /{locale}/{collection}/{slug}
+      collectionPaths: z.record(z.string().min(1)).optional(),
+      // Backward-compat: old single previewPath (used as blog fallback when no collectionPaths)
       previewPath: z.string().min(1).optional(),
     })
     .nullable()

@@ -17,7 +17,8 @@ const OutputSchema = z.object({
     metaDescription: z.string(),
     bodyMd: z.string(),
     cornerstoneKeyword: z.string().nullable(),
-    heroImagePublicUrl: z.string().url(),
+    heroImagePublicUrl: z.string(), // not validated as URL — localhost URLs are valid in dev
+    heroImageR2Key: z.string().nullable(),
     heroImageAltText: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
     collectionType: z.string(),
@@ -124,6 +125,7 @@ export class LoadArticleStep extends BaseStep<z.infer<typeof InputSchema>, LoadA
         bodyMd: article.bodyMd,
         cornerstoneKeyword: article.cornerstoneKeyword,
         heroImagePublicUrl: article.heroImagePublicUrl,
+        heroImageR2Key: article.heroImageR2Key ?? null,
         heroImageAltText: article.heroImageAltText ?? article.title,
         schemaJsonLd: (article.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
         collectionType: article.collectionType,

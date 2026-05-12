@@ -14,4 +14,8 @@ export default {
   comingSoon: "Wird in einer späteren Session implementiert.",
   acknowledge: "Bestätigen",
   loadMore: "Mehr laden",
+  justNow: "Gerade eben",
+  minutesAgo: "Vor {n} Min.",
+  hoursAgo: "Vor {n} Std.",
+  daysAgo: "Vor {n} Tagen",
 };

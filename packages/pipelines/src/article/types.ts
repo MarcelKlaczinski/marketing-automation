@@ -29,7 +29,7 @@ export const ArticleOutlineSchema = z.object({
     .max(12),
 
   /** Hero image direction for Flux 1.1 Pro. */
-  heroImagePrompt: z.string().min(30).max(500),
+  heroImagePrompt: z.string().min(30).max(1000),
   heroImageStyle: z.enum(["photorealistic", "illustrated", "3d_render", "minimalist"]),
 
   /** Estimated total word count (sum of section estimates + intro/outro buffer). */

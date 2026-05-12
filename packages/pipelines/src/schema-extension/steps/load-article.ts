@@ -13,11 +13,13 @@ const OutputSchema = z.object({
     id: z.string().uuid(),
     projectId: z.string().uuid(),
     slug: z.string(),
+    locale: z.string().nullable(),
     title: z.string(),
     metaDescription: z.string(),
     bodyMd: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
-    heroImagePublicUrl: z.string().url().nullable(),
+    heroImagePublicUrl: z.string().nullable(), // not validated as URL — localhost URLs are valid in dev
+    heroImageR2Key: z.string().nullable(),
   }),
   project: z.object({
     slug: z.string(),
@@ -81,11 +83,13 @@ export class LoadArticleStep extends BaseStep<
         id: article.id,
         projectId: article.projectId,
         slug: article.slug,
+        locale: article.locale ?? null,
         title: article.title!,
         metaDescription: article.metaDescription ?? "",
         bodyMd: article.bodyMd!,
         schemaJsonLd: (article.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
-        heroImagePublicUrl: article.heroImagePublicUrl ?? null,
+        heroImagePublicUrl: article.heroImagePublicUrl || null, // || coerces empty string to null
+        heroImageR2Key: article.heroImageR2Key || null,
       },
       project: {
         slug: project.slug,

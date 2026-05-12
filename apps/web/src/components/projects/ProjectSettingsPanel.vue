@@ -61,15 +61,55 @@
           placeholder="/Users/you/projects/my-astro-site"
           class="col-12"
         />
-        <q-input
-          v-model="astroRepo.previewPath"
-          outlined
-          dense
-          :label="$t('projects.settings.astroRepo.previewPath')"
-          :hint="$t('projects.settings.astroRepo.previewPathHint')"
-          placeholder="/{locale}/blog/{slug}"
-          class="col-12"
-        />
+        <!-- Collection URL paths -->
+        <div class="col-12">
+          <div class="text-caption text-weight-medium q-mb-xs">
+            {{ $t('projects.settings.astroRepo.collectionPathsTitle') }}
+          </div>
+          <div class="text-caption text-grey q-mb-sm">
+            {{ $t('projects.settings.astroRepo.collectionPathsHint') }}
+          </div>
+          <div
+            v-for="(row, idx) in collectionPathRows"
+            :key="idx"
+            class="row q-col-gutter-sm q-mb-sm items-center"
+          >
+            <q-input
+              v-model="row.collection"
+              outlined
+              dense
+              :placeholder="$t('projects.settings.astroRepo.collectionPathsCollection')"
+              class="col-5"
+            />
+            <q-input
+              v-model="row.pathTemplate"
+              outlined
+              dense
+              placeholder="/{locale}/{collection}/{slug}"
+              class="col"
+            />
+            <q-btn
+              flat
+              round
+              dense
+              icon="close"
+              color="grey"
+              class="col-auto"
+              @click="removeCollectionPathRow(idx)"
+            />
+          </div>
+          <div v-if="collectionPathRows.length === 0" class="text-caption text-grey q-mb-sm">
+            {{ $t('projects.settings.astroRepo.collectionPathsEmpty') }}
+          </div>
+          <q-btn
+            flat
+            dense
+            color="primary"
+            icon="add"
+            :label="$t('projects.settings.astroRepo.collectionPathsAdd')"
+            @click="addCollectionPathRow"
+          />
+        </div>
       </div>
     </div>
 
@@ -291,8 +331,17 @@ const DEFAULT_ASTRO_REPO: AstroRepoConfig = {
   contentRoot: "src/content",
   assetsRoot: "src/assets",
   localPath: "",
-  previewPath: "",
 };
+
+interface CollectionPathRow {
+  collection: string;
+  pathTemplate: string;
+}
+
+function collectionPathsToRows(paths: Record<string, string> | undefined): CollectionPathRow[] {
+  if (!paths || Object.keys(paths).length === 0) return [];
+  return Object.entries(paths).map(([collection, pathTemplate]) => ({ collection, pathTemplate }));
+}
 
 const DEFAULT_PAGESPEED: PagespeedThresholds = {
   performance: 85,
@@ -330,6 +379,7 @@ export default defineComponent({
       saving: false,
       pagespeedMetrics: PAGESPEED_METRICS,
       astroRepo: { ...DEFAULT_ASTRO_REPO, ...(this.project.astroRepo ?? {}) } as AstroRepoConfig,
+      collectionPathRows: collectionPathsToRows(this.project.astroRepo?.collectionPaths) as CollectionPathRow[],
       domain: this.project.domain ?? "",
       pagespeedThresholds: {
         ...DEFAULT_PAGESPEED,
@@ -366,11 +416,20 @@ export default defineComponent({
     snapshot(): string {
       return JSON.stringify({
         astroRepo: this.astroRepo,
+        collectionPathRows: this.collectionPathRows,
         domain: this.domain,
         pagespeedThresholds: this.pagespeedThresholds,
         linkRebuildBudgetMonthly: this.linkRebuildBudgetMonthly,
         costLimitsForm: this.costLimitsForm,
       });
+    },
+
+    addCollectionPathRow(): void {
+      this.collectionPathRows.push({ collection: "", pathTemplate: "" });
+    },
+
+    removeCollectionPathRow(idx: number): void {
+      this.collectionPathRows.splice(idx, 1);
     },
 
     async onSave(): Promise<void> {
@@ -391,7 +450,14 @@ export default defineComponent({
             assetsRoot: this.astroRepo.assetsRoot,
           };
           if (this.astroRepo.localPath?.trim()) base.localPath = this.astroRepo.localPath.trim();
-          if (this.astroRepo.previewPath?.trim()) base.previewPath = this.astroRepo.previewPath.trim();
+          // Build collectionPaths from rows, skipping empty entries
+          const collectionPaths: Record<string, string> = {};
+          for (const row of this.collectionPathRows) {
+            if (row.collection.trim() && row.pathTemplate.trim()) {
+              collectionPaths[row.collection.trim()] = row.pathTemplate.trim();
+            }
+          }
+          if (Object.keys(collectionPaths).length > 0) base.collectionPaths = collectionPaths;
           astroRepoPayload = base;
         }
 

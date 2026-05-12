@@ -43,6 +43,11 @@ export class AssemblyStep extends BaseStep<
     const outline = ArticleOutlineSchema.parse(article.outline);
     const now = new Date().toISOString();
 
+    // Build canonical article URL using projects.domain (fallback: slug.example.com)
+    const domain = project.domain ?? `${project.slug}.example.com`;
+    const localePath = article.locale ? `/${article.locale}` : "";
+    const articleUrl = `https://${domain}${localePath}/blog/${outline.slug}`;
+
     // schema.org Article JSON-LD — Spec 21 (Astro adapter) injects this into <head>
     const schemaJsonLd: Record<string, unknown> = {
       "@context": "https://schema.org",
@@ -62,8 +67,7 @@ export class AssemblyStep extends BaseStep<
       },
       mainEntityOfPage: {
         "@type": "WebPage",
-        // Spec 21 substitutes the real domain
-        "@id": `https://${project.slug}.example.com/${outline.slug}`,
+        "@id": articleUrl,
       },
     };
 

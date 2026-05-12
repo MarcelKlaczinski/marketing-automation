@@ -171,10 +171,10 @@ export default defineComponent({
 
     async fetchTasks(): Promise<void> {
       const statuses = ['proposed', 'outline_review', 'final_review'].join(',');
-      const res = await api.get<{ ok: boolean; data: InboxArticle[] }>(
+      const res = await api.get<{ ok: boolean; data: { items: InboxArticle[] } }>(
         `/articles/across-projects?statuses=${statuses}`,
       );
-      this.tasks = res.data.data;
+      this.tasks = res.data.data.items;
     },
 
     async fetchActiveRuns(): Promise<void> {

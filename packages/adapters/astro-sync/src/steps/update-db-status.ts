@@ -10,7 +10,7 @@ const InputSchema = z.object({
   filesCommitted: z.array(z.string()),
   bytesCommitted: z.number(),
   frontmatter: z.record(z.unknown()),
-  heroAstroAssetPath: z.string(),
+  heroPublicPath: z.string(),
 });
 
 const OutputSchema = z.object({
@@ -40,7 +40,7 @@ export class UpdateDbStatusStep extends BaseStep<
         astroSyncedAt: now,
         astroCommitSha: input.commitSha,
         astroFrontmatter: input.frontmatter,
-        astroAssetPaths: { heroImage: input.heroAstroAssetPath },
+        astroAssetPaths: { heroImage: input.heroPublicPath },
         updatedAt: now,
       })
       .where(eq(articles.id, input.articleId));

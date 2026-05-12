@@ -84,6 +84,7 @@ Designed to evolve into SaaS.
 - DO NOT assume an Astro content entry will be reachable at its URL after syncing — Astro silently excludes entries from `getStaticPaths()` when the collection's Zod schema validation fails (e.g. missing required fields like `date`, `category`, `excerpt`). The result is a 404 with no server-side error. Always verify `buildFrontmatter()` satisfies all required collection fields. Use `ExtractCollectionSchemasStep` (Spec 50) to keep the schema stored in DB and inject it into the generation prompt
 - DO NOT pass `frontmatterSchema` to `buildSystemPrompt()` as a raw `z.unknown()` array without casting — the function expects `FrontmatterFieldDescriptor[]` (from `@marketing-auto/db`). Import the type at the top of the step file and cast: `frontmatterSchema as FrontmatterFieldDescriptor[]`
 - DO NOT use `sql\`${col} != ${value}\`` for inequality comparisons in Drizzle — the `!=` operator is not handled by parameter binding and silently produces incorrect queries. Use `ne(col, value)` from `drizzle-orm` instead. The `ne()` operator is listed alongside `eq`, `gt`, `lt` etc. in the SQL Date-Binding Convention above and auto-serializes values correctly
+- DO NOT query by `translationKey` alone — it is project-scoped by convention but not by a DB unique constraint. Always pair it with `eq(articles.projectId, projectId)` to prevent cross-tenant sibling matches in any pipeline or route that joins on translation siblings
 
 ## Local DB Setup
 

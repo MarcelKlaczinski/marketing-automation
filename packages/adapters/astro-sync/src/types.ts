@@ -2,6 +2,16 @@ import { z } from "zod";
 
 // ───── Project Astro repo config ─────────────────────────────────────────────
 
+/** One author entry stored in `projects.astroRepo.authors` (optional). */
+export const AstroRepoAuthorSchema = z.object({
+  /** Slug that maps to `src/content/authors/<locale>/<slug>.mdx` */
+  slug: z.string().min(1),
+  name: z.string().min(1),
+  /** Keywords that describe this author's subject-matter expertise. */
+  expertise: z.array(z.string()).default([]),
+});
+export type AstroRepoAuthor = z.infer<typeof AstroRepoAuthorSchema>;
+
 export const AstroRepoConfigSchema = z.object({
   owner: z.string().min(1),
   name: z.string().min(1),
@@ -9,6 +19,14 @@ export const AstroRepoConfigSchema = z.object({
   defaultBranch: z.string().default("main"),
   contentRoot: z.string().default("src/content"),
   assetsRoot: z.string().default("src/assets"),
+  /** Local file-system path to the cloned repo (optional; for local-preview). */
+  localPath: z.string().optional(),
+  /**
+   * Available content authors — loaded by DraftStep so the LLM can pick the best
+   * match by topic expertise. Slugs must correspond to entries in
+   * `src/content/authors/<locale>/`. Set via direct SQL or Drizzle Studio.
+   */
+  authors: z.array(AstroRepoAuthorSchema).optional(),
 });
 export type AstroRepoConfig = z.infer<typeof AstroRepoConfigSchema>;
 

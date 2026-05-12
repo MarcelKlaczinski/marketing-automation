@@ -6,7 +6,7 @@ export {
 } from "./types.ts";
 export { getGitHubApp, getInstallationOctokit } from "./github-auth.ts";
 export { LoadArticleStep } from "./steps/load-article.ts";
-export { ResolveSchemaStep, parseBlogSchema } from "./steps/resolve-schema.ts";
+export { ResolveSchemaStep, parseBlogSchema, parseAllCollectionSchemas } from "./steps/resolve-schema.ts";
 export { DownloadHeroStep } from "./steps/download-hero.ts";
 export { RenderMdxStep, computeRelative } from "./steps/render-mdx.ts";
 export { CommitToGitHubStep } from "./steps/commit-to-github.ts";

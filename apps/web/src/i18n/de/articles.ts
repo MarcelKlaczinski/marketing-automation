@@ -98,6 +98,9 @@ export default {
       faq: "FAQ",
       clusterRole: "Cluster-Rolle",
     },
+    heroImage: "Hero-Bild",
+    heroImageAlt: "Hero-Bild Vorschau",
+    heroVariants: "Bildvarianten",
   },
 
   body: {
@@ -153,6 +156,7 @@ export default {
     localizeFreshHint: "Der Titel wird übersetzt und ein neuer Stub-Artikel angelegt. Danach Outline und Draft separat für den Zielmarkt generieren.",
     localizeStart: "Starten",
     localizeTriggered: "{locale}-Version wird erstellt",
+    siblingGenerating: "{locale}-Version wird gerade generiert…",
     localeLabel: { en: "English", de: "Deutsch" },
   },
 
@@ -183,6 +187,18 @@ export default {
     back: "Zurück",
     cornerstone: "Cornerstone-Artikel",
     lastUpdated: "Zuletzt aktualisiert",
+  },
+
+  statusGuide: {
+    proposed:         "Artikel freigeben, dann Outline generieren",
+    approved:         "Outline generieren → KI analysiert Keyword & SERP",
+    outline_review:   "Outline prüfen, dann Draft generieren",
+    final_review:     "Draft prüfen → Schema.org erweitern oder direkt nach Astro syncen",
+    ready_to_publish: "Zu Astro syncen → Artikel wird veröffentlicht",
+    published:        "PageSpeed validieren für vollständige Qualitätsprüfung",
+    running:          "Pipeline läuft — bitte warten…",
+    blocked:          "PageSpeed-Fehler beheben, dann erneut validieren",
+    failed:           "Pipeline fehlgeschlagen — Details in den letzten Runs prüfen",
   },
 
   status: {
