@@ -1,6 +1,7 @@
 import activity from "./activity";
 import cornerstones from "./cornerstones";
 import gaps from "./gaps";
+import social from "./social";
 import app from "./app";
 import articleStatus from "./articleStatus";
 import articles from "./articles";
@@ -46,4 +47,5 @@ export default {
   notifications,
   cornerstones,
   gaps,
+  social,
 };

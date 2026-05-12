@@ -1,0 +1,24 @@
+export default {
+  title: "Instagram Posts",
+  format: {
+    label: "Format",
+    listCarousel: "List Carousel",
+    comparison: "Comparison (soon)",
+  },
+  theme: {
+    label: "Theme",
+    dark: "Dark",
+    light: "Light",
+  },
+  generate: "Generate Carousel",
+  cost: "~$0.03 · ~30 seconds",
+  history: "Previous Posts",
+  preview: "Preview",
+  download: "Download Bundle",
+  noPostsYet: "No posts generated yet.",
+  slides: "{n} Slides",
+  generating: "Generating…",
+  generatedAt: "Generated {time}",
+  darkTheme: "Dark",
+  lightTheme: "Light",
+};
