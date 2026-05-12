@@ -68,6 +68,9 @@ export const projects = pgTable(
     // Default false (safe for new projects). Set true for toolwiki via migration 0024.
     autoPublish: boolean("auto_publish").notNull().default(false),
 
+    // Spec 51: Visual brand tokens for social-image generation (colors, typography, voice, social handles)
+    brandTokens: jsonb("brand_tokens").$type<BrandTokens>().notNull().default({}),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -140,6 +143,37 @@ export type PagespeedThresholds = {
   accessibility: number;
   bestPractices: number;
   seo: number;
+};
+
+// Spec 51: Visual brand tokens for social-image generation
+export type BrandTokens = {
+  colors?: {
+    primary?: string;
+    primaryHue?: number;
+    accent?: string;
+    surface?: string;
+    surfaceDark?: string;
+    ink?: string;
+    inkMuted?: string;
+    wikiCream?: string;
+  };
+  typography?: {
+    fontFamily?: string;
+    headingWeight?: number;
+    bodyWeight?: number;
+    eyebrowLetterSpacing?: string;
+  };
+  voice?: {
+    locale?: string;
+    addressForm?: string;
+    forbiddenWords?: string[];
+    signaturePhrases?: string[];
+  };
+  social?: {
+    instagramHandle?: string;
+    websiteUrl?: string;
+    logoAssetKey?: string;
+  };
 };
 
 // Spec 50: Frontmatter schema descriptor for a single field in an Astro collection

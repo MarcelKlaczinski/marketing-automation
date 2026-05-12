@@ -332,6 +332,12 @@ export const socialPosts = pgTable(
 
     metrics: jsonb("metrics").$type<Record<string, number>>(),
 
+    // Spec 51: social-image generation columns
+    theme: text("theme").notNull().default("dark"),         // 'dark' | 'light'
+    totalSlides: integer("total_slides"),
+    costEur: numeric("cost_eur", { precision: 10, scale: 4 }).$type<string>().notNull().default("0"),
+    generatedAt: timestamp("generated_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
