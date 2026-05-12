@@ -32,18 +32,36 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
   readonly outputSchema = ArticleOutlineSchemaOutput;
 
   override estimatedCostEur(): number {
-    return 0.6; // Opus 4.7 @ up to 8k output tokens
+    return 0.07; // Sonnet 4.6 @ up to 8k output tokens
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const research = input.research as ResearchResult;
     const model =
       (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
-      "claude-opus-4-7";
+      "claude-sonnet-4-6";
 
     const outlineInstructions = `
-You are producing the OUTLINE for an article. Marcel will review this outline
-before any draft is written. The outline must be specific enough that:
+You are producing the OUTLINE for an article on toolwiki.ai — an AI tool wiki.
+
+SCOPE GUARDRAIL (check FIRST before anything else):
+toolwiki.ai publishes ONLY content that is primarily about AI/ML:
+  ✓ AI tool reviews, comparisons, pricing (ChatGPT, Claude, Midjourney, Cursor, etc.)
+  ✓ AI productivity workflows and use cases
+  ✓ LLM/AI concepts and techniques (prompt engineering, RAG, fine-tuning, agents, etc.)
+  ✓ AI-powered features of any software (e.g. Notion AI, Grammarly AI)
+  ✗ General SaaS/software with no meaningful AI component
+  ✗ Media streaming, music services, sports, cooking, travel, finance without AI angle
+  ✗ Traditional SEO tools, web hosting, project management (unless AI-powered)
+
+If the topic has NO meaningful AI angle, return ONLY this JSON and stop:
+{"outOfScope": true, "reason": "one sentence why", "aiAngle": "optional: how to reframe with AI focus"}
+
+If there IS an AI angle but the cluster topic is framed too broadly (e.g. "Streaming-Dienste Vergleich"),
+REFRAME it around AI: "How AI Shapes Music Recommendations: Spotify, Apple Music and YouTube Music Compared".
+The AI feature must be the primary focus, not a footnote.
+
+Marcel will review this outline before any draft is written. The outline must be specific enough that:
 - A different writer could pick it up and produce a draft that matches the intent
 - Marcel can spot strategic mistakes (wrong angle, wrong sections) in 2 minutes of reading
 - The draft step has all the structural decisions made
