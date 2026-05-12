@@ -72,6 +72,11 @@ export const COST_OPS = {
 
   // === Spec 50: Frontmatter field suggestion (Haiku) ===
   FRONTMATTER_SUGGEST:      "frontmatter-suggest",    // Haiku-powered category/intentType/faq suggestion
+
+  // === Spec 51: Social image generation (Instagram carousel) ===
+  SOCIAL_IMAGE_EXTRACT:   "social-image-extract",    // Haiku: extract tools from article
+  SOCIAL_IMAGE_CAPTION:   "social-image-caption",    // Sonnet: write Instagram caption
+  SOCIAL_IMAGE_HASHTAGS:  "social-image-hashtags",   // Haiku: generate hashtag list
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

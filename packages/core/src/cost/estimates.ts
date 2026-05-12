@@ -57,6 +57,11 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   // PSI API is free (25k requests/day with key, 400/day without)
   pagespeed: {
     [COST_OPS.PAGESPEED_PSI_API]: 0,
+
+    // Spec 51: Social image generation
+    [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005,
+    [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.015,
+    [COST_OPS.SOCIAL_IMAGE_HASHTAGS]: 0.005,
   },
 };
 
