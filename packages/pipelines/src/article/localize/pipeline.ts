@@ -346,7 +346,7 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
         projectId: ctx.projectId,
         pipelineRunId: ctx.pipelineRunId,
         operation: COST_OPS.ARTICLE_OUTLINE,
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-haiku-4-5",
         systemPrefix: structurePrompt.cacheablePrefix,
         systemSuffix: structurePrompt.variableSuffix,
         userMessage: structureUserParts.join("\n"),

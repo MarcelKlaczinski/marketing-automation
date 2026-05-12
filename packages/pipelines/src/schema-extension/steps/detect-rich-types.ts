@@ -77,7 +77,7 @@ Rules:
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.SCHEMA_RICH_DETECTION,
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-haiku-4-5",
       systemPrefix: prompt.cacheablePrefix,
       systemSuffix: prompt.variableSuffix,
       userMessage: [
