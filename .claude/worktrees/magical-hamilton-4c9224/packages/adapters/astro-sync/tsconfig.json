@@ -1,0 +1,11 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "@marketing-auto/shared/hero-variants": ["../../../packages/shared/src/hero-variants.ts"]
+    }
+  },
+  "include": ["src/**/*", "test/**/*"]
+}

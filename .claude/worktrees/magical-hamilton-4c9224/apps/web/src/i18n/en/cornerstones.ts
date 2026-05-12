@@ -1,0 +1,43 @@
+export default {
+  approval: {
+    title: "Cornerstone Proposals",
+    empty: "No cornerstones in this status.",
+    generateAllApproved: "Generate {count} cluster(s)",
+    generationStarted: "{total} article generation(s) started",
+  },
+  status: {
+    proposed: "Proposed",
+    approved: "Approved",
+    inGeneration: "Generating",
+    articleDone: "Done",
+    rejected: "Rejected",
+    all: "All",
+    missing: "Missing",
+  },
+  pair: {
+    approveBoth: "Approve both",
+    approveDeOnly: "Approve DE only",
+    approveEnOnly: "Approve EN only",
+    missingDe: "No DE counterpart generated",
+    missingEn: "No EN counterpart generated",
+    keyword: "Keyword",
+    title: "Title",
+    slug: "Slug",
+    meta: "Meta description",
+    wordCount: "Target word count",
+    outline: "Outline",
+  },
+  actions: {
+    reject: "Reject",
+    rejectTitle: "Reject cornerstone",
+    rejectReason: "Reason (optional)",
+    rejectConfirm: "Reject",
+    cancel: "Cancel",
+  },
+  notify: {
+    pairApproved: "Pair approved",
+    specApproved: "Cornerstone approved",
+    specRejected: "Cornerstone rejected",
+    generationError: "Error starting generation",
+  },
+};

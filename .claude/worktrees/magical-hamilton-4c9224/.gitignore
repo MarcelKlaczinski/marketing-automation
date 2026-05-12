@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+.idea/
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Bun
+bun.lockb
+
+# Quasar (added in Spec 30)
+.quasar/
+
+# Local dev
+*.sqlite
+*.sqlite-journal
+
+# Worker PID file (runtime artifact)
+tmp/worker.pid

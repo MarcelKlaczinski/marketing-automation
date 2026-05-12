@@ -1,0 +1,3 @@
+[submodule "packages/skills"]
+	path = packages/skills
+	url = https://github.com/coreyhaines31/marketingskills.git

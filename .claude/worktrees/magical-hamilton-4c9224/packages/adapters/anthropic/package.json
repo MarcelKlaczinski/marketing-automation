@@ -1,0 +1,25 @@
+{
+  "name": "@marketing-auto/adapter-anthropic",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./verify": "./src/verify.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/anthropic/test",
+    "fixtures": "bun src/scripts/fixtures-cli.ts"
+  },
+  "devDependencies": {
+    "drizzle-orm": "^0.36.0"
+  },
+  "dependencies": {
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/core": "workspace:*",
+    "@marketing-auto/cost-tracker": "workspace:*",
+    "@anthropic-ai/sdk": "^0.94.0"
+  }
+}
