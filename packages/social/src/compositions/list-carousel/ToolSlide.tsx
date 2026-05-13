@@ -51,10 +51,9 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
         {/* Icon + Name row */}
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
           <ToolIconImage
-            iconUrl={tool.iconUrl}
+            iconSvg={tool.iconSvg}
             initials={tool.iconInitials}
             hue={tool.iconHue}
-            emoji={tool.emoji}
             size={96}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

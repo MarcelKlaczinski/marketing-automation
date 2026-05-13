@@ -1,15 +1,14 @@
 import React from "react";
 
 type Props = {
-  iconUrl?: string;       // file:// or https:// path to PNG
-  initials?: string;      // fallback: 2 uppercase letters
-  hue?: number;           // fallback: hue for gradient background
-  emoji?: string;         // preferred fallback over initials
+  iconSvg?: string;    // inline SVG string from resolution chain
+  initials?: string;   // deterministic avatar fallback: 2 uppercase letters
+  hue?: number;        // deterministic avatar fallback: hue for gradient
   size?: number;
 };
 
-export function ToolIconImage({ iconUrl, initials, hue = 200, emoji, size = 80 }: Props) {
-  if (iconUrl) {
+export function ToolIconImage({ iconSvg, initials, hue = 200, size = 80 }: Props) {
+  if (iconSvg) {
     return (
       <div
         style={{
@@ -24,31 +23,17 @@ export function ToolIconImage({ iconUrl, initials, hue = 200, emoji, size = 80 }
           boxSizing: "border-box" as const,
         }}
       >
-        <img src={iconUrl} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        <div
+          style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+          // SVG content from simple-icons/iconify/lobe-icons — no user-supplied content
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: controlled brand asset SVGs
+          dangerouslySetInnerHTML={{ __html: iconSvg }}
+        />
       </div>
     );
   }
 
-  if (emoji) {
-    return (
-      <div
-        style={{
-          width: size,
-          height: size,
-          borderRadius: "50%",
-          background: `radial-gradient(135deg at 30% 30%, oklch(65% 0.18 ${hue}), oklch(40% 0.15 ${hue + 40}))`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: size * 0.5,
-          boxShadow: `0 4px 24px oklch(50% 0.15 ${hue} / 0.4)`,
-        }}
-      >
-        {emoji}
-      </div>
-    );
-  }
-
+  // Deterministic HSL avatar — never emoji
   return (
     <div
       style={{

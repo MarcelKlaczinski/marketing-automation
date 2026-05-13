@@ -53,11 +53,10 @@ const toolSchema = z.object({
     tier: z.enum(["free", "freemium", "paid"]),
     label: z.string(),
   }),
-  // Resolved icon — passed in by pipeline after brand-asset-service lookup
-  iconUrl: z.string().optional(), // file path or URL; undefined → initials avatar
-  iconInitials: z.string().optional(),
+  // Resolved icon — passed in by pipeline after icon-resolver lookup
+  iconSvg: z.string().optional(),      // inline SVG from resolution chain (simple-icons/iconify/lobe-icons)
+  iconInitials: z.string().optional(), // deterministic avatar fallback
   iconHue: z.number().optional(),
-  emoji: z.string().optional(),
 });
 
 export type Tool = z.infer<typeof toolSchema>;

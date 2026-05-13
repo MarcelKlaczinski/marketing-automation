@@ -29,27 +29,9 @@ export type RenderResult = {
   sequenceCount: number;
 };
 
-// Convert local file paths in iconUrl fields to base64 data URLs so Remotion's
-// headless browser (served from localhost) can load them without file:// restrictions.
-async function resolveIconUrls(input: ListCarouselInput): Promise<ListCarouselInput> {
-  const tools = await Promise.all(
-    input.tools.map(async (tool) => {
-      if (!tool.iconUrl) return tool;
-      if (tool.iconUrl.startsWith("data:") || tool.iconUrl.startsWith("http")) return tool;
-      // Local file path → base64 data URL
-      try {
-        const buf = await readFile(tool.iconUrl);
-        return { ...tool, iconUrl: `data:image/png;base64,${buf.toString("base64")}` };
-      } catch {
-        return { ...tool, iconUrl: undefined };
-      }
-    })
-  );
-  return { ...input, tools };
-}
-
 export async function renderListCarousel(input: ListCarouselInput): Promise<RenderResult> {
-  const resolved = await resolveIconUrls(input);
+  // iconSvg fields are inline strings — no file I/O needed before rendering
+  const resolved = input;
   const serveUrl = await getBundle();
   const totalSlides = 1 + resolved.tools.length + 1;
   const slides: Buffer[] = [];
