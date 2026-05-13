@@ -33,7 +33,7 @@ function LogoFloats({ tools, pattern }: {
   tools: ListCarouselInput["tools"];
   pattern: string;
 }) {
-  if (pattern === "comparison") {
+  if (pattern === "superlative_question") {
     // 2 logos prominent with slight overlap
     const a = tools[0];
     const b = tools[1];
@@ -60,7 +60,7 @@ function LogoFloats({ tools, pattern }: {
     );
   }
 
-  if (pattern === "insider-reveal") {
+  if (pattern === "curiosity_gap") {
     const a = tools[0];
     if (!a) return null;
     return (
@@ -75,7 +75,7 @@ function LogoFloats({ tools, pattern }: {
     );
   }
 
-  if (pattern === "number-promise" || pattern === "save-promise") {
+  if (pattern === "number_promise" || pattern === "identity_frame") {
     // Cluster of 3-5 logos in varying sizes
     const cluster = tools.slice(0, Math.min(tools.length, 5));
     const sizes = [80, 100, 70, 90, 65];
@@ -182,10 +182,10 @@ function renderTrailWithEmphasis(trail: string, emphasisWord: string, brand: str
 export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
   const { cover, tools, brandTokens } = input;
   const { fontFamily, headingWeight, eyebrowLetterSpacing } = brandTokens.typography;
-  const hook = cover.hook;
+  const hook = cover.hookOutput;
 
   // Determine pattern for decoration
-  const pattern = hook?.pattern ?? "number-promise";
+  const pattern = hook?.pattern ?? "number_promise";
   const toolCount = tools.length;
 
   return (
@@ -204,8 +204,8 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
     >
       <StunningBackground theme={theme} />
 
-      {/* Big number decoration: Number-Promise (always) + Comparison with 2 tools (optional) */}
-      {(pattern === "number-promise" || (pattern === "comparison" && toolCount === 2)) && (
+      {/* Big number decoration behind hook */}
+      {(pattern === "number_promise" || pattern === "superlative_question") && (
         <BigNumberDecoration n={toolCount} brand={theme.brand} fontFamily={fontFamily} />
       )}
 
@@ -247,7 +247,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                 textWrap: "balance",
               } as React.CSSProperties}
             >
-              {hook.hookLead}
+              {hook.leadPhrase}
             </div>
 
             {/* Hook Trail — brand color, slightly smaller */}
@@ -261,11 +261,11 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                 marginTop: 8,
               }}
             >
-              {renderTrailWithEmphasis(hook.hookTrail, hook.hookEmphasisWord, theme.brand)}
+              {renderTrailWithEmphasis(hook.highlightWord, hook.trailPhrase, theme.brand)}
             </div>
 
             {/* Save-prompt hint when save_trigger_intensity === 'high' */}
-            {hook.saveTriggerIntensity === "high" && (
+            {hook.promiseBlock && (
               <div
                 style={{
                   display: "flex",

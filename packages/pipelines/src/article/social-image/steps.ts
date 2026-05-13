@@ -11,6 +11,17 @@ import { createLogger } from "@marketing-auto/shared";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import {
+  type HookArticleContext,
+  type HookOutput,
+  type HookPattern,
+  buildPromiseBlock,
+  inferArticleType,
+  programmaticFallbackHook,
+  selectPattern,
+} from "./hookEngine.ts";
+import { buildHookPrompt } from "./hookPrompt.ts";
+import { validateHook } from "./hookValidator.ts";
 
 const log = createLogger("pipelines:social-image");
 
@@ -125,12 +136,14 @@ const extractedToolSchema = z.object({
   starStrength: z.string().max(80).optional(),
 });
 
-const coverHookSchema = z.object({
-  pattern: z.enum(["comparison", "number-promise", "insider-reveal", "problem-recognition", "save-promise"]),
-  hookLead: z.string().max(80),
-  hookTrail: z.string().max(50),
-  hookEmphasisWord: z.string().max(30),
-  saveTriggerIntensity: z.enum(["low", "medium", "high"]),
+// Zod schema for the new phrase-based HookOutput (mirrors hookEngine.ts interfaces)
+const hookOutputZodSchema = z.object({
+  pattern: z.enum(["superlative_question", "number_promise", "negative_frame", "identity_frame", "curiosity_gap"]),
+  leadPhrase: z.string(),
+  highlightWord: z.string(),
+  trailPhrase: z.string(),
+  fullText: z.string(),
+  promiseBlock: z.object({ line1: z.string(), line2: z.string() }),
 });
 
 const endCloserSchema = z.object({
@@ -150,7 +163,7 @@ const ExtractToolsOutputSchema = ExtractToolsInputSchema.extend({
   endHeadline: z.string(),
   endHeadlineHighlight: z.string(),
   // Stunning variant extras (populated when variant === 'stunning')
-  coverHook: coverHookSchema.optional(),
+  coverHookOutput: hookOutputZodSchema.optional(),
   endCloser: endCloserSchema.optional(),
 });
 
@@ -166,40 +179,12 @@ export class ExtractToolsStep extends BaseStep<
 
   async execute(input: z.infer<typeof ExtractToolsInputSchema>, ctx: StepContext) {
     const isStunning = input.variant === "stunning";
-    // Pre-compute article type from title alone (tool count unknown before LLM parses)
-    const titleType = /\bvs\.?\b|\bgegen\b/.test(input.articleTitle.toLowerCase()) ? "comparison" : "listicle";
+
     const stunningSuffix = isStunning ? `
 
 STUNNING VARIANT — zusätzliche Felder pro Tool:
-- "keyDifferentiator": 1-5 Wörter aus der Tagline die den Kern-Unterschied benennen (werden highlighted). Z.B. "produktionsreifem SVG-Vektor"
-- "starStrength": die WICHTIGSTE der 4 Strengths (exakt aus dem strengths-Array, wird visuell hervorgehoben)
-
-STUNNING VARIANT — Cover-Hook (cover_hook):
-Du generierst einen scroll-stopping Hook für den Cover-Slide im toolwiki-Voice.
-
-VOICE-CONSTRAINTS:
-- Editorial, ehrlich, anti-hype
-- "du"-Form (DE) oder you-form (EN)
-- Keine ALL-CAPS außer Eyebrow
-- Keine Sensation: kein "!!!", kein "BEST", kein "TÖTEN"
-- Em-dash als Atemzeichen erlaubt
-
-ARTICLE-TYPE: ${titleType}
-
-HOOK-PATTERNS (wähle basierend auf ARTICLE-TYPE):
-A — Comparison-Tension (ZWINGEND wenn ARTICLE-TYPE === 'comparison'): "<Tool A> oder <Tool B>? — Eines kann mehr."
-B — Number-Promise (nur wenn ARTICLE-TYPE === 'listicle', konkretes Outcome): "Die {N} KI-Tools die deinen Workflow ersetzen."
-C — Insider-Reveal: "Was Designer über Recraft nicht wussten."
-D — Problem-Recognition: "Frustriert von schlechten Logo-Tools? — Diese 3 ändern das."
-E — Save-Promise: "Speichere das: Die wichtigsten Bild-KIs 2026."
-
-REGELN für Hook:
-- hook_lead: max 8 Wörter (z.B. "Recraft oder Ideogram?" = 3 Wörter ✓)
-- hook_trail: max 6 Wörter (z.B. "Eines kann mehr." = 3 Wörter ✓)
-- hook_emphasis_word: 1-2 Wörter für Betonung
-- Kein ALL-CAPS in Lead/Trail
-- Kein Hype: kein "best", "killer", "ultimate", "mind-blowing", "game-changer"
-- Fallback: Pattern B (Number-Promise) wenn keine andere Variante stark passt
+- "keyDifferentiator": 1-5 Wörter aus der Tagline die den Kern-Unterschied benennen (werden highlighted)
+- "starStrength": die WICHTIGSTE der 4 Strengths (exakt aus dem strengths-Array)
 
 STUNNING VARIANT — End-Closer (end_closer):
 Generiere einen starken Closer für den End-Slide.
@@ -208,13 +193,6 @@ Pattern "cta": klarer Aufruf → "Folge uns für mehr ehrliche Vergleiche."
 Pattern "save-reminder": "Speicher diesen Post als Cheat-Sheet."
 
 Zusätzliche JSON-Felder für Stunning:
-"cover_hook": {
-  "pattern": "comparison|number-promise|insider-reveal|problem-recognition|save-promise",
-  "hook_lead": "...",
-  "hook_trail": "...",
-  "hook_emphasis_word": "...",
-  "save_trigger_intensity": "low|medium|high"
-},
 "end_closer": {
   "pattern": "question|cta|save-reminder",
   "headline_lead": "...",
@@ -232,7 +210,7 @@ ${input.bodyMd.slice(0, 6000)}
 
 IMPORTANT for cover headlines: Base them on the ACTUAL tools you extract, not the article title.
 - If you extract N tools: coverHeadlineLead = "Die {N} besten", coverHeadlineHighlight = the category (e.g. "KI-Bild-Generatoren")
-- Do NOT use "X vs. Y" format even if the article title says so — a carousel shows a list, not a duel
+- Do NOT use "X vs. Y" format — a carousel shows a list, not a duel
 - coverEyebrow should reflect the category/topic, not the article title
 ${stunningSuffix}
 
@@ -252,15 +230,14 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
       "slug": "tool-slug",
       "domain": "tool.com",
       "tagline": "one sentence, max 120 chars",
-      "bestFor": "short use-case label, max 40 chars, e.g. 'Foto-Editing' or 'Code-Generierung'",
+      "bestFor": "short use-case label, max 40 chars",
       "strengths": ["strength 1", "strength 2", "strength 3", "optional strength 4"],
       "pricing": { "tier": "free|freemium|paid", "label": "ab X€/Monat" }${isStunning ? `,
       "keyDifferentiator": "1-5 key words from tagline",
       "starStrength": "most important strength (copy from strengths array)"` : ""}
     }
   ]${isStunning ? `,
-  "cover_hook": { ... },
-  "end_closer": { ... }` : ""}
+  "end_closer": { "pattern": "...", "headline_lead": "...", "headline_trail": "..." }` : ""}
 }
 
 Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
@@ -288,13 +265,6 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       coverSubhead?: string;
       endHeadline: string;
       endHeadlineHighlight: string;
-      cover_hook?: {
-        pattern: string;
-        hook_lead: string;
-        hook_trail: string;
-        hook_emphasis_word: string;
-        save_trigger_intensity: string;
-      };
       end_closer?: {
         pattern: string;
         headline_lead: string;
@@ -321,54 +291,21 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       ? `Die ${tools.length} besten`
       : (parsed.coverHeadlineLead ?? `Die ${tools.length} besten`);
 
-    // ─── Hook validation + fallback (stunning only) ────────────────────────────
-    const articleType = detectArticleType(input.articleTitle, tools.length);
-
-    let coverHook: z.infer<typeof coverHookSchema> | undefined;
+    // ─── Hook generation (new phrase-based multi-pattern engine) ───────────────
+    let coverHookOutput: HookOutput | undefined;
     if (isStunning) {
-      const rawHook = parsed.cover_hook;
-      if (rawHook) {
-        const hookValid = validateHook(rawHook.hook_lead ?? "", rawHook.hook_trail ?? "", log);
-        if (hookValid) {
-          const hookParsed = coverHookSchema.safeParse({
-            pattern: rawHook.pattern,
-            hookLead: rawHook.hook_lead,
-            hookTrail: rawHook.hook_trail,
-            hookEmphasisWord: rawHook.hook_emphasis_word,
-            saveTriggerIntensity: rawHook.save_trigger_intensity,
-          });
-          if (hookParsed.success) {
-            coverHook = hookParsed.data;
-          }
-        }
-      }
-
-      // Pattern-override: if article is a comparison but LLM returned number-promise, force Pattern A
-      if (articleType === "comparison" && tools.length <= 3 && (!coverHook || coverHook.pattern === "number-promise")) {
-        const toolA = tools[0]?.name ?? "Tool A";
-        const toolB = tools[1]?.name ?? "Tool B";
-        log.info({ articleTitle: input.articleTitle, toolA, toolB }, "Overriding to comparison hook (Pattern A)");
-        coverHook = {
-          pattern: "comparison",
-          hookLead: `${toolA} oder ${toolB}?`,
-          hookTrail: "Eines kann mehr.",
-          hookEmphasisWord: "mehr",
-          saveTriggerIntensity: "medium",
-        };
-      }
-
-      // Fallback: build a hook programmatically, preserving category context
-      if (!coverHook) {
-        const category = parsed.coverHeadlineHighlight ?? `${tools[0]?.name ?? "KI"}-Tools`;
-        log.warn({ articleTitle: input.articleTitle, articleType }, "Hook failed validation — using programmatic fallback");
-        coverHook = {
-          pattern: "number-promise",
-          hookLead: `Die ${tools.length} besten`,
-          hookTrail: `${category} im Test.`,
-          hookEmphasisWord: String(tools.length),
-          saveTriggerIntensity: "medium",
-        };
-      }
+      const primaryKeyword = parsed.coverHeadlineHighlight ?? tools[0]?.name ?? "KI-Tools";
+      const toolNames = tools.map((t) => t.name);
+      const articleCtx: HookArticleContext = {
+        id: input.articleId,
+        title: input.articleTitle,
+        toolCount: tools.length,
+        primaryKeyword,
+        toolNames,
+      };
+      const articleType = inferArticleType(input.articleTitle, tools.length);
+      const pattern = selectPattern(input.articleId, articleType);
+      coverHookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic);
     }
 
     // ─── End-closer (stunning only) ────────────────────────────────────────────
@@ -404,66 +341,79 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       coverSubhead: parsed.coverSubhead,
       endHeadline: parsed.endHeadline ?? "Mehr Reviews,",
       endHeadlineHighlight: parsed.endHeadlineHighlight ?? "ehrlich getestet.",
-      coverHook,
+      coverHookOutput,
       endCloser,
     };
   }
 }
 
-// Classify article type from title + tool count so we can enforce the right hook pattern
-// regardless of what the LLM chooses.
-function detectArticleType(title: string, toolCount: number): "comparison" | "listicle" | "tutorial" | "reference" {
-  const t = title.toLowerCase();
-  // "X vs Y", "X gegen Y", "X oder Y" with 2-3 tools → comparison
-  if (toolCount <= 3 && (/\bvs\.?\b|\bgegen\b/.test(t) || (/ oder /.test(t) && toolCount <= 2))) {
-    return "comparison";
-  }
-  if (/^die\s+\d+\b|^top\s+\d+\b|\bbeste[nm]?\b.*\d+/.test(t) || toolCount >= 4) {
-    return "listicle";
-  }
-  if (/anleitung|tutorial|so funktioniert|how to/.test(t)) {
-    return "tutorial";
-  }
-  if (/vergleich|guide|überblick|cheat.?sheet/.test(t)) {
-    return "reference";
-  }
-  return toolCount <= 2 ? "comparison" : "listicle";
-}
+// ─── Hook generation helper (retry loop + quality gate) ──────────────────────
 
-// Anti-hype guard — returns false if hook contains forbidden words or ALL-CAPS sequences
-// Uses word-boundary matching so "besten" (German superlative) does not trip "best".
-// Non-word tokens like "!!!" fall back to plain includes().
-const FORBIDDEN_HOOK_PATTERNS: RegExp[] = [
-  /\bbest\b/i,         // English hype word — not "besten"
-  /beste!/i,           // German hype with exclamation
-  /!!!/,               // Multiple exclamation marks
-  /\bkiller\b/i,
-  /\bultimate\b/i,
-  /\brevolutionary\b/i,
-  /\brevolutionär\b/i,
-  /mind-blowing/i,
-  /game-changer/i,
-  /\bsensation\b/i,
-  /\bunbelievable\b/i,
-  /must-have/i,
-  /\babsolute\b/i,
-  /\bcrazy\b/i,
-  /\binsane\b/i,
-];
+async function generateHookWithGate(
+  article: HookArticleContext,
+  pattern: HookPattern,
+  ctx: StepContext,
+  anthropicClient: typeof anthropic,
+  maxRetries = 2,
+): Promise<HookOutput> {
+  let lastViolations: string[] | undefined;
 
-function validateHook(lead: string, trail: string, logger: ReturnType<typeof createLogger>): boolean {
-  const combined = `${lead} ${trail}`;
-  for (const pattern of FORBIDDEN_HOOK_PATTERNS) {
-    if (pattern.test(combined)) {
-      logger.warn({ lead, trail, pattern: pattern.source }, "Hook contains forbidden pattern");
-      return false;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const { systemPrompt, userPrompt } = buildHookPrompt(
+      pattern,
+      {
+        articleTitle: article.title,
+        toolNames: article.toolNames,
+        primaryKeyword: article.primaryKeyword ?? "KI-Tools",
+      },
+      lastViolations,
+    );
+
+    let hookPartial: { leadPhrase: string; highlightWord: string; trailPhrase: string } | null = null;
+    try {
+      const resp = await anthropicClient.messages({
+        projectId: ctx.projectId,
+        pipelineRunId: ctx.pipelineRunId,
+        operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
+        model: "claude-haiku-4-5",
+        systemPrefix: "",
+        systemSuffix: systemPrompt,
+        userMessage: userPrompt,
+        maxTokens: 256,
+        estimatedCostEur: 0.001,
+        jsonMode: true,
+      });
+      const raw = resp.raw;
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        hookPartial = JSON.parse(raw.slice(start, end + 1)) as { leadPhrase: string; highlightWord: string; trailPhrase: string };
+      }
+    } catch {
+      ctx.log.warn({ attempt, pattern }, "Hook LLM call failed");
+    }
+
+    if (hookPartial) {
+      const result = validateHook(hookPartial, pattern);
+      if (result.valid) {
+        const promiseBlock = buildPromiseBlock(pattern, {
+          toolCount: article.toolCount,
+          primaryKeyword: article.primaryKeyword ?? "KI-Tools",
+        });
+        return {
+          ...hookPartial,
+          pattern,
+          fullText: `${hookPartial.leadPhrase} ${hookPartial.highlightWord} ${hookPartial.trailPhrase}`.trim(),
+          promiseBlock,
+        };
+      }
+      lastViolations = result.violations;
+      ctx.log.warn({ attempt, violations: result.violations }, "Hook validation failed, retrying");
     }
   }
-  if (/[A-Z]{4,}/.test(lead) || /[A-Z]{4,}/.test(trail)) {
-    logger.warn({ lead, trail }, "Hook contains ALL-CAPS sequence");
-    return false;
-  }
-  return true;
+
+  ctx.log.error({ articleId: article.id, pattern }, "Hook validation failed all retries, using programmatic fallback");
+  return programmaticFallbackHook(article, pattern);
 }
 
 // ─── Step 3: ResolveAssetsStep ───────────────────────────────────────────────
@@ -549,7 +499,7 @@ export class RenderSlidesStep extends BaseStep<
         headlineHighlight: input.coverHeadlineHighlight,
         headlineTrail: input.coverHeadlineTrail,
         subhead: input.coverSubhead,
-        ...(input.coverHook && { hook: input.coverHook }),
+        ...(input.coverHookOutput && { hookOutput: input.coverHookOutput }),
       },
       tools: input.resolvedTools,
       end: {
