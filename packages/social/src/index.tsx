@@ -138,7 +138,7 @@ export function RemotionRoot() {
         durationInFrames={1}
         fps={30}
         width={1080}
-        height={1080}
+        height={1350}
         schema={listCarouselInputSchema}
         defaultProps={stunningDefaultProps}
       />

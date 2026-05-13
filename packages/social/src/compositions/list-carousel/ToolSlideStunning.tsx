@@ -53,7 +53,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
     <div
       style={{
         width: 1080,
-        height: 1080,
+        height: 1350,
         position: "relative",
         display: "flex",
         flexDirection: "column",
