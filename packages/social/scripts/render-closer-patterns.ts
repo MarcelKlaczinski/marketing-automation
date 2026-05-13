@@ -68,12 +68,13 @@ const sharedCover = {
   eyebrow: "KI-BILDGENERATOREN",
   headlineLead: "Recraft oder Ideogram?",
   headlineHighlight: "Eines kann mehr.",
+  // Longer leadPhrase that, at 108px, would wrap to 2 lines and break the 3-line layout
   hookOutput: {
     pattern: "superlative_question" as const,
-    leadPhrase: "Welche KI macht",
-    highlightWord: "die besten",
-    trailPhrase: "Logos?",
-    fullText: "Welche KI macht die besten Logos?",
+    leadPhrase: "Welche KI generiert",
+    highlightWord: "die besten Logos",
+    trailPhrase: "wirklich?",
+    fullText: "Welche KI generiert die besten Logos wirklich?",
     promiseBlock: { line1: "Wir haben beide getestet.", line2: "Eine gewinnt klar." },
   },
 };

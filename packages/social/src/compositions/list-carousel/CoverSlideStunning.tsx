@@ -3,9 +3,27 @@ import { BrandFooter } from "../../shared/BrandLogo.tsx";
 import { Eyebrow } from "../../shared/Eyebrow.tsx";
 import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
-import type { ListCarouselInput } from "./types.ts";
+import type { HookOutput, ListCarouselInput } from "./types.ts";
 import { COVER_LAYOUT_V2 as L } from "./coverLayout.ts";
 import { getCoverColors } from "../../themes/coverThemeAdapter.ts";
+
+/**
+ * Spec 51a-stunning-v2.1 §2 — adaptive font size so the 3 phrase-based hook
+ * lines never wrap to 4. Heuristic: Inter Bold ≈ N * 0.55 * char-count wide.
+ * Clamps to [84, 108] so we never go unreadably small.
+ */
+function computeHookFontSize(hook: HookOutput): number {
+  const phrases = [hook.leadPhrase, hook.highlightWord, hook.trailPhrase];
+  let longest = phrases[0] ?? "";
+  for (const p of phrases) if (p.length > longest.length) longest = p;
+
+  const CHAR_WIDTH_RATIO = 0.55;
+  const CONTENT_WIDTH = 920;
+  const charCount = Math.max(longest.length, 1);
+  const maxFontSize = Math.floor(CONTENT_WIDTH / (charCount * CHAR_WIDTH_RATIO));
+
+  return Math.min(L.hookFontSize, Math.max(84, maxFontSize));
+}
 
 type Props = {
   input: ListCarouselInput;
@@ -207,7 +225,8 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         />
       </div>
 
-      {/* Main content: hook + promise-block */}
+      {/* Main content: hook + promise-block. Width is the paddingX-bound 920px
+          (Spec 51a-stunning-v2.1 §2). Tool logos float over with z-index. */}
       <div
         style={{
           position: "relative",
@@ -215,55 +234,60 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
           display: "flex",
           flexDirection: "column",
           flex: 1,
-          maxWidth: "70%",
           marginTop: 40,
         }}
       >
         {hookOutput ? (
           <>
-            {/* Line 1: leadPhrase — base color */}
-            <div
-              style={{
-                fontFamily,
-                fontSize: L.hookFontSize,
-                fontWeight: L.hookFontWeight,
-                lineHeight: L.hookLineHeight,
-                color: coverColors.hookText,
-                letterSpacing: "-0.03em",
-              } as React.CSSProperties}
-            >
-              {hookOutput.leadPhrase}
-            </div>
-
-            {/* Line 2: highlightWord — brand color, no underline */}
-            <div
-              style={{
-                fontFamily,
-                fontSize: L.hookFontSize,
-                fontWeight: L.highlightFontWeight,
-                lineHeight: L.hookLineHeight,
-                color: coverColors.hookHighlight,
-                letterSpacing: "-0.03em",
-                marginTop: L.hookLineGap,
-              } as React.CSSProperties}
-            >
-              {hookOutput.highlightWord}
-            </div>
-
-            {/* Line 3: trailPhrase — base color */}
-            <div
-              style={{
-                fontFamily,
-                fontSize: L.hookFontSize,
-                fontWeight: L.hookFontWeight,
-                lineHeight: L.hookLineHeight,
-                color: coverColors.hookText,
-                letterSpacing: "-0.03em",
-                marginTop: L.hookLineGap,
-              } as React.CSSProperties}
-            >
-              {hookOutput.trailPhrase}
-            </div>
+            {/* Spec 51a-stunning-v2.1 §2 — adaptive font + nowrap = guaranteed 3 lines */}
+            {(() => {
+              const hookFontSize = computeHookFontSize(hookOutput);
+              return (
+                <>
+                  <div
+                    style={{
+                      fontFamily,
+                      fontSize: hookFontSize,
+                      fontWeight: L.hookFontWeight,
+                      lineHeight: L.hookLineHeight,
+                      color: coverColors.hookText,
+                      letterSpacing: "-0.03em",
+                      whiteSpace: "nowrap",
+                    } as React.CSSProperties}
+                  >
+                    {hookOutput.leadPhrase}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily,
+                      fontSize: hookFontSize,
+                      fontWeight: L.highlightFontWeight,
+                      lineHeight: L.hookLineHeight,
+                      color: coverColors.hookHighlight,
+                      letterSpacing: "-0.03em",
+                      marginTop: L.hookLineGap,
+                      whiteSpace: "nowrap",
+                    } as React.CSSProperties}
+                  >
+                    {hookOutput.highlightWord}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily,
+                      fontSize: hookFontSize,
+                      fontWeight: L.hookFontWeight,
+                      lineHeight: L.hookLineHeight,
+                      color: coverColors.hookText,
+                      letterSpacing: "-0.03em",
+                      marginTop: L.hookLineGap,
+                      whiteSpace: "nowrap",
+                    } as React.CSSProperties}
+                  >
+                    {hookOutput.trailPhrase}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Subline */}
             {cover.subhead && (
