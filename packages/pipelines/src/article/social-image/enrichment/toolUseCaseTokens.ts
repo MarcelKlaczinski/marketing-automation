@@ -21,6 +21,28 @@ export interface ValidationResult {
 
 const ID_VERB_LEAD = /^(designst|machst|schreibst|baust|erstellst|generierst|nutzt|brauchst|willst|suchst|erzeugst)\b/i;
 
+/**
+ * Turn a du-form identityVerb (e.g. "designst Logos") into an infinitive
+ * noun phrase (e.g. "Logos designen") so it reads naturally inside a
+ * subordinate clause like "Perfekt für: Logos designen."
+ *
+ * Regular German verbs: drop -st, add -en. Handles the 10 verbs allowed by
+ * the validator above.
+ */
+export function deriveInfinitiveUseCase(identityVerb: string): string | null {
+  const trimmed = identityVerb.trim();
+  const match = trimmed.match(/^(designst|machst|schreibst|baust|erstellst|generierst|nutzt|brauchst|willst|suchst|erzeugst)\s+(.+)$/i);
+  if (!match) return null;
+  const [, verb, object] = match;
+  if (!verb || !object) return null;
+  // -st → -en, except "nutzt" → "nutzen" (irregular: nutzt has no -st, replace -t)
+  const lower = verb.toLowerCase();
+  const infinitive = lower === "nutzt"
+    ? "nutzen"
+    : lower.replace(/st$/, "en");
+  return `${object} ${infinitive}`;
+}
+
 const TECH_JARGON = [
   "vektor-export",
   "pipeline",

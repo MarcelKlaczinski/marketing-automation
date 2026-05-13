@@ -15,6 +15,23 @@ type Props = {
   themeMode: "dark" | "light";
 };
 
+/**
+ * Mirror of pipelines/.../enrichment/toolUseCaseTokens.ts → deriveInfinitiveUseCase.
+ * Kept inline so the Remotion bundle stays self-contained (no cross-package import).
+ * Turns "designst Logos" → "Logos designen" for natural German word order.
+ */
+function deriveInfinitiveUseCase(identityVerb: string): string | null {
+  const match = identityVerb.trim().match(
+    /^(designst|machst|schreibst|baust|erstellst|generierst|nutzt|brauchst|willst|suchst|erzeugst)\s+(.+)$/i,
+  );
+  if (!match) return null;
+  const [, verb, object] = match;
+  if (!verb || !object) return null;
+  const lower = verb.toLowerCase();
+  const infinitive = lower === "nutzt" ? "nutzen" : lower.replace(/st$/, "en");
+  return `${object} ${infinitive}`;
+}
+
 // Split tagline to wrap keyDifferentiator in a highlighted span
 function renderTaglineWithHighlight(
   tagline: string,
@@ -244,37 +261,42 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
           ))}
         </ul>
 
-        {/* "Für dich, wenn du …" panel — surfaces the identityVerb enrichment
-            from Spec 51a-stunning-v2.1 §1.2. Falls through cleanly when absent. */}
-        {tool.identityVerb && (
-          <div
-            style={{
-              padding: "20px 24px",
-              borderRadius: 16,
-              background: `color-mix(in oklch, ${theme.brand} 10%, transparent)`,
-              borderLeft: `4px solid ${theme.brand}`,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <span
+        {/* "Perfekt für" panel — derives the infinitive use-case ("Logos
+            designen") from the du-form identityVerb so the German word order
+            is natural. Falls through cleanly when no token is available. */}
+        {(() => {
+          const useCase = tool.identityVerb ? deriveInfinitiveUseCase(tool.identityVerb) : null;
+          if (!useCase) return null;
+          return (
+            <div
               style={{
-                fontFamily,
-                fontSize: 16,
-                fontWeight: 700,
-                color: theme.inkMuted,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase" as const,
+                padding: "24px 28px",
+                borderRadius: 18,
+                background: `color-mix(in oklch, ${theme.brand} 10%, transparent)`,
+                borderLeft: `5px solid ${theme.brand}`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
               }}
             >
-              Für dich, wenn du
-            </span>
-            <span style={{ fontFamily, fontSize: 30, fontWeight: 700, color: theme.ink }}>
-              {tool.identityVerb}.
-            </span>
-          </div>
-        )}
+              <span
+                style={{
+                  fontFamily,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: theme.inkMuted,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase" as const,
+                }}
+              >
+                Perfekt für
+              </span>
+              <span style={{ fontFamily, fontSize: 36, fontWeight: 800, color: theme.ink, lineHeight: 1.15 }}>
+                {useCase}.
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Pricing chip */}
         <div

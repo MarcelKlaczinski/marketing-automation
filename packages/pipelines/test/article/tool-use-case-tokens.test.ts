@@ -1,8 +1,30 @@
 import { describe, expect, it } from "bun:test";
 import {
+  deriveInfinitiveUseCase,
   fallbackTokensForTool,
   validateUseCaseTokens,
 } from "../../src/article/social-image/enrichment/toolUseCaseTokens.ts";
+
+describe("deriveInfinitiveUseCase", () => {
+  it("swaps verb-object order and converts -st → -en", () => {
+    expect(deriveInfinitiveUseCase("designst Logos")).toBe("Logos designen");
+    expect(deriveInfinitiveUseCase("machst Poster")).toBe("Poster machen");
+    expect(deriveInfinitiveUseCase("schreibst Code")).toBe("Code schreiben");
+    expect(deriveInfinitiveUseCase("baust Apps")).toBe("Apps bauen");
+    expect(deriveInfinitiveUseCase("erstellst Avatare")).toBe("Avatare erstellen");
+    expect(deriveInfinitiveUseCase("erzeugst Bilder")).toBe("Bilder erzeugen");
+  });
+
+  it("handles the irregular 'nutzt' (no -st suffix)", () => {
+    expect(deriveInfinitiveUseCase("nutzt Tools")).toBe("Tools nutzen");
+  });
+
+  it("returns null for malformed input", () => {
+    expect(deriveInfinitiveUseCase("Logos")).toBeNull();
+    expect(deriveInfinitiveUseCase("")).toBeNull();
+    expect(deriveInfinitiveUseCase("unknownVerb something")).toBeNull();
+  });
+});
 
 describe("validateUseCaseTokens", () => {
   it("accepts well-formed Alltagssprache tokens", () => {

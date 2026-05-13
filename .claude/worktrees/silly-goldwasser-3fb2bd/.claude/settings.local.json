@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation worktree list)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline -3 master)"
+    ]
+  }
+}

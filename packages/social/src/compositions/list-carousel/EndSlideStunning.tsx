@@ -47,19 +47,20 @@ function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
   return (
     <div
       style={{
-        padding: "24px 28px",
+        marginTop: "auto",
+        padding: "32px 36px",
         background: `color-mix(in oklch, ${theme.inkMuted} 8%, transparent)`,
-        borderRadius: 18,
+        borderRadius: 20,
         border: `1px solid color-mix(in oklch, ${theme.inkMuted} 15%, transparent)`,
         display: "flex",
         flexDirection: "column",
-        gap: 18,
+        gap: 22,
       }}
     >
       <span
         style={{
           fontFamily,
-          fontSize: 16,
+          fontSize: 18,
           fontWeight: 700,
           color: theme.inkMuted,
           letterSpacing: "0.06em",
@@ -72,22 +73,22 @@ function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
         style={{
           display: "grid",
           gridTemplateColumns: twoColumn ? "1fr 1fr" : "1fr",
-          rowGap: 14,
-          columnGap: 20,
+          rowGap: 20,
+          columnGap: 24,
         }}
       >
         {displayTools.map((tool) => (
-          <div key={tool.slug} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div key={tool.slug} style={{ display: "flex", alignItems: "center", gap: 18 }}>
             <div
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 10,
+                width: 60,
+                height: 60,
+                borderRadius: 12,
                 background: cardBg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: 6,
+                padding: 8,
                 boxSizing: "border-box",
                 flexShrink: 0,
               }}
@@ -96,15 +97,15 @@ function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
                 {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
                 {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
                 {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-                size={32}
+                size={42}
               />
             </div>
             <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15, minWidth: 0 }}>
-              <span style={{ fontFamily, fontSize: 22, fontWeight: 800, color: theme.ink }}>
+              <span style={{ fontFamily, fontSize: 28, fontWeight: 800, color: theme.ink }}>
                 {tool.name}
               </span>
               {tool.endSlideToken && (
-                <span style={{ fontFamily, fontSize: 16, fontWeight: 500, color: theme.inkMuted }}>
+                <span style={{ fontFamily, fontSize: 20, fontWeight: 600, color: theme.inkMuted }}>
                   für {tool.endSlideToken}
                 </span>
               )}
