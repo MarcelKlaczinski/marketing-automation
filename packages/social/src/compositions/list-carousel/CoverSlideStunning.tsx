@@ -61,7 +61,7 @@ function BigNumberAnchor({
     <div
       style={{
         position: "absolute",
-        bottom: L.bigNumberBottom,
+        top: L.bigNumberTop,
         left: L.bigNumberLeft,
         fontSize: L.bigNumberFontSize,
         fontWeight: L.bigNumberFontWeight,
@@ -78,8 +78,17 @@ function BigNumberAnchor({
   );
 }
 
-function ToolLogosTopRight({ tools }: { tools: ListCarouselInput["tools"] }) {
+function ToolLogosTopRight({
+  tools,
+  themeMode,
+}: {
+  tools: ListCarouselInput["tools"];
+  themeMode: "dark" | "light";
+}) {
   const logos = tools.slice(0, 4);
+  // Spec 51a-stunning-v2.1 §3.2 — dark card wraps every tool icon so brand
+  // marks render on a consistent dark surface in both themes.
+  const cardBg = themeMode === "dark" ? "#1a2540" : "#0a1428";
   return (
     <div
       style={{
@@ -95,13 +104,24 @@ function ToolLogosTopRight({ tools }: { tools: ListCarouselInput["tools"] }) {
       {logos.map((tool, i) => (
         <div
           key={tool.slug}
-          style={{ transform: `rotate(${i % 2 === 0 ? -4 : 4}deg)` }}
+          style={{
+            transform: `rotate(${i % 2 === 0 ? -4 : 4}deg)`,
+            width: L.toolLogoSize,
+            height: L.toolLogoSize,
+            borderRadius: 14,
+            background: cardBg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 12,
+            boxSizing: "border-box",
+          }}
         >
           <ToolIconImage
             {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
             {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
             {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-            size={L.toolLogoSize}
+            size={L.toolLogoSize - 24}
           />
         </div>
       ))}
@@ -127,6 +147,8 @@ function PromiseBlockElement({
   return (
     <div
       style={{
+        position: "relative",
+        zIndex: 2,
         display: "flex",
         flexDirection: "row",
         alignItems: "stretch",
@@ -213,7 +235,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
       />
 
       {/* Tool logos — top-right, always shown */}
-      <ToolLogosTopRight tools={tools} />
+      <ToolLogosTopRight tools={tools} themeMode={input.theme} />
 
       {/* Eyebrow — top-left */}
       <div style={{ position: "relative", zIndex: 1 }}>

@@ -30,6 +30,8 @@ const baseTools = [
     pricing: { tier: "freemium" as const, label: "Pro ab 12 $/Mo" },
     endSlideToken: "Logos",
     identityVerb: "designst Logos",
+    iconInitials: "Rc",
+    iconHue: 200,
   },
   {
     slug: "ideogram",
@@ -42,6 +44,8 @@ const baseTools = [
     pricing: { tier: "freemium" as const, label: "Pro ab 8 $/Mo" },
     endSlideToken: "Poster",
     identityVerb: "machst Poster",
+    iconInitials: "Id",
+    iconHue: 280,
   },
 ];
 

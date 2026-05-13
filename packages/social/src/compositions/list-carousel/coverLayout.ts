@@ -37,13 +37,13 @@ export const COVER_LAYOUT_V2 = {
   promiseLineFontWeight: 700,
   promiseLineGap: 8,
 
-  // BigNumber (massive background anchor, behind content)
-  bigNumberFontSize: 720,
+  // BigNumber (background anchor, sits behind subline-area not promise-block)
+  bigNumberFontSize: 560,
   bigNumberFontWeight: 900,
   bigNumberLeft: 40,
-  bigNumberBottom: 200,
-  bigNumberOpacityDark: 0.13,
-  bigNumberOpacityLight: 0.08,
+  bigNumberTop: 360,
+  bigNumberOpacityDark: 0.10,
+  bigNumberOpacityLight: 0.06,
 
   // Footer
   footerY: 1240,
