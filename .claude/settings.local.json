@@ -604,7 +604,12 @@
       "Bash(kill -TERM 73340)",
       "Bash(ps -p 12118 -o lstart=)",
       "Bash(grep -rn '`/api/' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/)",
-      "Bash(kill 24195)"
+      "Bash(kill 24195)",
+      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/article/closer-engine.test.ts)",
+      "Bash(bun --filter @marketing-auto/social typecheck)",
+      "Bash(mkdir -p /Users/marcelklaczinski/WebstormProjects/marketing-automation/packages/social/scripts /tmp/spec-51a-v2.1)",
+      "Bash(timeout 240 bun packages/social/scripts/render-closer-patterns.ts)",
+      "Bash(bun packages/social/scripts/render-closer-patterns.ts)"
     ]
   }
 }
