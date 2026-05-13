@@ -20,6 +20,7 @@ socialPostRoutes.use(requireAuth);
 const generateBodySchema = z.object({
   format: z.enum(["list_carousel"]).default("list_carousel"),
   theme: z.enum(["dark", "light"]).default("dark"),
+  variant: z.enum(["editorial", "stunning"]).default("editorial"),
 });
 
 socialPostRoutes.post(
@@ -50,11 +51,12 @@ socialPostRoutes.post(
           articleId: input.articleId as string,
           projectId: input.projectId as string,
           theme: body.theme,
+          variant: body.variant,
         };
         if (input.preRunId) enqueueInput.preRunId = input.preRunId as string;
         return enqueueSocialImagePipeline(enqueueInput);
       },
-      extraInput: { articleId, theme: body.theme },
+      extraInput: { articleId, theme: body.theme, variant: body.variant },
     });
 
     return triggerResultToResponse(c, result);

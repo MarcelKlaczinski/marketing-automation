@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { listCarouselInputSchema } from "../src/compositions/list-carousel/types.ts";
+import { listCarouselInputSchema } from "../src/compositions/list-carousel/types";
 
 // ---------------------------------------------------------------------------
 // Shared fixture used in schema tests and the live render test
@@ -209,7 +209,7 @@ describe.skipIf(!LIVE)("renderListCarousel (live render)", () => {
   it(
     "renders 5 PNG slides for a 3-tool input and returns correct sequenceCount",
     async () => {
-      const { renderListCarousel } = await import("../render-server.ts");
+      const { renderListCarousel } = await import("../render-server");
 
       const result = await renderListCarousel(minimalInput);
 

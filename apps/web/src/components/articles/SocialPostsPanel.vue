@@ -44,6 +44,29 @@
         </div>
       </div>
 
+      <div class="social-posts-panel__field">
+        <div class="social-posts-panel__label">{{ $t('social.variant.label') }}</div>
+        <div class="social-posts-panel__options">
+          <button
+            :class="['option-btn', { 'option-btn--active': selectedVariant === 'editorial' }]"
+            type="button"
+            @click="selectedVariant = 'editorial'"
+          >
+            {{ $t('social.variant.editorial') }}
+          </button>
+          <button
+            :class="['option-btn', { 'option-btn--active': selectedVariant === 'stunning' }]"
+            type="button"
+            @click="selectedVariant = 'stunning'"
+          >
+            {{ $t('social.variant.stunning') }}
+          </button>
+        </div>
+        <div class="social-posts-panel__variant-hint">
+          {{ selectedVariant === 'editorial' ? $t('social.variant.editorialHint') : $t('social.variant.stunningHint') }}
+        </div>
+      </div>
+
       <button
         :class="['generate-btn', { 'generate-btn--loading': generating }]"
         :disabled="generating"
@@ -232,6 +255,7 @@ export default defineComponent({
   data: () => ({
     selectedFormat: "list_carousel" as "list_carousel",
     selectedTheme: "dark" as "dark" | "light",
+    selectedVariant: "editorial" as "editorial" | "stunning",
     generating: false,
     posts: [] as SocialPost[],
     previewOpen: false,
@@ -293,6 +317,7 @@ export default defineComponent({
         await api.post(`/articles/${this.articleId}/social-posts/generate`, {
           format: this.selectedFormat,
           theme: this.selectedTheme,
+          variant: this.selectedVariant,
         });
         this.startPolling();
       } catch {
@@ -344,7 +369,7 @@ export default defineComponent({
       this.showReRenderConfirm = false;
       this.reRenderingId = post.id;
       try {
-        await api.post(`/api/social-posts/${post.id}/re-render`);
+        await api.post(`/social-posts/${post.id}/re-render`);
         this.startPolling();
       } catch {
         // error surfaces via interceptor
@@ -407,6 +432,13 @@ export default defineComponent({
 .social-posts-panel__options {
   display: flex;
   gap: 8px;
+}
+
+.social-posts-panel__variant-hint {
+  font-size: 11px;
+  color: var(--q-secondary);
+  font-style: italic;
+  margin-top: 2px;
 }
 
 .option-btn {

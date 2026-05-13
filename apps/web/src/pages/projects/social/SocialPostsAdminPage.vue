@@ -205,7 +205,7 @@ export default defineComponent({
         // Use the project brand-assets endpoint to get social posts list
         // We get posts via existing articles/:id/social-posts or directly
         const res = await api.get<{ ok: boolean; data: { items: SocialPostSummary[] } }>(
-          `/api/projects/${this.slug}/social-posts`
+          `/projects/${this.slug}/social-posts`
         );
         this.posts = res.data.data.items ?? [];
       } catch {
@@ -232,12 +232,12 @@ export default defineComponent({
       this.batching = true;
       try {
         const res = await api.post<{ ok: boolean; data: { triggered: number } }>(
-          `/api/projects/${this.slug}/social-posts/re-render-batch`,
+          `/projects/${this.slug}/social-posts/re-render-batch`,
           { socialPostIds: this.selected }
         );
         this.$q.notify({
           type: "positive",
-          message: `${res.data.data.triggered} posts queued for re-render`,
+          message: this.$t("brand.reRender.batchQueued", { count: res.data.data.triggered }) as string,
         });
         this.selected = [];
         await this.loadPosts();

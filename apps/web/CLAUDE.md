@@ -44,6 +44,55 @@ Routes defined in `src/router/routes.ts`:
 11. `/auth/login`    — Login (Spec 31, AuthLayout — no sidebar)
 12. `/auth/verify`   — Magic link verify (Spec 31, AuthLayout)
 13. `/installer`     — First-run installer (Spec 32, InstallerLayout — full width, no sidebar)
+14. `/projects/:slug/brand/assets`     — Asset browser (Spec 52b)
+15. `/projects/:slug/brand/colors`     — Color token editor (Spec 52b)
+16. `/projects/:slug/brand/typography` — Typography token editor (Spec 52b)
+17. `/projects/:slug/social/admin`     — Social posts admin + batch re-render (Spec 52b)
+
+## Brand UI (Spec 52b)
+
+### Project context store (`src/stores/project-context.ts`)
+Pinia store that tracks the active project slug/id and persists the selection via `LocalStorage` (key: `ma_current_project_slug`). Brand pages depend on `currentProjectSlug` being set — if it's `null` the sidebar Brand section is hidden.
+
+- `loadProjects()` — fetches `/api/projects` on first mount; called in `MainLayout.vue`
+- `setProject(slug)` — sets active project + persists
+- `clearProject()` — resets to null
+
+### Brand components
+| Component | Location | Notes |
+|-----------|----------|-------|
+| `ProjectSelector` | `src/components/projects/` | `q-btn-dropdown` (exists but removed from header in Spec 52b); can be re-added to the sidebar or other surfaces |
+| `BrandPanel` | `src/components/projects/` | 4-card nav panel shown in the Brand tab of ProjectDetailPage; navigates to brand sub-pages |
+| `OklchSlider` | `src/components/brand/` | L/C/H sliders for one color token; lazy-loads culori; emits hex string. Handlers typed `(v: number \| null)` — null-guard required |
+| `ContrastChecker` | `src/components/brand/` | Shows AA/AAA chips; lazy-loads culori `wcagContrast`; catches invalid hex gracefully |
+| `AssetCard` | `src/components/brand/` | Shows single brand asset with hover actions (Override/Reset/Delete) |
+| `AssetUploadModal` | `src/components/brand/` | Drag-drop + file input; posts multipart to `/brand-assets/upload` |
+
+### culori type declarations
+No `@types/culori` package exists. Both `apps/api` and `apps/web` have hand-written declarations at `src/types/culori.d.ts`. Do not remove these files.
+
+### q-slider event type
+`@update:model-value` on `q-slider` emits `number | null`. All handlers must accept `number | null` and guard with `if (v == null) return`. Typed as `(v: number)` causes TS errors.
+
+### oklch → hex normalization
+The DB stores brand colors as CSS `oklch()` strings (e.g. `oklch(64% 0.16 248)`). `OklchSlider` expects a hex input. Use `toHexSafe()` (module-level async function) in the page's `loadTokens()` to convert before setting `localColors`:
+```ts
+async function toHexSafe(value: string | undefined): Promise<string | undefined> {
+  if (!value) return undefined;
+  if (value.startsWith("#")) return value;
+  const { formatHex, converter } = await import("culori");
+  const toRgb = converter("rgb");
+  const rgb = toRgb(value);
+  return rgb ? (formatHex(rgb) ?? value) : value;
+}
+```
+See `ColorSettingsPage.vue` for the canonical usage pattern.
+
+### q-card navigation
+`q-card` in Quasar v2 does NOT support a `:to` prop for router-link navigation. Use `@click="$router.push({ name: 'route-name', params: { slug } })"` with `clickable` and `v-ripple` attributes instead. See `BrandPanel.vue`.
+
+### TypographyForm indexing
+`form[key]` where `key: keyof TypographyForm` returns `string | number`. Use the `numericField(key)` helper to safely extract the numeric value for slider `:model-value` bindings.
 
 ## Route Guards
 Global navigation guards live in `src/router/guards.ts` as `registerGuards(router: Router)`, called from `router/index.ts` after `createRouter()`. Do not add per-component auth checks — all redirect logic belongs in guards. Public routes: `login`, `auth-verify`, `installer`. Unauth-only routes: `login`.
@@ -72,6 +121,7 @@ Global navigation guards live in `src/router/guards.ts` as `registerGuards(route
 - DO NOT duplicate constants from `src/lib/article-status.ts` (e.g. `STATUS_TO_GROUP`, `STATUS_GROUP_COLORS`) — import them. The file is the single source of truth for status↔group and status↔color mappings across all article components.
 - DO NOT render raw DB enum values (status, outcome, etc.) directly in `:label`, `:caption`, or text interpolations — they bypass the `$t()` requirement. Pattern: define a module-level `Record<string, string>` map from enum value → i18n key path, then call `this.$t(map[value]) as string` with a fallback to the raw value. See `SCHEMA_STATUS_KEYS` / `schemaStatusLabel()` in `ArticleValidationPanel.vue` for the canonical example.
 - DO NOT place `q-tooltip` as a sibling element with `:target="true"` before its intended host — in Vue 3 fragment templates there is no single parent to attach to. Always nest `q-tooltip` as a direct child inside the element it should appear on (button, icon, etc.).
+- DO NOT prefix `api.*` call paths with `/api` — the `api` Axios instance in `src/lib/api-client.ts` has `baseURL: ".../api"` already. Adding `/api/...` to the path produces a double-prefix (`/api/api/...`) and a silent 404. All paths must start with the resource directly (e.g. `/social-posts/:id/re-render`, not `/api/social-posts/:id/re-render`). Direct `fetch()` calls that build the URL from `VITE_API_BASE_URL` are not affected — they get the full base URL including `/api`.
 - DO NOT use `data()` method form just to access a Pinia store — stores are singletons. Use arrow shorthand with a lazy thunk: `const s = () => useArticlesStore()` inside `data: () => { ... }`, then call `s()` inside closures. This satisfies the arrow shorthand rule without reading `this`.
 - DO NOT use `vue-chartjs` chart components without calling `Chart.register(...)` for every Chart.js element used — tree-shaking requires explicit registration per component file. Missing registration silently renders a blank canvas. Pattern: import the needed elements (e.g. `ArcElement, Tooltip, Legend`) and call `Chart.register(...)` at module level before the `defineComponent` call.
 - DO NOT assume Chart.js tick/tooltip callbacks have narrowed numeric types — `ChartOptions` types the y-axis `ticks.callback` value as `number | string` even on a `LinearScale` (which only emits numbers), and `ctx.parsed.y` in tooltip callbacks is typed `number | null`. Null-guard with `?? 0` or `== null` check; cast `v as number` when it's provably a LinearScale and add a justification comment.

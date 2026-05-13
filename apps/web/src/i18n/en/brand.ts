@@ -1,9 +1,13 @@
 export default {
   navigation: {
     assets: "Assets",
+    assetsDesc: "Manage tool icons & logos, custom uploads",
     colors: "Colors",
+    colorsDesc: "Primary, accent and background colors via OKLCH",
     typography: "Typography",
+    typographyDesc: "Font, weights, sizes and letter spacing",
     socialAdmin: "Social Admin",
+    socialAdminDesc: "Re-render posts with current brand settings",
   },
   assets: {
     title: "Asset Library",
@@ -34,6 +38,7 @@ export default {
       "lobe-icons": "Lobe Icons",
       "custom-upload": "Custom Upload",
       "deterministic-avatar": "Fallback Avatar",
+      wordmark: "Wordmark",
     },
     sourceLabel: "Source",
   },
@@ -106,5 +111,6 @@ export default {
     title: "Social Posts Admin",
     noSelection: "No posts selected.",
     noPosts: "No posts found.",
+    batchQueued: "{count} posts queued for re-render",
   },
 };

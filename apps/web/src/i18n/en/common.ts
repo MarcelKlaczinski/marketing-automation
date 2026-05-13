@@ -18,4 +18,7 @@ export default {
   minutesAgo: "{n} min ago",
   hoursAgo: "{n} hr ago",
   daysAgo: "{n} days ago",
+  all: "All",
+  saved: "Saved",
+  selected: "selected",
 };

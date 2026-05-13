@@ -227,7 +227,7 @@ export default defineComponent({
         if (this.form.displayName.trim()) fd.append("displayName", this.form.displayName.trim());
 
         const res = await api.post<{ ok: boolean; data: { asset: unknown; previewUrl: string } }>(
-          `/api/projects/${this.projectSlug}/brand-assets/upload`,
+          `/projects/${this.projectSlug}/brand-assets/upload`,
           fd,
           { headers: { "Content-Type": "multipart/form-data" } }
         );

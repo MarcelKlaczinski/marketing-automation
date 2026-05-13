@@ -8,6 +8,9 @@
 - `src/middleware/`       Custom Hono middleware (auth, cost-context)
 - `src/lib/`              Local utilities (logger setup, helpers)
   - `src/lib/chain-orchestrator.ts`  Per-gap automation chain (Spec 49d)
+  - `src/lib/brand-asset-service.ts` Brand asset CRUD + brand-token defaults (Spec 52b)
+  - `src/lib/color-utils.ts`         OKLCH↔hex helpers + WCAG contrast ratio (Spec 52b)
+  - `src/lib/icon-resolver.ts`       Re-exports `resolveToolIcon` from pipelines (Spec 52a)
 
 ## Service Layer Pattern (`src/lib/<domain>-service.ts`)
 
@@ -345,6 +348,28 @@ After any pipeline code change, restart the worker:
 ```bash
 bun --filter @marketing-auto/api run worker:restart
 ```
+
+## Brand Asset Management (Spec 52b)
+
+### Routes
+| Method | Path | Description |
+|--------|------|-------------|
+| GET    | `/api/projects/:slug/brand-assets` | List assets; optional `?assetType=tool_icon\|logo&source=…` |
+| POST   | `/api/projects/:slug/brand-assets/upload` | Multipart upload (SVG/PNG/JPEG ≤500 KB); stores to R2 + upserts DB |
+| DELETE | `/api/projects/:slug/brand-assets/:id` | Deletes R2 object (custom-upload only) + DB row |
+| POST   | `/api/projects/:slug/brand-assets/:id/reset` | Deletes row + re-resolves via `resolveToolIcon` |
+| GET    | `/api/projects/:slug/brand-tokens` | Returns tokens with defaults merged in |
+| PATCH  | `/api/projects/:slug/brand-tokens` | Deep-merges `{ tokens: { colors?, typography?, voice?, social? } }` |
+| POST   | `/api/projects/:slug/brand-tokens/reset` | Resets one or more sections (`{ sections?: ["typography",…] }`) |
+| GET    | `/api/projects/:slug/social-posts` | Admin list of all social posts (left-joined with articles) |
+| POST   | `/api/projects/:slug/social-posts/re-render-batch` | Marks posts as `replaced`, triggers new social-image pipeline per post |
+
+### Key conventions
+- `DEFAULT_TYPOGRAPHY` in `brand-asset-service.ts` is the single source of truth for typography defaults; always import from there rather than hardcoding values in route files.
+- `getBrandTokens()` always merges `DEFAULT_TYPOGRAPHY` into the stored tokens before returning, so callers never need to supply their own fallback.
+- The `r2_key` column on `project_brand_assets` stores the R2 object key for custom-upload assets. Delete from R2 before deleting the DB row to prevent orphaned objects.
+- `exactOptionalPropertyTypes` causes `ParsedBrandTokens` (`field?: T | undefined`) to be incompatible with Drizzle's `.set()` — use `as any` with a `biome-ignore` comment when calling `.set({ brandTokens: … })`.
+- Social-post batch routes live in `socialPostBatchRoutes` (separate Hono router), registered at `/api/projects` in `server.ts`. Individual-post routes stay in `socialPostDetailRoutes`.
 
 ## Tool-Icon Resolution (Spec 52a)
 

@@ -18,8 +18,6 @@
 
         <q-space />
 
-        <ProjectSelector v-if="authStore.user" class="q-mr-sm" />
-
         <q-btn
           flat
           dense
@@ -141,7 +139,6 @@
 
 <script lang="ts">
 import NotificationBell from "src/components/notifications/NotificationBell.vue";
-import ProjectSelector from "src/components/projects/ProjectSelector.vue";
 import { useAuthStore } from "src/stores/auth";
 import { useProjectContextStore } from "src/stores/project-context";
 import { useSystemStatusStore } from "src/stores/system-status";
@@ -159,7 +156,7 @@ const navLinks = [
 export default defineComponent({
   name: "MainLayout",
 
-  components: { NotificationBell, ProjectSelector },
+  components: { NotificationBell },
 
   setup() {
     const projectContextStore = useProjectContextStore();

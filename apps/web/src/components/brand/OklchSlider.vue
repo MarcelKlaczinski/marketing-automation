@@ -69,7 +69,7 @@
 import { defineComponent } from "vue";
 
 type FormatHexFn = (c: { mode: string; l: number; c: number; h: number }) => string | undefined;
-type ToOklchFn = (hex: string) => { l?: number; c?: number; h?: number } | undefined;
+type ToOklchFn = (color: string) => { l?: number; c?: number; h?: number } | undefined;
 
 let _formatHex: FormatHexFn | null = null;
 let _toOklch: ToOklchFn | null = null;
@@ -127,13 +127,14 @@ export default defineComponent({
   methods: {
     async parseHex(hex: string) {
       if (!hex) return;
-      const { toOklch } = await getConverters();
+      const { toOklch, formatHex } = await getConverters();
       const result = toOklch(hex);
       if (result) {
         this.l = Math.round((result.l ?? 0) * 100);
         this.c = Math.round((result.c ?? 0) * 1000) / 1000;
         this.h = Math.round(result.h ?? 0);
-        this.hexValue = hex;
+        // Always store a proper hex regardless of input format (hex or CSS oklch string)
+        this.hexValue = formatHex({ mode: "oklch", l: this.l / 100, c: this.c, h: this.h }) ?? hex;
       }
     },
 

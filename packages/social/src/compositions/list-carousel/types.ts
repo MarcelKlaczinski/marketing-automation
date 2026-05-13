@@ -57,12 +57,35 @@ const toolSchema = z.object({
   iconSvg: z.string().optional(),      // inline SVG from resolution chain (simple-icons/iconify/lobe-icons)
   iconInitials: z.string().optional(), // deterministic avatar fallback
   iconHue: z.number().optional(),
+  // Stunning variant extras
+  keyDifferentiator: z.string().max(60).optional(), // highlight phrase in tagline
+  starStrength: z.string().max(80).optional(),       // first bullet gets star treatment
 });
 
 export type Tool = z.infer<typeof toolSchema>;
 
+export const coverHookSchema = z.object({
+  pattern: z.enum(["comparison", "number-promise", "insider-reveal", "problem-recognition", "save-promise"]),
+  hookLead: z.string().max(80),
+  hookTrail: z.string().max(50),
+  hookEmphasisWord: z.string().max(30),
+  saveTriggerIntensity: z.enum(["low", "medium", "high"]),
+});
+
+export type CoverHook = z.infer<typeof coverHookSchema>;
+
+export const endCloserSchema = z.object({
+  pattern: z.enum(["question", "cta", "save-reminder"]),
+  headlineLead: z.string().max(60),
+  headlineTrail: z.string().max(60),
+  headlineEmphasis: z.string().max(30).optional(),
+});
+
+export type EndCloser = z.infer<typeof endCloserSchema>;
+
 export const listCarouselInputSchema = z.object({
   theme: z.enum(["dark", "light"]).default("dark"),
+  variant: z.enum(["editorial", "stunning"]).default("editorial"),
   brandTokens: brandTokensSchema.default({}),
   slideIndex: z.number().int().default(0),
 
@@ -72,6 +95,8 @@ export const listCarouselInputSchema = z.object({
     headlineHighlight: z.string().max(40),
     headlineTrail: z.string().max(20).optional(),
     subhead: z.string().max(80).optional(),
+    // Stunning variant hook
+    hook: coverHookSchema.optional(),
   }),
 
   tools: z.array(toolSchema).min(3).max(10),
@@ -81,6 +106,9 @@ export const listCarouselInputSchema = z.object({
     headlineHighlight: z.string().max(40),
     articleUrl: z.string(),
     qrCodeUrl: z.string().optional(),
+    // Stunning variant extras
+    closer: endCloserSchema.optional(),
+    toolRecap: z.array(z.string()).optional(), // tool slugs for recap strip
   }),
 });
 

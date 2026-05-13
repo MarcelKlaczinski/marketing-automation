@@ -64,6 +64,22 @@ import { api } from "src/lib/api-client";
 import OklchSlider from "src/components/brand/OklchSlider.vue";
 import ContrastChecker from "src/components/brand/ContrastChecker.vue";
 
+// Normalize any CSS oklch() or other culori-parsed color to hex so OklchSlider
+// always receives a stable hex input regardless of how the value was stored.
+async function toHexSafe(value: string | undefined): Promise<string | undefined> {
+  if (!value) return undefined;
+  if (value.startsWith("#")) return value;
+  try {
+    const { formatHex, converter } = await import("culori");
+    const toRgb = converter("rgb");
+    const rgb = toRgb(value);
+    if (!rgb) return value;
+    return formatHex(rgb) ?? value;
+  } catch {
+    return value;
+  }
+}
+
 const COLOR_KEYS = ["primary", "accent", "surface", "surfaceDark", "ink", "inkMuted", "wikiCream"] as const;
 type ColorKey = (typeof COLOR_KEYS)[number];
 
@@ -100,10 +116,17 @@ export default defineComponent({
       this.loading = true;
       try {
         const res = await api.get<{ ok: boolean; data: { tokens: BrandTokens } }>(
-          `/api/projects/${this.slug}/brand-tokens`
+          `/projects/${this.slug}/brand-tokens`
         );
         this.tokens = res.data.data.tokens;
-        this.localColors = { ...this.tokens.colors };
+        // Normalize stored values (may be CSS oklch strings) to hex for OklchSlider
+        const raw = this.tokens.colors ?? {};
+        const normalized: Partial<Record<ColorKey, string>> = {};
+        for (const key of COLOR_KEYS) {
+          const hex = await toHexSafe(raw[key]);
+          if (hex) normalized[key] = hex;
+        }
+        this.localColors = normalized;
       } finally {
         this.loading = false;
       }
@@ -116,7 +139,7 @@ export default defineComponent({
     async save() {
       this.saving = true;
       try {
-        await api.patch(`/api/projects/${this.slug}/brand-tokens`, {
+        await api.patch(`/projects/${this.slug}/brand-tokens`, {
           tokens: { colors: this.localColors },
         });
         this.$q.notify({ type: "positive", message: this.$t("common.saved") as string });
@@ -130,7 +153,7 @@ export default defineComponent({
     },
 
     async resetColors() {
-      await api.post(`/api/projects/${this.slug}/brand-tokens/reset`, {
+      await api.post(`/projects/${this.slug}/brand-tokens/reset`, {
         sections: ["colors"],
       });
       await this.loadTokens();

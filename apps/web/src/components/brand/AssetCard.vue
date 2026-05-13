@@ -18,9 +18,8 @@
         <!-- Avatar fallback -->
         <q-avatar
           v-else
-          :color="avatarColor"
-          text-color="white"
           size="40px"
+          :style="{ backgroundColor: avatarColor, color: 'white', fontSize: '14px', fontWeight: 600 }"
         >
           {{ initials }}
         </q-avatar>
@@ -30,13 +29,13 @@
         {{ asset.displayName || asset.assetKey }}
       </div>
 
-      <q-badge
-        :color="sourceBadgeColor"
+      <span
         class="q-mt-xs"
-        style="font-size: 9px"
+        style="font-size: 9px; border-radius: 3px; padding: 1px 4px; color: white; font-weight: 600; letter-spacing: 0.02em"
+        :style="{ backgroundColor: sourceBadgeColor }"
       >
         {{ shortSourceLabel }}
-      </q-badge>
+      </span>
     </q-card-section>
 
     <!-- Hover actions -->
@@ -97,18 +96,20 @@ export interface BrandAsset {
 }
 
 const SOURCE_COLORS: Record<string, string> = {
-  "simple-icons": "blue",
-  iconify: "green",
-  "lobe-icons": "purple",
-  "custom-upload": "amber",
-  "deterministic-avatar": "grey",
+  "simple-icons": "#1565c0",
+  iconify: "#2e7d32",
+  "lobe-icons": "#6a1b9a",
+  "custom-upload": "#e65100",
+  wordmark: "#37474f",
+  "deterministic-avatar": "#546e7a",
 };
 
 const SOURCE_SHORT: Record<string, string> = {
   "simple-icons": "SI",
   iconify: "ICO",
   "lobe-icons": "LI",
-  "custom-upload": "CUSTOM",
+  "custom-upload": "UP",
+  wordmark: "WM",
   "deterministic-avatar": "AVT",
 };
 

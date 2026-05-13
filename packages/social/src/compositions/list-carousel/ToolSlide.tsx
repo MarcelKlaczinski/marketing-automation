@@ -28,15 +28,15 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
         padding: 72,
+        paddingBottom: 140, // room for absolute footer
         boxSizing: "border-box",
       }}
     >
       <BackgroundLayer theme={theme} />
 
       {/* Top: Eyebrow */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", marginBottom: 48 }}>
         <Eyebrow
           text={tool.eyebrow}
           theme={theme}
@@ -45,29 +45,29 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
         />
       </div>
 
-      {/* Center: Tool card */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 40 }}>
+      {/* Content: fills remaining space */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 44, flex: 1 }}>
 
         {/* Icon + Name row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
           <ToolIconImage
             {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
             {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
             {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-            size={96}
+            size={116}
           />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span
               style={{
                 fontFamily,
-                fontSize: 48,
+                fontSize: 60,
                 fontWeight: headingWeight,
                 color: theme.ink,
               }}
             >
               {tool.name}
             </span>
-            <span style={{ fontFamily, fontSize: 22, color: theme.inkMuted }}>
+            <span style={{ fontFamily, fontSize: 26, color: theme.inkMuted }}>
               {tool.domain}
             </span>
           </div>
@@ -83,18 +83,18 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
         />
 
         {/* Best-for tag + Tagline */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {tool.bestFor && (
             <span
               style={{
                 display: "inline-flex",
                 alignSelf: "flex-start",
-                padding: "4px 14px",
+                padding: "6px 18px",
                 borderRadius: 999,
                 background: `color-mix(in oklch, ${theme.brand} 15%, transparent)`,
                 border: `1px solid color-mix(in oklch, ${theme.brand} 40%, transparent)`,
                 fontFamily,
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: 600,
                 color: theme.brand,
                 letterSpacing: "0.04em",
@@ -108,8 +108,8 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
             style={{
               margin: 0,
               fontFamily,
-              fontSize: 30,
-              lineHeight: 1.4,
+              fontSize: 36,
+              lineHeight: 1.35,
               color: theme.ink,
               fontWeight: 500,
             }}
@@ -119,27 +119,27 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
         </div>
 
         {/* Strengths list */}
-        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 16 }}>
           {tool.strengths.map((s, i) => (
             <li
               key={i}
               style={{
                 display: "flex",
                 alignItems: "flex-start",
-                gap: 14,
+                gap: 16,
                 fontFamily,
-                fontSize: 24,
+                fontSize: 30,
                 color: theme.ink,
               }}
             >
               <span
                 style={{
-                  width: 10,
-                  height: 10,
+                  width: 12,
+                  height: 12,
                   borderRadius: "50%",
                   background: theme.accent,
                   flexShrink: 0,
-                  marginTop: 8,
+                  marginTop: 10,
                 }}
               />
               {s}
@@ -151,8 +151,8 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeM
         <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} />
       </div>
 
-      {/* Bottom: Brand footer */}
-      <div style={{ position: "relative" }}>
+      {/* Footer: absolute so it never pushes content */}
+      <div style={{ position: "absolute", bottom: 72, left: 72, right: 72 }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}
           instagramHandle={brandTokens.social.instagramHandle}

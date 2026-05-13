@@ -244,7 +244,7 @@ export default defineComponent({
       this.loading = true;
       try {
         const res = await api.get<{ ok: boolean; data: { tokens: { typography?: Partial<TypographyForm> } } }>(
-          `/api/projects/${this.slug}/brand-tokens`
+          `/projects/${this.slug}/brand-tokens`
         );
         const t = res.data.data.tokens.typography ?? {};
         this.form = { ...DEFAULT_FORM, ...t } as TypographyForm;
@@ -268,7 +268,7 @@ export default defineComponent({
     async save() {
       this.saving = true;
       try {
-        await api.patch(`/api/projects/${this.slug}/brand-tokens`, {
+        await api.patch(`/projects/${this.slug}/brand-tokens`, {
           tokens: { typography: { ...this.form } },
         });
         this.originalForm = { ...this.form };
@@ -283,7 +283,7 @@ export default defineComponent({
     },
 
     async resetTypography() {
-      await api.post(`/api/projects/${this.slug}/brand-tokens/reset`, {
+      await api.post(`/projects/${this.slug}/brand-tokens/reset`, {
         sections: ["typography"],
       });
       await this.loadTokens();

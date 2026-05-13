@@ -39,6 +39,7 @@ export default {
       articles: "Articles",
       clusters: "Clusters",
       gaps:     "Content Gaps",
+      brand:    "Brand",
       settings: "Settings",
     },
   },
@@ -68,7 +69,7 @@ export default {
       name: "Repo Name",
       installationId: "GitHub App Installation ID",
       installationIdHint:
-        'Numeric ID. Available via "bun --filter @marketing-auto/adapter-astro-sync list-installations".',
+        "Numeric ID. Available via: bun --filter adapter-astro-sync list-installations",
       defaultBranch: "Default Branch",
       contentRoot: "Content Root",
       assetsRoot: "Assets Root",

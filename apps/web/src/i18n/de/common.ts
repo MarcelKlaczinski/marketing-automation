@@ -18,4 +18,7 @@ export default {
   minutesAgo: "Vor {n} Min.",
   hoursAgo: "Vor {n} Std.",
   daysAgo: "Vor {n} Tagen",
+  all: "Alle",
+  saved: "Gespeichert",
+  selected: "ausgewählt",
 };

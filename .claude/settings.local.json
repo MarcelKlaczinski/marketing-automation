@@ -578,7 +578,29 @@
       "Bash(git gc *)",
       "Bash(git count-objects *)",
       "Bash(git push *)",
-      "Bash(curl -s -o /tmp/test-slide.png \"http://localhost:3050/uploads/toolwiki/social/recraft-vs-ideogram-2026-1778660271521-slide-0.png\")"
+      "Bash(curl -s -o /tmp/test-slide.png \"http://localhost:3050/uploads/toolwiki/social/recraft-vs-ideogram-2026-1778660271521-slide-0.png\")",
+      "Bash(xxd \"/Users/marcelklaczinski/Downloads/carousel-c25e3b1e-2c1b-4e52-9ab4-d6c00ecd36ff.zip\")",
+      "Bash(bun --env-file ../../.env run typecheck)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline -8)",
+      "Bash(bun --env-file .env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation -e ' *)",
+      "Bash(bun --env-file .env packages/db/src/scripts/check-assets.ts)",
+      "Bash(bun --filter @marketing-auto/db --env-file ../../.env -e ' *)",
+      "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/packages/db -e ' *)",
+      "Bash(curl -s http://localhost:3050/api/projects/toolwiki/brand-assets)",
+      "Bash(curl -s http://localhost:3050/api/projects/toolwiki/brand-tokens)",
+      "Bash(curl -s http://localhost:3050/api/projects/toolwiki/social-posts)",
+      "Bash(curl -s http://localhost:3000/api/projects/toolwiki/brand-assets)",
+      "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api src/server.ts)",
+      "Bash(curl -s http://localhost:3050/api/projects)",
+      "Bash(lsof -ti:3051)",
+      "Bash(psql -U marketing_auto -d marketing_auto -c \"SELECT COUNT\\(*\\) FROM project_brand_assets;\")",
+      "Bash(curl -s http://localhost:3050/api/projects/toolwiki/brand-tokens -H \"Cookie: ma_session=test\")",
+      "Bash(curl -s http://localhost:3050/api/projects/toolwiki/brand-assets -H \"Cookie: ma_session=test\")",
+      "Bash(grep -rn 'api\\\\.\\\\\\(get\\\\|post\\\\|patch\\\\|delete\\\\\\).*`/' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/pages/projects/OverviewPage.vue)",
+      "Bash(grep -rn 'api\\\\.\\\\\\(get\\\\|post\\\\|patch\\\\|delete\\\\\\).*`/' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/pages/)",
+      "Bash(bun --filter @marketing-auto/social test)",
+      "Bash(grep -E '^\\\\+.*$t\\\\\\(')",
+      "Bash(grep -E \"^\\\\+\\\\s*message:\\\\s*\\\\`.*\\\\$\\\\{\")"
     ]
   }
 }

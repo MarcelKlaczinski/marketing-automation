@@ -29,8 +29,10 @@ export type RenderResult = {
   sequenceCount: number;
 };
 
-export async function renderListCarousel(input: ListCarouselInput): Promise<RenderResult> {
-  // iconSvg fields are inline strings — no file I/O needed before rendering
+async function renderComposition(
+  compositionId: string,
+  input: ListCarouselInput
+): Promise<RenderResult> {
   const resolved = input;
   const serveUrl = await getBundle();
   const totalSlides = 1 + resolved.tools.length + 1;
@@ -41,8 +43,8 @@ export async function renderListCarousel(input: ListCarouselInput): Promise<Rend
   // override when schema is registered; setting composition.props directly is the
   // supported programmatic path for server-side rendering.
   const compositions = await getCompositions(serveUrl);
-  const baseComposition = compositions.find((c) => c.id === "ListCarousel");
-  if (!baseComposition) throw new Error("ListCarousel composition not found in bundle");
+  const baseComposition = compositions.find((c) => c.id === compositionId);
+  if (!baseComposition) throw new Error(`${compositionId} composition not found in bundle`);
 
   const outDir = resolve(tmpdir(), `social-render-${Date.now()}`);
   await mkdir(outDir, { recursive: true });
@@ -68,4 +70,12 @@ export async function renderListCarousel(input: ListCarouselInput): Promise<Rend
   }
 
   return { slides, sequenceCount: totalSlides };
+}
+
+export async function renderListCarousel(input: ListCarouselInput): Promise<RenderResult> {
+  return renderComposition("ListCarousel", input);
+}
+
+export async function renderListCarouselStunning(input: ListCarouselInput): Promise<RenderResult> {
+  return renderComposition("ListCarouselStunning", input);
 }

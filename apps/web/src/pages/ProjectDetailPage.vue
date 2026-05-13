@@ -40,6 +40,7 @@
         <q-tab name="articles" :label="$t('projects.detail.tabs.articles')" icon="article" />
         <q-tab name="clusters" :label="$t('projects.detail.tabs.clusters')" icon="hub" />
         <q-tab name="gaps" :label="$t('projects.detail.tabs.gaps')" icon="find_in_page" />
+        <q-tab name="brand" :label="$t('projects.detail.tabs.brand')" icon="palette" />
         <q-tab name="settings" :label="$t('projects.detail.tabs.settings')" icon="settings" />
       </q-tabs>
 
@@ -75,6 +76,10 @@
           <GapsPanel :slug="slug" />
         </q-tab-panel>
 
+        <q-tab-panel name="brand" class="q-px-none">
+          <BrandPanel :slug="slug" />
+        </q-tab-panel>
+
         <q-tab-panel name="settings" class="q-px-none">
           <ProjectSettingsPanel :project="project" @updated="onProjectUpdated" />
         </q-tab-panel>
@@ -85,6 +90,7 @@
 
 <script lang="ts">
 import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
+import BrandPanel from "src/components/projects/BrandPanel.vue";
 import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
 import ClustersPanel from "src/components/projects/ClustersPanel.vue";
 import GapsPanel from "src/components/projects/GapsPanel.vue";
@@ -95,13 +101,14 @@ import ProjectSettingsPanel from "src/components/projects/ProjectSettingsPanel.v
 import { useProjectsStore } from "src/stores/projects";
 import { defineComponent } from "vue";
 
-type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "settings";
+type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "brand" | "settings";
 const VALID_TABS: ReadonlyArray<TabName> = [
   "overview",
   "cold-start",
   "articles",
   "clusters",
   "gaps",
+  "brand",
   "settings",
 ];
 
@@ -109,6 +116,7 @@ export default defineComponent({
   name: "ProjectDetailPage",
 
   components: {
+    BrandPanel,
     ProjectOverviewPanel,
     ProjectSettingsPanel,
     ColdStartPanel,

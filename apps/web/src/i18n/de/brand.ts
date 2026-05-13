@@ -1,9 +1,13 @@
 export default {
   navigation: {
     assets: "Assets",
+    assetsDesc: "Tool-Icons & Logos verwalten, eigene Uploads",
     colors: "Farben",
+    colorsDesc: "Primär-, Akzent- und Hintergrundfarben via OKLCH",
     typography: "Typografie",
+    typographyDesc: "Schrift, Gewichtungen, Größen und Abstände",
     socialAdmin: "Social Admin",
+    socialAdminDesc: "Posts neu rendern mit aktuellen Brand-Settings",
   },
   assets: {
     title: "Asset-Bibliothek",
@@ -34,6 +38,7 @@ export default {
       "lobe-icons": "Lobe Icons",
       "custom-upload": "Eigenes Upload",
       "deterministic-avatar": "Fallback-Avatar",
+      wordmark: "Wortmarke",
     },
     sourceLabel: "Quelle",
   },
@@ -106,5 +111,6 @@ export default {
     title: "Social-Posts Admin",
     noSelection: "Keine Posts ausgewählt.",
     noPosts: "Keine Posts gefunden.",
+    batchQueued: "{count} Posts zur Neu-Generierung eingereicht",
   },
 };

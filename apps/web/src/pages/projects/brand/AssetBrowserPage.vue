@@ -177,7 +177,7 @@ export default defineComponent({
         const res = await api.get<{
           ok: boolean;
           data: { assets: BrandAsset[]; summary: unknown };
-        }>(`/api/projects/${this.slug}/brand-assets`);
+        }>(`/projects/${this.slug}/brand-assets`);
         this.assets = res.data.data.assets;
       } finally {
         this.loading = false;
@@ -207,7 +207,7 @@ export default defineComponent({
     async doDelete() {
       if (!this.pendingAsset) return;
       this.showDeleteConfirm = false;
-      await api.delete(`/api/projects/${this.slug}/brand-assets/${this.pendingAsset.id}`);
+      await api.delete(`/projects/${this.slug}/brand-assets/${this.pendingAsset.id}`);
       this.pendingAsset = null;
       void this.loadAssets();
     },
@@ -215,7 +215,7 @@ export default defineComponent({
     async doReset() {
       if (!this.pendingAsset) return;
       this.showResetConfirm = false;
-      await api.post(`/api/projects/${this.slug}/brand-assets/${this.pendingAsset.id}/reset`);
+      await api.post(`/projects/${this.slug}/brand-assets/${this.pendingAsset.id}/reset`);
       this.pendingAsset = null;
       void this.loadAssets();
     },
