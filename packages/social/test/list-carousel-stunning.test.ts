@@ -65,12 +65,16 @@ const comparisonInput = {
     eyebrow: "KI-BILD 2026",
     headlineLead: "Recraft oder Ideogram?",
     headlineHighlight: "Eines kann mehr.",
-    hook: {
-      pattern: "comparison" as const,
-      hookLead: "Recraft oder Ideogram?",
-      hookTrail: "Eines kann mehr.",
-      hookEmphasisWord: "mehr",
-      saveTriggerIntensity: "medium" as const,
+    hookOutput: {
+      pattern: "superlative_question" as const,
+      leadPhrase: "Recraft oder Ideogram?",
+      highlightWord: "Eines",
+      trailPhrase: "kann mehr.",
+      fullText: "Recraft oder Ideogram? Eines kann mehr.",
+      promiseBlock: {
+        line1: "Wir haben beide getestet.",
+        line2: "Eine gewinnt klar.",
+      },
     },
   },
   tools: baseTools,
@@ -92,26 +96,34 @@ const numberPromiseInput = {
   ...comparisonInput,
   cover: {
     ...comparisonInput.cover,
-    hook: {
-      pattern: "number-promise" as const,
-      hookLead: "Die 3 besten",
-      hookTrail: "Bild-KIs 2026.",
-      hookEmphasisWord: "3",
-      saveTriggerIntensity: "low" as const,
+    hookOutput: {
+      pattern: "number_promise" as const,
+      leadPhrase: "Die 3 besten",
+      highlightWord: "Bild-KIs",
+      trailPhrase: "2026.",
+      fullText: "Die 3 besten Bild-KIs 2026.",
+      promiseBlock: {
+        line1: "Alle 3 in der Praxis getestet.",
+        line2: "Ehrlich verglichen.",
+      },
     },
   },
 };
 
-const savePromiseInput = {
+const identityFrameInput = {
   ...comparisonInput,
   cover: {
     ...comparisonInput.cover,
-    hook: {
-      pattern: "save-promise" as const,
-      hookLead: "Speichere das:",
-      hookTrail: "Die besten Bild-KIs.",
-      hookEmphasisWord: "Speichere",
-      saveTriggerIntensity: "high" as const,
+    hookOutput: {
+      pattern: "identity_frame" as const,
+      leadPhrase: "Du brauchst",
+      highlightWord: "diese Tools",
+      trailPhrase: "wirklich.",
+      fullText: "Du brauchst diese Tools wirklich.",
+      promiseBlock: {
+        line1: "Speziell für deinen Use-Case.",
+        line2: "Redaktionell verifiziert.",
+      },
     },
   },
 };
@@ -138,20 +150,18 @@ describe("listCarouselInputSchema — stunning variant", () => {
       ...comparisonInput,
       cover: {
         ...comparisonInput.cover,
-        hook: { ...comparisonInput.cover.hook, pattern: "viral-bait" },
+        hookOutput: { ...comparisonInput.cover.hookOutput, pattern: "viral-bait" },
       },
     };
     const result = listCarouselInputSchema.safeParse(bad);
     expect(result.success).toBe(false);
   });
 
-  it("rejects an invalid save_trigger_intensity", () => {
+  it("rejects a hook missing the promiseBlock", () => {
+    const { promiseBlock: _pb, ...hookWithoutPromise } = comparisonInput.cover.hookOutput;
     const bad = {
       ...comparisonInput,
-      cover: {
-        ...comparisonInput.cover,
-        hook: { ...comparisonInput.cover.hook, saveTriggerIntensity: "extreme" },
-      },
+      cover: { ...comparisonInput.cover, hookOutput: hookWithoutPromise },
     };
     const result = listCarouselInputSchema.safeParse(bad);
     expect(result.success).toBe(false);
@@ -197,13 +207,19 @@ describe("listCarouselInputSchema — stunning variant", () => {
   });
 
   it("accepts all five hook patterns", () => {
-    const patterns = ["comparison", "number-promise", "insider-reveal", "problem-recognition", "save-promise"] as const;
+    const patterns = [
+      "superlative_question",
+      "number_promise",
+      "negative_frame",
+      "identity_frame",
+      "curiosity_gap",
+    ] as const;
     for (const pattern of patterns) {
       const input = {
         ...comparisonInput,
         cover: {
           ...comparisonInput.cover,
-          hook: { ...comparisonInput.cover.hook, pattern },
+          hookOutput: { ...comparisonInput.cover.hookOutput, pattern },
         },
       };
       const result = listCarouselInputSchema.safeParse(input);
@@ -211,20 +227,21 @@ describe("listCarouselInputSchema — stunning variant", () => {
     }
   });
 
-  it("save-promise pattern with high intensity parses correctly", () => {
-    const result = listCarouselInputSchema.safeParse(savePromiseInput);
+  it("identity_frame pattern parses correctly", () => {
+    const result = listCarouselInputSchema.safeParse(identityFrameInput);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.cover.hook?.saveTriggerIntensity).toBe("high");
-      expect(result.data.cover.hook?.pattern).toBe("save-promise");
+      expect(result.data.cover.hookOutput?.pattern).toBe("identity_frame");
+      expect(result.data.cover.hookOutput?.highlightWord).toBe("diese Tools");
     }
   });
 
-  it("number-promise pattern carries tool count in hookEmphasisWord", () => {
+  it("number_promise pattern carries tool count in leadPhrase", () => {
     const result = listCarouselInputSchema.safeParse(numberPromiseInput);
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.cover.hook?.hookEmphasisWord).toBe("3");
+      expect(result.data.cover.hookOutput?.leadPhrase).toBe("Die 3 besten");
+      expect(result.data.cover.hookOutput?.promiseBlock.line1).toBe("Alle 3 in der Praxis getestet.");
     }
   });
 });
@@ -288,11 +305,11 @@ describe.skipIf(!LIVE)("renderListCarouselStunning (live)", () => {
   );
 
   it(
-    "renders 5 PNG slides for a save-promise stunning carousel",
+    "renders 5 PNG slides for an identity-frame stunning carousel",
     async () => {
       const { renderListCarouselStunning } = await import("../render-server");
 
-      const parsed = listCarouselInputSchema.parse(savePromiseInput);
+      const parsed = listCarouselInputSchema.parse(identityFrameInput);
       const result = await renderListCarouselStunning(parsed);
 
       expect(result.sequenceCount).toBe(5);
