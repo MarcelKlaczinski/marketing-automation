@@ -39,6 +39,8 @@ function filePathToUrl(filePath: string): string {
 }
 
 // Minimal mock article for fixture renders — only id and slug are accessed by render functions.
+// as unknown as Article: plain string literals don't satisfy Drizzle's enum column types
+// (articleStatusEnum, articleSourceEnum, $type<...> text columns) without a double cast.
 function createMockArticle(fixtureKey: string, locale: string): Article {
   const now = new Date();
   return {
@@ -107,7 +109,9 @@ function createMockArticle(fixtureKey: string, locale: string): Article {
   } as unknown as Article;
 }
 
-// Minimal mock discovery — eligibility predicates for fixture renders are skipped.
+// Minimal mock discovery — eligibility predicates for fixture renders are skipped entirely;
+// only render() is called with this stub, and render() never reads discovery fields.
+// as unknown as ArticleDiscovery: same Drizzle enum-type mismatch reason as createMockArticle.
 function createMockDiscovery(): ArticleDiscovery {
   const now = new Date();
   return {
@@ -281,6 +285,8 @@ adminRoutes.post(
 
       let result;
       try {
+        // as Parameters<...>[0]: template is typed as TemplateDefinition (generic TInput erased),
+        // so renderContext's input type can't be verified statically — cast is required.
         result = await template.render(renderContext as Parameters<typeof template.render>[0]);
       } catch (err) {
         log.error({ err }, "Fixture render failed");
@@ -338,6 +344,7 @@ adminRoutes.post(
 
     let result;
     try {
+      // as Parameters<...>[0]: same generic-erasure reason as the fixture render above.
       result = await template.render(renderContext as Parameters<typeof template.render>[0]);
     } catch (err) {
       log.error({ err }, "Sample article render failed");

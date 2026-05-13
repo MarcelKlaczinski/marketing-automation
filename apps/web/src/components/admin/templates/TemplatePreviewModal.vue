@@ -192,6 +192,9 @@ export default defineComponent({
     },
     async onSourceChange() {
       if (this.dataSource === 'sample-article') {
+        // Reset article selection so loadEligibleArticles auto-selects the first eligible one
+        this.selectedArticleId = null;
+        this.eligibleArticles = [];
         await this.loadEligibleArticles();
       }
       await this.reload();
@@ -227,9 +230,11 @@ export default defineComponent({
         if (this.dataSource === 'fixture') {
           body.fixtureKey = this.previewData.fixtureKey;
         } else {
-          if (!this.selectedArticleId) {
-            await this.loadEligibleArticles();
-          }
+          // Always refresh article list on reload — locale or theme change may alter eligibility.
+          // Reset selectedArticleId so loadEligibleArticles picks the first from the new locale.
+          this.selectedArticleId = null;
+          this.eligibleArticles = [];
+          await this.loadEligibleArticles();
           body.sampleArticleId = this.selectedArticleId;
         }
         const res = await api.post<{ ok: boolean; data: RenderResult }>(

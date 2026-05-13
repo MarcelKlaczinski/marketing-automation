@@ -128,14 +128,15 @@ export default defineComponent({
         this.loadingLight = true;
       }
       try {
-        const apiBase = import.meta.env.VITE_API_BASE_URL as string ?? '';
+        // Strip /api suffix: VITE_API_BASE_URL is e.g. "http://localhost:3050/api" but
+        // /renders/* is served at the origin root, not under /api.
+        const origin = (import.meta.env.VITE_API_BASE_URL as string ?? '').replace(/\/api$/, '');
         const res = await api.post<{ ok: boolean; data: PreviewResult }>(
           `/admin/templates/${this.templateKey}/preview`,
           { source: 'fixture', fixtureKey: this.fixture.key, theme, locale: 'de' },
         );
         const url = res.data.data.slides[0]?.filePath ?? null;
-        // Prefix with API base to form an absolute URL for <q-img>
-        const absUrl = url ? `${apiBase}${url}` : null;
+        const absUrl = url ? `${origin}${url}` : null;
         if (theme === 'dark') {
           this.darkPreviewUrl = absUrl;
         } else {
