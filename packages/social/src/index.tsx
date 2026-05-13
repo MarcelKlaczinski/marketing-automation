@@ -65,9 +65,10 @@ const stunningDefaultProps = listCarouselInputSchema.parse({
     headlineHighlight: "ehrlich getestet.",
     articleUrl: "toolwiki.ai/ki-bild-generatoren",
     closer: {
-      pattern: "save-reminder",
-      headlineLead: "Speicher diesen Post",
-      headlineTrail: "als Cheat-Sheet.",
+      pattern: "action_frame",
+      line1: { leadText: "3 Tools", highlightText: "getestet", trailText: "." },
+      line2: { leadText: "Speichere für", highlightText: "später", trailText: "." },
+      fullText: "3 Tools getestet. Speichere für später.",
     },
     toolRecap: ["midjourney", "dalle", "adobe-firefly"],
   },

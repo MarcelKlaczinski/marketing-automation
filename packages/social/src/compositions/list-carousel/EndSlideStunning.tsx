@@ -3,7 +3,7 @@ import { BrandFooter } from "../../shared/BrandLogo.tsx";
 import { Eyebrow } from "../../shared/Eyebrow.tsx";
 import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
-import type { ListCarouselInput } from "./types.ts";
+import type { CloserLine, EndCloser, ListCarouselInput } from "./types.ts";
 
 type Props = {
   input: ListCarouselInput;
@@ -77,6 +77,48 @@ function ToolRecapStrip({ tools, recap, theme, fontFamily }: {
   );
 }
 
+// Spec 51a-stunning-v2.1 §1.2 — color-only highlight, no underline,
+// each line rendered as three independent <span>s so concatenation is impossible.
+function CloserHeadlineRenderer({
+  closer,
+  theme,
+  fontFamily,
+  headingWeight,
+}: {
+  closer: EndCloser;
+  theme: ThemeTokens;
+  fontFamily: string;
+  headingWeight: number;
+}) {
+  const renderLine = (line: CloserLine, key: string) => (
+    <div key={key}>
+      {line.leadText && <span style={{ color: theme.ink }}>{line.leadText}</span>}
+      {line.leadText && line.highlightText && " "}
+      {line.highlightText && (
+        <span style={{ color: theme.brand, fontWeight: 900 }}>{line.highlightText}</span>
+      )}
+      {line.trailText && <span style={{ color: theme.ink }}>{line.trailText}</span>}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        fontFamily,
+        fontSize: 64,
+        lineHeight: 1.15,
+        fontWeight: headingWeight,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      {renderLine(closer.line1, "l1")}
+      {renderLine(closer.line2, "l2")}
+    </div>
+  );
+}
+
 export function EndSlideStunning({ input, theme, totalSlides }: Props) {
   const { end, tools, brandTokens } = input;
   const { fontFamily, headingWeight, eyebrowLetterSpacing } = brandTokens.typography;
@@ -109,44 +151,28 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
 
       {/* Center: Closer headline + action blocks — fills remaining space */}
       <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36, flex: 1 }}>
-        {/* Closer headline — dramatic, engagement-triggering */}
-        <div
-          style={{
-            fontFamily,
-            fontSize: 72,
-            fontWeight: headingWeight,
-            lineHeight: 1.1,
-            color: theme.ink,
-          }}
-        >
-          {closer ? (
-            <>
-              <span>{closer.headlineLead} </span>
-              <span style={{ color: theme.brand }}>
-                {closer.headlineEmphasis
-                  ? <>
-                      {closer.headlineTrail.replace(closer.headlineEmphasis, "")}
-                      <span
-                        style={{
-                          textDecoration: "underline",
-                          textDecorationColor: `color-mix(in oklch, ${theme.brand} 60%, transparent)`,
-                          textDecorationThickness: 3,
-                          textUnderlineOffset: 8,
-                        }}
-                      >
-                        {closer.headlineEmphasis}
-                      </span>
-                    </>
-                  : closer.headlineTrail}
-              </span>
-            </>
-          ) : (
-            <>
-              <span>{end.headline} </span>
-              <span style={{ color: theme.brand }}>{end.headlineHighlight}</span>
-            </>
-          )}
-        </div>
+        {/* Closer headline — deterministic, structured (Spec 51a-stunning-v2.1 §1.2) */}
+        {closer ? (
+          <CloserHeadlineRenderer
+            closer={closer}
+            theme={theme}
+            fontFamily={fontFamily}
+            headingWeight={headingWeight}
+          />
+        ) : (
+          <div
+            style={{
+              fontFamily,
+              fontSize: 72,
+              fontWeight: headingWeight,
+              lineHeight: 1.1,
+              color: theme.ink,
+            }}
+          >
+            <span>{end.headline} </span>
+            <span style={{ color: theme.brand }}>{end.headlineHighlight}</span>
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Save-action block — primary algo signal */}

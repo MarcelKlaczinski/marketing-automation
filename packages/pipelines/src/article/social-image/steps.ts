@@ -12,6 +12,12 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import {
+  buildCloserHeadline,
+  type CloserHeadline,
+  type CloserToolContext,
+} from "./closerEngine.ts";
+import { enrichToolUseCaseTokens } from "./enrichment/toolUseCaseTokens.ts";
+import {
   type HookArticleContext,
   type HookOutput,
   type HookPattern,
@@ -43,6 +49,9 @@ const resolvedToolSchema = z.object({
   iconSvg: z.string().optional(),   // inline SVG from resolution chain
   iconInitials: z.string().optional(),
   iconHue: z.number().optional(),
+  // Spec 51a-stunning-v2.1 §1.2 — closer-engine enrichment tokens (surfaced for caption/a11y)
+  endSlideToken: z.string().optional(),
+  identityVerb: z.string().optional(),
 });
 
 // ─── Step 1: LoadArticleStep ─────────────────────────────────────────────────
@@ -134,6 +143,9 @@ const extractedToolSchema = z.object({
   pricing: z.object({ tier: z.enum(["free", "freemium", "paid"]), label: z.string() }),
   keyDifferentiator: z.string().max(60).optional(),
   starStrength: z.string().max(80).optional(),
+  // Spec 51a-stunning-v2.1 §1.2 — closer-engine enrichment tokens
+  endSlideToken: z.string().optional(),
+  identityVerb: z.string().optional(),
 });
 
 // Zod schema for the new phrase-based HookOutput (mirrors hookEngine.ts interfaces)
@@ -146,11 +158,19 @@ const hookOutputZodSchema = z.object({
   promiseBlock: z.object({ line1: z.string(), line2: z.string() }),
 });
 
+// Structured closer (Spec 51a-stunning-v2.1 §1.1) — deterministic patterns,
+// each line rendered as three independent JSX spans (no concat bug possible).
+const closerLineSchema = z.object({
+  leadText: z.string(),
+  highlightText: z.string(),
+  trailText: z.string(),
+});
+
 const endCloserSchema = z.object({
-  pattern: z.enum(["question", "cta", "save-reminder"]),
-  headlineLead: z.string().max(60),
-  headlineTrail: z.string().max(60),
-  headlineEmphasis: z.string().max(30).optional(),
+  pattern: z.enum(["verdict_recap", "action_frame", "identity_mirror", "open_comment"]),
+  line1: closerLineSchema,
+  line2: closerLineSchema,
+  fullText: z.string(),
 });
 
 const ExtractToolsOutputSchema = ExtractToolsInputSchema.extend({
@@ -184,21 +204,7 @@ export class ExtractToolsStep extends BaseStep<
 
 STUNNING VARIANT — zusätzliche Felder pro Tool:
 - "keyDifferentiator": 1-5 Wörter aus der Tagline die den Kern-Unterschied benennen (werden highlighted)
-- "starStrength": die WICHTIGSTE der 4 Strengths (exakt aus dem strengths-Array)
-
-STUNNING VARIANT — End-Closer (end_closer):
-Generiere einen starken Closer für den End-Slide.
-Pattern "question": Provokative Frage → triggert Kommentare
-Pattern "cta": klarer Aufruf → "Folge uns für mehr ehrliche Vergleiche."
-Pattern "save-reminder": "Speicher diesen Post als Cheat-Sheet."
-
-Zusätzliche JSON-Felder für Stunning:
-"end_closer": {
-  "pattern": "question|cta|save-reminder",
-  "headline_lead": "...",
-  "headline_trail": "...",
-  "headline_emphasis": "optional"
-}` : "";
+- "starStrength": die WICHTIGSTE der 4 Strengths (exakt aus dem strengths-Array)` : "";
 
     const prompt = `You are a social-media content assistant. Extract structured data for an Instagram carousel from this article.
 
@@ -236,8 +242,7 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
       "keyDifferentiator": "1-5 key words from tagline",
       "starStrength": "most important strength (copy from strengths array)"` : ""}
     }
-  ]${isStunning ? `,
-  "end_closer": { "pattern": "...", "headline_lead": "...", "headline_trail": "..." }` : ""}
+  ]
 }
 
 Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
@@ -265,12 +270,6 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       coverSubhead?: string;
       endHeadline: string;
       endHeadlineHighlight: string;
-      end_closer?: {
-        pattern: string;
-        headline_lead: string;
-        headline_trail: string;
-        headline_emphasis?: string;
-      };
     };
 
     const jsonStart = rawText.indexOf("{");
@@ -282,7 +281,8 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       throw new Error(`ExtractToolsStep: LLM returned invalid JSON: ${rawText.slice(0, 200)}`);
     }
 
-    const tools = z.array(extractedToolSchema).min(1).max(10).parse(parsed.tools);
+    const toolsParsed = z.array(extractedToolSchema).min(1).max(10).parse(parsed.tools);
+    let tools: Array<z.infer<typeof extractedToolSchema>> = toolsParsed;
 
     // If LLM still used "vs." pattern, override with count-based headline
     const leadHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineLead ?? "");
@@ -308,25 +308,32 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       coverHookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic);
     }
 
-    // ─── End-closer (stunning only) ────────────────────────────────────────────
-    let endCloser: z.infer<typeof endCloserSchema> | undefined;
-    if (isStunning && parsed.end_closer) {
-      const closerParsed = endCloserSchema.safeParse({
-        pattern: parsed.end_closer.pattern,
-        headlineLead: parsed.end_closer.headline_lead,
-        headlineTrail: parsed.end_closer.headline_trail,
-        headlineEmphasis: parsed.end_closer.headline_emphasis,
+    // ─── Tool-use-case-token enrichment + deterministic closer engine ──────────
+    let endCloser: CloserHeadline | undefined;
+    if (isStunning) {
+      const tokenMap = await enrichToolUseCaseTokens(
+        tools.map((t) => ({
+          slug: t.slug,
+          name: t.name,
+          tagline: t.tagline,
+          ...(t.bestFor !== undefined && { bestFor: t.bestFor }),
+        })),
+        ctx,
+      );
+      tools = tools.map((t) => {
+        const tokens = tokenMap[t.slug];
+        if (!tokens) return t;
+        return { ...t, endSlideToken: tokens.endSlideToken, identityVerb: tokens.identityVerb };
       });
-      if (closerParsed.success) {
-        endCloser = closerParsed.data;
-      }
-    }
-    if (isStunning && !endCloser) {
-      endCloser = {
-        pattern: "save-reminder",
-        headlineLead: "Speicher diesen Post",
-        headlineTrail: "als Cheat-Sheet.",
-      };
+
+      const articleType = inferArticleType(input.articleTitle, tools.length);
+      const closerTools: CloserToolContext[] = tools.map((t) => {
+        const ctx: CloserToolContext = { name: t.name };
+        if (t.endSlideToken !== undefined) ctx.endSlideToken = t.endSlideToken;
+        if (t.identityVerb !== undefined) ctx.identityVerb = t.identityVerb;
+        return ctx;
+      });
+      endCloser = buildCloserHeadline(articleType, closerTools);
     }
 
     return {

@@ -60,6 +60,9 @@ const toolSchema = z.object({
   // Stunning variant extras
   keyDifferentiator: z.string().max(60).optional(), // highlight phrase in tagline
   starStrength: z.string().max(80).optional(),       // first bullet gets star treatment
+  // Spec 51a-stunning-v2.1 closer-engine enrichment tokens (also surfaced for caption/a11y)
+  endSlideToken: z.string().optional(),
+  identityVerb: z.string().optional(),
 });
 
 export type Tool = z.infer<typeof toolSchema>;
@@ -82,11 +85,21 @@ export const hookOutputSchema = z.object({
 
 export type HookOutput = z.infer<typeof hookOutputSchema>;
 
+// Spec 51a-stunning-v2.1 §1.1 — structured closer (deterministic patterns,
+// each line rendered as three independent JSX spans).
+export const closerLineSchema = z.object({
+  leadText: z.string(),
+  highlightText: z.string(),
+  trailText: z.string(),
+});
+
+export type CloserLine = z.infer<typeof closerLineSchema>;
+
 export const endCloserSchema = z.object({
-  pattern: z.enum(["question", "cta", "save-reminder"]),
-  headlineLead: z.string().max(60),
-  headlineTrail: z.string().max(60),
-  headlineEmphasis: z.string().max(30).optional(),
+  pattern: z.enum(["verdict_recap", "action_frame", "identity_mirror", "open_comment"]),
+  line1: closerLineSchema,
+  line2: closerLineSchema,
+  fullText: z.string(),
 });
 
 export type EndCloser = z.infer<typeof endCloserSchema>;

@@ -79,9 +79,10 @@ const comparisonInput = {
     headlineHighlight: "ehrlich getestet.",
     articleUrl: "https://toolwiki.ai/recraft-vs-ideogram",
     closer: {
-      pattern: "question" as const,
-      headlineLead: "Welches Tool nutzt du?",
-      headlineTrail: "Schreib's in die Kommentare.",
+      pattern: "verdict_recap" as const,
+      line1: { leadText: "Recraft für", highlightText: "Logos", trailText: "." },
+      line2: { leadText: "Ideogram für", highlightText: "Poster", trailText: "." },
+      fullText: "Recraft für Logos. Ideogram für Poster.",
     },
     toolRecap: ["recraft", "ideogram", "midjourney"],
   },
@@ -172,11 +173,15 @@ describe("listCarouselInputSchema — stunning variant", () => {
     expect(result.success).toBe(true);
   });
 
-  it("accepts end_closer with all patterns", () => {
-    for (const pattern of ["question", "cta", "save-reminder"] as const) {
+  it("accepts end_closer with all four structured patterns", () => {
+    const line = { leadText: "A", highlightText: "B", trailText: "." };
+    for (const pattern of ["verdict_recap", "action_frame", "identity_mirror", "open_comment"] as const) {
       const input = {
         ...comparisonInput,
-        end: { ...comparisonInput.end, closer: { pattern, headlineLead: "X", headlineTrail: "Y" } },
+        end: {
+          ...comparisonInput.end,
+          closer: { pattern, line1: line, line2: line, fullText: "A B. A B." },
+        },
       };
       const result = listCarouselInputSchema.safeParse(input);
       expect(result.success).toBe(true);
