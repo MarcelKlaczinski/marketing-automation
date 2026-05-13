@@ -199,9 +199,17 @@ const cases = [
   },
 ];
 
+// Also render a light-theme variant of the first case to verify the new
+// components (ToolPreviewRow, "Perfekt für" panel, ToolRecapGrid) are
+// theme-aware. Skip cover slide bg-cropping for clarity.
+const lightVariant = {
+  name: "light",
+  input: { ...cases[0]!.input, theme: "light" as const },
+};
+
 await mkdir(outDir, { recursive: true });
 
-for (const c of cases) {
+for (const c of [...cases, lightVariant]) {
   console.log(`[render] ${c.name}…`);  // biome-ignore lint/suspicious/noConsoleLog: script output
   const parsed = listCarouselInputSchema.parse(c.input);
   const result = await renderListCarouselStunning(parsed);
