@@ -116,7 +116,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
       {/* Center: Tool card — fills remaining space.
           Spec 51a-stunning-v2.1 follow-up: bigger fonts + extra For-you panel
           so the 4:5 canvas reads dense instead of half-empty. */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 52, flex: 1 }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 64, flex: 1 }}>
 
         {/* Icon (prominent) + Name row */}
         <div style={{ display: "flex", alignItems: "center", gap: 32 }}>

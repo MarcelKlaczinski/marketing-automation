@@ -155,10 +155,10 @@ function ToolPreviewRow({
   return (
     <div
       style={{
-        marginTop: 56,
+        marginTop: "auto",
         display: "flex",
         flexDirection: "row",
-        gap: 14,
+        gap: 16,
         position: "relative",
         zIndex: 2,
       }}
@@ -174,23 +174,23 @@ function ToolPreviewRow({
               display: "flex",
               flexDirection: "column",
               alignItems: "flex-start",
-              gap: 10,
-              padding: "16px 14px",
-              borderRadius: 16,
+              gap: 14,
+              padding: "22px 18px",
+              borderRadius: 18,
               background: `color-mix(in oklch, ${brand} 8%, transparent)`,
               border: `1.5px solid color-mix(in oklch, ${brand} 35%, transparent)`,
             }}
           >
             <div
               style={{
-                width: 60,
-                height: 60,
-                borderRadius: 12,
+                width: 80,
+                height: 80,
+                borderRadius: 14,
                 background: cardBg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: 10,
+                padding: 12,
                 boxSizing: "border-box",
               }}
             >
@@ -198,13 +198,13 @@ function ToolPreviewRow({
                 {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
                 {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
                 {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-                size={40}
+                size={56}
               />
             </div>
             <div
               style={{
                 fontFamily,
-                fontSize: 22,
+                fontSize: 26,
                 fontWeight: 800,
                 color: inkColor,
                 lineHeight: 1.1,
@@ -217,7 +217,7 @@ function ToolPreviewRow({
               <div
                 style={{
                   fontFamily,
-                  fontSize: 14,
+                  fontSize: 17,
                   fontWeight: 500,
                   color: subColor,
                   lineHeight: 1.3,

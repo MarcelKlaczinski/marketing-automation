@@ -47,7 +47,6 @@ function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
   return (
     <div
       style={{
-        marginTop: "auto",
         padding: "32px 36px",
         background: `color-mix(in oklch, ${theme.inkMuted} 8%, transparent)`,
         borderRadius: 20,
@@ -189,8 +188,10 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
         />
       </div>
 
-      {/* Center: Closer headline + action blocks — fills remaining space */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36, flex: 1 }}>
+      {/* Center: Closer headline + action blocks — fills remaining space.
+          Larger gap distributes vertical breathing room evenly across sections
+          instead of leaving it pooled at the bottom. */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 56, flex: 1 }}>
         {/* Closer headline — deterministic, structured (Spec 51a-stunning-v2.1 §1.2) */}
         {closer ? (
           <CloserHeadlineRenderer
