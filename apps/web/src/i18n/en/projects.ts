@@ -119,4 +119,6 @@ export default {
       reset: "Reset to defaults",
     },
   },
+  selectProject: "Select Project",
+  switchProject: "Switch Project",
 };

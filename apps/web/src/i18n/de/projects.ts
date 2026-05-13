@@ -121,4 +121,6 @@ export default {
       reset: "Auf Defaults zurücksetzen",
     },
   },
+  selectProject: "Projekt auswählen",
+  switchProject: "Projekt wechseln",
 };

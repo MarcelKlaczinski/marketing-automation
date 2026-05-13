@@ -98,9 +98,32 @@
           <button class="action-link" type="button" @click="onDownload(post)">
             {{ $t('social.download') }}
           </button>
+          <button
+            class="action-link action-link--rerender"
+            type="button"
+            :disabled="reRenderingId === post.id"
+            @click="onReRender(post)"
+          >
+            {{ reRenderingId === post.id ? '…' : $t('brand.reRender.single') }}
+          </button>
         </div>
       </div>
     </div>
+
+    <!-- Re-render confirm dialog -->
+    <q-dialog v-model="showReRenderConfirm">
+      <q-card>
+        <q-card-section>
+          <div class="text-subtitle1">{{ $t('brand.reRender.confirmTitle') }}</div>
+          <div class="text-body2 q-mt-sm text-grey-7">{{ $t('brand.reRender.confirmText') }}</div>
+          <div class="text-caption q-mt-xs">{{ $t('brand.reRender.estimatedCost', { cost: '~$0.01' }) }}</div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat :label="$t('common.cancel')" v-close-popup />
+          <q-btn color="primary" :label="$t('brand.reRender.single')" @click="doReRender" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- Carousel preview modal -->
     <q-dialog v-model="previewOpen" maximized>
@@ -215,6 +238,9 @@ export default defineComponent({
     previewPost: null as SocialPost | null,
     previewSlideIndex: 0,
     pollingTimer: null as ReturnType<typeof setInterval> | null,
+    showReRenderConfirm: false,
+    pendingReRenderPost: null as SocialPost | null,
+    reRenderingId: null as string | null,
   }),
 
   computed: {
@@ -305,6 +331,26 @@ export default defineComponent({
 
     nextSlide() {
       if (this.previewSlideIndex < this.previewSlideUrls.length - 1) this.previewSlideIndex++;
+    },
+
+    onReRender(post: SocialPost) {
+      this.pendingReRenderPost = post;
+      this.showReRenderConfirm = true;
+    },
+
+    async doReRender() {
+      if (!this.pendingReRenderPost) return;
+      const post = this.pendingReRenderPost;
+      this.showReRenderConfirm = false;
+      this.reRenderingId = post.id;
+      try {
+        await api.post(`/api/social-posts/${post.id}/re-render`);
+        this.startPolling();
+      } catch {
+        // error surfaces via interceptor
+      } finally {
+        this.reRenderingId = null;
+      }
     },
 
     async onDownload(post: SocialPost) {
@@ -478,6 +524,15 @@ export default defineComponent({
   font-size: 13px;
   cursor: pointer;
   padding: 0;
+}
+
+.action-link--rerender {
+  color: var(--q-warning);
+}
+
+.action-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ig-overlay {

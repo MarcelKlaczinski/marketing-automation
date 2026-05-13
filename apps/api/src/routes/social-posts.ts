@@ -227,6 +227,36 @@ const batchReRenderBodySchema = z.object({
 // Date when Spec 52a was deployed — posts before this may have emoji logos
 const SPEC_52A_DATE = new Date("2025-05-01T00:00:00Z");
 
+// ─── GET /api/projects/:slug/social-posts (admin list) ───────────────────────
+
+socialPostBatchRoutes.get("/:slug/social-posts", async (c) => {
+  const slug = c.req.param("slug");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const postRows = await db
+    .select({
+      id: socialPosts.id,
+      format: socialPosts.format,
+      status: socialPosts.status,
+      theme: socialPosts.theme,
+      createdAt: socialPosts.createdAt,
+      articleSlug: articles.slug,
+    })
+    .from(socialPosts)
+    .leftJoin(articles, eq(socialPosts.articleId, articles.id))
+    .where(eq(socialPosts.projectId, project.id))
+    .orderBy(desc(socialPosts.createdAt))
+    .limit(200);
+
+  return c.json({ ok: true, data: { items: postRows } });
+});
+
 socialPostBatchRoutes.post("/:slug/social-posts/re-render-batch", async (c) => {
   const slug = c.req.param("slug");
   const rawBody = await c.req.json().catch(() => ({}));

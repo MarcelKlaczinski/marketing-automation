@@ -18,6 +18,8 @@
 
         <q-space />
 
+        <ProjectSelector v-if="authStore.user" class="q-mr-sm" />
+
         <q-btn
           flat
           dense
@@ -76,6 +78,48 @@
 
         <q-separator class="q-my-md" />
 
+        <!-- Brand section (visible when a project is selected) -->
+        <template v-if="projectContextStore.currentProjectSlug">
+          <q-item-label header class="text-caption text-grey-6">{{ $t('brand.navigation.assets') }}</q-item-label>
+          <q-item
+            :to="{ name: 'brand-assets', params: { slug: projectContextStore.currentProjectSlug } }"
+            clickable
+            v-ripple
+            active-class="text-primary"
+          >
+            <q-item-section avatar><q-icon name="image" /></q-item-section>
+            <q-item-section>{{ $t('brand.navigation.assets') }}</q-item-section>
+          </q-item>
+          <q-item
+            :to="{ name: 'brand-colors', params: { slug: projectContextStore.currentProjectSlug } }"
+            clickable
+            v-ripple
+            active-class="text-primary"
+          >
+            <q-item-section avatar><q-icon name="palette" /></q-item-section>
+            <q-item-section>{{ $t('brand.navigation.colors') }}</q-item-section>
+          </q-item>
+          <q-item
+            :to="{ name: 'brand-typography', params: { slug: projectContextStore.currentProjectSlug } }"
+            clickable
+            v-ripple
+            active-class="text-primary"
+          >
+            <q-item-section avatar><q-icon name="text_fields" /></q-item-section>
+            <q-item-section>{{ $t('brand.navigation.typography') }}</q-item-section>
+          </q-item>
+          <q-item
+            :to="{ name: 'social-posts-admin', params: { slug: projectContextStore.currentProjectSlug } }"
+            clickable
+            v-ripple
+            active-class="text-primary"
+          >
+            <q-item-section avatar><q-icon name="photo_library" /></q-item-section>
+            <q-item-section>{{ $t('brand.navigation.socialAdmin') }}</q-item-section>
+          </q-item>
+          <q-separator class="q-my-md" />
+        </template>
+
         <q-item v-if="!systemStatusStore.allConfigured" class="text-warning">
           <q-item-section avatar>
             <q-icon name="warning" />
@@ -97,7 +141,9 @@
 
 <script lang="ts">
 import NotificationBell from "src/components/notifications/NotificationBell.vue";
+import ProjectSelector from "src/components/projects/ProjectSelector.vue";
 import { useAuthStore } from "src/stores/auth";
+import { useProjectContextStore } from "src/stores/project-context";
 import { useSystemStatusStore } from "src/stores/system-status";
 import { useUiStore } from "src/stores/ui";
 import { defineComponent } from "vue";
@@ -113,13 +159,16 @@ const navLinks = [
 export default defineComponent({
   name: "MainLayout",
 
-  components: { NotificationBell },
+  components: { NotificationBell, ProjectSelector },
 
   setup() {
+    const projectContextStore = useProjectContextStore();
+    void projectContextStore.loadProjects();
     return {
       authStore: useAuthStore(),
       uiStore: useUiStore(),
       systemStatusStore: useSystemStatusStore(),
+      projectContextStore,
     };
   },
 

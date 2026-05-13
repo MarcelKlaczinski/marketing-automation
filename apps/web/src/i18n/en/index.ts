@@ -1,4 +1,5 @@
 import activity from "./activity";
+import brand from "./brand";
 import cornerstones from "./cornerstones";
 import gaps from "./gaps";
 import social from "./social";
@@ -48,4 +49,5 @@ export default {
   cornerstones,
   gaps,
   social,
+  brand,
 };
