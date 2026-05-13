@@ -577,7 +577,8 @@
       "Bash(git filter-branch *)",
       "Bash(git gc *)",
       "Bash(git count-objects *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(curl -s -o /tmp/test-slide.png \"http://localhost:3050/uploads/toolwiki/social/recraft-vs-ideogram-2026-1778660271521-slide-0.png\")"
     ]
   }
 }
