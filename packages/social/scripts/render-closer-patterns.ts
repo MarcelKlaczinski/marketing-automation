@@ -15,6 +15,29 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { renderListCarouselStunning } from "../render-server.ts";
 import { listCarouselInputSchema } from "../src/compositions/list-carousel/types.ts";
+import { iconifyAdapter } from "../../pipelines/src/_lib/icon-sources/iconify.ts";
+import { lobeIconsAdapter } from "../../pipelines/src/_lib/icon-sources/lobe-icons.ts";
+import { simpleIconsAdapter } from "../../pipelines/src/_lib/icon-sources/simple-icons.ts";
+
+/**
+ * Mirror the production resolveToolIcon() chain (simple-icons → iconify →
+ * lobe-icons) without touching the DB so the local script renders show the
+ * exact SVGs production would inject. Falls through to initials/hue if no
+ * adapter matches.
+ */
+async function resolveIcon(
+  slug: string,
+  initials: string,
+  hue: number,
+): Promise<{ iconSvg?: string; iconInitials: string; iconHue: number }> {
+  for (const adapter of [simpleIconsAdapter, iconifyAdapter, lobeIconsAdapter]) {
+    try {
+      const res = await adapter.tryResolve(slug);
+      if (res) return { iconSvg: res.svgContent, iconInitials: initials, iconHue: hue };
+    } catch {}
+  }
+  return { iconInitials: initials, iconHue: hue };
+}
 
 const outDir = resolve(process.argv[2] ?? "/tmp/spec-51a-v2.1");
 
@@ -66,13 +89,24 @@ const thirdTool = {
   identityVerb: "erzeugst Bilder",
 };
 
-const threeTools = [...baseTools, thirdTool];
+const threeToolsRaw = [...baseTools, thirdTool];
 
-const fiveTools = [
-  ...threeTools,
+const fiveToolsRaw = [
+  ...threeToolsRaw,
   { ...thirdTool, slug: "flux", rank: 4, name: "Flux", domain: "flux.ai", eyebrow: "04 · FLUX" },
   { ...thirdTool, slug: "imagen", rank: 5, name: "Imagen", domain: "imagen.research.google", eyebrow: "05 · IMAGEN" },
 ];
+
+async function withResolvedIcons<T extends { slug: string; name: string; iconInitials: string; iconHue: number }>(tools: T[]) {
+  return Promise.all(tools.map(async (t) => {
+    const fallbackInitials = t.iconInitials || t.name.slice(0, 2);
+    const resolved = await resolveIcon(t.slug, fallbackInitials, t.iconHue);
+    return { ...t, ...resolved };
+  }));
+}
+
+const threeTools = await withResolvedIcons(threeToolsRaw);
+const fiveTools = await withResolvedIcons(fiveToolsRaw);
 
 function buildHookOutput(toolCount: number) {
   return {
