@@ -14,8 +14,13 @@ export default {
     translationDisabled: "Übersetzungs-Pipeline noch nicht verfügbar",
     viewArticle:    "Artikel ansehen",
     viewSpec:       "Cornerstone Spec ansehen",
+    viewSuggestions: "Vorschläge",
     dismissAll:     "Alle verwerfen",
     suggestAll:     "Alle Titel vorschlagen",
+  },
+
+  suggestions: {
+    hint: "Vorschläge erscheinen hier, sobald die Generierung abgeschlossen ist.",
   },
 
   status: {

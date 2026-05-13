@@ -14,8 +14,13 @@ export default {
     translationDisabled: "Translation pipeline not yet available",
     viewArticle:         "View article",
     viewSpec:            "View cornerstone spec",
+    viewSuggestions:     "Suggestions",
     dismissAll:          "Dismiss all",
     suggestAll:          "Suggest all titles",
+  },
+
+  suggestions: {
+    hint: "Suggestions will appear here once generation is complete.",
   },
 
   status: {

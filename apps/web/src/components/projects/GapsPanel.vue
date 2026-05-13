@@ -234,6 +234,23 @@
                   :label="$t('gaps.actions.viewSpec') as string"
                   :to="{ name: 'cornerstone-approval', params: { slug } }"
                 />
+                <!-- Spec 54c: toggle template suggestions for generated article -->
+                <q-btn
+                  v-if="gap.filledByArticleId"
+                  flat
+                  dense
+                  size="xs"
+                  icon="auto_awesome"
+                  color="teal"
+                  :label="$t('gaps.actions.viewSuggestions') as string"
+                  @click="toggleSuggestions(gap.id)"
+                />
+              </div>
+
+              <!-- Spec 54c: inline template suggestions (shown after article generation) -->
+              <div v-if="gap.filledByArticleId && gapSuggestionsExpanded[gap.id]" class="q-mt-sm">
+                <div class="text-caption text-grey-6 q-mb-xs">{{ $t('gaps.suggestions.hint') }}</div>
+                <TemplateSuggestionsPanel :article-id="gap.filledByArticleId" />
               </div>
             </div>
 
@@ -356,6 +373,7 @@ import { HttpError } from "src/lib/http-error";
 import { api } from "src/lib/api-client";
 import { defineComponent } from "vue";
 import ArticleChainStatus from "src/components/articles/ArticleChainStatus.vue";
+import TemplateSuggestionsPanel from "src/components/articles/TemplateSuggestionsPanel.vue";
 
 type GapType    = "missing_hub" | "missing_translation" | "missing_spoke_type" | "cluster_too_small";
 type GapStatus  = "open" | "in_progress" | "resolved" | "dismissed";
@@ -414,7 +432,7 @@ const STATUS_COLORS: Record<GapStatus, string> = {
 export default defineComponent({
   name: "GapsPanel",
 
-  components: { ArticleChainStatus },
+  components: { ArticleChainStatus, TemplateSuggestionsPanel },
 
   props: {
     slug: { type: String, required: true },
@@ -440,6 +458,8 @@ export default defineComponent({
     automatingIds:      new Set<string>(),
     // Map from gapId → chainId for showing inline chain status
     gapChainIds:        {} as Record<string, string>,
+    // Spec 54c: map from gapId → whether suggestions panel is expanded
+    gapSuggestionsExpanded: {} as Record<string, boolean>,
 
     filterOptions: [
       { value: "all" as FilterValue,                 labelKey: "gaps.filters.all" },
@@ -631,6 +651,14 @@ export default defineComponent({
       const next = { ...this.gapChainIds };
       delete next[gap.id];
       this.gapChainIds = next;
+    },
+
+    // Spec 54c: toggle inline template suggestions for a gap's generated article
+    toggleSuggestions(gapId: string): void {
+      this.gapSuggestionsExpanded = {
+        ...this.gapSuggestionsExpanded,
+        [gapId]: !this.gapSuggestionsExpanded[gapId],
+      };
     },
 
     async patchGap(gapId: string, newStatus: GapStatus): Promise<void> {

@@ -32,7 +32,8 @@ import {
   startScheduler,
 } from "@marketing-auto/pipelines";
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
-import { startDiscoveryWorker, enqueueDiscoveryJob } from "./discoveryWorker.ts";
+import { startDiscoveryWorker } from "./discoveryWorker.ts";
+import { discoverArticleStep } from "@marketing-auto/pipelines";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
@@ -154,9 +155,9 @@ async function main() {
   registerSchemaChainCallbacks(chainCallbacks);
   registerLocalizeChainCallbacks({ advanceChain: chainCallbacks.advanceChain });
 
-  // Spec 54c: trigger discovery (full LLM) after every completed draft
+  // Spec 54c: sync discovery so suggestions are available when the pipeline run shows "completed"
   registerDraftDiscoveryCallback(async (articleId, projectId) => {
-    await enqueueDiscoveryJob({ articleId, projectId, mode: "full" });
+    await discoverArticleStep({ articleId, projectId, mode: "full", forceRefresh: false });
   });
 
   const pipelineWorker = startPipelineWorker({ concurrency: 5 });
