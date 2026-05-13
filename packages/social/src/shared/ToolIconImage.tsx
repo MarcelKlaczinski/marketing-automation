@@ -5,9 +5,10 @@ type Props = {
   initials?: string;   // deterministic avatar fallback: 2 uppercase letters
   hue?: number;        // deterministic avatar fallback: hue for gradient
   size?: number;
+  invertSvg?: boolean; // true (default): converts black SVG fills to white for dark card backgrounds
 };
 
-export function ToolIconImage({ iconSvg, initials, hue = 200, size = 80 }: Props) {
+export function ToolIconImage({ iconSvg, initials, hue = 200, size = 80, invertSvg = true }: Props) {
   if (iconSvg) {
     return (
       <div
@@ -24,7 +25,14 @@ export function ToolIconImage({ iconSvg, initials, hue = 200, size = 80 }: Props
         }}
       >
         <div
-          style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            filter: invertSvg ? "brightness(0) invert(1)" : undefined,
+          }}
           // SVG content from simple-icons/iconify/lobe-icons — no user-supplied content
           // biome-ignore lint/security/noDangerouslySetInnerHtml: controlled brand asset SVGs
           dangerouslySetInnerHTML={{ __html: iconSvg }}

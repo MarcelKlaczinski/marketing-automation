@@ -19,5 +19,6 @@ export default {
     selectArticle: "Artikel auswählen",
     noEligibleArticles: "Keine passenden Artikel gefunden",
     empty: "Keine Templates registriert",
+    projectBrandTokens: "Projekt-Brand-Tokens aktiv",
   },
 };

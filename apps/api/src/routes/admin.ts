@@ -10,6 +10,7 @@ import IORedis from "ioredis";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { requireAuth } from "../middleware/auth.ts";
+import { getBrandTokens, type ParsedBrandTokens } from "../lib/brand-asset-service.ts";
 
 const log = createLogger("admin-templates");
 
@@ -25,8 +26,10 @@ const PREVIEW_CACHE_TTL = 3600; // 1 hour
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function previewCacheKey(templateKey: string, fixtureKey: string, theme: string, locale: string): string {
-  return `tmpl-preview:v1:${templateKey}:${fixtureKey}:${theme}:${locale}`;
+function previewCacheKey(templateKey: string, fixtureKey: string, theme: string, locale: string, projectId?: string): string {
+  const parts = ["tmpl-preview:v2", templateKey, fixtureKey, theme, locale];
+  if (projectId) parts.push(projectId);
+  return parts.join(":");
 }
 
 // Convert absolute filesystem path to /renders/... URL for the frontend.
@@ -223,6 +226,7 @@ const previewBodySchema = z.object({
   theme: z.enum(["dark", "light"]),
   locale: z.enum(["de", "en"]),
   force: z.boolean().optional(),
+  projectId: z.string().uuid().optional(),
 });
 
 const previewQuerySchema = z.object({
@@ -260,13 +264,22 @@ adminRoutes.post(
         return c.json({ ok: false, error: `Fixture "${body.fixtureKey}" not found` }, 404);
       }
 
-      const cacheKey = previewCacheKey(templateKey, body.fixtureKey, body.theme, body.locale);
+      const cacheKey = previewCacheKey(templateKey, body.fixtureKey, body.theme, body.locale, body.projectId);
       const redis = getPreviewRedis();
 
       if (!force) {
         const cached = await redis.get(cacheKey);
         if (cached) {
           return c.json({ ok: true, data: { ...JSON.parse(cached), cacheKey, fromCache: true } });
+        }
+      }
+
+      let brandTokens: ParsedBrandTokens | undefined;
+      if (body.projectId) {
+        try {
+          brandTokens = await getBrandTokens(body.projectId);
+        } catch {
+          // project not found — template falls back to DEFAULT_BRAND_TOKENS
         }
       }
 
@@ -279,6 +292,7 @@ adminRoutes.post(
         locale: body.locale,
         theme: body.theme,
         input: fixture.input,
+        ...(brandTokens !== undefined && { brandTokens }),
       };
 
       log.info({ templateKey, fixtureKey: body.fixtureKey, theme: body.theme, locale: body.locale }, "Rendering fixture preview");
@@ -332,12 +346,22 @@ adminRoutes.post(
       return c.json({ ok: false, error: `buildInput failed: ${err instanceof Error ? err.message : String(err)}` }, 500);
     }
 
+    let sampleBrandTokens: ParsedBrandTokens | undefined;
+    if (body.projectId) {
+      try {
+        sampleBrandTokens = await getBrandTokens(body.projectId);
+      } catch {
+        // project not found — template falls back to DEFAULT_BRAND_TOKENS
+      }
+    }
+
     const renderContext = {
       article: articleRow as Article,
       discovery: discoveryRow as ArticleDiscovery,
       locale: body.locale,
       theme: body.theme,
       input,
+      ...(sampleBrandTokens !== undefined && { brandTokens: sampleBrandTokens }),
     };
 
     log.info({ templateKey, articleId: body.sampleArticleId, theme: body.theme, locale: body.locale }, "Rendering sample-article preview");
@@ -352,7 +376,7 @@ adminRoutes.post(
     }
 
     const slides = result.slides.map((s) => ({ ...s, filePath: filePathToUrl(s.filePath) }));
-    const cacheKey = `tmpl-preview:v1:${templateKey}:sample:${body.sampleArticleId}:${body.theme}:${body.locale}`;
+    const cacheKey = `tmpl-preview:v2:${templateKey}:sample:${body.sampleArticleId}:${body.theme}:${body.locale}${body.projectId ? `:${body.projectId}` : ""}`;
     return c.json({ ok: true, data: { slides, caption: result.caption, hashtags: result.hashtags, metadata: result.metadata, cacheKey, fromCache: false } });
   },
 );
@@ -360,6 +384,7 @@ adminRoutes.post(
 const eligibleArticlesQuerySchema = z.object({
   locale: z.enum(["de", "en"]).optional().default("de"),
   limit: z.coerce.number().int().min(1).max(200).optional().default(50),
+  projectId: z.string().uuid().optional(),
 });
 
 // GET /admin/templates/:key/eligible-articles — list articles that pass template eligibility
@@ -375,12 +400,15 @@ adminRoutes.get(
       return c.json({ ok: false, error: `Template "${templateKey}" not found` }, 404);
     }
 
-    const { locale, limit } = c.req.valid("query");
+    const { locale, limit, projectId } = c.req.valid("query");
 
     const allArticles = await db
       .select()
       .from(articles)
-      .where(eq(articles.locale, locale))
+      .where(and(
+        eq(articles.locale, locale),
+        projectId ? eq(articles.projectId, projectId) : undefined,
+      ))
       .limit(limit);
 
     const articleIds = allArticles.map((a) => a.id);

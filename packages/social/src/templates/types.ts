@@ -1,8 +1,10 @@
 import type { Article } from "@marketing-auto/db";
 import type { ArticleDiscovery } from "@marketing-auto/db";
+import type { BrandTokens } from "../compositions/list-carousel/types.ts";
 
 export type TemplateKey =
   | "comparison-stunning"
+  | "comparison-stunning-3"
   | "use-case-verdict-per-tool"
   | "single-tool-spotlight"
   | "news-slide"
@@ -19,6 +21,7 @@ export interface RenderContext<TInput = unknown> {
   locale: Locale;
   theme: Theme;
   input: TInput;
+  brandTokens?: BrandTokens; // project override; templates fall back to DEFAULT_BRAND_TOKENS
 }
 
 export interface SlideOutput {

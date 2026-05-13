@@ -5,20 +5,17 @@ import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonStunning.fixtures.ts";
 
-// Default brand tokens with all sub-schemas populated — render-server.ts skips Zod parsing,
-// so brandTokens: {} would leave colors/typography/social as undefined and crash the composition.
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
-// Slide dimensions for ListCarouselStunning (1080×1350)
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
 
-export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> = {
-  key: "comparison-stunning",
-  displayName: "2-Tool-Vergleich (Stunning)",
+export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> = {
+  key: "comparison-stunning-3",
+  displayName: "3-Tool-Vergleich (Stunning)",
   description:
-    "Cover mit Hook, zwei Tool-Spotlights, Verdict-Closer. Optimiert für direkte Head-to-Head-Vergleiche.",
-  defaultSlideCount: 4,
+    "Cover mit Hook, drei Tool-Spotlights, Verdict-Closer. Für Triple-Vergleiche wie Cursor vs. Windsurf vs. Codeium.",
+  defaultSlideCount: 5,
   estimatedCostUsd: 0.01,
 
   eligibility: (article, _discovery) => {
@@ -29,11 +26,11 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[]; verdict?: string };
     const toolCount = extras.toolSlugs?.length ?? 0;
 
-    if (toolCount !== 2) {
+    if (toolCount !== 3) {
       return {
         eligible: false,
-        reason: "Benötigt exakt 2 Tools",
-        requirements: ["frontmatter.toolSlugs.length === 2"],
+        reason: "Benötigt exakt 3 Tools",
+        requirements: ["frontmatter.toolSlugs.length === 3"],
       };
     }
     if (!extras.verdict) {
@@ -67,7 +64,6 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     const hookLeadPhrase = locale === "de" ? "Welches Tool" : "Which tool";
     const hookHighlight = locale === "de" ? "gewinnt wirklich?" : "really wins?";
 
-    // Build resolved tools in the ListCarouselInput shape
     const resolvedTools = input.tools.map((t, i) => ({
       slug: t.slug,
       rank: i + 1,
@@ -132,7 +128,6 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       },
     };
 
-    // Dynamic import — avoids bundling Remotion into non-render contexts
     const socialModule = await import("../../../render-server.ts") as unknown as {
       renderListCarouselStunning: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     };
@@ -141,7 +136,7 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     const slideOutputs = await writeSlides(
       buffers,
       article.id,
-      "comparison-stunning",
+      "comparison-stunning-3",
       locale,
       theme,
       { width: SLIDE_W, height: SLIDE_H },
@@ -154,7 +149,7 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       slides: slideOutputs,
       caption,
       hashtags,
-      metadata: { estimatedCostUsd: 0.01, templateKey: "comparison-stunning" },
+      metadata: { estimatedCostUsd: 0.01, templateKey: "comparison-stunning-3" },
     };
   },
 
@@ -164,9 +159,9 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
 function buildCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
   const toolNames = input.tools.map((t) => t.name).join(" vs. ");
   if (locale === "de") {
-    return `${toolNames}: Wir haben beide Tools getestet — hier ist unser ehrliches Fazit.\n\nWelches Tool nutzt du? Schreib's in die Kommentare.\n\n→ Vollständiger Vergleich: toolwiki.ai/${slug}`;
+    return `${toolNames}: Drei Tools, ein ehrliches Fazit — welches passt zu deinem Workflow?\n\nWelches Tool nutzt du? Schreib's in die Kommentare.\n\n→ Vollständiger Vergleich: toolwiki.ai/${slug}`;
   }
-  return `${toolNames}: We tested both tools — here's our honest verdict.\n\nWhich tool do you use? Let us know in the comments.\n\n→ Full comparison: toolwiki.ai/${slug}`;
+  return `${toolNames}: Three tools, one honest verdict — which fits your workflow?\n\nWhich tool do you use? Let us know in the comments.\n\n→ Full comparison: toolwiki.ai/${slug}`;
 }
 
 function buildHashtags(locale: "de" | "en"): string[] {

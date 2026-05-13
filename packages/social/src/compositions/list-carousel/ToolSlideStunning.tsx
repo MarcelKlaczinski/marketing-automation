@@ -5,6 +5,7 @@ import { PricingChip } from "../../shared/PricingChip.tsx";
 import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
 import type { ListCarouselInput, Tool } from "./types.ts";
+import { CAROUSEL_SAFE_ZONES as SZ } from "./safeZones.ts";
 
 type Props = {
   input: ListCarouselInput;
@@ -69,13 +70,13 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
   return (
     <div
       style={{
-        width: 1080,
-        height: 1350,
+        width: SZ.CANVAS_W,
+        height: SZ.CANVAS_H_4_5,
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        padding: 72,
-        paddingBottom: 140,
+        padding: SZ.PAD_X,
+        paddingBottom: SZ.PAD_Y_BOTTOM,
         boxSizing: "border-box",
       }}
     >
@@ -314,7 +315,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
       </div>
 
       {/* Footer: absolute so it never pushes content */}
-      <div style={{ position: "absolute", bottom: 72, left: 72, right: 72 }}>
+      <div style={{ position: "absolute", bottom: SZ.PAD_X, left: SZ.PAD_X, right: SZ.PAD_X }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}
           instagramHandle={brandTokens.social.instagramHandle}

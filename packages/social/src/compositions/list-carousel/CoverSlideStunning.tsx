@@ -8,21 +8,30 @@ import { COVER_LAYOUT_V2 as L } from "./coverLayout.ts";
 import { getCoverColors } from "../../themes/coverThemeAdapter.ts";
 
 /**
- * Spec 51a-stunning-v2.1 §2 — adaptive font size so the 3 phrase-based hook
- * lines never wrap to 4. Heuristic: Inter Bold ≈ N * 0.55 * char-count wide.
- * Clamps to [84, 108] so we never go unreadably small.
+ * Computes hook font size balancing two constraints:
+ *  1. Nowrap constraint — highlight (+ merged trail if short) must fit in ONE line (748px).
+ *  2. Lead wrap constraint — lead phrase should wrap to AT MOST 2 lines (2 × 748px).
+ * Returns the minimum of both upper bounds, clamped to [84, 108].
  */
-function computeHookFontSize(hook: HookOutput): number {
-  const phrases = [hook.leadPhrase, hook.highlightWord, hook.trailPhrase];
-  let longest = phrases[0] ?? "";
-  for (const p of phrases) if (p.length > longest.length) longest = p;
-
+function computeHookFontSize(hook: HookOutput, trailIsShort: boolean): number {
   const CHAR_WIDTH_RATIO = 0.55;
-  const CONTENT_WIDTH = 920;
-  const charCount = Math.max(longest.length, 1);
-  const maxFontSize = Math.floor(CONTENT_WIDTH / (charCount * CHAR_WIDTH_RATIO));
 
-  return Math.min(L.hookFontSize, Math.max(84, maxFontSize));
+  // 1. Nowrap lines: each must fit in TEXT_SAFE_W on one line
+  const effectiveHighlight = trailIsShort
+    ? `${hook.highlightWord} ${hook.trailPhrase}`
+    : hook.highlightWord;
+  const nowrapPhrases = trailIsShort
+    ? [effectiveHighlight]
+    : [hook.highlightWord, hook.trailPhrase];
+  let longestNowrap = nowrapPhrases[0] ?? "";
+  for (const p of nowrapPhrases) if (p.length > longestNowrap.length) longestNowrap = p;
+  const maxForNowrap = Math.floor(L.textSafeWidth / (Math.max(longestNowrap.length, 1) * CHAR_WIDTH_RATIO));
+
+  // 2. Lead phrase: allowed to wrap, but capped at 2 lines to avoid excessive line-count
+  const maxForLead = Math.floor((L.textSafeWidth * 2) / (Math.max(hook.leadPhrase.length, 1) * CHAR_WIDTH_RATIO));
+
+  const raw = Math.min(maxForNowrap, maxForLead);
+  return Math.min(L.hookFontSize, Math.max(84, raw));
 }
 
 type Props = {
@@ -370,89 +379,96 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
       >
         {hookOutput ? (
           <>
-            {/* Spec 51a-stunning-v2.1 §2 — adaptive font + nowrap = guaranteed 3 lines */}
+            {/* Spec 51a-stunning-v2.1 §2 — adaptive font + nowrap = guaranteed lines.
+                trailIsShort: merge trailing fragment ("Code?") onto the highlight line
+                so it never appears orphaned. hidePreview: hide ToolPreviewRow cards
+                when leadPhrase is long to prevent vertical overflow. */}
             {(() => {
-              const hookFontSize = computeHookFontSize(hookOutput);
+              const trailIsShort = hookOutput.trailPhrase.trim().length <= 5;
+              const hookFontSize = computeHookFontSize(hookOutput, trailIsShort);
+              // Lead phrase can wrap (allows long phrases like "Welcher AI-Editor passt"
+              // to break naturally). Highlight + trail stay nowrap (1 line of brand colour).
+              const baseStyle: React.CSSProperties = {
+                fontFamily,
+                fontSize: hookFontSize,
+                lineHeight: L.hookLineHeight,
+                letterSpacing: "-0.03em",
+                maxWidth: L.textSafeWidth,
+              };
               return (
                 <>
                   <div
                     style={{
-                      fontFamily,
-                      fontSize: hookFontSize,
+                      ...baseStyle,
                       fontWeight: L.hookFontWeight,
-                      lineHeight: L.hookLineHeight,
                       color: coverColors.hookText,
-                      letterSpacing: "-0.03em",
-                      whiteSpace: "nowrap",
-                    } as React.CSSProperties}
+                      whiteSpace: "normal",
+                    }}
                   >
                     {hookOutput.leadPhrase}
                   </div>
                   <div
                     style={{
-                      fontFamily,
-                      fontSize: hookFontSize,
+                      ...baseStyle,
                       fontWeight: L.highlightFontWeight,
-                      lineHeight: L.hookLineHeight,
                       color: coverColors.hookHighlight,
-                      letterSpacing: "-0.03em",
                       marginTop: L.hookLineGap,
                       whiteSpace: "nowrap",
-                    } as React.CSSProperties}
+                    }}
                   >
                     {hookOutput.highlightWord}
+                    {trailIsShort && ` ${hookOutput.trailPhrase}`}
                   </div>
-                  <div
-                    style={{
-                      fontFamily,
-                      fontSize: hookFontSize,
-                      fontWeight: L.hookFontWeight,
-                      lineHeight: L.hookLineHeight,
-                      color: coverColors.hookText,
-                      letterSpacing: "-0.03em",
-                      marginTop: L.hookLineGap,
-                      whiteSpace: "nowrap",
-                    } as React.CSSProperties}
-                  >
-                    {hookOutput.trailPhrase}
-                  </div>
+                  {!trailIsShort && (
+                    <div
+                      style={{
+                        ...baseStyle,
+                        fontWeight: L.hookFontWeight,
+                        color: coverColors.hookText,
+                        marginTop: L.hookLineGap,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {hookOutput.trailPhrase}
+                    </div>
+                  )}
+
+                  {/* Subline */}
+                  {cover.subhead && (
+                    <div
+                      style={{
+                        fontFamily,
+                        fontSize: L.sublineFontSize,
+                        fontWeight: L.sublineFontWeight,
+                        color: coverColors.subline,
+                        marginTop: 24,
+                        letterSpacing: "0.01em",
+                      }}
+                    >
+                      {cover.subhead}
+                    </div>
+                  )}
+
+                  {/* Promise-Block */}
+                  <PromiseBlockElement
+                    line1={hookOutput.promiseBlock.line1}
+                    line2={hookOutput.promiseBlock.line2}
+                    accentBarColor={coverColors.promiseAccentBar}
+                    line1Color={coverColors.promiseLine1}
+                    line2Color={coverColors.promiseLine2}
+                    fontFamily={fontFamily}
+                  />
+
+                  {/* Tool preview — fills the lower-half of the 4:5 canvas */}
+                  <ToolPreviewRow
+                    tools={tools}
+                    themeMode={input.theme}
+                    brand={coverColors.hookHighlight}
+                    fontFamily={fontFamily}
+                  />
                 </>
               );
             })()}
-
-            {/* Subline */}
-            {cover.subhead && (
-              <div
-                style={{
-                  fontFamily,
-                  fontSize: L.sublineFontSize,
-                  fontWeight: L.sublineFontWeight,
-                  color: coverColors.subline,
-                  marginTop: 24,
-                  letterSpacing: "0.01em",
-                }}
-              >
-                {cover.subhead}
-              </div>
-            )}
-
-            {/* Promise-Block */}
-            <PromiseBlockElement
-              line1={hookOutput.promiseBlock.line1}
-              line2={hookOutput.promiseBlock.line2}
-              accentBarColor={coverColors.promiseAccentBar}
-              line1Color={coverColors.promiseLine1}
-              line2Color={coverColors.promiseLine2}
-              fontFamily={fontFamily}
-            />
-
-            {/* Tool preview — fills the lower-half of the 4:5 canvas */}
-            <ToolPreviewRow
-              tools={tools}
-              themeMode={input.theme}
-              brand={coverColors.hookHighlight}
-              fontFamily={fontFamily}
-            />
           </>
         ) : (
           /* Editorial headline fallback (if no hookOutput, e.g. old carousel re-render) */

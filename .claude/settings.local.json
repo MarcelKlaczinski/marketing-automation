@@ -631,7 +631,12 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff --name-only HEAD)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation stash)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation stash pop)",
-      "Bash(grep -n \"sql\\\\`\" apps/api/src/scripts/article-discovery-llm-backfill.ts)"
+      "Bash(grep -n \"sql\\\\`\" apps/api/src/scripts/article-discovery-llm-backfill.ts)",
+      "Bash(bun --filter \"*api*\" tsc --noEmit)",
+      "Bash(bun --cwd apps/api run tsc)",
+      "Bash(git reset *)",
+      "Bash(bun --env-file .env run --cwd packages/db tsx -e ' *)",
+      "Bash(bun --env-file .env packages/db/src/query.ts)"
     ]
   }
 }

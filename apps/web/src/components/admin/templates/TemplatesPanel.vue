@@ -45,12 +45,12 @@
       </div>
     </div>
 
-    <TemplatePreviewModal v-model="previewOpen" :preview-data="currentPreview" />
+    <TemplatePreviewModal v-model="previewOpen" :preview-data="currentPreview" :project-id="projectId" />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { defineComponent, type PropType } from 'vue';
 import { api } from 'src/lib/api-client';
 import TemplateCard from './TemplateCard.vue';
 import TemplatePreviewModal from './TemplatePreviewModal.vue';
@@ -79,6 +79,9 @@ export interface PreviewPayload {
 export default defineComponent({
   name: 'TemplatesPanel',
   components: { TemplateCard, TemplatePreviewModal },
+  props: {
+    projectId: { type: String as PropType<string | null>, default: null },
+  },
   data: () => ({
     templates: [] as TemplateMeta[],
     loading: false,

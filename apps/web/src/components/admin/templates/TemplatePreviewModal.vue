@@ -44,6 +44,17 @@
           @update:model-value="onSourceChange"
         />
 
+        <q-chip
+          v-if="projectId"
+          dense
+          size="sm"
+          color="primary"
+          text-color="white"
+          class="q-ml-sm"
+        >
+          {{ $t('admin.templates.projectBrandTokens') }}
+        </q-chip>
+
         <q-btn flat dense icon="refresh" class="q-ml-sm" @click="forceReload" />
         <q-btn flat dense icon="close" v-close-popup />
       </q-toolbar>
@@ -158,6 +169,7 @@ export default defineComponent({
   props: {
     modelValue: { type: Boolean, required: true },
     previewData: { type: Object as PropType<PreviewPayload | null>, default: null },
+    projectId: { type: String as PropType<string | null>, default: null },
   },
   emits: ['update:modelValue'],
   data: () => ({
@@ -203,9 +215,11 @@ export default defineComponent({
       if (!this.previewData) return;
       this.loadingArticles = true;
       try {
+        const params: Record<string, string> = { locale: this.currentLocale };
+        if (this.projectId) params.projectId = this.projectId;
         const res = await api.get<{ ok: boolean; data: { articles: { id: string; title: string; slug: string }[] } }>(
           `/admin/templates/${this.previewData.templateKey}/eligible-articles`,
-          { params: { locale: this.currentLocale } },
+          { params },
         );
         this.eligibleArticles = res.data.data.articles.map((a) => ({
           label: `${a.title} (${a.slug})`,
@@ -227,6 +241,7 @@ export default defineComponent({
           locale: this.currentLocale,
           source: this.dataSource,
         };
+        if (this.projectId) body.projectId = this.projectId;
         if (this.dataSource === 'fixture') {
           body.fixtureKey = this.previewData.fixtureKey;
         } else {
@@ -256,6 +271,7 @@ export default defineComponent({
           source: this.dataSource,
           force: true,
         };
+        if (this.projectId) body.projectId = this.projectId;
         if (this.dataSource === 'fixture') {
           body.fixtureKey = this.previewData.fixtureKey;
         } else {

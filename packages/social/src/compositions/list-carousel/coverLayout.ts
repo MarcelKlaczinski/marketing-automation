@@ -1,7 +1,12 @@
+import { CAROUSEL_SAFE_ZONES as SZ } from "./safeZones.ts";
+
 export const COVER_LAYOUT_V2 = {
-  // Frame
-  paddingX: 80,
-  paddingY: 100,
+  // Frame — sourced from shared safe-zone constants
+  paddingX: SZ.PAD_X,
+  paddingY: SZ.PAD_Y_TOP,
+
+  // Maximum text width on cover: canvas minus both horizontal insets and logo column
+  textSafeWidth: SZ.TEXT_SAFE_W,
 
   // Eyebrow
   eyebrowY: 140,
@@ -9,10 +14,10 @@ export const COVER_LAYOUT_V2 = {
   eyebrowLetterSpacing: 3,
   eyebrowFontWeight: 600,
 
-  // Tool-logos top-right
-  toolLogoSize: 72,
-  toolLogoTop: 100,
-  toolLogoRight: 80,
+  // Tool-logos top-right — sourced from safe-zone constants
+  toolLogoSize: SZ.LOGO_COL_W,
+  toolLogoTop: SZ.PAD_Y_TOP,
+  toolLogoRight: SZ.LOGO_COL_RIGHT,
   toolLogoGap: 16,
 
   // Hook (3 phrase-based lines)

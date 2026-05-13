@@ -19,5 +19,6 @@ export default {
     selectArticle: "Select article",
     noEligibleArticles: "No eligible articles found",
     empty: "No templates registered",
+    projectBrandTokens: "Project brand tokens active",
   },
 };

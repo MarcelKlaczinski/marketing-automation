@@ -1,5 +1,6 @@
 import { templateRegistry } from "./registry.ts";
 import { comparisonStunningTemplate } from "./definitions/comparisonStunning.ts";
+import { comparisonStunning3Template } from "./definitions/comparisonStunning3.ts";
 import { useCaseVerdictPerToolTemplate } from "./definitions/useCaseVerdictPerTool.ts";
 
 let bootstrapped = false;
@@ -8,6 +9,7 @@ export function bootstrapTemplates(): void {
   if (bootstrapped) return;
 
   templateRegistry.register(comparisonStunningTemplate);
+  templateRegistry.register(comparisonStunning3Template);
   templateRegistry.register(useCaseVerdictPerToolTemplate);
 
   // Future templates registered here:

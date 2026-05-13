@@ -86,7 +86,7 @@
         </q-tab-panel>
 
         <q-tab-panel name="templates" class="q-px-none">
-          <TemplatesPanel />
+          <TemplatesPanel :project-id="project.id" />
         </q-tab-panel>
       </q-tab-panels>
     </template>
