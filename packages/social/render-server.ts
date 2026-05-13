@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { readFile, rm, mkdir } from "node:fs/promises";
 import type { ListCarouselInput } from "./src/compositions/list-carousel/types.ts";
+import type { UseCaseVerdictInput } from "./src/compositions/use-case-verdict/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 
@@ -78,4 +79,39 @@ export async function renderListCarousel(input: ListCarouselInput): Promise<Rend
 
 export async function renderListCarouselStunning(input: ListCarouselInput): Promise<RenderResult> {
   return renderComposition("ListCarouselStunning", input);
+}
+
+export async function renderUseCaseVerdictCarousel(input: UseCaseVerdictInput): Promise<RenderResult> {
+  const totalSlides = 1 + input.verdicts.length + 2;
+  // Override the generic renderComposition loop since slide count is dynamic
+  const serveUrl = await getBundle();
+  const compositions = await getCompositions(serveUrl);
+  const baseComposition = compositions.find((c) => c.id === "UseCaseVerdictCarousel");
+  if (!baseComposition) throw new Error("UseCaseVerdictCarousel composition not found in bundle");
+
+  const outDir = resolve(tmpdir(), `social-render-ucv-${Date.now()}`);
+  await mkdir(outDir, { recursive: true });
+
+  const slides: Buffer[] = [];
+  try {
+    for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
+      const outPath = resolve(outDir, `slide-${slideIndex}.png`);
+      const slideProps = { ...input, slideIndex } as Record<string, unknown>;
+
+      await renderStill({
+        composition: { ...baseComposition, props: slideProps },
+        serveUrl,
+        output: outPath,
+        frame: 0,
+        imageFormat: "png",
+      });
+
+      const buf = await readFile(outPath);
+      slides.push(buf);
+    }
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+
+  return { slides, sequenceCount: totalSlides };
 }

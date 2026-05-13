@@ -2,6 +2,8 @@ import { Composition, registerRoot } from "remotion";
 import { ListCarousel } from "./compositions/list-carousel/ListCarousel.tsx";
 import { ListCarouselStunning } from "./compositions/list-carousel/ListCarouselStunning.tsx";
 import { listCarouselInputSchema } from "./compositions/list-carousel/types.ts";
+import { UseCaseVerdictComposition } from "./compositions/use-case-verdict/UseCaseVerdictComposition.tsx";
+import { useCaseVerdictInputSchema } from "./compositions/use-case-verdict/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -142,6 +144,32 @@ export function RemotionRoot() {
         height={1350}
         schema={listCarouselInputSchema}
         defaultProps={stunningDefaultProps}
+      />
+      <Composition
+        id="UseCaseVerdictCarousel"
+        component={UseCaseVerdictComposition}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1080}
+        schema={useCaseVerdictInputSchema}
+        defaultProps={useCaseVerdictInputSchema.parse({
+          theme: "dark",
+          locale: "de",
+          slideIndex: 0,
+          websiteUrl: "toolwiki.ai",
+          instagramHandle: "@toolwiki.ai",
+          articleSlug: "recraft-vs-ideogram",
+          tools: [
+            { slug: "recraft", name: "Recraft", iconInitials: "RC", iconHue: 220 },
+            { slug: "ideogram", name: "Ideogram", iconInitials: "ID", iconHue: 280 },
+          ],
+          verdicts: [
+            { useCase: "Logo-Design", winner: "recraft", reason: "Präziser Vektor-Export." },
+            { useCase: "Text im Bild", winner: "ideogram", reason: "Lesbarere Schrift." },
+            { useCase: "Social Posts", winner: "recraft", reason: "Mehr Templates." },
+          ],
+        })}
       />
     </>
   );
