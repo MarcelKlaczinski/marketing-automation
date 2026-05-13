@@ -22,3 +22,6 @@ bun.lockb
 
 # Worker PID file (runtime artifact)
 tmp/worker.pid
+
+# Generated upload artifacts (hero images, social slides) — stored in R2, not git
+apps/api/uploads/
