@@ -1,4 +1,5 @@
 import activity from "./activity";
+import admin from "./admin";
 import brand from "./brand";
 import cornerstones from "./cornerstones";
 import gaps from "./gaps";
@@ -50,4 +51,5 @@ export default {
   gaps,
   social,
   brand,
+  admin,
 };

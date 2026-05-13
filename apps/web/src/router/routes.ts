@@ -82,6 +82,12 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: "admin/templates",
+        name: "admin-templates",
+        component: () => import("src/pages/admin/templates/TemplatesIndexPage.vue"),
+        meta: { requiresAuth: true, title: "Template Gallery" },
+      },
+      {
         path: "cost",
         name: "cost-dashboard",
         component: () => import("src/pages/CostDashboardPage.vue"),

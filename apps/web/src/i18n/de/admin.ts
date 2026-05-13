@@ -1,0 +1,22 @@
+export default {
+  templates: {
+    title: "Template Gallery",
+    reload: "Neu laden",
+    slideCount: "{n} Slides",
+    costPerRender: "~${cost}/Render",
+    dark: "Dark",
+    light: "Light",
+    render: "Rendern",
+    renderBoth: "Beide neu",
+    detail: "Detail",
+    loading: "Wird geladen…",
+    rendering: "Wird gerendert…",
+    slide: "Slide {n}",
+    caption: "Caption",
+    hashtags: "Hashtags ({n})",
+    fixture: "Fixture",
+    sampleArticle: "Echter Artikel",
+    selectArticle: "Artikel auswählen",
+    noEligibleArticles: "Keine passenden Artikel gefunden",
+  },
+};
