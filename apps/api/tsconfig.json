@@ -37,6 +37,7 @@
       "@marketing-auto/adapter-astro-sync/import": [
         "../../packages/adapters/astro-sync/src/import/index.ts"
       ],
+      "@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"],
       "@marketing-auto/pipelines/engine": ["../../packages/pipelines/src/engine/index.ts"]
     }
   },

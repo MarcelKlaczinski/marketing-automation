@@ -12,5 +12,4 @@
  *
  * Cache-bust: DELETE row in project_brand_assets, next call re-resolves.
  */
-export { resolveToolIcon } from "../../../packages/pipelines/src/_lib/resolve-tool-icon.ts";
-export type { ResolvedIcon } from "../../../packages/pipelines/src/_lib/resolve-tool-icon.ts";
+export { resolveToolIcon, type ResolvedIcon } from "@marketing-auto/pipelines";
