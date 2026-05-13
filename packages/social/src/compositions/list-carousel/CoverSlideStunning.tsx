@@ -129,6 +129,114 @@ function ToolLogosTopRight({
   );
 }
 
+/**
+ * Spec 51a-stunning-v2.1 follow-up — fills the lower half of the cover so the
+ * 4:5 (1080×1350) canvas does not run with ~600px of dead space below the
+ * promise block. Renders one chip per tool: icon on a dark card, name, and a
+ * one-line bestFor / tagline preview.
+ */
+function ToolPreviewRow({
+  tools,
+  themeMode,
+  brand,
+  fontFamily,
+}: {
+  tools: ListCarouselInput["tools"];
+  themeMode: "dark" | "light";
+  brand: string;
+  fontFamily: string;
+}) {
+  const display = tools.slice(0, 5);
+  if (display.length === 0) return null;
+  const cardBg = themeMode === "dark" ? "#1a2540" : "#0a1428";
+  const inkColor = themeMode === "dark" ? "#e9edf6" : "#0e1422";
+  const subColor = themeMode === "dark" ? "#a8b3c8" : "#475067";
+
+  return (
+    <div
+      style={{
+        marginTop: 56,
+        display: "flex",
+        flexDirection: "row",
+        gap: 14,
+        position: "relative",
+        zIndex: 2,
+      }}
+    >
+      {display.map((tool) => {
+        const sub = tool.bestFor ?? tool.tagline ?? "";
+        return (
+          <div
+            key={tool.slug}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+              gap: 10,
+              padding: "16px 14px",
+              borderRadius: 16,
+              background: `color-mix(in oklch, ${brand} 8%, transparent)`,
+              border: `1.5px solid color-mix(in oklch, ${brand} 35%, transparent)`,
+            }}
+          >
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 12,
+                background: cardBg,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 10,
+                boxSizing: "border-box",
+              }}
+            >
+              <ToolIconImage
+                {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
+                {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
+                {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
+                size={40}
+              />
+            </div>
+            <div
+              style={{
+                fontFamily,
+                fontSize: 22,
+                fontWeight: 800,
+                color: inkColor,
+                lineHeight: 1.1,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {tool.name}
+            </div>
+            {sub && (
+              <div
+                style={{
+                  fontFamily,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: subColor,
+                  lineHeight: 1.3,
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical" as const,
+                  overflow: "hidden",
+                }}
+              >
+                {sub}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PromiseBlockElement({
   line1,
   line2,
@@ -334,6 +442,14 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
               accentBarColor={coverColors.promiseAccentBar}
               line1Color={coverColors.promiseLine1}
               line2Color={coverColors.promiseLine2}
+              fontFamily={fontFamily}
+            />
+
+            {/* Tool preview — fills the lower-half of the 4:5 canvas */}
+            <ToolPreviewRow
+              tools={tools}
+              themeMode={input.theme}
+              brand={coverColors.hookHighlight}
               fontFamily={fontFamily}
             />
           </>

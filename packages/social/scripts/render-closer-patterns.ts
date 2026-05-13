@@ -68,19 +68,26 @@ const fiveTools = [
   { ...thirdTool, slug: "imagen", rank: 5, name: "Imagen", domain: "imagen.research.google", eyebrow: "05 · IMAGEN" },
 ];
 
-const sharedCover = {
-  eyebrow: "KI-BILDGENERATOREN",
-  headlineLead: "Recraft oder Ideogram?",
-  headlineHighlight: "Eines kann mehr.",
-  // Longer leadPhrase that, at 108px, would wrap to 2 lines and break the 3-line layout
-  hookOutput: {
+function buildHookOutput(toolCount: number) {
+  return {
     pattern: "superlative_question" as const,
     leadPhrase: "Welche KI generiert",
     highlightWord: "die besten Logos",
     trailPhrase: "wirklich?",
     fullText: "Welche KI generiert die besten Logos wirklich?",
-    promiseBlock: { line1: "Wir haben beide getestet.", line2: "Eine gewinnt klar." },
-  },
+    promiseBlock: {
+      line1: toolCount <= 2
+        ? "Wir haben beide getestet."
+        : `Alle ${toolCount} in der Praxis getestet.`,
+      line2: "Eine gewinnt klar.",
+    },
+  };
+}
+
+const sharedCoverBase = {
+  eyebrow: "KI-BILDGENERATOREN",
+  headlineLead: "Recraft oder Ideogram?",
+  headlineHighlight: "Eines kann mehr.",
 };
 
 const sharedEnd = {
@@ -96,7 +103,7 @@ const cases = [
       theme: "dark" as const,
       variant: "stunning" as const,
       slideIndex: 0,
-      cover: sharedCover,
+      cover: { ...sharedCoverBase, hookOutput: buildHookOutput(threeTools.length) },
       tools: threeTools,
       end: {
         ...sharedEnd,
@@ -116,7 +123,7 @@ const cases = [
       theme: "dark" as const,
       variant: "stunning" as const,
       slideIndex: 0,
-      cover: sharedCover,
+      cover: { ...sharedCoverBase, hookOutput: buildHookOutput(fiveTools.length) },
       tools: fiveTools,
       end: {
         ...sharedEnd,
@@ -136,7 +143,7 @@ const cases = [
       theme: "dark" as const,
       variant: "stunning" as const,
       slideIndex: 0,
-      cover: sharedCover,
+      cover: { ...sharedCoverBase, hookOutput: buildHookOutput(threeTools.length) },
       tools: threeTools,
       end: {
         ...sharedEnd,

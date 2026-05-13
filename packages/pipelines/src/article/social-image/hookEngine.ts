@@ -54,8 +54,10 @@ interface HookContext {
 }
 
 const PROMISE_TEMPLATES: Record<HookPattern, (ctx: HookContext) => PromiseBlock> = {
-  superlative_question: (_ctx) => ({
-    line1: "Wir haben beide getestet.",
+  superlative_question: (ctx) => ({
+    line1: ctx.toolCount <= 2
+      ? "Wir haben beide getestet."
+      : `Alle ${ctx.toolCount} in der Praxis getestet.`,
     line2: "Eine gewinnt klar.",
   }),
   number_promise: (ctx) => ({
