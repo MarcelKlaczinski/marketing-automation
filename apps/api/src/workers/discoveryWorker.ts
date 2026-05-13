@@ -113,10 +113,14 @@ async function handleRenderTemplateJob(templateRenderId: string): Promise<void> 
       .limit(1);
     if (!discovery) throw new Error(`Discovery not found for article ${render.articleId}`);
 
-    // Dynamic import — avoids bundling Remotion into non-render contexts
+    // Dynamic import — avoids bundling Remotion into non-render contexts.
+    // bootstrapTemplates() must be called here because this worker runs in a separate
+    // process from server.ts (which normally bootstraps at startup).
     const socialTemplates = await import("@marketing-auto/social/templates") as unknown as {
       templateRegistry: { getById: (key: string) => import("@marketing-auto/social/templates").TemplateDefinition };
+      bootstrapTemplates: () => void;
     };
+    socialTemplates.bootstrapTemplates();
 
     const template = socialTemplates.templateRegistry.getById(render.templateKey);
 
