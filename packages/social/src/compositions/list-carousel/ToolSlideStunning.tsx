@@ -298,9 +298,11 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
           );
         })()}
 
-        {/* Pricing chip */}
+        {/* Pricing chip — marginBottom lifts it off the footer so the slide
+            doesn't read footer-heavy. */}
         <div
           style={{
+            marginBottom: 60,
             border: `2px solid color-mix(in oklch, ${theme.brand} 25%, transparent)`,
             borderRadius: 16,
             padding: "4px",
