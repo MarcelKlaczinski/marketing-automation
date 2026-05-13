@@ -54,6 +54,13 @@ app.use("/uploads/*", async (c, next) => {
 });
 app.use("/uploads/*", serveStatic({ root: "./" }));
 
+// Render outputs — preview slides written by template preview API (Spec 54d)
+app.use("/renders/*", async (c, next) => {
+  if (c.req.path.includes("..")) return c.json({ ok: false, error: "Not Found" }, 404);
+  await next();
+});
+app.use("/renders/*", serveStatic({ root: "./" }));
+
 // Public routes
 app.route("/health", healthRoutes);
 app.route("/api/auth", authRoutes);
