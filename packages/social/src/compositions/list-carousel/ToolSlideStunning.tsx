@@ -96,11 +96,13 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         </span>
       </div>
 
-      {/* Center: Tool card — fills remaining space */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36, flex: 1 }}>
+      {/* Center: Tool card — fills remaining space.
+          Spec 51a-stunning-v2.1 follow-up: bigger fonts + extra For-you panel
+          so the 4:5 canvas reads dense instead of half-empty. */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 52, flex: 1 }}>
 
         {/* Icon (prominent) + Name row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
           {/* Larger icon with brand ring */}
           <div style={{ position: "relative" }}>
             <div
@@ -115,22 +117,23 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
               {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
               {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
               {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-              size={128}
+              size={144}
             />
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span
               style={{
                 fontFamily,
-                fontSize: 52,
+                fontSize: 64,
                 fontWeight: headingWeight,
                 color: theme.ink,
+                lineHeight: 1,
               }}
             >
               {tool.name}
             </span>
-            <span style={{ fontFamily, fontSize: 22, color: theme.inkMuted }}>
+            <span style={{ fontFamily, fontSize: 24, color: theme.inkMuted }}>
               {tool.domain}
             </span>
           </div>
@@ -146,19 +149,19 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         />
 
         {/* Best-for tag + Tagline with highlight word */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {tool.bestFor && (
             <span
               style={{
                 display: "inline-flex",
                 alignSelf: "flex-start",
-                padding: "4px 14px",
+                padding: "6px 18px",
                 borderRadius: 999,
                 background: `color-mix(in oklch, ${theme.brand} 15%, transparent)`,
                 border: `1px solid color-mix(in oklch, ${theme.brand} 40%, transparent)`,
                 fontFamily,
-                fontSize: 18,
-                fontWeight: 600,
+                fontSize: 20,
+                fontWeight: 700,
                 color: theme.brand,
                 letterSpacing: "0.04em",
                 textTransform: "uppercase" as const,
@@ -171,8 +174,8 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
             style={{
               margin: 0,
               fontFamily,
-              fontSize: 30,
-              lineHeight: 1.4,
+              fontSize: 36,
+              lineHeight: 1.35,
               color: theme.ink,
               fontWeight: 500,
             }}
@@ -182,28 +185,29 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         </div>
 
         {/* Strengths list — star first, then regular */}
-        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+        <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Star strength — prominent */}
           {starStrength && (
             <li
               style={{
                 display: "flex",
                 alignItems: "flex-start",
-                gap: 14,
+                gap: 18,
                 fontFamily,
-                fontSize: 30,
-                fontWeight: 700,
+                fontSize: 38,
+                fontWeight: 800,
                 color: theme.brand,
+                lineHeight: 1.2,
               }}
             >
               <span
                 style={{
-                  width: 14,
-                  height: 14,
+                  width: 16,
+                  height: 16,
                   borderRadius: "50%",
                   background: theme.brand,
                   flexShrink: 0,
-                  marginTop: 8,
+                  marginTop: 12,
                   boxShadow: `0 0 8px color-mix(in oklch, ${theme.brand} 60%, transparent)`,
                 }}
               />
@@ -218,20 +222,21 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
               style={{
                 display: "flex",
                 alignItems: "flex-start",
-                gap: 14,
+                gap: 18,
                 fontFamily,
-                fontSize: 24,
+                fontSize: 30,
                 color: theme.ink,
+                lineHeight: 1.25,
               }}
             >
               <span
                 style={{
-                  width: 10,
-                  height: 10,
+                  width: 12,
+                  height: 12,
                   borderRadius: "50%",
                   background: theme.accent,
                   flexShrink: 0,
-                  marginTop: 8,
+                  marginTop: 10,
                 }}
               />
               {s}
@@ -239,7 +244,39 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
           ))}
         </ul>
 
-        {/* Pricing chip — more prominent */}
+        {/* "Für dich, wenn du …" panel — surfaces the identityVerb enrichment
+            from Spec 51a-stunning-v2.1 §1.2. Falls through cleanly when absent. */}
+        {tool.identityVerb && (
+          <div
+            style={{
+              padding: "20px 24px",
+              borderRadius: 16,
+              background: `color-mix(in oklch, ${theme.brand} 10%, transparent)`,
+              borderLeft: `4px solid ${theme.brand}`,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <span
+              style={{
+                fontFamily,
+                fontSize: 16,
+                fontWeight: 700,
+                color: theme.inkMuted,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase" as const,
+              }}
+            >
+              Für dich, wenn du
+            </span>
+            <span style={{ fontFamily, fontSize: 30, fontWeight: 700, color: theme.ink }}>
+              {tool.identityVerb}.
+            </span>
+          </div>
+        )}
+
+        {/* Pricing chip */}
         <div
           style={{
             border: `2px solid color-mix(in oklch, ${theme.brand} 25%, transparent)`,
