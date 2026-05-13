@@ -29,10 +29,9 @@ function StunningBackground({ theme }: { theme: ThemeTokens }) {
 }
 
 // Tool logo floats — pattern-specific cluster in top-right corner
-function LogoFloats({ tools, pattern, theme }: {
+function LogoFloats({ tools, pattern }: {
   tools: ListCarouselInput["tools"];
   pattern: string;
-  theme: ThemeTokens;
 }) {
   if (pattern === "comparison") {
     // 2 logos prominent with slight overlap
@@ -153,7 +152,7 @@ function BigNumberDecoration({ n, brand, fontFamily }: { n: number; brand: strin
 }
 
 // Split the hook_trail to highlight the emphasis word
-function renderTrailWithEmphasis(trail: string, emphasisWord: string, brand: string, fontFamily: string, fontWeight: number): React.ReactNode {
+function renderTrailWithEmphasis(trail: string, emphasisWord: string, brand: string): React.ReactNode {
   if (!emphasisWord || !trail.toLowerCase().includes(emphasisWord.toLowerCase())) {
     return <span style={{ color: brand }}>{trail}</span>;
   }
@@ -197,21 +196,21 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
         padding: 80,
+        paddingBottom: 140,
         boxSizing: "border-box",
         overflow: "hidden",
       }}
     >
       <StunningBackground theme={theme} />
 
-      {/* Big number decoration (Number-Promise only) */}
-      {pattern === "number-promise" && (
+      {/* Big number decoration: Number-Promise (always) + Comparison with 2 tools (optional) */}
+      {(pattern === "number-promise" || (pattern === "comparison" && toolCount === 2)) && (
         <BigNumberDecoration n={toolCount} brand={theme.brand} fontFamily={fontFamily} />
       )}
 
       {/* Logo floats (top-right) */}
-      <LogoFloats tools={tools} pattern={pattern} theme={theme} />
+      <LogoFloats tools={tools} pattern={pattern} />
 
       {/* Top: Eyebrow */}
       <div style={{ position: "relative" }}>
@@ -223,13 +222,14 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         />
       </div>
 
-      {/* Center: Dramatic hook or editorial headline */}
+      {/* Center: Dramatic hook or editorial headline — fills remaining space */}
       <div
         style={{
           position: "relative",
           display: "flex",
           flexDirection: "column",
           gap: 0,
+          flex: 1,
           maxWidth: "68%", // leave room for logo floats
         }}
       >
@@ -261,7 +261,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                 marginTop: 8,
               }}
             >
-              {renderTrailWithEmphasis(hook.hookTrail, hook.hookEmphasisWord, theme.brand, fontFamily, headingWeight)}
+              {renderTrailWithEmphasis(hook.hookTrail, hook.hookEmphasisWord, theme.brand)}
             </div>
 
             {/* Save-prompt hint when save_trigger_intensity === 'high' */}
@@ -318,8 +318,8 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         )}
       </div>
 
-      {/* Bottom: Brand footer */}
-      <div style={{ position: "relative" }}>
+      {/* Footer: absolute so it never pushes content */}
+      <div style={{ position: "absolute", bottom: 80, left: 80, right: 80 }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}
           instagramHandle={brandTokens.social.instagramHandle}

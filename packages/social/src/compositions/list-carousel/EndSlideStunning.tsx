@@ -90,15 +90,15 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
         padding: 72,
+        paddingBottom: 140,
         boxSizing: "border-box",
       }}
     >
       <StunningEndBackground theme={theme} />
 
       {/* Top: Eyebrow */}
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", marginBottom: 48 }}>
         <Eyebrow
           text="ZUR VERTIEFUNG"
           theme={theme}
@@ -107,8 +107,8 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
         />
       </div>
 
-      {/* Center: Closer headline + action blocks */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36 }}>
+      {/* Center: Closer headline + action blocks — fills remaining space */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36, flex: 1 }}>
         {/* Closer headline — dramatic, engagement-triggering */}
         <div
           style={{
@@ -250,8 +250,8 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
         <ToolRecapStrip tools={tools} recap={end.toolRecap} theme={theme} fontFamily={fontFamily} />
       </div>
 
-      {/* Bottom: Brand footer */}
-      <div style={{ position: "relative" }}>
+      {/* Footer: absolute so it never pushes content */}
+      <div style={{ position: "absolute", bottom: 72, left: 72, right: 72 }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}
           instagramHandle={brandTokens.social.instagramHandle}

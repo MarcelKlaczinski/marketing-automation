@@ -29,7 +29,7 @@ export const useProjectContextStore = defineStore("projectContext", {
     async loadProjects() {
       this.loading = true;
       try {
-        const res = await api.get<{ ok: boolean; data: ProjectSummary[] }>("/api/projects");
+        const res = await api.get<{ ok: boolean; data: ProjectSummary[] }>("/projects");
         this.allProjects = res.data.data;
 
         // Validate persisted slug still exists

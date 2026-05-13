@@ -600,7 +600,11 @@
       "Bash(grep -rn 'api\\\\.\\\\\\(get\\\\|post\\\\|patch\\\\|delete\\\\\\).*`/' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/pages/)",
       "Bash(bun --filter @marketing-auto/social test)",
       "Bash(grep -E '^\\\\+.*$t\\\\\\(')",
-      "Bash(grep -E \"^\\\\+\\\\s*message:\\\\s*\\\\`.*\\\\$\\\\{\")"
+      "Bash(grep -E \"^\\\\+\\\\s*message:\\\\s*\\\\`.*\\\\$\\\\{\")",
+      "Bash(kill -TERM 73340)",
+      "Bash(ps -p 12118 -o lstart=)",
+      "Bash(grep -rn '`/api/' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/)",
+      "Bash(kill 24195)"
     ]
   }
 }

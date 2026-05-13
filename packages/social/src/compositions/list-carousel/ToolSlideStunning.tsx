@@ -20,7 +20,6 @@ function renderTaglineWithHighlight(
   tagline: string,
   keyDifferentiator: string | undefined,
   brand: string,
-  fontFamily: string
 ): React.ReactNode {
   if (!keyDifferentiator || !tagline.toLowerCase().includes(keyDifferentiator.toLowerCase())) {
     return tagline;
@@ -58,15 +57,15 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "space-between",
         padding: 72,
+        paddingBottom: 140,
         boxSizing: "border-box",
       }}
     >
       <BackgroundLayer theme={theme} />
 
       {/* Top: Rank badge + tool name eyebrow */}
-      <div style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 20 }}>
+      <div style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 20, marginBottom: 36 }}>
         {/* Rank badge — big, brand color */}
         <span
           style={{
@@ -97,8 +96,8 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         </span>
       </div>
 
-      {/* Center: Tool card */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36 }}>
+      {/* Center: Tool card — fills remaining space */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 36, flex: 1 }}>
 
         {/* Icon (prominent) + Name row */}
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
@@ -178,7 +177,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
               fontWeight: 500,
             }}
           >
-            {renderTaglineWithHighlight(tool.tagline, tool.keyDifferentiator, theme.brand, fontFamily)}
+            {renderTaglineWithHighlight(tool.tagline, tool.keyDifferentiator, theme.brand)}
           </p>
         </div>
 
@@ -253,8 +252,8 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         </div>
       </div>
 
-      {/* Bottom: Brand footer */}
-      <div style={{ position: "relative" }}>
+      {/* Footer: absolute so it never pushes content */}
+      <div style={{ position: "absolute", bottom: 72, left: 72, right: 72 }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}
           instagramHandle={brandTokens.social.instagramHandle}

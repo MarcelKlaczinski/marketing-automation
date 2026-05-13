@@ -115,6 +115,7 @@ const makeBaseInput = (overrides: Partial<{
   projectId: overrides.projectId ?? crypto.randomUUID(),
   projectSlug: "test-slug",
   theme: "dark" as const,
+  variant: "editorial" as const,
   articleTitle: overrides.articleTitle ?? "Die 5 besten KI-Tools",
   articleSlug: "ki-tools-test",
   bodyMd: "# Test\n\nArticle body with AI tools.",
@@ -312,7 +313,7 @@ describe("LoadArticleStep", () => {
   it("loads article and project from DB, returns correct output shape", async () => {
     const step = new LoadArticleStep();
     const out = await step.execute(
-      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "dark" },
+      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "dark", variant: "editorial" as const },
       mockCtx(sharedProjectId),
     );
 
@@ -332,7 +333,7 @@ describe("LoadArticleStep", () => {
     const step = new LoadArticleStep();
     await expect(
       step.execute(
-        { articleId: crypto.randomUUID(), projectId: sharedProjectId, theme: "dark" },
+        { articleId: crypto.randomUUID(), projectId: sharedProjectId, theme: "dark", variant: "editorial" as const },
         mockCtx(sharedProjectId),
       ),
     ).rejects.toThrow(/not found/i);
@@ -341,7 +342,7 @@ describe("LoadArticleStep", () => {
   it("respects theme=light in output", async () => {
     const step = new LoadArticleStep();
     const out = await step.execute(
-      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "light" },
+      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "light", variant: "editorial" as const },
       mockCtx(sharedProjectId),
     );
     expect(out.theme).toBe("light");
@@ -366,6 +367,7 @@ describe("ResolveAssetsStep", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
+      variant: "editorial" as const,
       articleTitle: "Die 5 besten KI-Tools",
       articleSlug: "ki-tools-social-test",
       bodyMd: "# Test",
@@ -474,6 +476,7 @@ describe("PersistSocialPostStep", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
+      variant: "editorial" as const,
       articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
       articleSlug: "ki-tools-social-test",
       bodyMd: "# Test",
@@ -568,6 +571,7 @@ describe.skipIf(!LIVE)("ExtractToolsStep (live LLM)", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
+      variant: "editorial" as const,
       articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
       articleSlug: "ki-tools-social-test",
       bodyMd: `# Die 5 besten KI-Bildgeneratoren 2026

@@ -166,6 +166,8 @@ export class ExtractToolsStep extends BaseStep<
 
   async execute(input: z.infer<typeof ExtractToolsInputSchema>, ctx: StepContext) {
     const isStunning = input.variant === "stunning";
+    // Pre-compute article type from title alone (tool count unknown before LLM parses)
+    const titleType = /\bvs\.?\b|\bgegen\b/.test(input.articleTitle.toLowerCase()) ? "comparison" : "listicle";
     const stunningSuffix = isStunning ? `
 
 STUNNING VARIANT — zusätzliche Felder pro Tool:
@@ -182,16 +184,18 @@ VOICE-CONSTRAINTS:
 - Keine Sensation: kein "!!!", kein "BEST", kein "TÖTEN"
 - Em-dash als Atemzeichen erlaubt
 
-HOOK-PATTERNS (wähle den stärksten basierend auf Article-Content):
-A — Comparison-Tension (wenn 2 Tools direkter Vergleich): "<Tool A> oder <Tool B>? — Eines kann mehr."
-B — Number-Promise (wenn 3+ Tools, konkretes Outcome): "Die {N} KI-Tools die deinen Workflow ersetzen."
+ARTICLE-TYPE: ${titleType}
+
+HOOK-PATTERNS (wähle basierend auf ARTICLE-TYPE):
+A — Comparison-Tension (ZWINGEND wenn ARTICLE-TYPE === 'comparison'): "<Tool A> oder <Tool B>? — Eines kann mehr."
+B — Number-Promise (nur wenn ARTICLE-TYPE === 'listicle', konkretes Outcome): "Die {N} KI-Tools die deinen Workflow ersetzen."
 C — Insider-Reveal: "Was Designer über Recraft nicht wussten."
 D — Problem-Recognition: "Frustriert von schlechten Logo-Tools? — Diese 3 ändern das."
 E — Save-Promise: "Speichere das: Die wichtigsten Bild-KIs 2026."
 
 REGELN für Hook:
-- hook_lead: max 8 Wörter
-- hook_trail: max 6 Wörter
+- hook_lead: max 8 Wörter (z.B. "Recraft oder Ideogram?" = 3 Wörter ✓)
+- hook_trail: max 6 Wörter (z.B. "Eines kann mehr." = 3 Wörter ✓)
 - hook_emphasis_word: 1-2 Wörter für Betonung
 - Kein ALL-CAPS in Lead/Trail
 - Kein Hype: kein "best", "killer", "ultimate", "mind-blowing", "game-changer"
@@ -318,6 +322,8 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       : (parsed.coverHeadlineLead ?? `Die ${tools.length} besten`);
 
     // ─── Hook validation + fallback (stunning only) ────────────────────────────
+    const articleType = detectArticleType(input.articleTitle, tools.length);
+
     let coverHook: z.infer<typeof coverHookSchema> | undefined;
     if (isStunning) {
       const rawHook = parsed.cover_hook;
@@ -337,13 +343,28 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
         }
       }
 
-      // Fallback: build a Number-Promise hook programmatically
+      // Pattern-override: if article is a comparison but LLM returned number-promise, force Pattern A
+      if (articleType === "comparison" && tools.length <= 3 && (!coverHook || coverHook.pattern === "number-promise")) {
+        const toolA = tools[0]?.name ?? "Tool A";
+        const toolB = tools[1]?.name ?? "Tool B";
+        log.info({ articleTitle: input.articleTitle, toolA, toolB }, "Overriding to comparison hook (Pattern A)");
+        coverHook = {
+          pattern: "comparison",
+          hookLead: `${toolA} oder ${toolB}?`,
+          hookTrail: "Eines kann mehr.",
+          hookEmphasisWord: "mehr",
+          saveTriggerIntensity: "medium",
+        };
+      }
+
+      // Fallback: build a hook programmatically, preserving category context
       if (!coverHook) {
-        log.warn({ articleTitle: input.articleTitle }, "Hook failed validation — using Number-Promise fallback");
+        const category = parsed.coverHeadlineHighlight ?? `${tools[0]?.name ?? "KI"}-Tools`;
+        log.warn({ articleTitle: input.articleTitle, articleType }, "Hook failed validation — using programmatic fallback");
         coverHook = {
           pattern: "number-promise",
           hookLead: `Die ${tools.length} besten`,
-          hookTrail: `${tools[0]?.name ?? "KI"}-Tools im Vergleich.`,
+          hookTrail: `${category} im Test.`,
           hookEmphasisWord: String(tools.length),
           saveTriggerIntensity: "medium",
         };
@@ -387,6 +408,26 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       endCloser,
     };
   }
+}
+
+// Classify article type from title + tool count so we can enforce the right hook pattern
+// regardless of what the LLM chooses.
+function detectArticleType(title: string, toolCount: number): "comparison" | "listicle" | "tutorial" | "reference" {
+  const t = title.toLowerCase();
+  // "X vs Y", "X gegen Y", "X oder Y" with 2-3 tools → comparison
+  if (toolCount <= 3 && (/\bvs\.?\b|\bgegen\b/.test(t) || (/ oder /.test(t) && toolCount <= 2))) {
+    return "comparison";
+  }
+  if (/^die\s+\d+\b|^top\s+\d+\b|\bbeste[nm]?\b.*\d+/.test(t) || toolCount >= 4) {
+    return "listicle";
+  }
+  if (/anleitung|tutorial|so funktioniert|how to/.test(t)) {
+    return "tutorial";
+  }
+  if (/vergleich|guide|überblick|cheat.?sheet/.test(t)) {
+    return "reference";
+  }
+  return toolCount <= 2 ? "comparison" : "listicle";
 }
 
 // Anti-hype guard — returns false if hook contains forbidden words or ALL-CAPS sequences

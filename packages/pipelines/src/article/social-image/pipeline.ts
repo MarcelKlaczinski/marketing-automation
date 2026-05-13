@@ -18,6 +18,7 @@ type PipelineInput = {
   articleId: string;
   projectId: string;
   theme: "dark" | "light";
+  variant: "editorial" | "stunning";
   preRunId?: string;
 };
 
@@ -25,6 +26,7 @@ const InputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
   theme: z.enum(["dark", "light"]).default("dark"),
+  variant: z.enum(["editorial", "stunning"]).default("editorial"),
   preRunId: z.string().uuid().optional(),
 }) as z.ZodType<PipelineInput>;
 
