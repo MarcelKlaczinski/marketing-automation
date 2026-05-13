@@ -4,6 +4,7 @@ import { Eyebrow } from "../../shared/Eyebrow.tsx";
 import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
 import type { ListCarouselInput } from "./types.ts";
+import { COVER_LAYOUT_V2 as L } from "./coverLayout.ts";
 
 type Props = {
   input: ListCarouselInput;
@@ -11,7 +12,6 @@ type Props = {
   totalSlides: number;
 };
 
-// Gradient mesh background — multi-layer radial for depth without overwhelming
 function StunningBackground({ theme }: { theme: ThemeTokens }) {
   return (
     <div
@@ -28,122 +28,32 @@ function StunningBackground({ theme }: { theme: ThemeTokens }) {
   );
 }
 
-// Tool logo floats — pattern-specific cluster in top-right corner
-function LogoFloats({ tools, pattern }: {
-  tools: ListCarouselInput["tools"];
-  pattern: string;
+function BigNumberAnchor({
+  n,
+  brand,
+  fontFamily,
+  isDark,
+}: {
+  n: number;
+  brand: string;
+  fontFamily: string;
+  isDark: boolean;
 }) {
-  if (pattern === "superlative_question") {
-    // 2 logos prominent with slight overlap
-    const a = tools[0];
-    const b = tools[1];
-    if (!a || !b) return null;
-    return (
-      <div style={{ position: "absolute", top: 72, right: 72, display: "flex", gap: -20, alignItems: "center" }}>
-        <div style={{ transform: "rotate(-6deg)", zIndex: 2 }}>
-          <ToolIconImage
-            {...(a.iconSvg !== undefined && { iconSvg: a.iconSvg })}
-            {...(a.iconInitials !== undefined && { initials: a.iconInitials })}
-            {...(a.iconHue !== undefined && { hue: a.iconHue })}
-            size={120}
-          />
-        </div>
-        <div style={{ transform: "rotate(5deg)", marginLeft: -24, zIndex: 1 }}>
-          <ToolIconImage
-            {...(b.iconSvg !== undefined && { iconSvg: b.iconSvg })}
-            {...(b.iconInitials !== undefined && { initials: b.iconInitials })}
-            {...(b.iconHue !== undefined && { hue: b.iconHue })}
-            size={120}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (pattern === "curiosity_gap") {
-    const a = tools[0];
-    if (!a) return null;
-    return (
-      <div style={{ position: "absolute", top: 72, right: 72, transform: "rotate(4deg)" }}>
-        <ToolIconImage
-          {...(a.iconSvg !== undefined && { iconSvg: a.iconSvg })}
-          {...(a.iconInitials !== undefined && { initials: a.iconInitials })}
-          {...(a.iconHue !== undefined && { hue: a.iconHue })}
-          size={140}
-        />
-      </div>
-    );
-  }
-
-  if (pattern === "number_promise" || pattern === "identity_frame") {
-    // Cluster of 3-5 logos in varying sizes
-    const cluster = tools.slice(0, Math.min(tools.length, 5));
-    const sizes = [80, 100, 70, 90, 65];
-    const rotations = [-8, 4, -3, 7, -5];
-    const positions = [
-      { top: 72, right: 180 },
-      { top: 80, right: 72 },
-      { top: 188, right: 100 },
-      { top: 160, right: 210 },
-      { top: 220, right: 72 },
-    ];
-    return (
-      <div style={{ position: "absolute", top: 0, right: 0, width: 320, height: 320 }}>
-        {cluster.map((tool, i) => {
-          const pos = positions[i] ?? { top: 72 + i * 40, right: 72 };
-          const size = sizes[i] ?? 80;
-          const rot = rotations[i] ?? 0;
-          return (
-            <div
-              key={tool.slug}
-              style={{ position: "absolute", top: pos.top, right: pos.right, transform: `rotate(${rot}deg)` }}
-            >
-              <ToolIconImage
-                {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
-                {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
-                {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-                size={size}
-              />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  // problem-recognition: 2-3 logos small, less prominent
-  const small = tools.slice(0, 3);
-  return (
-    <div style={{ position: "absolute", top: 72, right: 72, display: "flex", flexDirection: "column", gap: 12 }}>
-      {small.map((tool, i) => (
-        <div key={tool.slug} style={{ transform: `rotate(${i % 2 === 0 ? 4 : -4}deg)` }}>
-          <ToolIconImage
-            {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
-            {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
-            {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-            size={72}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Big background number decoration for Number-Promise pattern
-function BigNumberDecoration({ n, brand, fontFamily }: { n: number; brand: string; fontFamily: string }) {
+  const opacity = isDark ? L.bigNumberOpacityDark : L.bigNumberOpacityLight;
   return (
     <div
       style={{
         position: "absolute",
-        bottom: -60,
-        left: 40,
-        fontSize: 520,
-        fontWeight: 900,
+        bottom: L.bigNumberBottom,
+        left: L.bigNumberLeft,
+        fontSize: L.bigNumberFontSize,
+        fontWeight: L.bigNumberFontWeight,
         fontFamily,
         lineHeight: 1,
-        color: `color-mix(in oklch, ${brand} 7%, transparent)`,
+        color: `color-mix(in oklch, ${brand} ${Math.round(opacity * 100)}%, transparent)`,
         userSelect: "none",
         pointerEvents: "none",
+        zIndex: 0,
       }}
     >
       {n}
@@ -151,42 +61,119 @@ function BigNumberDecoration({ n, brand, fontFamily }: { n: number; brand: strin
   );
 }
 
-// Split the hook_trail to highlight the emphasis word
-function renderTrailWithEmphasis(trail: string, emphasisWord: string, brand: string): React.ReactNode {
-  if (!emphasisWord || !trail.toLowerCase().includes(emphasisWord.toLowerCase())) {
-    return <span style={{ color: brand }}>{trail}</span>;
-  }
-  const idx = trail.toLowerCase().indexOf(emphasisWord.toLowerCase());
-  const before = trail.slice(0, idx);
-  const match = trail.slice(idx, idx + emphasisWord.length);
-  const after = trail.slice(idx + emphasisWord.length);
+function ToolLogosTopRight({ tools }: { tools: ListCarouselInput["tools"] }) {
+  const logos = tools.slice(0, 4);
   return (
-    <span style={{ color: brand }}>
-      {before}
-      <span
+    <div
+      style={{
+        position: "absolute",
+        top: L.toolLogoTop,
+        right: L.toolLogoRight,
+        display: "flex",
+        flexDirection: "column",
+        gap: L.toolLogoGap,
+        zIndex: 2,
+      }}
+    >
+      {logos.map((tool, i) => (
+        <div
+          key={tool.slug}
+          style={{ transform: `rotate(${i % 2 === 0 ? -4 : 4}deg)` }}
+        >
+          <ToolIconImage
+            {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
+            {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
+            {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
+            size={L.toolLogoSize}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PromiseBlockElement({
+  line1,
+  line2,
+  accentBarColor,
+  line1Color,
+  line2Color,
+  fontFamily,
+}: {
+  line1: string;
+  line2: string;
+  accentBarColor: string;
+  line1Color: string;
+  line2Color: string;
+  fontFamily: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        gap: 0,
+        marginTop: 40,
+      }}
+    >
+      {/* Mint accent bar */}
+      <div
         style={{
-          color: brand,
-          textDecoration: "underline",
-          textDecorationColor: `color-mix(in oklch, ${brand} 70%, transparent)`,
-          textDecorationThickness: 3,
-          textUnderlineOffset: 8,
+          width: L.promiseBlockBarWidth,
+          minHeight: L.promiseBlockBarHeight,
+          background: accentBarColor,
+          borderRadius: 4,
+          flexShrink: 0,
+        }}
+      />
+      {/* Text lines */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: L.promiseLineGap,
+          paddingLeft: L.promiseBlockTextLeft,
+          justifyContent: "center",
         }}
       >
-        {match}
-      </span>
-      {after}
-    </span>
+        <div
+          style={{
+            fontFamily,
+            fontSize: L.promiseLineFontSize,
+            fontWeight: L.promiseLineFontWeight,
+            color: line1Color,
+            lineHeight: 1.2,
+          }}
+        >
+          {line1}
+        </div>
+        <div
+          style={{
+            fontFamily,
+            fontSize: L.promiseLineFontSize,
+            fontWeight: L.promiseLineFontWeight,
+            color: line2Color,
+            lineHeight: 1.2,
+          }}
+        >
+          {line2}
+        </div>
+      </div>
+    </div>
   );
 }
 
 export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
   const { cover, tools, brandTokens } = input;
-  const { fontFamily, headingWeight, eyebrowLetterSpacing } = brandTokens.typography;
-  const hook = cover.hookOutput;
-
-  // Determine pattern for decoration
-  const pattern = hook?.pattern ?? "number_promise";
+  const { fontFamily, eyebrowLetterSpacing } = brandTokens.typography;
+  const hookOutput = cover.hookOutput;
   const toolCount = tools.length;
+  const isDark = input.theme === "dark";
+
+  const promiseAccentColor = theme.accent;
+  const promiseLine1Color = theme.ink;
+  const promiseLine2Color = theme.accent;
 
   return (
     <div
@@ -196,7 +183,8 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         position: "relative",
         display: "flex",
         flexDirection: "column",
-        padding: 80,
+        padding: L.paddingX,
+        paddingTop: L.paddingY,
         paddingBottom: 140,
         boxSizing: "border-box",
         overflow: "hidden",
@@ -204,16 +192,19 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
     >
       <StunningBackground theme={theme} />
 
-      {/* Big number decoration behind hook */}
-      {(pattern === "number_promise" || pattern === "superlative_question") && (
-        <BigNumberDecoration n={toolCount} brand={theme.brand} fontFamily={fontFamily} />
-      )}
+      {/* BigNumber anchor — behind everything */}
+      <BigNumberAnchor
+        n={toolCount}
+        brand={theme.brand}
+        fontFamily={fontFamily}
+        isDark={isDark}
+      />
 
-      {/* Logo floats (top-right) */}
-      <LogoFloats tools={tools} pattern={pattern} />
+      {/* Tool logos — top-right, always shown */}
+      <ToolLogosTopRight tools={tools} />
 
-      {/* Top: Eyebrow */}
-      <div style={{ position: "relative" }}>
+      {/* Eyebrow — top-left */}
+      <div style={{ position: "relative", zIndex: 1 }}>
         <Eyebrow
           text={cover.eyebrow}
           theme={theme}
@@ -222,75 +213,97 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         />
       </div>
 
-      {/* Center: Dramatic hook or editorial headline — fills remaining space */}
+      {/* Main content: hook + promise-block */}
       <div
         style={{
           position: "relative",
+          zIndex: 1,
           display: "flex",
           flexDirection: "column",
-          gap: 0,
           flex: 1,
-          maxWidth: "68%", // leave room for logo floats
+          maxWidth: "70%",
+          marginTop: 40,
         }}
       >
-        {hook ? (
+        {hookOutput ? (
           <>
-            {/* Hook Lead — big, white */}
+            {/* Line 1: leadPhrase — base color */}
             <div
               style={{
                 fontFamily,
-                fontSize: 108,
-                fontWeight: 900,
-                lineHeight: 1.0,
+                fontSize: L.hookFontSize,
+                fontWeight: L.hookFontWeight,
+                lineHeight: L.hookLineHeight,
                 color: theme.ink,
                 letterSpacing: "-0.03em",
-                textWrap: "balance",
               } as React.CSSProperties}
             >
-              {hook.leadPhrase}
+              {hookOutput.leadPhrase}
             </div>
 
-            {/* Hook Trail — brand color, slightly smaller */}
+            {/* Line 2: highlightWord — brand color, no underline */}
             <div
               style={{
                 fontFamily,
-                fontSize: 88,
-                fontWeight: 900,
-                lineHeight: 1.0,
-                letterSpacing: "-0.02em",
-                marginTop: 8,
-              }}
+                fontSize: L.hookFontSize,
+                fontWeight: L.highlightFontWeight,
+                lineHeight: L.hookLineHeight,
+                color: theme.brand,
+                letterSpacing: "-0.03em",
+                marginTop: L.hookLineGap,
+              } as React.CSSProperties}
             >
-              {renderTrailWithEmphasis(hook.highlightWord, hook.trailPhrase, theme.brand)}
+              {hookOutput.highlightWord}
             </div>
 
-            {/* Save-prompt hint when save_trigger_intensity === 'high' */}
-            {hook.promiseBlock && (
+            {/* Line 3: trailPhrase — base color */}
+            <div
+              style={{
+                fontFamily,
+                fontSize: L.hookFontSize,
+                fontWeight: L.hookFontWeight,
+                lineHeight: L.hookLineHeight,
+                color: theme.ink,
+                letterSpacing: "-0.03em",
+                marginTop: L.hookLineGap,
+              } as React.CSSProperties}
+            >
+              {hookOutput.trailPhrase}
+            </div>
+
+            {/* Subline */}
+            {cover.subhead && (
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginTop: 32,
-                  padding: "10px 20px",
-                  background: `color-mix(in oklch, ${theme.accent} 12%, transparent)`,
-                  border: `1.5px solid color-mix(in oklch, ${theme.accent} 30%, transparent)`,
-                  borderRadius: 12,
-                  alignSelf: "flex-start",
+                  fontFamily,
+                  fontSize: L.sublineFontSize,
+                  fontWeight: L.sublineFontWeight,
+                  color: theme.inkMuted,
+                  marginTop: 24,
+                  letterSpacing: "0.01em",
                 }}
               >
-                <span style={{ fontSize: 22 }}>🔖</span>
-                <span style={{ fontFamily, fontSize: 20, fontWeight: 600, color: theme.accent }}>Speichern</span>
+                {cover.subhead}
               </div>
             )}
+
+            {/* Promise-Block */}
+            <PromiseBlockElement
+              line1={hookOutput.promiseBlock.line1}
+              line2={hookOutput.promiseBlock.line2}
+              accentBarColor={promiseAccentColor}
+              line1Color={promiseLine1Color}
+              line2Color={promiseLine2Color}
+              fontFamily={fontFamily}
+            />
           </>
         ) : (
-          // Editorial fallback for stunning (shouldn't happen, but safe)
+          /* Editorial headline fallback (if no hookOutput, e.g. old carousel re-render) */
           <div
             style={{
               fontFamily,
               fontSize: 96,
-              fontWeight: headingWeight,
+              fontWeight: L.hookFontWeight,
               lineHeight: 1.05,
               color: theme.ink,
             }}
@@ -300,26 +313,10 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
             {cover.headlineTrail && <span> {cover.headlineTrail}</span>}
           </div>
         )}
-
-        {/* Subhead */}
-        {cover.subhead && (
-          <p
-            style={{
-              margin: "20px 0 0",
-              fontFamily,
-              fontSize: 26,
-              color: theme.inkMuted,
-              fontWeight: 400,
-              letterSpacing: "0.01em",
-            }}
-          >
-            {cover.subhead}
-          </p>
-        )}
       </div>
 
-      {/* Footer: absolute so it never pushes content */}
-      <div style={{ position: "absolute", bottom: 80, left: 80, right: 80 }}>
+      {/* Footer: page indicator + brand */}
+      <div style={{ position: "absolute", bottom: 80, left: L.paddingX, right: L.paddingX, zIndex: 1 }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}
           instagramHandle={brandTokens.social.instagramHandle}
