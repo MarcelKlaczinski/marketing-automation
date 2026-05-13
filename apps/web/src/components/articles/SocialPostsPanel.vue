@@ -686,14 +686,12 @@ export default defineComponent({
 .ig-frame__img-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
   background: #000;
 }
 
 .ig-frame__img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
   display: block;
 }
 
