@@ -204,6 +204,20 @@
       "when": 1780600000000,
       "tag": "0028_article_discovery",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1780700000000,
+      "tag": "0029_template_renders",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1780800000000,
+      "tag": "0030_discovery_content_hash",
+      "breakpoints": true
     }
   ]
 }

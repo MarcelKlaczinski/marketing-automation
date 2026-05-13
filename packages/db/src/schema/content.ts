@@ -247,6 +247,9 @@ export const articles = pgTable(
   })
 );
 
+export type Article    = typeof articles.$inferSelect;
+export type NewArticle = typeof articles.$inferInsert;
+
 export const cornerstoneSpecs = pgTable(
   "cornerstone_specs",
   {
@@ -467,3 +470,94 @@ export const pipelineChains = pgTable(
     statusIdx:  index("pipeline_chains_status_idx").on(t.projectId, t.status),
   })
 );
+
+// ─── Spec 53c: Article Discovery ──────────────────────────────────────────────
+
+export type ArticleDiscoveryContentHooks = Record<string, unknown>;
+export type ArticleDiscoverySuggestedTemplates = Array<{ templateKey: string; confidence: number }>;
+
+export const articleDiscovery = pgTable(
+  "article_discovery",
+  {
+    id:        uuid("id").primaryKey().defaultRandom(),
+    articleId: uuid("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+
+    // Deterministic body/structure metrics (Phase 1)
+    wordCount:          integer("word_count"),
+    imageCount:         integer("image_count"),
+    headerCountH2:      integer("header_count_h2"),
+    headerCountH3:      integer("header_count_h3"),
+    headerSlugs:        text("header_slugs").array(),
+    paragraphCount:     integer("paragraph_count"),
+    linkCountInternal:  integer("link_count_internal"),
+    linkCountExternal:  integer("link_count_external"),
+    codeBlockCount:     integer("code_block_count"),
+    tableCount:         integer("table_count"),
+    listCountUl:        integer("list_count_ul"),
+    listCountOl:        integer("list_count_ol"),
+    hasAffiliateLinks:  boolean("has_affiliate_links"),
+
+    // Normalised cross-collection fields (Phase 1)
+    referencedTools:     text("referenced_tools").array(),
+    containerFormHint:   text("container_form_hint"),
+    completenessScore:   numeric("completeness_score", { precision: 4, scale: 3 }),
+    estimatedAngles:     integer("estimated_angles"),
+
+    // LLM-enriched fields (Phase 2, initially null)
+    contentHooks:       jsonb("content_hooks").$type<ArticleDiscoveryContentHooks>().notNull().default({}),
+    suggestedTemplates: jsonb("suggested_templates").$type<ArticleDiscoverySuggestedTemplates>().notNull().default([]),
+    narrativeArc:       text("narrative_arc"),
+    estimatedCarousels: integer("estimated_carousels"),
+
+    // Bookkeeping
+    enrichmentRunAt: timestamp("enrichment_run_at", { withTimezone: true }),
+    enrichmentMode:  text("enrichment_mode"),
+    createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:       timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    articleUnique:        uniqueIndex("article_discovery_article_id_unique").on(t.articleId),
+    containerFormIdx:     index("article_discovery_container_form_idx").on(t.containerFormHint),
+    enrichmentModeIdx:    index("article_discovery_enrichment_mode_idx").on(t.enrichmentMode),
+  })
+);
+
+export type ArticleDiscovery = typeof articleDiscovery.$inferSelect;
+export type NewArticleDiscovery = typeof articleDiscovery.$inferInsert;
+
+// ─── Spec 54a: Template Renders ───────────────────────────────────────────────
+
+export type TemplateRenderStatus = "pending" | "rendering" | "ready" | "failed";
+
+export type TemplateRenderOutputFiles = {
+  slides: Array<{ filePath: string; width: number; height: number }>;
+  caption: string;
+  hashtags: string[];
+};
+
+export const templateRenders = pgTable(
+  "template_renders",
+  {
+    id:          uuid("id").primaryKey().defaultRandom(),
+    articleId:   uuid("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+    templateKey: text("template_key").notNull(),
+    locale:      text("locale").notNull(),
+    theme:       text("theme").notNull(),
+    status:      text("status").$type<TemplateRenderStatus>().notNull().default("pending"),
+    renderInput: jsonb("render_input").$type<Record<string, unknown>>().notNull(),
+    outputFiles: jsonb("output_files").$type<TemplateRenderOutputFiles>(),
+    costUsd:     numeric("cost_usd", { precision: 8, scale: 4 }),
+    durationMs:  integer("duration_ms"),
+    error:       text("error"),
+    createdAt:   timestamp("created_at",   { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => ({
+    articleIdx:     index("template_renders_article_id_idx").on(t.articleId),
+    templateKeyIdx: index("template_renders_template_key_idx").on(t.templateKey),
+    statusIdx:      index("template_renders_status_idx").on(t.status),
+  })
+);
+
+export type TemplateRender    = typeof templateRenders.$inferSelect;
+export type NewTemplateRender = typeof templateRenders.$inferInsert;
