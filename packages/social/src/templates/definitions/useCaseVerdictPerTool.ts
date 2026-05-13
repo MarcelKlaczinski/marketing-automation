@@ -31,13 +31,7 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
         requirements: ["frontmatter.useCaseVerdicts.length >= 3"],
       };
     }
-    if (verdicts.length > 8) {
-      return {
-        eligible: false,
-        reason: "Mehr als 8 Use-Case-Verdicts — wäre zu lang für Carousel",
-        requirements: ["frontmatter.useCaseVerdicts.length <= 8"],
-      };
-    }
+
 
     const incomplete = verdicts.filter((v) => !v.winner || !v.reason);
     if (incomplete.length > 0) {
@@ -52,10 +46,12 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
   },
 
   buildInput: async (article, _discovery) => {
-    const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[] };
+    const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[]; useCaseVerdicts?: UseCaseVerdictItem[] };
     const locale = (article.locale ?? "de") as "de" | "en";
     const toolLookup = await buildToolLookup(extras.toolSlugs ?? [], locale, article.projectId);
-    return getComparisonContext(article, toolLookup);
+    const ctx = getComparisonContext(article, toolLookup);
+    // Cap at 8 — carousel would be too long beyond that; take the most impactful first 8
+    return { ...ctx, useCaseVerdicts: ctx.useCaseVerdicts.slice(0, 8) };
   },
 
   render: async (context) => {
