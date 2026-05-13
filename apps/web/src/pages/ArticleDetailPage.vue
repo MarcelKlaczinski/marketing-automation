@@ -53,6 +53,7 @@
             <q-tab name="history" :label="$t('articles.detail.tabs.history')" icon="history" />
             <q-tab name="validation" :label="$t('articles.detail.tabs.validation')" icon="task_alt" />
             <q-tab name="frontmatter" :label="$t('articles.detail.tabs.frontmatter') as string" icon="code" />
+            <q-tab name="social" :label="$t('articles.detail.tabs.social') as string" icon="instagram" />
           </q-tabs>
 
           <q-tab-panels v-model="activeTab" animated class="bg-transparent">
@@ -70,6 +71,9 @@
             </q-tab-panel>
             <q-tab-panel name="frontmatter" class="q-px-none">
               <ArticleFrontmatterPanel :detail="detail" />
+            </q-tab-panel>
+            <q-tab-panel name="social" class="q-px-none">
+              <SocialPostsPanel :article-id="id" />
             </q-tab-panel>
           </q-tab-panels>
         </div>
@@ -90,12 +94,13 @@ import ArticleFrontmatterPanel from "src/components/articles/ArticleFrontmatterP
 import ArticleHistoryPanel from "src/components/articles/ArticleHistoryPanel.vue";
 import ArticleMetadataPanel from "src/components/articles/ArticleMetadataPanel.vue";
 import ArticleValidationPanel from "src/components/articles/ArticleValidationPanel.vue";
+import SocialPostsPanel from "src/components/articles/SocialPostsPanel.vue";
 import { useArticlesStore } from "src/stores/articles";
 import { defineComponent } from "vue";
 
-type TabName = "body" | "metadata" | "history" | "validation" | "frontmatter";
+type TabName = "body" | "metadata" | "history" | "validation" | "frontmatter" | "social";
 
-const VALID_TABS: TabName[] = ["body", "metadata", "history", "validation", "frontmatter"];
+const VALID_TABS: TabName[] = ["body", "metadata", "history", "validation", "frontmatter", "social"];
 
 export default defineComponent({
   name: "ArticleDetailPage",
@@ -108,6 +113,7 @@ export default defineComponent({
     ArticleValidationPanel,
     ArticleActionPanel,
     ArticleFrontmatterPanel,
+    SocialPostsPanel,
   },
 
   props: {

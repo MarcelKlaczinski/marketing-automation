@@ -550,7 +550,23 @@
       "Bash(psql marketing_auto -c \"SELECT marketing_context_md FROM projects WHERE slug = 'toolwiki';\")",
       "Bash(psql -U postgres -d marketing_automation -c ' *)",
       "Bash(bun --filter @marketing-auto/adapter-anthropic test)",
-      "Bash(redis-cli KEYS \"*dfb98fcc*\")"
+      "Bash(redis-cli KEYS \"*dfb98fcc*\")",
+      "Bash(bun --filter @marketing-auto/api test --testPathPattern=\"brand-asset-service\")",
+      "Bash(node -e \"const p = require\\('path'\\); const r = p.resolve\\('/Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/lib/brand-asset-service.ts', '../../node_modules/@lobehub/icons-static-png'\\); console.log\\(r\\)\")",
+      "Bash(bun --filter @marketing-auto/api test --testPathPattern=\"social-posts|brand-asset\")",
+      "Bash(bun --env-file .env apps/api/src/scripts/seed-tool-icons.ts toolwiki)",
+      "Bash(curl -s \"http://localhost:3001/api/projects/toolwiki/articles/3958d208-5d31-44cf-9f65-6b19903e553a\")",
+      "Bash(curl -s \"http://localhost:3001/api/articles/3958d208-5d31-44cf-9f65-6b19903e553a\")",
+      "Bash(bun -e \"const data = await new Response\\(process.stdin\\).json\\(\\); console.log\\(JSON.stringify\\({title: data.data?.title, slug: data.data?.slug, status: data.data?.status, bodyLen: data.data?.body_md?.length}, null, 2\\)\\)\")",
+      "Bash(curl -s -X POST http://localhost:3001/api/articles/3958d208-5d31-44cf-9f65-6b19903e553a/social-posts/generate -H 'Content-Type: application/json' -d '{\"format\":\"list_carousel\",\"theme\":\"dark\"}')",
+      "Bash(curl -sv -X POST http://localhost:3001/api/articles/3958d208-5d31-44cf-9f65-6b19903e553a/social-posts/generate -H 'Content-Type: application/json' -H 'Cookie: ma_session=test' -d '{\"format\":\"list_carousel\",\"theme\":\"dark\"}')",
+      "Bash(pkill -f \"apps/api/src/workers/index.ts\")",
+      "Bash(node -e \"const g = require\\('@remotion/google-fonts'\\); console.log\\(Object.keys\\(g\\).filter\\(k => k.match\\(/space|syne|outfit|jakarta|grotesk/i\\)\\).join\\('\\\\n'\\)\\)\" --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/packages/social)",
+      "Bash(pkill -f \"apps/api/src/workers/index.ts\" 2>/dev/null; sleep 1; bun --env-file .env apps/api/src/workers/index.ts > /tmp/worker.log 2>&1 & sleep 2 && tail -2 /tmp/worker.log)",
+      "Bash(xargs dirname)",
+      "Bash(bun --filter @marketing-auto/social tsc --noEmit)",
+      "Bash(bun --filter \"@marketing-auto/web\" run tsc)",
+      "Bash(grep -n \"DO NOT use \\\\`\\\\.rowCount\\\\`\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)"
     ]
   }
 }

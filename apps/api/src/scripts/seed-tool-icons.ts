@@ -7,7 +7,7 @@
  *   bun --env-file ../../.env apps/api/src/scripts/seed-tool-icons.ts <project-slug>
  */
 
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db, articles, projects } from "@marketing-auto/db";
 import {
   findLobeIcon,
@@ -48,7 +48,7 @@ await upsertBrandAsset({
 console.log("✓ Logo (wordmark: toolwiki.ai) seeded");
 
 const toolArticles = await db.query.articles.findMany({
-  where: and(eq(articles.projectId, project.id), eq(articles.collectionType, "tool")),
+  where: eq(articles.projectId, project.id),
   columns: { slug: true, title: true },
 });
 
@@ -77,16 +77,7 @@ for (const article of toolArticles) {
     console.log(`  ✓ ${toolSlug} → lobe-icons/${lobeSlug}`);
     mapped++;
   } else {
-    await upsertBrandAsset({
-      projectId: project.id,
-      assetType: "tool_icon",
-      assetKey: toolSlug,
-      source: "deterministic-avatar",
-      displayName: article.title ?? toolSlug,
-      metadata: {},
-    });
-    // biome-ignore lint/suspicious/noConsoleLog: script output
-    console.log(`  ~ ${toolSlug} → deterministic-avatar (no lobe-icon found)`);
+    // No lobe-icon found — skip comparison/roundup articles silently
     fallback++;
   }
 }

@@ -67,6 +67,7 @@ export default {
       history: "Versionen",
       validation: "Validierung",
       frontmatter: "Frontmatter",
+      social: "Social",
     },
   },
 

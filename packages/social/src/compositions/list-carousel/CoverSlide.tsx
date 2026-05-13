@@ -28,7 +28,7 @@ export function CoverSlide({ input, theme, totalSlides }: Props) {
         boxSizing: "border-box",
       }}
     >
-      <BackgroundLayer theme={theme} />
+      <BackgroundLayer theme={theme} cover />
 
       {/* Top: Eyebrow */}
       <div style={{ position: "relative" }}>

@@ -23,6 +23,8 @@ const resolvedToolSchema = z.object({
   domain: z.string(),
   eyebrow: z.string(),
   tagline: z.string(),
+  bestFor: z.string().max(40).optional(),
+  emoji: z.string().optional(),
   strengths: z.array(z.string()),
   pricing: z.object({
     tier: z.enum(["free", "freemium", "paid"]),
@@ -113,6 +115,8 @@ const extractedToolSchema = z.object({
   slug: z.string(),
   domain: z.string(),
   tagline: z.string(),
+  bestFor: z.string().max(40).optional(),
+  emoji: z.string().optional(),
   strengths: z.array(z.string()).min(1).max(4),
   pricing: z.object({ tier: z.enum(["free", "freemium", "paid"]), label: z.string() }),
 });
@@ -147,12 +151,17 @@ Article URL: ${input.articleUrl}
 Article body (markdown):
 ${input.bodyMd.slice(0, 6000)}
 
+IMPORTANT for cover headlines: Base them on the ACTUAL tools you extract, not the article title.
+- If you extract N tools: coverHeadlineLead = "Die {N} besten", coverHeadlineHighlight = the category (e.g. "KI-Bild-Generatoren")
+- Do NOT use "X vs. Y" format even if the article title says so — a carousel shows a list, not a duel
+- coverEyebrow should reflect the category/topic, not the article title
+
 Return ONLY valid JSON (no markdown fences) with this exact shape:
 {
-  "coverEyebrow": "string up to 40 chars, e.g. 'AUSGABE 01 · KI-TOOLS'",
-  "coverHeadlineLead": "string up to 30 chars, e.g. 'Die 5 besten'",
-  "coverHeadlineHighlight": "string up to 40 chars, e.g. 'KI-Bild-Generatoren'",
-  "coverHeadlineTrail": "optional string up to 20 chars",
+  "coverEyebrow": "string up to 40 chars, e.g. 'KI-BILDGENERATOREN 2026'",
+  "coverHeadlineLead": "string up to 30 chars — MUST reflect tool count, e.g. 'Die 5 besten'",
+  "coverHeadlineHighlight": "string up to 40 chars — the tool category, e.g. 'KI-Bild-Generatoren'",
+  "coverHeadlineTrail": "optional string up to 20 chars, e.g. 'im Vergleich'",
   "coverSubhead": "optional string up to 80 chars",
   "endHeadline": "string up to 40 chars",
   "endHeadlineHighlight": "string up to 40 chars",
@@ -163,7 +172,9 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
       "slug": "tool-slug",
       "domain": "tool.com",
       "tagline": "one sentence, max 120 chars",
-      "strengths": ["strength 1", "strength 2", "strength 3"],
+      "bestFor": "short use-case label, max 40 chars, e.g. 'Foto-Editing' or 'Code-Generierung'",
+      "emoji": "single emoji that represents this tool's main use-case, e.g. 🎨 for image generation, 📝 for writing, 💻 for coding",
+      "strengths": ["strength 1", "strength 2", "strength 3", "optional strength 4"],
       "pricing": { "tier": "free|freemium|paid", "label": "ab X€/Monat" }
     }
   ]
@@ -196,20 +207,32 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       endHeadlineHighlight: string;
     };
 
+    const jsonStart = rawText.indexOf("{");
+    const jsonEnd = rawText.lastIndexOf("}");
+    const cleanText = jsonStart >= 0 && jsonEnd > jsonStart ? rawText.slice(jsonStart, jsonEnd + 1) : rawText;
     try {
-      parsed = JSON.parse(rawText);
+      parsed = JSON.parse(cleanText);
     } catch {
       throw new Error(`ExtractToolsStep: LLM returned invalid JSON: ${rawText.slice(0, 200)}`);
     }
 
     const tools = z.array(extractedToolSchema).min(1).max(10).parse(parsed.tools);
 
+    // If LLM still used "vs." pattern, override with count-based headline
+    const leadHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineLead ?? "");
+    const highlightHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineHighlight ?? "");
+    const coverHeadlineLead = leadHasVs || highlightHasVs
+      ? `Die ${tools.length} besten`
+      : (parsed.coverHeadlineLead ?? `Die ${tools.length} besten`);
+
     return {
       ...input,
       extractedTools: tools,
       coverEyebrow: parsed.coverEyebrow ?? `${input.articleTitle.toUpperCase()}`,
-      coverHeadlineLead: parsed.coverHeadlineLead ?? "Die besten",
-      coverHeadlineHighlight: parsed.coverHeadlineHighlight ?? input.articleTitle,
+      coverHeadlineLead,
+      coverHeadlineHighlight: (leadHasVs || highlightHasVs)
+        ? (parsed.coverHeadlineHighlight?.replace(/\s*vs\.?\s*/gi, " & ") ?? input.articleTitle)
+        : (parsed.coverHeadlineHighlight ?? input.articleTitle),
       coverHeadlineTrail: parsed.coverHeadlineTrail,
       coverSubhead: parsed.coverSubhead,
       endHeadline: parsed.endHeadline ?? "Mehr Reviews,",
@@ -244,7 +267,9 @@ export class ResolveAssetsStep extends BaseStep<
         return {
           ...tool,
           eyebrow: `${String(tool.rank).padStart(2, "0")} · ${tool.name.toUpperCase()}`,
-          iconUrl: icon.type === "path" ? `file://${icon.filePath}` : icon.type === "url" ? icon.url : undefined,
+          bestFor: tool.bestFor,
+          emoji: tool.emoji,
+          iconUrl: icon.type === "path" ? icon.filePath : icon.type === "url" ? icon.url : undefined,
           iconInitials: icon.type === "avatar" ? icon.initials : undefined,
           iconHue: icon.type === "avatar" ? icon.hue : undefined,
         };
@@ -375,7 +400,7 @@ export class GenerateCaptionStep extends BaseStep<
     const captionPrompt = `Write an Instagram caption in GERMAN for a carousel post about: "${input.articleTitle}"
 
 The post shows ${input.resolvedTools.length} AI tools in a visual list-carousel format.
-Brand voice: ${signaturePhrases}. Use "${addressForm}" form. No emojis. Max 300 characters.
+Brand voice: ${signaturePhrases}. Use "${addressForm}" form. Max 300 characters. Use 1-2 fitting emojis.
 End with: Link in Bio → ${input.articleUrl}
 
 Return ONLY the caption text, no JSON.`;

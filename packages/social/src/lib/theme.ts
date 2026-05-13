@@ -42,13 +42,13 @@ export function getThemeTokens(
     };
   }
   return {
-    bg:           c?.wikiCream  ?? LIGHT_DEFAULTS.wikiCream,
+    bg:           "#ffffff",
     surface:      c?.surface    ?? LIGHT_DEFAULTS.surface,
     ink:          c?.ink        ?? LIGHT_DEFAULTS.ink,
     inkMuted:     c?.inkMuted   ?? LIGHT_DEFAULTS.inkMuted,
     brand:        c?.primary    ?? LIGHT_DEFAULTS.primary,
     accent:       c?.accent     ?? LIGHT_DEFAULTS.accent,
-    eyebrowColor: "oklch(48% 0.14 248)",
+    eyebrowColor: c?.primary    ?? LIGHT_DEFAULTS.primary,
   };
 }
 

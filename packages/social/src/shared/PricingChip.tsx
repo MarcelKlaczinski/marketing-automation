@@ -5,6 +5,7 @@ type Props = {
   tier: "free" | "freemium" | "paid";
   label: string;
   fontFamily: string;
+  theme?: "dark" | "light";
 };
 
 function TierIcon({ tier, color }: { tier: Props["tier"]; color: string }) {
@@ -36,25 +37,54 @@ function TierIcon({ tier, color }: { tier: Props["tier"]; color: string }) {
   );
 }
 
-export function PricingChip({ tier, label, fontFamily }: Props) {
+const TIER_LABEL: Record<Props["tier"], string> = {
+  free: "Kostenlos",
+  freemium: "Freemium",
+  paid: "Kostenpflichtig",
+};
+
+export function PricingChip({ tier, label, fontFamily, theme = "dark" }: Props) {
   const color = pricingColor(tier);
+  const rightAlpha = theme === "light" ? "33" : "18"; // stronger tint on white bg
   return (
-    <span
+    <div
       style={{
         display: "inline-flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "6px 16px",
-        borderRadius: 999,
+        alignSelf: "flex-start",
+        alignItems: "stretch",
+        borderRadius: 14,
+        overflow: "hidden",
         border: `1.5px solid ${color}`,
-        color,
-        fontFamily,
-        fontSize: 17,
-        fontWeight: 600,
       }}
     >
-      <TierIcon tier={tier} color={color} />
-      {label}
-    </span>
+      {/* Left: tier badge */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "10px 18px",
+          background: color,
+        }}
+      >
+        <TierIcon tier={tier} color="#fff" />
+        <span style={{ fontFamily, fontSize: 16, fontWeight: 700, color: "#fff", letterSpacing: "0.04em" }}>
+          {TIER_LABEL[tier]}
+        </span>
+      </div>
+      {/* Right: price label */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "10px 20px",
+          background: `${color}${rightAlpha}`,
+        }}
+      >
+        <span style={{ fontFamily, fontSize: 18, fontWeight: 600, color }}>
+          {label}
+        </span>
+      </div>
+    </div>
   );
 }

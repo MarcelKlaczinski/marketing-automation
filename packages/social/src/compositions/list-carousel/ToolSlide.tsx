@@ -13,9 +13,10 @@ type Props = {
   slideNumber: number;
   totalSlides: number;
   theme: ThemeTokens;
+  themeMode: "dark" | "light";
 };
 
-export function ToolSlide({ input, tool, slideNumber, totalSlides, theme }: Props) {
+export function ToolSlide({ input, tool, slideNumber, totalSlides, theme, themeMode }: Props) {
   const { brandTokens } = input;
   const { fontFamily, headingWeight, eyebrowLetterSpacing } = brandTokens.typography;
 
@@ -53,6 +54,7 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme }: Prop
             iconUrl={tool.iconUrl}
             initials={tool.iconInitials}
             hue={tool.iconHue}
+            emoji={tool.emoji}
             size={96}
           />
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -76,24 +78,46 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme }: Prop
         <div
           style={{
             height: 1,
-            background: `${theme.inkMuted}44`,
+            background: `color-mix(in oklch, ${theme.inkMuted} 27%, transparent)`,
             width: "100%",
           }}
         />
 
-        {/* Tagline */}
-        <p
-          style={{
-            margin: 0,
-            fontFamily,
-            fontSize: 30,
-            lineHeight: 1.4,
-            color: theme.ink,
-            fontWeight: 500,
-          }}
-        >
-          {tool.tagline}
-        </p>
+        {/* Best-for tag + Tagline */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {tool.bestFor && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignSelf: "flex-start",
+                padding: "4px 14px",
+                borderRadius: 999,
+                background: `color-mix(in oklch, ${theme.brand} 15%, transparent)`,
+                border: `1px solid color-mix(in oklch, ${theme.brand} 40%, transparent)`,
+                fontFamily,
+                fontSize: 18,
+                fontWeight: 600,
+                color: theme.brand,
+                letterSpacing: "0.04em",
+                textTransform: "uppercase" as const,
+              }}
+            >
+              {tool.bestFor}
+            </span>
+          )}
+          <p
+            style={{
+              margin: 0,
+              fontFamily,
+              fontSize: 30,
+              lineHeight: 1.4,
+              color: theme.ink,
+              fontWeight: 500,
+            }}
+          >
+            {tool.tagline}
+          </p>
+        </div>
 
         {/* Strengths list */}
         <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -125,7 +149,7 @@ export function ToolSlide({ input, tool, slideNumber, totalSlides, theme }: Prop
         </ul>
 
         {/* Pricing chip */}
-        <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} />
+        <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} />
       </div>
 
       {/* Bottom: Brand footer */}

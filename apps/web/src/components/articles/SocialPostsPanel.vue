@@ -72,9 +72,9 @@
             :label="post.theme === 'dark' ? $t('social.darkTheme') : $t('social.lightTheme')"
           />
           <span class="post-card__slides">
-            {{ $t('social.slides', { n: post.total_slides ?? '?' }) }}
+            {{ $t('social.slides', { n: post.totalSlides ?? '?' }) }}
           </span>
-          <span class="post-card__time">{{ formatTime(post.generated_at ?? post.created_at) }}</span>
+          <span class="post-card__time">{{ formatTime(post.generatedAt ?? post.createdAt) }}</span>
         </div>
 
         <!-- Slide preview strip -->
@@ -102,26 +102,74 @@
       </div>
     </div>
 
-    <!-- Preview modal -->
+    <!-- Carousel preview modal -->
     <q-dialog v-model="previewOpen" maximized>
-      <q-card class="preview-modal">
-        <q-card-section class="preview-modal__header">
-          <q-btn flat round icon="close" @click="previewOpen = false" />
-        </q-card-section>
-        <q-card-section class="preview-modal__slides">
-          <img
-            v-for="(url, i) in previewSlideUrls"
-            :key="i"
-            :src="url"
-            class="preview-modal__slide"
-            alt=""
-          />
-        </q-card-section>
-        <q-card-section v-if="previewPost" class="preview-modal__caption">
-          <pre class="caption-text">{{ previewCaption }}</pre>
-          <div class="hashtags-text">{{ previewHashtags }}</div>
-        </q-card-section>
-      </q-card>
+      <div class="ig-overlay" @click.self="previewOpen = false" @keydown.left="prevSlide" @keydown.right="nextSlide" tabindex="0">
+
+        <!-- Close -->
+        <button class="ig-close" @click="previewOpen = false" :aria-label="$t('social.closePreview')">✕</button>
+
+        <!-- Left arrow -->
+        <button
+          v-if="previewSlideUrls.length > 1 && previewSlideIndex > 0"
+          class="ig-arrow ig-arrow--left"
+          @click="prevSlide"
+          :aria-label="$t('social.prevSlide')"
+        >‹</button>
+
+        <!-- Center: phone frame + slide -->
+        <div class="ig-frame">
+          <!-- Instagram-style header -->
+          <div class="ig-frame__header">
+            <div class="ig-frame__avatar">{{ $t('social.igAvatarInitials') }}</div>
+            <div class="ig-frame__meta">
+              <span class="ig-frame__handle">{{ $t('social.igHandle') }}</span>
+              <span class="ig-frame__sub">{{ $t('social.sponsored') }}</span>
+            </div>
+            <span class="ig-frame__dots">•••</span>
+          </div>
+
+          <!-- Slide image -->
+          <div class="ig-frame__img-wrap">
+            <img
+              v-if="previewSlideUrls[previewSlideIndex]"
+              :src="previewSlideUrls[previewSlideIndex]"
+              class="ig-frame__img"
+              alt=""
+            />
+            <!-- Dot indicators -->
+            <div v-if="previewSlideUrls.length > 1" class="ig-dots">
+              <span
+                v-for="(_, i) in previewSlideUrls"
+                :key="i"
+                :class="['ig-dot', { 'ig-dot--active': i === previewSlideIndex }]"
+              />
+            </div>
+          </div>
+
+          <!-- Instagram-style actions -->
+          <div class="ig-frame__actions">
+            <span class="ig-frame__action-icon">♡</span>
+            <span class="ig-frame__action-icon">💬</span>
+            <span class="ig-frame__action-icon">↗</span>
+            <span class="ig-frame__action-icon ig-frame__action-icon--right">🔖</span>
+          </div>
+
+          <!-- Caption -->
+          <div class="ig-frame__caption">
+            <span class="ig-frame__caption-handle">{{ $t('social.igHandle') }} </span>{{ previewCaption }}
+          </div>
+          <div class="ig-frame__hashtags">{{ previewHashtags }}</div>
+        </div>
+
+        <!-- Right arrow -->
+        <button
+          v-if="previewSlideUrls.length > 1 && previewSlideIndex < previewSlideUrls.length - 1"
+          class="ig-arrow ig-arrow--right"
+          @click="nextSlide"
+          :aria-label="$t('social.nextSlide')"
+        >›</button>
+      </div>
     </q-dialog>
   </div>
 </template>
@@ -132,20 +180,20 @@ import { api } from "../../lib/api-client";
 
 interface SocialPost {
   id: string;
-  article_id: string | null;
+  articleId: string | null;
   platform: string;
   format: string;
   theme: string;
   status: string;
-  total_slides: number | null;
+  totalSlides: number | null;
   content: {
     kind: string;
     slides?: Array<{ imageUrl: string }>;
     caption?: string;
     hashtags?: string[];
   };
-  generated_at: string | null;
-  created_at: string;
+  generatedAt: string | null;
+  createdAt: string;
 }
 
 export default defineComponent({
@@ -165,6 +213,7 @@ export default defineComponent({
     posts: [] as SocialPost[],
     previewOpen: false,
     previewPost: null as SocialPost | null,
+    previewSlideIndex: 0,
     pollingTimer: null as ReturnType<typeof setInterval> | null,
   }),
 
@@ -246,7 +295,16 @@ export default defineComponent({
 
     onPreview(post: SocialPost) {
       this.previewPost = post;
+      this.previewSlideIndex = 0;
       this.previewOpen = true;
+    },
+
+    prevSlide() {
+      if (this.previewSlideIndex > 0) this.previewSlideIndex--;
+    },
+
+    nextSlide() {
+      if (this.previewSlideIndex < this.previewSlideUrls.length - 1) this.previewSlideIndex++;
     },
 
     async onDownload(post: SocialPost) {
@@ -417,46 +475,183 @@ export default defineComponent({
   padding: 0;
 }
 
-.preview-modal {
+.ig-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.ig-close {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  z-index: 10;
+  line-height: 1;
+  opacity: 0.8;
+}
+.ig-close:hover { opacity: 1; }
+
+.ig-arrow {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255,255,255,0.12);
+  border: none;
+  color: #fff;
+  font-size: 36px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s;
+  z-index: 10;
+}
+.ig-arrow--left  { left:  calc(50% - 240px); }
+.ig-arrow--right { right: calc(50% - 240px); }
+.ig-arrow:hover { background: rgba(255,255,255,0.22); }
+
+/* Phone frame */
+.ig-frame {
+  width: 400px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: 100%;
-}
-
-.preview-modal__header {
-  display: flex;
-  justify-content: flex-end;
-  padding: 8px;
-}
-
-.preview-modal__slides {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  max-height: 90vh;
   overflow-y: auto;
-  padding: 16px;
 }
 
-.preview-modal__slide {
-  width: calc(50% - 6px);
-  max-width: 360px;
-  border-radius: 8px;
+.ig-frame__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #efefef;
 }
 
-.preview-modal__caption {
-  padding: 16px;
-  border-top: 1px solid var(--q-separator-color);
+.ig-frame__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #405de6, #5851db, #833ab4, #c13584, #e1306c, #fd1d1d, #f56040, #f77737, #fcaf45, #ffdc80);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
 }
 
-.caption-text {
+.ig-frame__meta {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.ig-frame__handle {
   font-size: 13px;
-  white-space: pre-wrap;
-  margin: 0 0 8px;
+  font-weight: 600;
+  color: #000;
+  line-height: 1.2;
 }
 
-.hashtags-text {
+.ig-frame__sub {
+  font-size: 11px;
+  color: #8e8e8e;
+  line-height: 1.2;
+}
+
+.ig-frame__dots {
+  font-size: 18px;
+  color: #000;
+  letter-spacing: 1px;
+}
+
+.ig-frame__img-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  background: #000;
+}
+
+.ig-frame__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ig-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+}
+
+.ig-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+  transition: background 0.2s, transform 0.2s;
+}
+
+.ig-dot--active {
+  background: #fff;
+  transform: scale(1.2);
+}
+
+.ig-frame__actions {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  gap: 14px;
+}
+
+.ig-frame__action-icon {
+  font-size: 22px;
+  cursor: default;
+  line-height: 1;
+}
+
+.ig-frame__action-icon--right {
+  margin-left: auto;
+}
+
+.ig-frame__caption {
+  padding: 0 14px 4px;
+  font-size: 13px;
+  color: #000;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.ig-frame__caption-handle {
+  font-weight: 600;
+}
+
+.ig-frame__hashtags {
+  padding: 2px 14px 14px;
   font-size: 12px;
-  color: var(--q-primary);
+  color: #00376b;
   word-break: break-word;
+  line-height: 1.6;
 }
 </style>

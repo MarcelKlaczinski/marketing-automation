@@ -542,7 +542,10 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation/.claude/worktrees/magical-hamilton-4c9224 add packages/adapters/anthropic/src/client.ts packages/cost-tracker/src/pricing.ts packages/cost-tracker/test/cost-tracker.test.ts)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation/.claude/worktrees/magical-hamilton-4c9224 commit -m ' *)",
       "Bash(gh auth *)",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation merge --no-ff claude/magical-hamilton-4c9224 -m ' *)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation merge --no-ff claude/magical-hamilton-4c9224 -m ' *)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline origin/claude/magical-hamilton-4c9224)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation log --oneline origin/master)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation fetch origin)"
     ]
   }
 }

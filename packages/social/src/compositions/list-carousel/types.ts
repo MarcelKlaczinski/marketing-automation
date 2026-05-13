@@ -47,6 +47,7 @@ const toolSchema = z.object({
   domain: z.string(),
   eyebrow: z.string().max(40),
   tagline: z.string().max(120),
+  bestFor: z.string().max(40).optional(),
   strengths: z.array(z.string()).min(2).max(4),
   pricing: z.object({
     tier: z.enum(["free", "freemium", "paid"]),
@@ -56,6 +57,7 @@ const toolSchema = z.object({
   iconUrl: z.string().optional(), // file path or URL; undefined → initials avatar
   iconInitials: z.string().optional(),
   iconHue: z.number().optional(),
+  emoji: z.string().optional(),
 });
 
 export type Tool = z.infer<typeof toolSchema>;

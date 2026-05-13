@@ -21,4 +21,10 @@ export default {
   generatedAt: "Generiert {time}",
   darkTheme: "Dunkel",
   lightTheme: "Hell",
+  sponsored: "Gesponsert",
+  igHandle: "toolwiki.ai",
+  igAvatarInitials: "TW",
+  closePreview: "Vorschau schließen",
+  prevSlide: "Vorherige Slide",
+  nextSlide: "Nächste Slide",
 };

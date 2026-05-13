@@ -241,6 +241,7 @@
         "@lobehub/icons-static-png": "^1.90.0",
         "@remotion/bundler": "^4.0.290",
         "@remotion/cli": "^4.0.290",
+        "@remotion/google-fonts": "^4.0.460",
         "@remotion/renderer": "^4.0.290",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -815,6 +816,8 @@
     "@remotion/compositor-linux-x64-musl": ["@remotion/compositor-linux-x64-musl@4.0.460", "", { "os": "linux", "cpu": "x64" }, "sha512-ATZWbWUEQFvZx+yIPnqt6F91Be5ZiEW9FZ/W4NNCtXYBTHstjQv+1nEJ3g9qg8ZKUHWKkAph+Sw00kgVa4LuWw=="],
 
     "@remotion/compositor-win32-x64-msvc": ["@remotion/compositor-win32-x64-msvc@4.0.460", "", { "os": "win32", "cpu": "x64" }, "sha512-2GtcdaJi+xwiwcQJAnLk+yTEvcZyI/jt3EMGsBkQe+g4Co1p91+8o+tCPtZHks6RB76mVbXSaG2bhF5HuPEPag=="],
+
+    "@remotion/google-fonts": ["@remotion/google-fonts@4.0.460", "", { "dependencies": { "remotion": "4.0.460" } }, "sha512-bg75TaBz/RKAtalpjj4cReaYph9h6McmgpfH6GmT95jfYQGkVqxGKaJwulU1HPxDwuzNvFNdZaTRIVx9tCVXFg=="],
 
     "@remotion/licensing": ["@remotion/licensing@4.0.460", "", {}, "sha512-du+XQauvSWNQr/6BE0YW6idPFLguo1N+D311bPAcAjEEuN0Yo4YqxYTapeJzPAwQzbBYMGbSlUAcJaDBOG46Mw=="],
 

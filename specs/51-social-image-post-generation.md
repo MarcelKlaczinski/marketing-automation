@@ -669,33 +669,33 @@ ACCEPTANCE
 ═══════════════════════════════════════════════════════════════════
 
 PHASE A:
-- [ ] Migration 0025 (project_brand_assets) applied
-- [ ] projects.brand_tokens column added + toolwiki seeded
-- [ ] @lobehub/icons-static-png installed
-- [ ] brand-asset-service.ts with resolveToolIcon + getBrandTokens
-- [ ] seed-tool-icons.ts script seeds assets for toolwiki tools
-- [ ] 4+ tests for brand-asset-service pass
+- [x] Migration 0025 (project_brand_assets) applied
+- [x] projects.brand_tokens column added + toolwiki seeded
+- [x] @lobehub/icons-static-png installed
+- [x] brand-asset-service.ts with resolveToolIcon + getBrandTokens
+- [x] seed-tool-icons.ts script seeds assets for toolwiki tools
+- [x] 4+ tests for brand-asset-service pass (covered in social-image-pipeline.test.ts via ResolveAssetsStep)
 
 PHASE B:
-- [ ] packages/social workspace created
-- [ ] List-Carousel composition with Cover/Tool/End slides
-- [ ] Dark + Light themes working
-- [ ] render-server.renderListCarousel returns N PNG buffers
-- [ ] article:social-image pipeline runs end-to-end
-- [ ] Migration 0026 (social_posts) applied
-- [ ] API endpoints for generate + list + download-bundle
-- [ ] SocialPostsPanel.vue with format/theme picker + Generate-Button
-- [ ] i18n DE+EN
-- [ ] 6+ tests pass
+- [x] packages/social workspace created
+- [x] List-Carousel composition with Cover/Tool/End slides
+- [x] Dark + Light themes working
+- [x] render-server.renderListCarousel returns N PNG buffers
+- [x] article:social-image pipeline runs end-to-end
+- [x] Migration 0026 (social_posts) applied
+- [x] API endpoints for generate + list + download-bundle
+- [x] SocialPostsPanel.vue with format/theme picker + Generate-Button
+- [x] i18n DE+EN
+- [x] 6+ tests pass (13 pipeline + 13 social + 2 API = 28 non-live tests)
 
 PRODUCTION-READINESS:
-- [ ] Manual test: generate 1 carousel for existing toolwiki article
-- [ ] Cost actually ~$0.03 (not $0.10+)
-- [ ] Visual review: 7 slides look on-brand
-- [ ] Download bundle works
-- [ ] Worker-restart documented
-- [ ] Branch: feature/social-image-posts
-- [ ] 8-10 granular commits
+- [x] Manual test: generate 1 carousel for existing toolwiki article
+- [x] Cost actually ~$0.03 (not $0.10+)
+- [x] Visual review: slides look on-brand (dark + light, SpaceGrotesk, mesh gradient)
+- [x] Download bundle works
+- [x] Worker-restart documented (apps/api/CLAUDE.md)
+- [ ] Branch: feature/social-image-posts (developed on master)
+- [ ] 8-10 granular commits (rolled up into master)
 
 ═══════════════════════════════════════════════════════════════════
 ESTIMATED EFFORT
@@ -766,4 +766,15 @@ audit/SOCIAL_IMAGE_POSTS_PHASE_A_B.md:
 - Marcel review notes
 
 ## Deviations from Spec
-- ...
+
+- **Font**: Spec called for `Inter Variable`. Remotion's headless Chromium does not have web-safe or custom system fonts. Switched to `SpaceGrotesk` via `@remotion/google-fonts/SpaceGrotesk` — visually similar weight/feel, actually renders in headless Chrome.
+
+- **Light theme background**: Spec specified `wikiCream (#fef9ec)`. Changed to `#ffffff` (white) on Marcel's request — looks cleaner and makes brand colors more prominent on a neutral base.
+
+- **IG preview in UI**: Spec specified a basic carousel preview modal. Implemented a full Instagram-mockup frame (gradient avatar, handle, slide image, dot indicators, action icons, caption, hashtags) to give an accurate WYSIWYG feel before download.
+
+- **`resolveIconUrls()` base64 step**: Spec's `render-server.ts` pseudocode passed `iconUrl` strings directly. In practice, local file paths are unreachable from Remotion's localhost bundle — added `resolveIconUrls()` which reads each local PNG and converts it to a `data:` URI before rendering.
+
+- **LLM JSON extraction**: Spec assumed LLM would return clean JSON. In practice Haiku wraps JSON in markdown fences (` ```json ... ``` `). Extraction uses `indexOf('{')` / `lastIndexOf('}')` rather than regex fence stripping for robustness.
+
+- **Cover hallucination guard**: Added "vs." detection in `ExtractToolsStep` — when the LLM uses an article title like "Recraft vs. Ideogram" as the cover headline despite 5+ tools being extracted, a programmatic override replaces it with `"Die N besten"`. Prompt reinforcement alone was insufficient.
