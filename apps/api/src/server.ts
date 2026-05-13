@@ -1,4 +1,5 @@
 import { createLogger, getEnv } from "@marketing-auto/shared";
+import { bootstrapTemplates } from "@marketing-auto/social/templates";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -24,6 +25,8 @@ import { brandTokenRoutes } from "./routes/brand-tokens.ts";
 
 const env = getEnv();
 const log = createLogger("api");
+
+bootstrapTemplates();
 
 const app = new Hono();
 
