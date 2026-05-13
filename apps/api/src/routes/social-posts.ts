@@ -457,7 +457,14 @@ socialPostRoutes.post(
     const body = c.req.valid("json");
 
     const [article] = await db
-      .select({ id: articles.id, projectId: articles.projectId })
+      .select({
+        id: articles.id,
+        projectId: articles.projectId,
+        slug: articles.slug,
+        collection: articles.collection,
+        locale: articles.locale,
+        frontmatterExtras: articles.frontmatterExtras,
+      })
       .from(articles)
       .where(eq(articles.id, articleId))
       .limit(1);
