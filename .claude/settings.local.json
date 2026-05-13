@@ -566,7 +566,18 @@
       "Bash(xargs dirname)",
       "Bash(bun --filter @marketing-auto/social tsc --noEmit)",
       "Bash(bun --filter \"@marketing-auto/web\" run tsc)",
-      "Bash(grep -n \"DO NOT use \\\\`\\\\.rowCount\\\\`\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)"
+      "Bash(grep -n \"DO NOT use \\\\`\\\\.rowCount\\\\`\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)",
+      "Bash(git config *)",
+      "Bash(security find-internet-password *)",
+      "Bash(ssh -T git@github.com)",
+      "Bash(git rev-list *)",
+      "Bash(git cat-file *)",
+      "Bash(awk '/^blob/ {print $3, $4}')",
+      "Bash(pip3 show *)",
+      "Bash(git filter-branch *)",
+      "Bash(git gc *)",
+      "Bash(git count-objects *)",
+      "Bash(git push *)"
     ]
   }
 }
