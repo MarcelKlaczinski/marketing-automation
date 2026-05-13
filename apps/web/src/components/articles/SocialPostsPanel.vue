@@ -308,13 +308,18 @@ export default defineComponent({
     },
 
     async onDownload(post: SocialPost) {
-      const url = `/api/social-posts/${post.id}/download-bundle`;
+      const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
+      const resp = await fetch(`${base}/social-posts/${post.id}/download-bundle`, { credentials: "include" });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = blobUrl;
       a.download = `carousel-${post.id}.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
     },
   },
 });
