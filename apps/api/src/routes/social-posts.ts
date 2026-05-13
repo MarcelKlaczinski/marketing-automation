@@ -3,6 +3,7 @@ import { articles, db, socialPosts } from "@marketing-auto/db";
 import { enqueueSocialImagePipeline } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { desc, eq } from "drizzle-orm";
+import { zipSync } from "fflate";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
@@ -145,8 +146,11 @@ socialPostDetailRoutes.get("/:id/download-bundle", async (c) => {
     data: Buffer.from(content.hashtags.join("\n"), "utf-8"),
   });
 
-  // Build ZIP manually (simple stored ZIP, no compression)
-  const zip = buildZip(buffers);
+  const zipEntries: Record<string, Uint8Array> = {};
+  for (const { name, data } of buffers) {
+    zipEntries[name] = new Uint8Array(data);
+  }
+  const zip = zipSync(zipEntries, { level: 0 });
 
   const [article] = await db
     .select({ slug: articles.slug })
@@ -165,107 +169,3 @@ socialPostDetailRoutes.get("/:id/download-bundle", async (c) => {
   });
 });
 
-// ─── Minimal stored ZIP builder ───────────────────────────────────────────────
-
-function buildZip(files: { name: string; data: Buffer }[]): Uint8Array {
-  // Uses Bun.ArrayBufferSink for concatenation
-  // Implements ZIP spec (PKZIP stored, no compression) for compatibility
-  const localHeaders: { offset: number; name: string; crc: number; size: number }[] = [];
-  const parts: Buffer[] = [];
-  let offset = 0;
-
-  for (const file of files) {
-    const nameBytes = Buffer.from(file.name, "utf-8");
-    const crc = crc32(file.data);
-    const size = file.data.length;
-
-    // Local file header
-    const lh = Buffer.alloc(30 + nameBytes.length);
-    lh.writeUInt32LE(0x04034b50, 0);  // signature
-    lh.writeUInt16LE(20, 4);           // version needed
-    lh.writeUInt16LE(0, 6);            // flags
-    lh.writeUInt16LE(0, 8);            // compression: stored
-    lh.writeUInt16LE(0, 10);           // mod time
-    lh.writeUInt16LE(0, 12);           // mod date
-    lh.writeUInt32LE(crc, 14);         // crc-32
-    lh.writeUInt32LE(size, 18);        // compressed size
-    lh.writeUInt32LE(size, 22);        // uncompressed size
-    lh.writeUInt16LE(nameBytes.length, 26);
-    lh.writeUInt16LE(0, 28);
-    nameBytes.copy(lh, 30);
-
-    localHeaders.push({ offset, name: file.name, crc, size });
-    parts.push(lh, file.data);
-    offset += lh.length + size;
-  }
-
-  const cdOffset = offset;
-  const cdParts: Buffer[] = [];
-
-  for (const { offset: lhOffset, name, crc, size } of localHeaders) {
-    const nameBytes = Buffer.from(name, "utf-8");
-    const cd = Buffer.alloc(46 + nameBytes.length);
-    cd.writeUInt32LE(0x02014b50, 0);   // central dir signature
-    cd.writeUInt16LE(20, 4);            // version made by
-    cd.writeUInt16LE(20, 6);            // version needed
-    cd.writeUInt16LE(0, 8);             // flags
-    cd.writeUInt16LE(0, 10);            // compression
-    cd.writeUInt16LE(0, 12);            // mod time
-    cd.writeUInt16LE(0, 14);            // mod date
-    cd.writeUInt32LE(crc, 16);          // crc
-    cd.writeUInt32LE(size, 20);         // compressed
-    cd.writeUInt32LE(size, 24);         // uncompressed
-    cd.writeUInt16LE(nameBytes.length, 28);
-    cd.writeUInt16LE(0, 30);
-    cd.writeUInt16LE(0, 32);
-    cd.writeUInt16LE(0, 34);
-    cd.writeUInt16LE(0, 36);
-    cd.writeUInt32LE(0, 38);
-    cd.writeUInt32LE(lhOffset, 42);
-    nameBytes.copy(cd, 46);
-    cdParts.push(cd);
-  }
-
-  const cdSize = cdParts.reduce((s, b) => s + b.length, 0);
-
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(0, 4);
-  eocd.writeUInt16LE(0, 6);
-  eocd.writeUInt16LE(files.length, 8);
-  eocd.writeUInt16LE(files.length, 10);
-  eocd.writeUInt32LE(cdSize, 12);
-  eocd.writeUInt32LE(cdOffset, 16);
-  eocd.writeUInt16LE(0, 20);
-
-  const all = [...parts, ...cdParts, eocd];
-  const total = all.reduce((s, b) => s + b.length, 0);
-  const result = new Uint8Array(total);
-  let pos = 0;
-  for (const b of all) {
-    result.set(b, pos);
-    pos += b.length;
-  }
-  return result;
-}
-
-function crc32(buf: Buffer): number {
-  let crc = 0xffffffff;
-  const table = getCrcTable();
-  for (const byte of buf) {
-    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff]!;
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-let _crcTable: Uint32Array | null = null;
-function getCrcTable(): Uint32Array {
-  if (_crcTable) return _crcTable;
-  _crcTable = new Uint32Array(256);
-  for (let i = 0; i < 256; i++) {
-    let c = i;
-    for (let j = 0; j < 8; j++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    _crcTable[i] = c;
-  }
-  return _crcTable;
-}

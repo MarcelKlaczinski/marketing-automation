@@ -24,13 +24,12 @@ const resolvedToolSchema = z.object({
   eyebrow: z.string(),
   tagline: z.string(),
   bestFor: z.string().max(40).optional(),
-  emoji: z.string().optional(),
   strengths: z.array(z.string()),
   pricing: z.object({
     tier: z.enum(["free", "freemium", "paid"]),
     label: z.string(),
   }),
-  iconUrl: z.string().optional(),
+  iconSvg: z.string().optional(),   // inline SVG from resolution chain
   iconInitials: z.string().optional(),
   iconHue: z.number().optional(),
 });
@@ -116,7 +115,6 @@ const extractedToolSchema = z.object({
   domain: z.string(),
   tagline: z.string(),
   bestFor: z.string().max(40).optional(),
-  emoji: z.string().optional(),
   strengths: z.array(z.string()).min(1).max(4),
   pricing: z.object({ tier: z.enum(["free", "freemium", "paid"]), label: z.string() }),
 });
@@ -173,7 +171,6 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
       "domain": "tool.com",
       "tagline": "one sentence, max 120 chars",
       "bestFor": "short use-case label, max 40 chars, e.g. 'Foto-Editing' or 'Code-Generierung'",
-      "emoji": "single emoji that represents this tool's main use-case, e.g. 🎨 for image generation, 📝 for writing, 💻 for coding",
       "strengths": ["strength 1", "strength 2", "strength 3", "optional strength 4"],
       "pricing": { "tier": "free|freemium|paid", "label": "ab X€/Monat" }
     }
@@ -268,8 +265,8 @@ export class ResolveAssetsStep extends BaseStep<
           ...tool,
           eyebrow: `${String(tool.rank).padStart(2, "0")} · ${tool.name.toUpperCase()}`,
           bestFor: tool.bestFor,
-          emoji: tool.emoji,
-          iconUrl: icon.type === "path" ? icon.filePath : icon.type === "url" ? icon.url : undefined,
+          // emoji field intentionally omitted — icons are resolved from brand asset library
+          iconSvg: icon.type === "svg" ? icon.svg : undefined,
           iconInitials: icon.type === "avatar" ? icon.initials : undefined,
           iconHue: icon.type === "avatar" ? icon.hue : undefined,
         };

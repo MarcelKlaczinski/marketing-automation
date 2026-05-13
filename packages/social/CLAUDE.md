@@ -12,7 +12,7 @@ Compositions live in `src/compositions/<template-name>/`, shared primitives in `
 
 - **No web-safe fonts in headless Chrome** — Inter Variable, system-ui, and other common fonts are not available in Remotion's bundled Chromium. Always use a `@remotion/google-fonts/<Font>` package: `bun add @remotion/google-fonts --cwd packages/social`. Currently using `SpaceGrotesk`.
 
-- **Local file paths must be base64-encoded before render** — Remotion's dev server serves from `localhost:3000`, so `file://` URLs and absolute FS paths are unreachable from inside the bundle. `render-server.ts` runs `resolveIconUrls()` before calling `renderStill()`: reads each local PNG, converts to `data:image/png;base64,...`. Never pass `file://` prefixed paths to composition props.
+- **Tool icons are inline SVGs, not file paths** (Spec 52a) — `ToolIconImage` receives an `iconSvg` string (inline SVG from simple-icons/iconify/lobe-icons) or `initials`+`hue` for the avatar fallback. The old `iconUrl` file-path pattern and `resolveIconUrls()` pre-processing were removed. Never pass `file://` paths or emoji strings to `ToolIconImage`.
 
 - **`getCompositions()` + override pattern, not `selectComposition()`** — use `getCompositions()` to get the registered composition, then spread your `inputProps` override when calling `renderStill()`. `selectComposition()` is deprecated in Remotion 4.
 
@@ -37,3 +37,11 @@ src/compositions/list-carousel/
 2. Register it in `src/index.tsx` with `<Composition id="..." ... />`.
 3. Add a `render<Name>()` function in `render-server.ts` following the same pattern as `renderListCarousel()`.
 4. Add a pipeline step that calls the new render function.
+
+## ToolIconImage (Spec 52a)
+
+`src/shared/ToolIconImage.tsx` accepts:
+- `iconSvg?: string` — inline SVG rendered via `dangerouslySetInnerHTML` (safe: content comes from controlled brand asset sources only)
+- `initials?: string` + `hue?: number` — deterministic HSL gradient avatar fallback
+
+The `emoji` prop was removed in Spec 52a. The component never renders emoji.

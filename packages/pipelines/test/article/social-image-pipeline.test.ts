@@ -20,7 +20,7 @@ const mockMessages = mock(async (_opts: unknown) => ({
         domain: "midjourney.com",
         tagline: "Der bekannteste KI-Bildgenerator mit beeindruckenden Ergebnissen.",
         bestFor: "Kreative Kunst",
-        emoji: "🎨",
+
         strengths: ["Bildqualität", "Stile", "Community"],
         pricing: { tier: "paid", label: "ab 10$/Monat" },
       },
@@ -31,7 +31,7 @@ const mockMessages = mock(async (_opts: unknown) => ({
         domain: "openai.com",
         tagline: "OpenAIs Bildgenerator mit starker Prompt-Treue.",
         bestFor: "Promptgenaue Bilder",
-        emoji: "🖼️",
+
         strengths: ["Prompt-Treue", "Integration", "API"],
         pricing: { tier: "freemium", label: "ab 0$/Monat" },
       },
@@ -42,7 +42,7 @@ const mockMessages = mock(async (_opts: unknown) => ({
         domain: "stability.ai",
         tagline: "Open-Source-Modell mit maximaler Kontrolle.",
         bestFor: "Open Source",
-        emoji: "⚙️",
+
         strengths: ["Open Source", "Anpassbar", "Lokal"],
         pricing: { tier: "free", label: "kostenlos" },
       },
@@ -53,7 +53,7 @@ const mockMessages = mock(async (_opts: unknown) => ({
         domain: "adobe.com",
         tagline: "Kommerzielle Sicherheit dank lizenzfreier Trainingsdaten.",
         bestFor: "Kommerzielle Nutzung",
-        emoji: "🔥",
+
         strengths: ["Lizenzfrei", "Adobe-Integration", "Sicherheit"],
         pricing: { tier: "freemium", label: "ab 0$/Monat" },
       },
@@ -64,7 +64,7 @@ const mockMessages = mock(async (_opts: unknown) => ({
         domain: "ideogram.ai",
         tagline: "Stärker bei Text in Bildern als andere Generatoren.",
         bestFor: "Text in Bildern",
-        emoji: "✍️",
+
         strengths: ["Textrendering", "Qualität", "Preisleistung"],
         pricing: { tier: "freemium", label: "ab 0$/Monat" },
       },
@@ -427,12 +427,12 @@ describe("ResolveAssetsStep", () => {
     const out = await step.execute(input, mockCtx(sharedProjectId));
     const tool = out.resolvedTools[0]!;
 
-    // Either a file path (lobe-icons found) or avatar fallback is acceptable
-    const hasPath = typeof tool.iconUrl === "string";
+    // Either an inline SVG (any source) or deterministic avatar is acceptable
+    const hasSvg = typeof tool.iconSvg === "string";
     const hasAvatar =
       typeof tool.iconInitials === "string" && typeof tool.iconHue === "number";
 
-    expect(hasPath || hasAvatar).toBe(true);
+    expect(hasSvg || hasAvatar).toBe(true);
   });
 
   it("passthrough fields are preserved in output", async () => {
@@ -529,7 +529,7 @@ describe("PersistSocialPostStep", () => {
     const content = row!.content as { kind: string; slides: Array<{ imageUrl: string }>; caption: string; hashtags: string[] };
     expect(content.kind).toBe("carousel");
     expect(content.slides.length).toBe(3);
-    expect(content.slides[0]!.imageUrl).toBe(slideUrls[0]);
+    expect(content.slides[0]!.imageUrl).toBe(slideUrls[0]!);
     expect(content.caption).toBe(caption);
     expect(content.hashtags).toEqual(hashtags);
   });
