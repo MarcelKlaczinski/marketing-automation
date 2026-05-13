@@ -156,6 +156,7 @@ function ToolPreviewRow({
     <div
       style={{
         marginTop: "auto",
+        marginBottom: 80,
         display: "flex",
         flexDirection: "row",
         gap: 16,
