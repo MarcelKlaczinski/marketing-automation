@@ -18,6 +18,7 @@ export const projectBrandAssets = pgTable(
     inlineSvg: text("inline_svg"),          // raw SVG string for source='inline-svg'
 
     displayName: text("display_name"),
+    r2Key: text("r2_key"),  // populated when source='custom-upload'
     metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

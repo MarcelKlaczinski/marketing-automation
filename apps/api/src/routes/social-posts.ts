@@ -1,8 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
-import { articles, db, socialPosts } from "@marketing-auto/db";
+import { articles, db, projects, socialPosts } from "@marketing-auto/db";
 import { enqueueSocialImagePipeline } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { zipSync } from "fflate";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -165,6 +165,145 @@ socialPostDetailRoutes.get("/:id/download-bundle", async (c) => {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Content-Length": String(zip.byteLength),
+    },
+  });
+});
+
+// ─── POST /api/social-posts/:id/re-render ────────────────────────────────────
+
+socialPostDetailRoutes.post("/:id/re-render", async (c) => {
+  const id = c.req.param("id");
+
+  const [post] = await db
+    .select()
+    .from(socialPosts)
+    .where(eq(socialPosts.id, id))
+    .limit(1);
+  if (!post) return c.json({ ok: false, error: "Social post not found" }, 404);
+  if (!post.articleId) return c.json({ ok: false, error: "Post has no article" }, 400);
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:social-image",
+    projectId: post.projectId,
+    uniqueKey: { field: "articleId", value: `rerender-${post.articleId}-${Date.now()}` },
+    costEstimate: { service: "anthropic", estimatedCostEur: 0.03 },
+    enqueue: (input) => {
+      const enqueueInput: Parameters<typeof enqueueSocialImagePipeline>[0] = {
+        articleId: post.articleId as string,
+        projectId: post.projectId,
+        theme: post.theme as "dark" | "light",
+      };
+      if (input.preRunId) enqueueInput.preRunId = input.preRunId as string;
+      return enqueueSocialImagePipeline(enqueueInput);
+    },
+    extraInput: { articleId: post.articleId },
+  });
+
+  // Mark old post as replaced
+  await db
+    .update(socialPosts)
+    .set({ status: "replaced", updatedAt: new Date() })
+    .where(eq(socialPosts.id, id));
+
+  return triggerResultToResponse(c, result);
+});
+
+// ─── POST /api/projects/:slug/social-posts/re-render-batch ───────────────────
+
+export const socialPostBatchRoutes = new Hono();
+socialPostBatchRoutes.use(requireAuth);
+
+const batchReRenderBodySchema = z.object({
+  socialPostIds: z.array(z.string().uuid()).optional(),
+  filter: z
+    .object({
+      status: z.string().optional(),
+      format: z.string().optional(),
+      hasEmoji: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+// Date when Spec 52a was deployed — posts before this may have emoji logos
+const SPEC_52A_DATE = new Date("2025-05-01T00:00:00Z");
+
+socialPostBatchRoutes.post("/:slug/social-posts/re-render-batch", async (c) => {
+  const slug = c.req.param("slug");
+  const rawBody = await c.req.json().catch(() => ({}));
+  const body = batchReRenderBodySchema.safeParse(rawBody).data ?? {};
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  let postList: (typeof socialPosts.$inferSelect)[] = [];
+
+  if (body.socialPostIds?.length) {
+    postList = await db
+      .select()
+      .from(socialPosts)
+      .where(
+        and(
+          eq(socialPosts.projectId, project.id),
+          inArray(socialPosts.id, body.socialPostIds)
+        )
+      );
+  } else {
+    const conditions = [eq(socialPosts.projectId, project.id)];
+    if (body.filter?.hasEmoji) {
+      conditions.push(lt(socialPosts.createdAt, SPEC_52A_DATE));
+    }
+    postList = await db
+      .select()
+      .from(socialPosts)
+      .where(and(...conditions))
+      .orderBy(desc(socialPosts.createdAt));
+  }
+
+  const postsWithArticle = postList.filter((p) => p.articleId);
+
+  const triggered: string[] = [];
+  for (const post of postsWithArticle) {
+    try {
+      const result = await triggerWithPreRunId({
+        pipelineName: "article:social-image",
+        projectId: post.projectId,
+        uniqueKey: { field: "articleId", value: `rerender-${post.articleId}-${Date.now()}` },
+        costEstimate: { service: "anthropic", estimatedCostEur: 0.03 },
+        enqueue: (input) => {
+          const enqueueInput: Parameters<typeof enqueueSocialImagePipeline>[0] = {
+            articleId: post.articleId as string,
+            projectId: post.projectId,
+            theme: post.theme as "dark" | "light",
+          };
+          if (input.preRunId) enqueueInput.preRunId = input.preRunId as string;
+          return enqueueSocialImagePipeline(enqueueInput);
+        },
+        extraInput: { articleId: post.articleId },
+      });
+
+      if (!("error" in result)) {
+        await db
+          .update(socialPosts)
+          .set({ status: "replaced", updatedAt: new Date() })
+          .where(eq(socialPosts.id, post.id));
+        triggered.push(post.id);
+      }
+    } catch (err) {
+      log.warn({ postId: post.id, err }, "re-render batch: skipping post due to error");
+    }
+  }
+
+  const estimatedCostEur = triggered.length * 0.03;
+
+  return c.json({
+    ok: true,
+    data: {
+      triggered: triggered.length,
+      estimatedCostEur,
     },
   });
 });

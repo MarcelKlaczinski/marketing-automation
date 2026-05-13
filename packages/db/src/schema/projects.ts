@@ -159,9 +159,20 @@ export type BrandTokens = {
   };
   typography?: {
     fontFamily?: string;
+    fontFamilyOptions?: string[];
     headingWeight?: number;
     bodyWeight?: number;
+    eyebrowWeight?: number;
+    captionWeight?: number;
     eyebrowLetterSpacing?: string;
+    headingLetterSpacing?: string;
+    bodyLetterSpacing?: string;
+    headingSize?: number;
+    subheadSize?: number;
+    bodySize?: number;
+    eyebrowSize?: number;
+    headingLineHeight?: number;
+    bodyLineHeight?: number;
   };
   voice?: {
     locale?: string;

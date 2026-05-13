@@ -60,6 +60,7 @@ export const socialStatusEnum = pgEnum("social_status", [
   "scheduled",
   "published",
   "failed",
+  "replaced",  // Spec 52b: old post superseded by re-render
 ]);
 
 export const credentialServiceEnum = pgEnum("credential_service", [

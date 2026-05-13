@@ -26,9 +26,20 @@ export const brandTokensSchema = z.object({
   typography: z
     .object({
       fontFamily: z.string().optional(),
+      fontFamilyOptions: z.array(z.string()).optional(),
       headingWeight: z.number().optional(),
       bodyWeight: z.number().optional(),
+      eyebrowWeight: z.number().optional(),
+      captionWeight: z.number().optional(),
       eyebrowLetterSpacing: z.string().optional(),
+      headingLetterSpacing: z.string().optional(),
+      bodyLetterSpacing: z.string().optional(),
+      headingSize: z.number().optional(),
+      subheadSize: z.number().optional(),
+      bodySize: z.number().optional(),
+      eyebrowSize: z.number().optional(),
+      headingLineHeight: z.number().optional(),
+      bodyLineHeight: z.number().optional(),
     })
     .optional(),
   voice: z
@@ -94,13 +105,34 @@ function hashToHue(s: string): number {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+export const DEFAULT_TYPOGRAPHY = {
+  fontFamily: "Inter Variable",
+  fontFamilyOptions: ["Inter Variable", "Space Grotesk", "Plus Jakarta Sans", "Manrope", "Outfit"],
+  headingWeight: 800,
+  bodyWeight: 400,
+  eyebrowWeight: 700,
+  captionWeight: 600,
+  eyebrowLetterSpacing: "0.08em",
+  headingLetterSpacing: "-0.02em",
+  bodyLetterSpacing: "0em",
+  headingSize: 64,
+  subheadSize: 32,
+  bodySize: 24,
+  eyebrowSize: 18,
+  headingLineHeight: 1.1,
+  bodyLineHeight: 1.5,
+};
+
 export async function getBrandTokens(projectId: string): Promise<ParsedBrandTokens> {
   const project = await db.query.projects.findFirst({
     where: eq(projects.id, projectId),
     columns: { brandTokens: true },
   });
   if (!project) throw new Error(`Project ${projectId} not found`);
-  return brandTokensSchema.parse(project.brandTokens ?? {});
+  const tokens = brandTokensSchema.parse(project.brandTokens ?? {});
+  // Merge typography defaults so consumers always get fully-populated fields
+  tokens.typography = { ...DEFAULT_TYPOGRAPHY, ...tokens.typography };
+  return tokens;
 }
 
 export async function resolveToolIcon(
