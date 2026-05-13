@@ -5,3 +5,4 @@ export * from "./hero-generation/index.ts";
 export * from "./localize/index.ts";
 export * from "./social-image/pipeline.ts";
 export * from "./social-image/trigger.ts";
+export * from "./discovery/index.ts";

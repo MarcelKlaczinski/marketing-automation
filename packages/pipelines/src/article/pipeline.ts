@@ -25,6 +25,16 @@ export function registerChainCallbacks(callbacks: {
   _advanceChain = callbacks.advanceChain;
 }
 
+// Spec 54c: discovery callback wired in at worker startup (avoids api→pipelines circular dep)
+let _triggerDiscovery: ((articleId: string, projectId: string) => Promise<void>) | null = null;
+
+/** Called once at worker startup to wire in post-draft discovery (Spec 54c). */
+export function registerDraftDiscoveryCallback(
+  cb: (articleId: string, projectId: string) => Promise<void>
+): void {
+  _triggerDiscovery = cb;
+}
+
 const log = createLogger("pipelines:article-draft");
 
 // ───── Job 1: Outline Pipeline ────────────────────────────────────────────────
@@ -311,6 +321,15 @@ export class ArticleDraftPipeline extends Pipeline<
     pipelineInput: z.infer<typeof DraftInputSchema>,
     runId: string
   ): Promise<void> {
+    // Spec 54c: enqueue discovery for gap-generated articles after draft has content
+    if (_triggerDiscovery) {
+      try {
+        await _triggerDiscovery(pipelineInput.articleId, pipelineInput.projectId);
+      } catch (e) {
+        log.warn({ err: e, articleId: pipelineInput.articleId }, "Post-draft discovery enqueue failed");
+      }
+    }
+
     // Chain run: advance chain (orchestrator handles schema-de trigger, not auto-enqueue)
     if (pipelineInput.chainId && _advanceChain) {
       await _advanceChain(pipelineInput.chainId, "draft", runId);

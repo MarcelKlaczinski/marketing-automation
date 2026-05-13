@@ -42,6 +42,16 @@
       v-model="detailOpen"
       :article-id="detailArticleId"
     />
+
+    <DiscoveryGateModal
+      v-if="discoveryGateOpen && discoveryImportRunId"
+      v-model="discoveryGateOpen"
+      :project-slug="slug"
+      :import-run-id="discoveryImportRunId"
+      :stats="discoveryStats"
+      @triggered="onDiscoveryTriggered"
+      @skipped="discoveryGateOpen = false"
+    />
   </div>
 </template>
 
@@ -51,6 +61,7 @@ import { Notify } from "quasar";
 import { api } from "src/lib/api-client";
 import ImportedArticlesTable from "./ImportedArticlesTable.vue";
 import ImportedArticleDetailDialog from "./ImportedArticleDetailDialog.vue";
+import DiscoveryGateModal from "./DiscoveryGateModal.vue";
 
 type ImportedArticleRow = {
   id: string;
@@ -83,9 +94,17 @@ type Pair = {
 
 type CollectionSummary = Record<string, { de: number; en: number; total: number }>;
 
+type ImportRun = {
+  id: string;
+  status: string;
+  articlesInserted: number | null;
+  articlesUpdated: number | null;
+  articlesUnchanged: number | null;
+};
+
 export default defineComponent({
   name: "ImportedArticlesPanel",
-  components: { ImportedArticlesTable, ImportedArticleDetailDialog },
+  components: { ImportedArticlesTable, ImportedArticleDetailDialog, DiscoveryGateModal },
 
   props: {
     slug: { type: String, required: true },
@@ -102,6 +121,10 @@ export default defineComponent({
     offset: 0,
     detailOpen: false,
     detailArticleId: null as string | null,
+    discoveryGateOpen: false,
+    discoveryImportRunId: null as string | null,
+    discoveryStats: { inserted: 0, updated: 0, unchanged: 0 },
+    _pollTimer: null as ReturnType<typeof setTimeout> | null,
   }),
 
   computed: {
@@ -133,6 +156,10 @@ export default defineComponent({
       this.activeCollection = this.collectionOptions[0]!.value;
       await this.fetchPairs();
     }
+  },
+
+  unmounted(): void {
+    if (this._pollTimer !== null) clearTimeout(this._pollTimer);
   },
 
   methods: {
@@ -172,20 +199,65 @@ export default defineComponent({
     async triggerImport(): Promise<void> {
       this.syncing = true;
       try {
-        await api.post(`/projects/${this.slug}/astro-import`);
+        const res = await api.post<{ ok: boolean; data: { importRunId: string; jobId: string; deduped?: boolean } }>(
+          `/projects/${this.slug}/astro-import`,
+        );
+        const importRunId = res.data.data.importRunId;
         Notify.create({
           type: "positive",
           message: this.$t("articles.imported.syncStarted") as string,
           timeout: 3000,
         });
-        setTimeout(async () => {
-          await this.fetchSummary();
-          await this.fetchPairs();
-          this.syncing = false;
-        }, 5000);
+        void this.pollImportRun(importRunId);
       } catch {
         this.syncing = false;
       }
+    },
+
+    async pollImportRun(importRunId: string): Promise<void> {
+      const checkRun = async (): Promise<void> => {
+        try {
+          const res = await api.get<{ ok: boolean; data: { items: ImportRun[] } }>(
+            `/projects/${this.slug}/astro-import-runs`,
+            { params: { limit: 1 } },
+          );
+          const run = res.data.data.items.find((r) => r.id === importRunId);
+          if (run && (run.status === "succeeded" || run.status === "failed")) {
+            this.syncing = false;
+            await this.fetchSummary();
+            await this.fetchPairs();
+
+            if (run.status === "succeeded") {
+              Notify.create({
+                type: "positive",
+                message: this.$t("articles.imported.syncCompleted") as string,
+                timeout: 3000,
+              });
+              const inserted = run.articlesInserted ?? 0;
+              const updated = run.articlesUpdated ?? 0;
+              if (inserted + updated > 0) {
+                this.discoveryImportRunId = importRunId;
+                this.discoveryStats = {
+                  inserted,
+                  updated,
+                  unchanged: run.articlesUnchanged ?? 0,
+                };
+                this.discoveryGateOpen = true;
+              }
+            }
+            return;
+          }
+          // Still running — poll again in 4s
+          this._pollTimer = setTimeout(() => { void checkRun(); }, 4000);
+        } catch {
+          this.syncing = false;
+        }
+      };
+      void checkRun();
+    },
+
+    onDiscoveryTriggered(): void {
+      this.discoveryGateOpen = false;
     },
 
     openDetail(articleId: string): void {

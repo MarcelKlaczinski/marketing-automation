@@ -4,6 +4,7 @@ import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db,
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
+import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain } from "../lib/chain-orchestrator.ts";
@@ -368,6 +369,55 @@ projectRoutes.get(
     return c.json({ ok: true, data: paginated(runs, countRows, q) });
   }
 );
+
+// Spec 54c: Trigger discovery after import run completes
+const triggerDiscoveryBodySchema = z.object({
+  mode: z.enum(["deterministic_only", "full"]).default("full"),
+});
+
+projectRoutes.post("/:slug/astro-import/:importRunId/trigger-discovery", requireAuth, async (c) => {
+  const slug = c.req.param("slug");
+  const importRunId = c.req.param("importRunId");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const [run] = await db
+    .select()
+    .from(astroImportRuns)
+    .where(and(eq(astroImportRuns.id, importRunId), eq(astroImportRuns.projectId, project.id)))
+    .limit(1);
+  if (!run) return c.json({ ok: false, error: "Import run not found" }, 404);
+
+  const rawBody = await c.req.json().catch(() => ({}));
+  const { mode } = triggerDiscoveryBodySchema.safeParse(rawBody).data ?? { mode: "full" as const };
+
+  // Find articles imported during this run by their importedAt timestamp
+  const importedArticles = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(
+      and(
+        eq(articles.projectId, project.id),
+        eq(articles.source, "imported"),
+        run.startedAt ? sql`${articles.importedAt} >= ${run.startedAt.toISOString()}` : sql`true`,
+        run.finishedAt ? sql`${articles.importedAt} <= ${run.finishedAt.toISOString()}` : sql`true`,
+      )
+    );
+
+  const jobs = await Promise.all(
+    importedArticles.map((a) =>
+      enqueueDiscoveryJob({ articleId: a.id, projectId: project.id, mode })
+    )
+  );
+
+  log.info({ importRunId, enqueued: jobs.length, mode }, "Discovery jobs enqueued after import");
+  return c.json({ ok: true, data: { enqueued: jobs.length, mode } }, 202);
+});
 
 // ── Spec 49b: Content Gap Detection ──────────────────────────────────────────
 

@@ -24,6 +24,7 @@ import {
   closePipelineInfrastructure,
   pipelineRegistry,
   registerChainCallbacks,
+  registerDraftDiscoveryCallback,
   registerLocalizeChainCallbacks,
   registerSchemaChainCallbacks,
   registerScheduledJob,
@@ -31,6 +32,7 @@ import {
   startScheduler,
 } from "@marketing-auto/pipelines";
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
+import { startDiscoveryWorker, enqueueDiscoveryJob } from "./discoveryWorker.ts";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
@@ -152,7 +154,13 @@ async function main() {
   registerSchemaChainCallbacks(chainCallbacks);
   registerLocalizeChainCallbacks({ advanceChain: chainCallbacks.advanceChain });
 
+  // Spec 54c: trigger discovery (full LLM) after every completed draft
+  registerDraftDiscoveryCallback(async (articleId, projectId) => {
+    await enqueueDiscoveryJob({ articleId, projectId, mode: "full" });
+  });
+
   const pipelineWorker = startPipelineWorker({ concurrency: 5 });
+  const discoveryWorker = startDiscoveryWorker();
   const schedulerWorker = await startScheduler();
 
   log.info("Workers running");
@@ -160,6 +168,7 @@ async function main() {
   const shutdown = async () => {
     log.info("Shutting down workers");
     await pipelineWorker.close();
+    await discoveryWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

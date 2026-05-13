@@ -1,4 +1,9 @@
 export default {
+  tabs: {
+    generate: "Generate",
+    suggestions: "Suggestions",
+    history: "History",
+  },
   title: "Instagram Posts",
   format: {
     label: "Format",

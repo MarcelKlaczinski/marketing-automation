@@ -1,5 +1,26 @@
 <template>
   <div class="social-posts-panel">
+    <!-- Tab bar -->
+    <q-tabs
+      v-model="activeTab"
+      dense
+      align="left"
+      class="social-posts-panel__tabs"
+    >
+      <q-tab name="generate" :label="$t('social.tabs.generate')" />
+      <q-tab name="suggestions" :label="$t('social.tabs.suggestions')">
+        <q-badge
+          v-if="pendingSuggestionsCount > 0"
+          color="warning"
+          floating
+        >{{ pendingSuggestionsCount }}</q-badge>
+      </q-tab>
+      <q-tab name="history" :label="$t('social.tabs.history')" />
+    </q-tabs>
+
+    <q-tab-panels v-model="activeTab" animated class="social-posts-panel__panels">
+      <!-- Generate panel -->
+      <q-tab-panel name="generate" class="q-pa-none">
     <!-- Generate form -->
     <div class="social-posts-panel__section">
       <div class="social-posts-panel__title">{{ $t('social.title') }}</div>
@@ -79,6 +100,18 @@
       </button>
     </div>
 
+      </q-tab-panel>
+
+      <!-- Suggestions panel -->
+      <q-tab-panel name="suggestions" class="q-pa-none">
+        <TemplateSuggestionsPanel
+          :article-id="articleId"
+          @suggestions-loaded="onSuggestionsLoaded"
+        />
+      </q-tab-panel>
+
+      <!-- History panel -->
+      <q-tab-panel name="history" class="q-pa-none">
     <!-- History -->
     <div class="social-posts-panel__section">
       <div class="social-posts-panel__title">{{ $t('social.history') }}</div>
@@ -132,6 +165,9 @@
         </div>
       </div>
     </div>
+
+      </q-tab-panel>
+    </q-tab-panels>
 
     <!-- Re-render confirm dialog -->
     <q-dialog v-model="showReRenderConfirm">
@@ -223,6 +259,7 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
 import { api } from "../../lib/api-client";
+import TemplateSuggestionsPanel from "./TemplateSuggestionsPanel.vue";
 
 interface SocialPost {
   id: string;
@@ -245,6 +282,8 @@ interface SocialPost {
 export default defineComponent({
   name: "SocialPostsPanel",
 
+  components: { TemplateSuggestionsPanel },
+
   props: {
     articleId: {
       type: String as PropType<string>,
@@ -253,6 +292,8 @@ export default defineComponent({
   },
 
   data: () => ({
+    activeTab: "generate" as "generate" | "suggestions" | "history",
+    pendingSuggestionsCount: 0,
     selectedFormat: "list_carousel" as "list_carousel",
     selectedTheme: "dark" as "dark" | "light",
     selectedVariant: "stunning" as "editorial" | "stunning",
@@ -288,6 +329,10 @@ export default defineComponent({
   },
 
   methods: {
+    onSuggestionsLoaded(count: number) {
+      this.pendingSuggestionsCount = count;
+    },
+
     postSlideUrls(post: SocialPost): string[] {
       return (post.content?.slides ?? []).map((s) => s.imageUrl);
     },
@@ -400,7 +445,20 @@ export default defineComponent({
 .social-posts-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 0;
+}
+
+.social-posts-panel__tabs {
+  border-bottom: 1px solid var(--q-separator-color);
+  margin-bottom: 16px;
+}
+
+.social-posts-panel__panels {
+  background: transparent;
+}
+
+.social-posts-panel__panels :deep(.q-tab-panel) {
+  padding: 0;
 }
 
 .social-posts-panel__section {

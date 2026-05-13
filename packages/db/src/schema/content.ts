@@ -510,6 +510,7 @@ export const articleDiscovery = pgTable(
     estimatedCarousels: integer("estimated_carousels"),
 
     // Bookkeeping
+    contentHash:     text("content_hash"),
     enrichmentRunAt: timestamp("enrichment_run_at", { withTimezone: true }),
     enrichmentMode:  text("enrichment_mode"),
     createdAt:       timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1,6 +1,8 @@
 import { zValidator } from "@hono/zod-validator";
-import { articles, db, projects, socialPosts } from "@marketing-auto/db";
+import { articleDiscovery, articles, db, projects, socialPosts, templateRenders } from "@marketing-auto/db";
+import { templateRegistry } from "@marketing-auto/social/templates";
 import { enqueueSocialImagePipeline } from "@marketing-auto/pipelines";
+import { enqueueTemplateRenderJob } from "../workers/discoveryWorker.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
 import { zipSync } from "fflate";
@@ -339,4 +341,198 @@ socialPostBatchRoutes.post("/:slug/social-posts/re-render-batch", async (c) => {
     },
   });
 });
+
+// ─── GET /api/projects/:slug/social-suggestions ──────────────────────────────
+// Articles with pending template suggestions (no ready/rendering renders yet)
+
+socialPostBatchRoutes.get("/:slug/social-suggestions", async (c) => {
+  const slug = c.req.param("slug");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  const rows = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      slug: articles.slug,
+      collection: articles.collection,
+      locale: articles.locale,
+      suggestedTemplates: articleDiscovery.suggestedTemplates,
+    })
+    .from(articles)
+    .innerJoin(articleDiscovery, eq(articleDiscovery.articleId, articles.id))
+    .where(
+      and(
+        eq(articles.projectId, project.id),
+        inArray(articles.source, ["generated", "imported"]),
+        // Only articles that have non-empty suggestions
+        // handled below via filter — avoids jsonb_array_length in WHERE for portability
+      )
+    )
+    .orderBy(desc(articles.updatedAt))
+    .limit(100);
+
+  // Filter to articles with actual suggestions
+  const hasSuggestions = rows.filter(
+    (r) => Array.isArray(r.suggestedTemplates) && r.suggestedTemplates.length > 0
+  );
+
+  if (hasSuggestions.length === 0) {
+    return c.json({ ok: true, data: { items: [] } });
+  }
+
+  // Articles that already have a ready or rendering render
+  const articleIdsWithSuggestions = hasSuggestions.map((r) => r.id);
+  const renderedRows = await db
+    .select({ articleId: templateRenders.articleId })
+    .from(templateRenders)
+    .where(
+      and(
+        inArray(templateRenders.articleId, articleIdsWithSuggestions),
+        inArray(templateRenders.status, ["ready", "rendering"]),
+      )
+    );
+  const renderedArticleIds = new Set(renderedRows.map((r) => r.articleId));
+
+  const withSuggestions = hasSuggestions
+    .filter((r) => !renderedArticleIds.has(r.id))
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      slug: r.slug,
+      collection: r.collection,
+      locale: r.locale,
+      suggestions: r.suggestedTemplates,
+    }));
+
+  return c.json({ ok: true, data: { items: withSuggestions } });
+});
+
+// ─── GET /api/articles/:articleId/template-suggestions ───────────────────────
+// Per-article: returns suggestedTemplates + current render statuses
+
+socialPostRoutes.get("/:articleId/template-suggestions", async (c) => {
+  const articleId = c.req.param("articleId");
+
+  const [discovery] = await db
+    .select({ suggestedTemplates: articleDiscovery.suggestedTemplates })
+    .from(articleDiscovery)
+    .where(eq(articleDiscovery.articleId, articleId))
+    .limit(1);
+
+  const suggestions = discovery?.suggestedTemplates ?? [];
+
+  const renders = await db
+    .select({ templateKey: templateRenders.templateKey, status: templateRenders.status })
+    .from(templateRenders)
+    .where(eq(templateRenders.articleId, articleId));
+
+  const renderByKey: Record<string, string> = {};
+  for (const r of renders) {
+    if (r.templateKey) renderByKey[r.templateKey] = r.status;
+  }
+
+  return c.json({ ok: true, data: { suggestions, renders: renderByKey } });
+});
+
+// ─── POST /api/articles/:articleId/generate-templates ────────────────────────
+// Enqueue BullMQ render jobs for one or more templateKeys
+
+const generateTemplatesBodySchema = z.object({
+  templateKeys: z.array(z.string()).min(1),
+  locale: z.enum(["de", "en"]).default("de"),
+  theme: z.enum(["dark", "light"]).default("dark"),
+});
+
+socialPostRoutes.post(
+  "/:articleId/generate-templates",
+  zValidator("json", generateTemplatesBodySchema),
+  async (c) => {
+    const articleId = c.req.param("articleId");
+    const body = c.req.valid("json");
+
+    const [article] = await db
+      .select({ id: articles.id, projectId: articles.projectId })
+      .from(articles)
+      .where(eq(articles.id, articleId))
+      .limit(1);
+    if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+    const [discovery] = await db
+      .select()
+      .from(articleDiscovery)
+      .where(eq(articleDiscovery.articleId, articleId))
+      .limit(1);
+
+    const jobs: Array<{ templateKey: string; status: "queued" | "skipped"; reason?: string; jobId?: string; renderId?: string }> = [];
+
+    for (const templateKey of body.templateKeys) {
+      let template;
+      try {
+        template = templateRegistry.getById(templateKey as import("@marketing-auto/social/templates").TemplateKey);
+      } catch {
+        jobs.push({ templateKey, status: "skipped", reason: "Template not registered" });
+        continue;
+      }
+
+      if (!discovery) {
+        jobs.push({ templateKey, status: "skipped", reason: "Discovery not yet run for this article" });
+        continue;
+      }
+
+      const eligibility = template.eligibility(
+        article as import("@marketing-auto/db").Article,
+        discovery as import("@marketing-auto/db").ArticleDiscovery,
+      );
+      if (!eligibility.eligible) {
+        const skipEntry: { templateKey: string; status: "skipped"; reason?: string } = { templateKey, status: "skipped" };
+        if (eligibility.reason) skipEntry.reason = eligibility.reason;
+        jobs.push(skipEntry);
+        continue;
+      }
+
+      // Build render input (may do DB lookups for tool data)
+      let renderInput: Record<string, unknown>;
+      try {
+        renderInput = (await template.buildInput(
+          article as import("@marketing-auto/db").Article,
+          discovery as import("@marketing-auto/db").ArticleDiscovery,
+        )) as Record<string, unknown>;
+      } catch (err) {
+        jobs.push({ templateKey, status: "skipped", reason: `buildInput failed: ${err instanceof Error ? err.message : String(err)}` });
+        continue;
+      }
+
+      // Create templateRender row and enqueue worker job
+      const [renderRow] = await db
+        .insert(templateRenders)
+        .values({
+          articleId,
+          templateKey,
+          locale: body.locale,
+          theme: body.theme,
+          status: "pending",
+          renderInput,
+        })
+        .returning({ id: templateRenders.id });
+
+      if (!renderRow) {
+        jobs.push({ templateKey, status: "skipped", reason: "DB insert failed" });
+        continue;
+      }
+
+      const { jobId } = await enqueueTemplateRenderJob(renderRow.id);
+      jobs.push({ templateKey, status: "queued", jobId, renderId: renderRow.id });
+    }
+
+    const queued = jobs.filter((j) => j.status === "queued").length;
+    log.info({ articleId, queued, total: jobs.length }, "generate-templates: jobs enqueued");
+    return c.json({ ok: true, data: { jobs } }, queued > 0 ? 202 : 200);
+  }
+);
 

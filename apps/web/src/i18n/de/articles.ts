@@ -4,9 +4,36 @@ export default {
     imported: "Importiert",
   },
 
+  templateSuggestions: {
+    empty: "Keine Template-Vorschläge. Artikel importieren oder Gap fixen.",
+    generateAll: "Alle generieren",
+    generateSelected: "Auswahl generieren",
+    queued: "{n} Render-Job(s) gestartet",
+    status: {
+      pending: "Ausstehend",
+      rendering: "Wird gerendert",
+      ready: "Fertig",
+      failed: "Fehlgeschlagen",
+    },
+  },
+
+  discoveryGate: {
+    title: "Discovery für importierte Artikel",
+    subtitle: "Import abgeschlossen. {count} Artikel benötigen Discovery-Update.",
+    new: "Neu importiert",
+    updated: "Aktualisiert",
+    unchanged: "Unverändert (übersprungen)",
+    costEstimate: "Geschätzter Cost: ~${cost} (Haiku LLM-Klassifikation)",
+    skipBtn: "Später",
+    deterministicBtn: "Nur deterministisch",
+    fullBtn: "Discovery starten",
+    triggered: "Discovery-Jobs wurden gestartet",
+  },
+
   imported: {
     syncFromRepo: "Vom Repo importieren",
     syncStarted: "Import wurde gestartet",
+    syncCompleted: "Import abgeschlossen",
     loading: "Lädt...",
     noData: "Noch keine importierten Artikel. Klicke 'Vom Repo importieren' um zu starten.",
     noPendant: "kein Gegenstück",

@@ -41,11 +41,13 @@
     "@marketing-auto/pipelines": "workspace:*",
     "@marketing-auto/shared": "workspace:*",
     "@marketing-auto/social": "workspace:*",
+    "bullmq": "^5.76.8",
     "culori": "^4.0.2",
     "drizzle-orm": "^0.36.0",
     "fflate": "^0.8.2",
     "gray-matter": "^4.0.3",
     "hono": "^4.6.0",
+    "ioredis": "^5.10.1",
     "sharp": "^0.34.5",
     "yaml": "^2.9.0",
     "zod": "^3.23.8"
