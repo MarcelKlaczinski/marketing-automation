@@ -2,7 +2,12 @@ import type { TemplateDefinition } from "../types.ts";
 import { getComparisonContext, type ComparisonContext } from "../adapters/comparison.ts";
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
+import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonStunning.fixtures.ts";
+
+// Default brand tokens with all sub-schemas populated — render-server.ts skips Zod parsing,
+// so brandTokens: {} would leave colors/typography/social as undefined and crash the composition.
+const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
 // Slide dimensions for ListCarouselStunning (1080×1350)
 const SLIDE_W = 1080;
@@ -83,7 +88,7 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     const carouselInput = {
       theme,
       variant: "stunning" as const,
-      brandTokens: {},
+      brandTokens: DEFAULT_BRAND_TOKENS,
       slideIndex: 0,
       cover: {
         eyebrow,
