@@ -21,8 +21,8 @@ const CONTENT_COLLECTIONS = ["tools", "blog", "comparisons", "ki-wissen", "useca
 function parseFrontmatter(raw: string): { fm: Record<string, unknown>; body: string } {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
   if (!match) return { fm: {}, body: raw };
-  const yamlBlock = match[1];
-  const body = match[2];
+  const yamlBlock = match[1] ?? "";
+  const body = match[2] ?? "";
   const fm: Record<string, unknown> = {};
   // Parse only the fields we need (flat key: value, arrays, multiline strings)
   // Simple line-by-line pass — enough for our known frontmatter shape
@@ -41,7 +41,7 @@ function parseFrontmatter(raw: string): { fm: Record<string, unknown>; body: str
     }
     const kvMatch = line.match(/^([a-zA-Z][a-zA-Z0-9_-]*):\s*(.*)?$/);
     if (!kvMatch) continue;
-    currentKey = kvMatch[1];
+    currentKey = kvMatch[1]!;
     const val = (kvMatch[2] ?? "").trim();
     if (val === "" || val === "|" || val === ">") {
       inArray = false; // might be multiline — skip
@@ -423,7 +423,7 @@ function buildNarrativeArc(
   fm: Record<string, unknown>,
   body: string
 ): string {
-  const h2s = [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1].trim());
+  const h2s = [...body.matchAll(/^## (.+)$/gm)].map((m) => m[1]!.trim());
   const first3 = h2s.slice(0, 3).join(" → ");
 
   if (collection === "tools") {

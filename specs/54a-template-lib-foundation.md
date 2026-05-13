@@ -785,6 +785,28 @@ Expected output:
 
 ---
 
+## Open Questions Resolved
+
+- **Q1 (End-Slide):** Reused `EndSlideStunning` — same "Speichere diesen Post" CTA pattern.
+- **Q2 (Locale strings):** Hardcoded DE/EN per-template. No i18n system needed.
+- **Q3 (Output paths):** `/renders/<articleId>/<templateKey>/<locale>-<theme>/slide-NN.png` written by `writeSlides()` helper.
+
+## Deviations from Spec
+
+1. **`buildInput` is async** — the spec showed it as synchronous, but DB lookup for tool references (`buildToolLookup`) requires `await`. All `TemplateDefinition.buildInput` signatures are `async`.
+
+2. **`UseCaseVerdictCarousel` is a first-class Remotion composition** — the spec described a standalone render function in `src/slides/use-case-verdict-render.ts`. The implementation registers `UseCaseVerdictCarousel` as a full `<Composition>` in `src/index.tsx` (1080×1080) and renders via `renderStill()` like every other composition. This is more consistent and required no special-casing.
+
+3. **`render-server.ts` exports `renderUseCaseVerdictCarousel`** — rather than a separate file, the render function lives in `render-server.ts` alongside `renderListCarousel` / `renderListCarouselStunning`.
+
+4. **drizzle-orm operators imported from `@marketing-auto/db`** — `packages/social` has its own drizzle-orm version; direct import caused TS type incompatibilities. Workaround: re-export all operators from `@marketing-auto/db/src/index.ts` and import from there in `toolLookup.ts`. Added tsconfig `paths` override pointing to `packages/db/node_modules/drizzle-orm/*`.
+
+## Discovered During Implementation
+
+- **`rootDir` in tsconfig blocks cross-workspace imports** — even with `noEmit: true`, setting `"rootDir": "."` in `packages/social/tsconfig.json` prevented TS from resolving `@marketing-auto/db`. Fix: remove `rootDir` entirely (it has no effect when noEmit=true).
+
+- **`exactOptionalPropertyTypes` + optional SVG props** — passing `iconSvg: string | undefined` to a prop typed `iconSvg?: string` fails under `exactOptionalPropertyTypes`. Pattern: `{...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}`.
+
 ## Open Questions
 
 **Q1:** End-Slide für `use-case-verdict-per-tool` — reuse existing EndSlideStunning oder eigene Variante?

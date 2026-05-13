@@ -356,3 +356,25 @@ Nach erfolgreichem Run:
 2. Falls templateGaps gefunden → neue Specs schreiben (außerhalb dieser Task)
 3. `article_discovery` ist Foundation für Spec 54c (Discovery-Pipeline-Integration) und Spec 54d (Preview-Gallery)
 4. Diese Spec-File kann archiviert werden — One-Shot ist done.
+
+---
+
+## Deviations from Spec (as implemented 2026-05-13)
+
+**Pre-existing enrichment:** The spec assumed no `article_discovery` records existed. In reality, 258 records already had `enrichment_mode = 'llm_enriched'` from an earlier heuristic Phase 2 script (`article-discovery-phase2.ts`) that used regex classification but set the wrong mode label. All were re-classified.
+
+**Implementation method:** Spec described "Claude reads articles and outputs JSON" (using Claude Code's own quota). Implemented as a Bun script calling Haiku via `@marketing-auto/adapter-anthropic` — same $0 net cost (absorbed in dev usage), but automated for 275 articles rather than interactive. Script lives at `apps/api/src/scripts/article-discovery-llm-backfill.ts`.
+
+**Article count:** Spec estimated 281 articles; actual was 275 non-author content articles at run time.
+
+**contentHooks format:** Spec specified array format `["has_verdict"]`. Three articles had LLM return object format `{"has_verdict": true}` — fixed post-run via SQL (`jsonb_each_text` extraction of true-valued keys). Script validates array format before upsert but does not auto-retry; a stronger `jsonMode` prompt was not needed since only 3/275 failed format.
+
+**Legacy template keys:** LLM hallucinated 5 records with `news-breaking` / `tool-recap-list` keys not in Spec 54a. Removed via SQL post-run. Future runs: the prompt's `ONLY these keys` instruction is sufficient for Haiku.
+
+**Template gaps found:** 2 gaps identified (`category-comparison`, `decision-tree-carousel`) — both deferred to Spec 54h/i.
+
+## Discovered During Implementation
+
+- `jsonb_array_elements_text(col)` throws `cannot extract elements from an object` if any row's `col` is a JSONB object rather than array — even when `WHERE` clause should have filtered it. Aggregate queries must guard with `WHERE jsonb_typeof(col) = 'array'` or fix the data first.
+- Haiku's prompt cache hits the `systemPrefix` (template definitions + hook spec) across all 275 calls within a session, making the effective per-article cost well under the $0.006 estimate.
+- Re-running with `--force` is cheap: content_hash skip-logic means unchanged articles cost one DB read + hash compare, no LLM call.

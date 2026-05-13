@@ -624,7 +624,14 @@
       "Bash(bun --env-file .env --cwd apps/api src/scripts/article-discovery-phase1.ts)",
       "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api src/scripts/article-discovery-phase1.ts)",
       "Bash(xargs -I{} head -30 {})",
-      "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api src/scripts/article-discovery-phase2.ts)"
+      "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api src/scripts/article-discovery-phase2.ts)",
+      "Bash(bun --filter @marketing-auto/social run typecheck)",
+      "Bash(node -e \"require.resolve\\('drizzle-orm'\\)\")",
+      "Bash(bun -e \"import 'drizzle-orm'\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff --name-only HEAD)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation stash)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation stash pop)",
+      "Bash(grep -n \"sql\\\\`\" apps/api/src/scripts/article-discovery-llm-backfill.ts)"
     ]
   }
 }
