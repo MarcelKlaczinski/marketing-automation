@@ -42,7 +42,14 @@ export default {
       brand:    "Brand",
       settings: "Einstellungen",
       templates: "Templates",
+      social:   "Social",
     },
+  },
+
+  social: {
+    empty:              "Keine ausstehenden Vorschläge.",
+    emptyHint:          "Artikel importieren oder eine Content-Lücke fixen – Vorschläge erscheinen hier automatisch.",
+    pendingSuggestions: "{count} Artikel mit ausstehenden Vorschlägen",
   },
 
   overview: {

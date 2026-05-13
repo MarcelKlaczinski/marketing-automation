@@ -43,6 +43,13 @@
         <q-tab name="brand" :label="$t('projects.detail.tabs.brand')" icon="palette" />
         <q-tab name="settings" :label="$t('projects.detail.tabs.settings')" icon="settings" />
         <q-tab name="templates" :label="$t('projects.detail.tabs.templates')" icon="layers" />
+        <q-tab name="social" :label="$t('projects.detail.tabs.social')" icon="auto_awesome">
+          <q-badge
+            v-if="pendingSuggestions > 0"
+            color="warning"
+            floating
+          >{{ pendingSuggestions }}</q-badge>
+        </q-tab>
       </q-tabs>
 
       <q-tab-panels v-model="activeTab" animated class="bg-transparent">
@@ -88,6 +95,10 @@
         <q-tab-panel name="templates" class="q-px-none">
           <TemplatesPanel :project-id="project.id" />
         </q-tab-panel>
+
+        <q-tab-panel name="social" class="q-px-none">
+          <ProjectSuggestionsPanel :slug="slug" />
+        </q-tab-panel>
       </q-tab-panels>
     </template>
   </q-page>
@@ -104,10 +115,12 @@ import ImportedArticlesPanel from "src/components/articles/ImportedArticlesPanel
 import ColdStartPanel from "src/components/projects/ColdStartPanel.vue";
 import ProjectOverviewPanel from "src/components/projects/ProjectOverviewPanel.vue";
 import ProjectSettingsPanel from "src/components/projects/ProjectSettingsPanel.vue";
+import ProjectSuggestionsPanel from "src/components/projects/ProjectSuggestionsPanel.vue";
 import { useProjectsStore } from "src/stores/projects";
+import { api } from "src/lib/api-client";
 import { defineComponent } from "vue";
 
-type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "brand" | "settings" | "templates";
+type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "brand" | "settings" | "templates" | "social";
 const VALID_TABS: ReadonlyArray<TabName> = [
   "overview",
   "cold-start",
@@ -117,6 +130,7 @@ const VALID_TABS: ReadonlyArray<TabName> = [
   "brand",
   "settings",
   "templates",
+  "social",
 ];
 
 export default defineComponent({
@@ -133,6 +147,7 @@ export default defineComponent({
     ImportedArticlesPanel,
     ProjectPauseBanner,
     TemplatesPanel,
+    ProjectSuggestionsPanel,
   },
 
   props: {
@@ -146,6 +161,8 @@ export default defineComponent({
   data: () => ({
     activeTab: "overview" as TabName,
     articlesTab: "generated" as "generated" | "imported",
+    pendingSuggestions: 0,
+    _pollTimer: null as ReturnType<typeof setInterval> | null,
   }),
 
   computed: {
@@ -164,6 +181,13 @@ export default defineComponent({
       this.activeTab = tabFromQuery as TabName;
     }
     await this.projectsStore.fetchOne(this.slug);
+    void this.fetchPendingSuggestions();
+    // Poll every 60s so the badge stays current without a page reload
+    this._pollTimer = setInterval(() => { void this.fetchPendingSuggestions(); }, 60_000);
+  },
+
+  unmounted() {
+    if (this._pollTimer !== null) clearInterval(this._pollTimer);
   },
 
   methods: {
@@ -174,6 +198,22 @@ export default defineComponent({
 
     async onProjectUpdated(): Promise<void> {
       await this.projectsStore.fetchOne(this.slug);
+    },
+
+    async fetchPendingSuggestions(): Promise<void> {
+      const projectId = this.project?.id;
+      if (!projectId) return;
+      try {
+        const res = await api.get<{ ok: boolean; data: { pendingSuggestions: number } }>(
+          "/admin/notification-counts",
+          { params: { projectId } },
+        );
+        if (res.data.ok) {
+          this.pendingSuggestions = res.data.data.pendingSuggestions;
+        }
+      } catch {
+        // non-critical — badge stays at last known value
+      }
     },
   },
 });

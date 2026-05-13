@@ -42,7 +42,14 @@ export default {
       brand:    "Brand",
       settings: "Settings",
       templates: "Templates",
+      social:   "Social",
     },
+  },
+
+  social: {
+    empty:              "No pending suggestions.",
+    emptyHint:          "Import articles or fix a content gap — suggestions will appear here automatically.",
+    pendingSuggestions: "{count} articles with pending suggestions",
   },
 
   overview: {
