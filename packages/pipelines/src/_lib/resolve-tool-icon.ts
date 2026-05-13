@@ -1,33 +1,15 @@
-/**
- * Icon resolution for social-image pipeline steps.
- * Queries project_brand_assets and resolves lobe-icons paths.
- * Self-contained — no dependency on apps/api brand-asset-service.
- */
-
 import { and, eq } from "drizzle-orm";
 import { db, projectBrandAssets } from "@marketing-auto/db";
-import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { simpleIconsAdapter } from "./icon-sources/simple-icons.ts";
+import { iconifyAdapter } from "./icon-sources/iconify.ts";
+import { lobeIconsAdapter } from "./icon-sources/lobe-icons.ts";
+import type { IconSourceAdapter } from "./icon-sources/types.ts";
 
-// Mapping of tool slugs that don't match lobe-icons naming
-const TOOL_SLUG_TO_LOBE: Record<string, string> = {
-  chatgpt: "openai",
-  "gpt-4": "openai",
-  "gpt-4o": "openai",
-  "claude-ai": "claude",
-  "gemini-ai": "gemini",
-  "dall-e": "openai",
-  "stable-diffusion": "stablediffusion",
-};
-
-// lobe-icons base is resolved relative to the running process's node_modules.
-// The worker process is apps/api, so node_modules is at apps/api/node_modules.
-// We use a relative path from this file's location at runtime:
-// packages/pipelines/src/_lib → ../../../../apps/api/node_modules
-const LOBE_ICONS_BASE = resolve(
-  fileURLToPath(import.meta.url),
-  "../../../../apps/api/node_modules/@lobehub/icons-static-png"
-);
+const RESOLUTION_CHAIN: IconSourceAdapter[] = [
+  simpleIconsAdapter,
+  iconifyAdapter,
+  lobeIconsAdapter,
+];
 
 function hashToHue(s: string): number {
   let h = 0;
@@ -35,27 +17,17 @@ function hashToHue(s: string): number {
   return h;
 }
 
-async function findLobeIcon(slug: string, theme: "dark" | "light"): Promise<string | null> {
-  for (const suffix of ["-color", ""] as const) {
-    const p = resolve(LOBE_ICONS_BASE, theme, `${slug}${suffix}.png`);
-    if (await Bun.file(p).exists()) return p;
-  }
-  return null;
-}
-
 export type ResolvedIcon =
-  | { type: "path"; filePath: string }
-  | { type: "url"; url: string }
-  | { type: "svg"; svg: string }
+  | { type: "svg"; svg: string; source: string; sourceRef: string; brandColor?: string }
   | { type: "avatar"; initials: string; hue: number };
 
 export async function resolveToolIcon(
   projectId: string,
   toolSlug: string,
-  theme: "dark" | "light" = "dark"
+  _theme: "dark" | "light" = "dark"
 ): Promise<ResolvedIcon> {
-  // 1. DB lookup
-  const asset = await db.query.projectBrandAssets.findFirst({
+  // 1. DB cache check
+  const cached = await db.query.projectBrandAssets.findFirst({
     where: and(
       eq(projectBrandAssets.projectId, projectId),
       eq(projectBrandAssets.assetType, "tool_icon"),
@@ -63,29 +35,81 @@ export async function resolveToolIcon(
     ),
   });
 
-  if (asset) {
-    if (asset.source === "lobe-icons" && asset.sourceRef) {
-      const lobeSlug = asset.sourceRef.replace(/-color$|-text$/, "");
-      const filePath = await findLobeIcon(lobeSlug, theme);
-      if (filePath) return { type: "path", filePath };
+  if (cached) {
+    const validSources = ["simple-icons", "iconify", "lobe-icons"] as const;
+    if ((validSources as readonly string[]).includes(cached.source) && cached.inlineSvg) {
+      const cachedBrandColor = cached.metadata?.brandColor;
+      const base = {
+        type: "svg" as const,
+        svg: cached.inlineSvg,
+        source: cached.source,
+        sourceRef: cached.sourceRef ?? "",
+      };
+      return typeof cachedBrandColor === "string" ? { ...base, brandColor: cachedBrandColor } : base;
     }
-    if (asset.source === "r2" && asset.sourceRef) {
-      return { type: "url", url: `https://pub.toolwiki.ai/${asset.sourceRef}` };
+    if (cached.source === "deterministic-avatar") {
+      return { type: "avatar", initials: toolSlug.slice(0, 2).toUpperCase(), hue: hashToHue(toolSlug) };
     }
-    if (asset.source === "inline-svg" && asset.inlineSvg) {
-      return { type: "svg", svg: asset.inlineSvg };
-    }
+    // stale/unknown source (e.g. old broken "lobe-icons" entry) → re-resolve below
   }
 
-  // 2. Try lobe-icons directly
-  const lobeSlug = TOOL_SLUG_TO_LOBE[toolSlug] ?? toolSlug;
-  const filePath = await findLobeIcon(lobeSlug, theme);
-  if (filePath) return { type: "path", filePath };
+  // 2–4. Walk resolution chain: simple-icons → iconify → lobe-icons
+  for (const adapter of RESOLUTION_CHAIN) {
+    let resolved = null;
+    try {
+      resolved = await adapter.tryResolve(toolSlug);
+    } catch {
+      // adapter failure is non-fatal; try next source
+    }
+    if (!resolved) continue;
 
-  // 3. Deterministic avatar fallback
-  return {
-    type: "avatar",
-    initials: toolSlug.slice(0, 2).toUpperCase(),
-    hue: hashToHue(toolSlug),
-  };
+    const metadata: Record<string, unknown> = {};
+    if (resolved.brandColor !== undefined) metadata.brandColor = resolved.brandColor;
+
+    await db
+      .insert(projectBrandAssets)
+      .values({
+        projectId,
+        assetType: "tool_icon",
+        assetKey: toolSlug,
+        source: resolved.source,
+        sourceRef: resolved.sourceRef,
+        inlineSvg: resolved.svgContent,
+        displayName: toolSlug,
+        metadata,
+      })
+      .onConflictDoUpdate({
+        target: [projectBrandAssets.projectId, projectBrandAssets.assetType, projectBrandAssets.assetKey],
+        set: {
+          source: resolved.source,
+          sourceRef: resolved.sourceRef,
+          inlineSvg: resolved.svgContent,
+          metadata,
+          updatedAt: new Date(),
+        },
+      });
+
+    const base = {
+      type: "svg" as const,
+      svg: resolved.svgContent,
+      source: resolved.source,
+      sourceRef: resolved.sourceRef,
+    };
+    return resolved.brandColor !== undefined ? { ...base, brandColor: resolved.brandColor } : base;
+  }
+
+  // 5. Deterministic avatar — never emoji
+  await db
+    .insert(projectBrandAssets)
+    .values({
+      projectId,
+      assetType: "tool_icon",
+      assetKey: toolSlug,
+      source: "deterministic-avatar",
+      displayName: toolSlug,
+      metadata: {},
+    })
+    .onConflictDoNothing();
+
+  return { type: "avatar", initials: toolSlug.slice(0, 2).toUpperCase(), hue: hashToHue(toolSlug) };
 }
