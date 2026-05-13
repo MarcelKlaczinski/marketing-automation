@@ -160,10 +160,15 @@ for (const c of cases) {
   const result = await renderListCarouselStunning(parsed);
 
   const coverPath = resolve(outDir, `cover-${c.name}.png`);
+  const toolPath = resolve(outDir, `tool-${c.name}.png`);
   const endPath = resolve(outDir, `end-${c.name}.png`);
   await writeFile(coverPath, result.slides[0]!);
+  if (result.slides.length >= 3) {
+    await writeFile(toolPath, result.slides[1]!);
+  }
   await writeFile(endPath, result.slides[result.slides.length - 1]!);
   console.log(`  cover → ${coverPath}`);  // biome-ignore lint/suspicious/noConsoleLog: script output
+  console.log(`  tool  → ${toolPath}`);   // biome-ignore lint/suspicious/noConsoleLog: script output
   console.log(`  end   → ${endPath}`);    // biome-ignore lint/suspicious/noConsoleLog: script output
 }
 

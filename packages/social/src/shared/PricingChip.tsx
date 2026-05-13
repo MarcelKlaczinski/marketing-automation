@@ -43,9 +43,32 @@ const TIER_LABEL: Record<Props["tier"], string> = {
   paid: "Kostenpflichtig",
 };
 
+/**
+ * Spec 51a-stunning-v2.1 §4 — disambiguate the chip's secondary segment.
+ * For freemium tools the LLM emits "ab 12 €/Monat" which contradicts the
+ * "Freemium" badge (free implies no payment, "ab" implies paid-only). Prefix
+ * a paid-plan price with "Pro" so the chip reads "Freemium [Pro ab 12 €/Mo]".
+ * Free-only tools collapse to a single badge.
+ */
+export function deriveSecondaryLabel(tier: Props["tier"], label: string): string | null {
+  const trimmed = label.trim();
+  if (tier === "free") {
+    // Either empty, "Kostenlos", or anything else — fall back to badge-only.
+    return trimmed && !/^kostenlos$/i.test(trimmed) ? trimmed : null;
+  }
+  if (tier === "freemium") {
+    if (!trimmed) return null;
+    if (/^pro\b/i.test(trimmed)) return trimmed;          // already disambiguated
+    if (/^ab\b/i.test(trimmed)) return `Pro ${trimmed}`;  // "ab 12 €/Mo" → "Pro ab 12 €/Mo"
+    return trimmed;
+  }
+  return trimmed || null;
+}
+
 export function PricingChip({ tier, label, fontFamily, theme = "dark" }: Props) {
   const color = pricingColor(tier);
   const rightAlpha = theme === "light" ? "33" : "18"; // stronger tint on white bg
+  const secondary = deriveSecondaryLabel(tier, label);
   return (
     <div
       style={{
@@ -72,19 +95,21 @@ export function PricingChip({ tier, label, fontFamily, theme = "dark" }: Props) 
           {TIER_LABEL[tier]}
         </span>
       </div>
-      {/* Right: price label */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "10px 20px",
-          background: `${color}${rightAlpha}`,
-        }}
-      >
-        <span style={{ fontFamily, fontSize: 18, fontWeight: 600, color }}>
-          {label}
-        </span>
-      </div>
+      {/* Right: secondary segment — omitted for free-only or redundant labels */}
+      {secondary && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 20px",
+            background: `${color}${rightAlpha}`,
+          }}
+        >
+          <span style={{ fontFamily, fontSize: 18, fontWeight: 600, color }}>
+            {secondary}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
