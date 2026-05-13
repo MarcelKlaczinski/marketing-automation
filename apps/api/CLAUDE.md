@@ -345,3 +345,21 @@ After any pipeline code change, restart the worker:
 ```bash
 bun --filter @marketing-auto/api run worker:restart
 ```
+
+## Tool-Icon Resolution (Spec 52a)
+
+Entry point for API routes: `src/lib/icon-resolver.ts` (re-exports from pipelines).
+
+Resolution chain in priority order:
+1. `project_brand_assets` DB cache (project-scoped) — cache-hit skips all adapters
+2. **simple-icons** — 3000+ tech/SaaS brand logos (CC0, includes Claude/Figma/Notion/Perplexity)
+3. **iconify logos** — 1200+ icons (includes Midjourney/OpenAI/Flux/Anthropic)
+4. **lobe-icons** — AI-focused static PNGs (Recraft/Ideogram/Hedra/Kling/etc.)
+5. **Deterministic HSL avatar** with initials — NEVER emoji
+
+Every successful resolution is written back to `project_brand_assets` with `source` + `inline_svg`.
+
+Cache-bust: `DELETE FROM project_brand_assets WHERE asset_type='tool_icon' AND asset_key='<slug>'`
+
+The `emoji` field was removed from `ExtractToolsStep` output in Spec 52a.
+Existing posts with emoji-logos are intentionally NOT re-rendered (Spec decision).
