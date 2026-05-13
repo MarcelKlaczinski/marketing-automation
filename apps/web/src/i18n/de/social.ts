@@ -12,10 +12,10 @@ export default {
   },
   variant: {
     label: "Stil",
-    editorial: "Editorial",
-    editorialHint: "Ruhig, redaktionell — organisches Wachstum",
     stunning: "Stunning",
-    stunningHint: "Scroll-stopping, mehr Engagement",
+    stunningHint: "Scroll-stopping für Instagram",
+    editorial: "Editorial (legacy)",
+    editorialHint: "Ruhig, redaktionell — organisches Wachstum (legacy)",
   },
   generate: "Carousel generieren",
   cost: "~$0.01 · ~30 Sekunden",

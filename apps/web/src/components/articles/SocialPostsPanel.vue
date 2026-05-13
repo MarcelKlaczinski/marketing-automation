@@ -48,22 +48,22 @@
         <div class="social-posts-panel__label">{{ $t('social.variant.label') }}</div>
         <div class="social-posts-panel__options">
           <button
-            :class="['option-btn', { 'option-btn--active': selectedVariant === 'editorial' }]"
-            type="button"
-            @click="selectedVariant = 'editorial'"
-          >
-            {{ $t('social.variant.editorial') }}
-          </button>
-          <button
-            :class="['option-btn', { 'option-btn--active': selectedVariant === 'stunning' }]"
+            :class="['option-btn', 'option-btn--stunning', { 'option-btn--active': selectedVariant === 'stunning' }]"
             type="button"
             @click="selectedVariant = 'stunning'"
           >
             {{ $t('social.variant.stunning') }}
           </button>
+          <button
+            :class="['option-btn', 'option-btn--legacy', { 'option-btn--active': selectedVariant === 'editorial' }]"
+            type="button"
+            @click="selectedVariant = 'editorial'"
+          >
+            {{ $t('social.variant.editorial') }}
+          </button>
         </div>
         <div class="social-posts-panel__variant-hint">
-          {{ selectedVariant === 'editorial' ? $t('social.variant.editorialHint') : $t('social.variant.stunningHint') }}
+          {{ selectedVariant === 'stunning' ? $t('social.variant.stunningHint') : $t('social.variant.editorialHint') }}
         </div>
       </div>
 
@@ -255,7 +255,7 @@ export default defineComponent({
   data: () => ({
     selectedFormat: "list_carousel" as "list_carousel",
     selectedTheme: "dark" as "dark" | "light",
-    selectedVariant: "editorial" as "editorial" | "stunning",
+    selectedVariant: "stunning" as "editorial" | "stunning",
     generating: false,
     posts: [] as SocialPost[],
     previewOpen: false,
@@ -460,6 +460,15 @@ export default defineComponent({
 .option-btn--disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.option-btn--stunning {
+  font-weight: 600;
+}
+
+.option-btn--legacy {
+  font-size: 12px;
+  opacity: 0.75;
 }
 
 .generate-btn {
