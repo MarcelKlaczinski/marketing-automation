@@ -45,10 +45,39 @@ export function UseCaseVerdictComposition(props: Props) {
     );
   }
 
-  // End slide — reuse EndSlideStunning with a bridged ListCarouselInput
+  // End slide — reuse EndSlideStunning with a bridged ListCarouselInput.
+  // listCarouselInputSchema requires tools.min(3) and strengths.min(2); the end slide only
+  // uses slug/name/icon fields — strengths and extra padding tools never render (filtered by toolRecap).
   const brandTokensWithFont = listCarouselInputSchema.shape.brandTokens.parse({
     typography: { fontFamily: spaceGroteskFamily },
   });
+
+  const mappedTools = props.tools.map((t, i) => ({
+    slug: t.slug,
+    rank: i + 1,
+    name: t.name,
+    domain: `${t.slug}.com`,
+    eyebrow: "",
+    tagline: "",
+    strengths: ["", ""] as [string, string], // min(2) satisfied; end slide doesn't display strengths
+    pricing: { tier: "freemium" as const, label: "" },
+    ...(t.iconSvg !== undefined && { iconSvg: t.iconSvg }),
+    ...(t.iconInitials !== undefined && { iconInitials: t.iconInitials }),
+    ...(t.iconHue !== undefined && { iconHue: t.iconHue }),
+  }));
+  // Pad to min(3) — dummy entries are excluded by toolRecap filter in EndSlideStunning
+  while (mappedTools.length < 3) {
+    mappedTools.push({
+      slug: `_pad${mappedTools.length}`,
+      rank: mappedTools.length + 1,
+      name: "",
+      domain: "",
+      eyebrow: "",
+      tagline: "",
+      strengths: ["", ""] as [string, string],
+      pricing: { tier: "freemium" as const, label: "" },
+    });
+  }
 
   const endInput = listCarouselInputSchema.parse({
     theme: props.theme,
@@ -60,19 +89,7 @@ export function UseCaseVerdictComposition(props: Props) {
       headlineLead: "",
       headlineHighlight: "",
     },
-    tools: props.tools.map((t, i) => ({
-      slug: t.slug,
-      rank: i + 1,
-      name: t.name,
-      domain: `${t.slug}.com`,
-      eyebrow: "",
-      tagline: "",
-      strengths: [""],
-      pricing: { tier: "freemium" as const, label: "" },
-      ...(t.iconSvg !== undefined && { iconSvg: t.iconSvg }),
-      ...(t.iconInitials !== undefined && { iconInitials: t.iconInitials }),
-      ...(t.iconHue !== undefined && { iconHue: t.iconHue }),
-    })),
+    tools: mappedTools,
     end: {
       headline: props.locale === "de" ? "Mehr Reviews," : "More reviews,",
       headlineHighlight: props.locale === "de" ? "ehrlich getestet." : "honestly tested.",
