@@ -7,15 +7,19 @@ const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
   variant: "stunning",
   cover: {
-    eyebrow: "AUSGABE 01 · KI-TOOLS",
+    eyebrow: "KI-BILD-GENERATOREN · 2026",
     headlineLead: "Die 5 besten",
     headlineHighlight: "KI-Bild-Generatoren",
-    hook: {
-      pattern: "number-promise",
-      hookLead: "Die 5 besten",
-      hookTrail: "KI-Bild-Tools im Vergleich.",
-      hookEmphasisWord: "5",
-      saveTriggerIntensity: "medium",
+    hookOutput: {
+      pattern: "number_promise",
+      leadPhrase: "Die 5 besten",
+      highlightWord: "KI-Bild-Tools",
+      trailPhrase: "im Vergleich.",
+      fullText: "Die 5 besten KI-Bild-Tools im Vergleich.",
+      promiseBlock: {
+        line1: "Alle 5 in der Praxis getestet.",
+        line2: "Ehrlich verglichen.",
+      },
     },
   },
   tools: [

@@ -64,15 +64,23 @@ const toolSchema = z.object({
 
 export type Tool = z.infer<typeof toolSchema>;
 
-export const coverHookSchema = z.object({
-  pattern: z.enum(["comparison", "number-promise", "insider-reveal", "problem-recognition", "save-promise"]),
-  hookLead: z.string().max(80),
-  hookTrail: z.string().max(50),
-  hookEmphasisWord: z.string().max(30),
-  saveTriggerIntensity: z.enum(["low", "medium", "high"]),
+export const promiseBlockSchema = z.object({
+  line1: z.string(),
+  line2: z.string(),
 });
 
-export type CoverHook = z.infer<typeof coverHookSchema>;
+export type PromiseBlock = z.infer<typeof promiseBlockSchema>;
+
+export const hookOutputSchema = z.object({
+  pattern: z.enum(["superlative_question", "number_promise", "negative_frame", "identity_frame", "curiosity_gap"]),
+  leadPhrase: z.string(),
+  highlightWord: z.string(),
+  trailPhrase: z.string(),
+  fullText: z.string(),
+  promiseBlock: promiseBlockSchema,
+});
+
+export type HookOutput = z.infer<typeof hookOutputSchema>;
 
 export const endCloserSchema = z.object({
   pattern: z.enum(["question", "cta", "save-reminder"]),
@@ -95,8 +103,8 @@ export const listCarouselInputSchema = z.object({
     headlineHighlight: z.string().max(40),
     headlineTrail: z.string().max(20).optional(),
     subhead: z.string().max(80).optional(),
-    // Stunning variant hook
-    hook: coverHookSchema.optional(),
+    // Stunning variant hook (v2 phrase-based)
+    hookOutput: hookOutputSchema.optional(),
   }),
 
   tools: z.array(toolSchema).min(3).max(10),
