@@ -5,6 +5,7 @@ import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
 import type { ListCarouselInput } from "./types.ts";
 import { COVER_LAYOUT_V2 as L } from "./coverLayout.ts";
+import { getCoverColors } from "../../themes/coverThemeAdapter.ts";
 
 type Props = {
   input: ListCarouselInput;
@@ -12,7 +13,8 @@ type Props = {
   totalSlides: number;
 };
 
-function StunningBackground({ theme }: { theme: ThemeTokens }) {
+function StunningBackground({ theme, bgOverride }: { theme: ThemeTokens; bgOverride?: string }) {
+  const bg = bgOverride ?? theme.bg;
   return (
     <div
       style={{
@@ -21,7 +23,7 @@ function StunningBackground({ theme }: { theme: ThemeTokens }) {
         background: `
           radial-gradient(ellipse 70% 70% at 85% 10%, color-mix(in oklch, ${theme.brand} 8%, transparent), transparent 60%),
           radial-gradient(ellipse 60% 60% at 10% 90%, color-mix(in oklch, ${theme.accent} 5%, transparent), transparent 55%),
-          ${theme.bg}
+          ${bg}
         `,
       }}
     />
@@ -30,16 +32,13 @@ function StunningBackground({ theme }: { theme: ThemeTokens }) {
 
 function BigNumberAnchor({
   n,
-  brand,
+  color,
   fontFamily,
-  isDark,
 }: {
   n: number;
-  brand: string;
+  color: string;
   fontFamily: string;
-  isDark: boolean;
 }) {
-  const opacity = isDark ? L.bigNumberOpacityDark : L.bigNumberOpacityLight;
   return (
     <div
       style={{
@@ -50,7 +49,7 @@ function BigNumberAnchor({
         fontWeight: L.bigNumberFontWeight,
         fontFamily,
         lineHeight: 1,
-        color: `color-mix(in oklch, ${brand} ${Math.round(opacity * 100)}%, transparent)`,
+        color,
         userSelect: "none",
         pointerEvents: "none",
         zIndex: 0,
@@ -169,11 +168,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
   const { fontFamily, eyebrowLetterSpacing } = brandTokens.typography;
   const hookOutput = cover.hookOutput;
   const toolCount = tools.length;
-  const isDark = input.theme === "dark";
-
-  const promiseAccentColor = theme.accent;
-  const promiseLine1Color = theme.ink;
-  const promiseLine2Color = theme.accent;
+  const coverColors = getCoverColors(input.theme, brandTokens);
 
   return (
     <div
@@ -190,14 +185,13 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
         overflow: "hidden",
       }}
     >
-      <StunningBackground theme={theme} />
+      <StunningBackground theme={theme} bgOverride={coverColors.background} />
 
       {/* BigNumber anchor — behind everything */}
       <BigNumberAnchor
         n={toolCount}
-        brand={theme.brand}
+        color={coverColors.bigNumber}
         fontFamily={fontFamily}
-        isDark={isDark}
       />
 
       {/* Tool logos — top-right, always shown */}
@@ -234,7 +228,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                 fontSize: L.hookFontSize,
                 fontWeight: L.hookFontWeight,
                 lineHeight: L.hookLineHeight,
-                color: theme.ink,
+                color: coverColors.hookText,
                 letterSpacing: "-0.03em",
               } as React.CSSProperties}
             >
@@ -248,7 +242,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                 fontSize: L.hookFontSize,
                 fontWeight: L.highlightFontWeight,
                 lineHeight: L.hookLineHeight,
-                color: theme.brand,
+                color: coverColors.hookHighlight,
                 letterSpacing: "-0.03em",
                 marginTop: L.hookLineGap,
               } as React.CSSProperties}
@@ -263,7 +257,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                 fontSize: L.hookFontSize,
                 fontWeight: L.hookFontWeight,
                 lineHeight: L.hookLineHeight,
-                color: theme.ink,
+                color: coverColors.hookText,
                 letterSpacing: "-0.03em",
                 marginTop: L.hookLineGap,
               } as React.CSSProperties}
@@ -278,7 +272,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
                   fontFamily,
                   fontSize: L.sublineFontSize,
                   fontWeight: L.sublineFontWeight,
-                  color: theme.inkMuted,
+                  color: coverColors.subline,
                   marginTop: 24,
                   letterSpacing: "0.01em",
                 }}
@@ -291,9 +285,9 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
             <PromiseBlockElement
               line1={hookOutput.promiseBlock.line1}
               line2={hookOutput.promiseBlock.line2}
-              accentBarColor={promiseAccentColor}
-              line1Color={promiseLine1Color}
-              line2Color={promiseLine2Color}
+              accentBarColor={coverColors.promiseAccentBar}
+              line1Color={coverColors.promiseLine1}
+              line2Color={coverColors.promiseLine2}
               fontFamily={fontFamily}
             />
           </>
@@ -305,11 +299,11 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
               fontSize: 96,
               fontWeight: L.hookFontWeight,
               lineHeight: 1.05,
-              color: theme.ink,
+              color: coverColors.hookText,
             }}
           >
             <span>{cover.headlineLead} </span>
-            <span style={{ color: theme.brand }}>{cover.headlineHighlight}</span>
+            <span style={{ color: coverColors.hookHighlight }}>{cover.headlineHighlight}</span>
             {cover.headlineTrail && <span> {cover.headlineTrail}</span>}
           </div>
         )}
