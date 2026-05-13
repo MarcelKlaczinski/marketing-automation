@@ -609,7 +609,22 @@
       "Bash(bun --filter @marketing-auto/social typecheck)",
       "Bash(mkdir -p /Users/marcelklaczinski/WebstormProjects/marketing-automation/packages/social/scripts /tmp/spec-51a-v2.1)",
       "Bash(timeout 240 bun packages/social/scripts/render-closer-patterns.ts)",
-      "Bash(bun packages/social/scripts/render-closer-patterns.ts)"
+      "Bash(bun packages/social/scripts/render-closer-patterns.ts)",
+      "Bash(bun --filter @marketing-auto/pipelines test -- packages/pipelines/test/article/closer-engine.test.ts)",
+      "Bash(bun --env-file .env packages/db/src/client.ts)",
+      "Bash(bun --env-file .env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation /tmp/db-query.ts)",
+      "Bash(bun --env-file .env /tmp/db-query.ts)",
+      "Bash(bun --env-file .env db-query-temp.ts)",
+      "Bash(bun --env-file ../../.env apps/api/src/scripts/db-discovery-phase0.ts)",
+      "Bash(bun --env-file ../../.env src/scripts/db-discovery-phase0.ts)",
+      "Bash(cp /tmp/phase0-headings.ts /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/scripts/phase0-headings.ts)",
+      "Bash(bun --env-file ../../.env src/scripts/phase0-headings.ts)",
+      "Bash(bun --env-file ../../.env src/scripts/article-discovery-phase1.ts)",
+      "Bash(bun --env-file ../../.env apps/api/src/scripts/article-discovery-phase1.ts)",
+      "Bash(bun --env-file .env --cwd apps/api src/scripts/article-discovery-phase1.ts)",
+      "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api src/scripts/article-discovery-phase1.ts)",
+      "Bash(xargs -I{} head -30 {})",
+      "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env --cwd /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api src/scripts/article-discovery-phase2.ts)"
     ]
   }
 }

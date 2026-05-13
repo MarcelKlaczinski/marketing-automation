@@ -197,6 +197,13 @@
       "when": 1780500000000,
       "tag": "0027_brand_asset_ui",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1780600000000,
+      "tag": "0028_article_discovery",
+      "breakpoints": true
     }
   ]
 }
