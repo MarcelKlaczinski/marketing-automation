@@ -38,7 +38,7 @@ export interface HookArticleContext {
   toolNames: string[];
 }
 
-type ArticleType = "comparison" | "list" | "howto" | "guide" | "review";
+export type ArticleType = "comparison" | "list" | "howto" | "guide" | "review";
 
 const PATTERN_MAP: Record<ArticleType, HookPattern[]> = {
   comparison: ["superlative_question"],
