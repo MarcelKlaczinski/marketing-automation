@@ -42,6 +42,7 @@
         <q-tab name="gaps" :label="$t('projects.detail.tabs.gaps')" icon="find_in_page" />
         <q-tab name="brand" :label="$t('projects.detail.tabs.brand')" icon="palette" />
         <q-tab name="settings" :label="$t('projects.detail.tabs.settings')" icon="settings" />
+        <q-tab name="templates" :label="$t('projects.detail.tabs.templates')" icon="layers" />
       </q-tabs>
 
       <q-tab-panels v-model="activeTab" animated class="bg-transparent">
@@ -83,6 +84,10 @@
         <q-tab-panel name="settings" class="q-px-none">
           <ProjectSettingsPanel :project="project" @updated="onProjectUpdated" />
         </q-tab-panel>
+
+        <q-tab-panel name="templates" class="q-px-none">
+          <TemplatesPanel />
+        </q-tab-panel>
       </q-tab-panels>
     </template>
   </q-page>
@@ -90,6 +95,7 @@
 
 <script lang="ts">
 import ProjectPauseBanner from "src/components/common/ProjectPauseBanner.vue";
+import TemplatesPanel from "src/components/admin/templates/TemplatesPanel.vue";
 import BrandPanel from "src/components/projects/BrandPanel.vue";
 import ArticlesPanel from "src/components/projects/ArticlesPanel.vue";
 import ClustersPanel from "src/components/projects/ClustersPanel.vue";
@@ -101,7 +107,7 @@ import ProjectSettingsPanel from "src/components/projects/ProjectSettingsPanel.v
 import { useProjectsStore } from "src/stores/projects";
 import { defineComponent } from "vue";
 
-type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "brand" | "settings";
+type TabName = "overview" | "cold-start" | "articles" | "clusters" | "gaps" | "brand" | "settings" | "templates";
 const VALID_TABS: ReadonlyArray<TabName> = [
   "overview",
   "cold-start",
@@ -110,6 +116,7 @@ const VALID_TABS: ReadonlyArray<TabName> = [
   "gaps",
   "brand",
   "settings",
+  "templates",
 ];
 
 export default defineComponent({
@@ -125,6 +132,7 @@ export default defineComponent({
     GapsPanel,
     ImportedArticlesPanel,
     ProjectPauseBanner,
+    TemplatesPanel,
   },
 
   props: {

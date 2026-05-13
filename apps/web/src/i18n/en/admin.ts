@@ -18,5 +18,6 @@ export default {
     sampleArticle: "Real article",
     selectArticle: "Select article",
     noEligibleArticles: "No eligible articles found",
+    empty: "No templates registered",
   },
 };

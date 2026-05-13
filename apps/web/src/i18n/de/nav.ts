@@ -5,4 +5,5 @@ export default {
   cost: "Kosten",
   activity: "Aktivität",
   settings: "Einstellungen",
+  templates: "Templates",
 };

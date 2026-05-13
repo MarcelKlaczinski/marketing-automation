@@ -41,6 +41,7 @@ export default {
       gaps:     "Content-Lücken",
       brand:    "Brand",
       settings: "Einstellungen",
+      templates: "Templates",
     },
   },
 

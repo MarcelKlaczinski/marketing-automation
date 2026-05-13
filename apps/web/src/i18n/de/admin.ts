@@ -18,5 +18,6 @@ export default {
     sampleArticle: "Echter Artikel",
     selectArticle: "Artikel auswählen",
     noEligibleArticles: "Keine passenden Artikel gefunden",
+    empty: "Keine Templates registriert",
   },
 };
