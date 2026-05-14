@@ -202,9 +202,9 @@ export class ExtractToolsStep extends BaseStep<
 
     const stunningSuffix = isStunning ? `
 
-STUNNING VARIANT — zusätzliche Felder pro Tool:
-- "keyDifferentiator": 1-5 Wörter aus der Tagline die den Kern-Unterschied benennen (werden highlighted)
-- "starStrength": die WICHTIGSTE der 4 Strengths (exakt aus dem strengths-Array)` : "";
+STUNNING VARIANT — additional fields per tool:
+- "keyDifferentiator": 1-5 words from the tagline naming the core differentiator (will be highlighted)
+- "starStrength": the MOST IMPORTANT of the 4 strengths (copy exactly from the strengths array)` : "";
 
     const prompt = `You are a social-media content assistant. Extract structured data for an Instagram carousel from this article.
 
