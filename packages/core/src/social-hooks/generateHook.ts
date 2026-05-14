@@ -134,7 +134,8 @@ export async function generateContentWithGate(
                 highlightWord: obj["highlightWord"],
                 trailPhrase: obj["trailPhrase"],
                 caption: typeof obj["caption"] === "string" ? obj["caption"] : null,
-                hashtags: Array.isArray(obj["hashtags"]) ? (obj["hashtags"] as string[]) : null,
+                // safe: LLM output is controlled; filter to string elements only
+                hashtags: Array.isArray(obj["hashtags"]) ? (obj["hashtags"] as unknown[]).filter((h): h is string => typeof h === "string") : null,
               };
             }
           }
@@ -183,16 +184,17 @@ export async function generateContentWithGate(
 
 function buildFallbackCaption(ctx: ContentPromptContext): string {
   const toolNames = ctx.toolNames.join(" vs. ");
+  const domain = ctx.domain ?? "toolwiki.ai";
   if (ctx.locale === "de") {
     if (ctx.contentType === "comparison" || ctx.contentType === "use-case") {
-      return `${toolNames}: Ehrlicher Vergleich nach intensivem Test.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/${ctx.articleSlug}`;
+      return `${toolNames}: Ehrlicher Vergleich nach intensivem Test.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ ${domain}/${ctx.articleSlug}`;
     }
-    return `${ctx.toolNames[0] ?? ctx.articleSlug} im Check — lohnt es sich wirklich?\n\nSpeicher diesen Post für wenn du das nächste Tool evaluierst.\n\n→ toolwiki.ai/${ctx.articleSlug}`;
+    return `${ctx.toolNames[0] ?? ctx.articleSlug} im Check — lohnt es sich wirklich?\n\nSpeicher diesen Post für wenn du das nächste Tool evaluierst.\n\n→ ${domain}/${ctx.articleSlug}`;
   }
   if (ctx.contentType === "comparison" || ctx.contentType === "use-case") {
-    return `${toolNames}: An honest comparison after real-world testing.\n\nSave this post for your next tool decision.\n\n→ toolwiki.ai/${ctx.articleSlug}`;
+    return `${toolNames}: An honest comparison after real-world testing.\n\nSave this post for your next tool decision.\n\n→ ${domain}/${ctx.articleSlug}`;
   }
-  return `${ctx.toolNames[0] ?? ctx.articleSlug} reviewed — is it worth it?\n\nSave this post for your next tool evaluation.\n\n→ toolwiki.ai/${ctx.articleSlug}`;
+  return `${ctx.toolNames[0] ?? ctx.articleSlug} reviewed — is it worth it?\n\nSave this post for your next tool evaluation.\n\n→ ${domain}/${ctx.articleSlug}`;
 }
 
 function buildFallbackHashtags(ctx: ContentPromptContext): string[] {

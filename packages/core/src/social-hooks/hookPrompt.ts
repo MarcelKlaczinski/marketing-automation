@@ -13,6 +13,8 @@ export interface ContentPromptContext {
   locale: "de" | "en";
   articleSlug: string;
   contentType: "comparison" | "tool-spotlight" | "use-case" | "news" | "concept";
+  /** Project website domain for the caption CTA link. Defaults to "toolwiki.ai". */
+  domain?: string;
 }
 
 const HOOK_SYSTEM_PROMPTS: Record<HookPattern, string> = {
@@ -111,7 +113,7 @@ RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": 
 
 function buildCaptionSection(ctx: ContentPromptContext): string {
   const isComparison = ctx.contentType === "comparison" || ctx.contentType === "use-case";
-  const domain = "toolwiki.ai";
+  const domain = ctx.domain ?? "toolwiki.ai";
 
   if (ctx.locale === "de") {
     const hashtagRule = isComparison
