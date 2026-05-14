@@ -147,3 +147,7 @@ If `edge-min` looks sparse or `edge-max` clips text, the layout is not productio
 **`display: flex` + `-webkit-line-clamp`:** `-webkit-line-clamp` requires `display: -webkit-box` which overrides `display: flex`. Wrap text that needs clamping in a separate inner element.
 
 **`color-mix` fallback in oklch:** Chromium's headless renderer handles `color-mix(in oklch, ...)` correctly since Chrome 111+. Remotion 4.x ships Chromium 112+, so this is safe.
+
+**`DEFAULT_BRAND_TOKENS` is mandatory in every template `render()`:** Every template that reads `brandTokens` must write `const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;` where `DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({})`. Never use `context.brandTokens?.social.websiteUrl ?? "fallback"` inline — that bypasses the structured token system and was caught as a review violation in Spec 54f.
+
+**Zod silently strips fields not in the composition schema:** If your template's `render()` passes a computed field (e.g. `pricingLabel`) to the composition input but that field is not declared in the composition's Zod schema, Zod strips it silently at parse time. No compile error, no runtime error. Each slide then has to recompute it from first principles — wasted computation and inconsistent logic. Rule: either declare the field in the schema AND pass it from render(), OR don't pass it and have slides compute it locally. Never half-do it.

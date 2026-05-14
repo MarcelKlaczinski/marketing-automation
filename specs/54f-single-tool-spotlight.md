@@ -193,6 +193,19 @@ CLAUDE.md soll am Ende so sein, dass das nächste Template (`news-slide`) gebaut
 
 ---
 
+## Deviations from Spec
+
+**1. `enterprise` pricing tier mapped to `"paid"`, not `"Enterprise · auf Anfrage"`**
+The spec (A.3) described `enterprise` → `"Enterprise · auf Anfrage"`. In practice, `PricingChip` only accepts `"free" | "freemium" | "paid"`. Enterprise tools in our DB typically have a `priceFrom` price, so mapping enterprise → paid and showing the price-from value is more accurate than a static "auf Anfrage" label. The `PricingForWhomSlide` recomputes the label locally from `pricingTier + priceFrom` rather than accepting a pre-built string.
+
+**2. `useCases.minItems` set to 0, not 1**
+The spec declared `useCases: { minItems: 1, maxItems: 4 }`. The implementation uses `minItems: 0` — a tool article with zero use cases is eligible; the "Perfekt für" block is simply hidden. Enforcing minItems: 1 would reject valid tool articles that describe use cases in prose rather than a structured list. The layout handles the empty case correctly.
+
+**3. `buildPricingLabel()` helper removed**
+The spec implied a shared pricing-label builder. During implementation, each slide (`PricingForWhomSlide`) computed the label locally. A shared `buildPricingLabel()` was added to the template definition but found to be dead code during code review (Zod stripped it silently). It was removed; the local computation in each slide is the canonical approach.
+
+---
+
 ## Out of Scope
 
 - ⏸️ news-slide, concept-explainer-deck — Folge-Specs, profitieren von der CLAUDE.md aus dieser Spec
