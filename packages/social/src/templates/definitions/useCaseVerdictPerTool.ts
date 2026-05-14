@@ -6,7 +6,7 @@ import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/useCaseVerdict.fixtures.ts";
 import type { UseCaseVerdictItem } from "../../compositions/use-case-verdict/types.ts";
 import {
-  generateHookWithGate,
+  generateContentWithGate,
   inferArticleType,
   selectPattern,
 } from "@marketing-auto/core";
@@ -63,13 +63,21 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
     return { eligible: true };
   },
 
-  generateHook: async (article, input, _locale, llmCaller) => {
+  generateContent: async (article, input, locale, llmCaller) => {
     const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
     const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
     const pattern = selectPattern(article.id, articleType);
-    return generateHookWithGate(
+    return generateContentWithGate(
       { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
       pattern,
+      {
+        articleTitle: article.title ?? article.slug,
+        toolNames,
+        primaryKeyword: toolNames.join(" vs. "),
+        locale,
+        articleSlug: article.slug,
+        contentType: "use-case",
+      },
       llmCaller,
     );
   },
@@ -133,13 +141,10 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
       { width: SLIDE_W, height: SLIDE_H },
     );
 
-    const caption = buildCaption(input, locale, article.slug);
-    const hashtags = buildHashtags(locale);
-
     return {
       slides: slideOutputs,
-      caption,
-      hashtags,
+      caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
+      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
       metadata: { estimatedCostUsd: 0.008, templateKey: "use-case-verdict-per-tool" },
     };
   },
@@ -157,7 +162,7 @@ function computeTally(verdicts: UseCaseVerdictItem[]): Array<{ slug: string; cou
     .map(([slug, count]) => ({ slug, count }));
 }
 
-function buildCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
+function fallbackCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
   const toolNames = input.tools.map((t) => t.name).join(" vs. ");
   const tally = computeTally(input.useCaseVerdicts);
   const topSlug = tally[0]?.slug ?? "";
@@ -167,38 +172,38 @@ function buildCaption(input: ComparisonContext, locale: "de" | "en", slug: strin
   if (locale === "de") {
     return (
       `${toolNames}: ${input.useCaseVerdicts.length} Use-Cases, ${input.useCaseVerdicts.length} ehrliche Empfehlungen.\n\n` +
-      `${winner} gewinnt ${count} von ${input.useCaseVerdicts.length} Use-Cases — aber lies den Vergleich bevor du entscheidest.\n\n` +
-      `Welcher Use-Case interessiert dich am meisten? Schreib's in die Kommentare.\n\n` +
-      `→ Vollständiger Vergleich: toolwiki.ai/${slug}`
+      `${winner} gewinnt ${count} von ${input.useCaseVerdicts.length} Use-Cases.\n\n` +
+      `Speicher diesen Post für deine nächste Tool-Entscheidung.\n\n` +
+      `→ toolwiki.ai/${slug}`
     );
   }
   return (
     `${toolNames}: ${input.useCaseVerdicts.length} use cases, ${input.useCaseVerdicts.length} honest recommendations.\n\n` +
-    `${winner} wins ${count} of ${input.useCaseVerdicts.length} use cases — but read the full comparison before deciding.\n\n` +
-    `Which use case matters most to you? Let us know in the comments.\n\n` +
-    `→ Full comparison: toolwiki.ai/${slug}`
+    `${winner} wins ${count} of ${input.useCaseVerdicts.length} use cases.\n\n` +
+    `Save this post for your next tool decision.\n\n` +
+    `→ toolwiki.ai/${slug}`
   );
 }
 
-function buildHashtags(locale: "de" | "en"): string[] {
+function fallbackHashtags(locale: "de" | "en"): string[] {
   if (locale === "de") {
     return [
       "#KITools",
+      "#AITools",
       "#KIVergleich",
-      "#Toolwiki",
+      "#AIComparison",
       "#KIFürBusiness",
-      "#DigitalTools",
+      "#AIForBusiness",
       "#UseCase",
-      "#SoftwareTest",
     ];
   }
   return [
     "#AITools",
     "#AIComparison",
-    "#Toolwiki",
     "#AIForBusiness",
-    "#DigitalTools",
     "#UseCase",
     "#SoftwareReview",
+    "#Productivity",
+    "#DigitalTools",
   ];
 }

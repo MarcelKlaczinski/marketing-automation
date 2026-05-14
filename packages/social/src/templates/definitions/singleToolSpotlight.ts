@@ -4,7 +4,7 @@ import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { SINGLE_TOOL_SPOTLIGHT_FIXTURES } from "./fixtures/singleToolSpotlight.fixtures.ts";
 import {
-  generateHookWithGate,
+  generateContentWithGate,
   inferArticleType,
   selectPattern,
 } from "@marketing-auto/core";
@@ -85,13 +85,21 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
     return { eligible: true };
   },
 
-  generateHook: async (article, input, _locale, llmCaller) => {
+  generateContent: async (article, input, locale, llmCaller) => {
     const ctx = input as ToolContext;
     const articleType = inferArticleType(article.title ?? article.slug, 1);
     const pattern = selectPattern(article.id, articleType);
-    return generateHookWithGate(
+    return generateContentWithGate(
       { id: article.id, title: article.title ?? article.slug, toolCount: 1, toolNames: [ctx.name] },
       pattern,
+      {
+        articleTitle: article.title ?? article.slug,
+        toolNames: [ctx.name],
+        primaryKeyword: ctx.name,
+        locale,
+        articleSlug: article.slug,
+        contentType: "tool-spotlight",
+      },
       llmCaller,
     );
   },
@@ -164,8 +172,8 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
 
     return {
       slides: slideOutputs,
-      caption: buildCaption(input, locale, article.slug),
-      hashtags: buildHashtags(input, locale),
+      caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
+      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(input, locale),
       metadata: { estimatedCostUsd: 0.006, templateKey: "single-tool-spotlight" },
     };
   },
@@ -173,35 +181,33 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
   mockFixtures: SINGLE_TOOL_SPOTLIGHT_FIXTURES,
 };
 
-function buildCaption(input: ToolContext, locale: "de" | "en", slug: string): string {
+function fallbackCaption(input: ToolContext, locale: "de" | "en", slug: string): string {
   const topPro = input.pros[0]?.text ?? "";
   if (locale === "de") {
     return (
       `${input.name} im Check — lohnt es sich wirklich?\n\n` +
       (topPro ? `Stärkstes Argument: ${topPro}\n\n` : "") +
-      `Speichere diesen Post für wenn du das nächste Tool evaluierst.\n\n` +
-      `→ Vollständiger Test: toolwiki.ai/${slug}`
+      `Speicher diesen Post für deine nächste Tool-Evaluierung.\n\n` +
+      `→ toolwiki.ai/${slug}`
     );
   }
   return (
     `${input.name} reviewed — is it worth it?\n\n` +
     (topPro ? `Strongest argument: ${topPro}\n\n` : "") +
     `Save this post for your next tool evaluation.\n\n` +
-    `→ Full review: toolwiki.ai/${slug}`
+    `→ toolwiki.ai/${slug}`
   );
 }
 
-function buildHashtags(input: ToolContext, locale: "de" | "en"): string[] {
+function fallbackHashtags(input: ToolContext, locale: "de" | "en"): string[] {
   const category = input.primaryCategory?.replace(/\s+/g, "") ?? "KITool";
   if (locale === "de") {
-    // Mix of German KI-tags and English AI-tags so DE posts rank for both
-    // "beste KI Tools" and "best AI tools" search intents on Instagram (OD-4)
     return [
       "#KITools",
       "#AITools",
       `#${category}`,
-      "#Toolwiki",
       "#KIFürBusiness",
+      "#AIForBusiness",
       "#SoftwareTest",
       "#Produktivität",
     ];
@@ -209,10 +215,10 @@ function buildHashtags(input: ToolContext, locale: "de" | "en"): string[] {
   return [
     "#AITools",
     `#${category}`,
-    "#Toolwiki",
     "#AIForBusiness",
     "#DigitalTools",
     "#SoftwareReview",
     "#Productivity",
+    "#TechTools",
   ];
 }

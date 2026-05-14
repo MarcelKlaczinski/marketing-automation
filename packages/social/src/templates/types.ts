@@ -9,6 +9,12 @@ import type { BrandTokens, HookOutput } from "../compositions/list-carousel/type
  */
 export type HookLlmCaller = (systemPrompt: string, userPrompt: string) => Promise<string | null>;
 
+export interface GeneratedContent {
+  hookOutput: HookOutput;
+  caption: string;
+  hashtags: string[];
+}
+
 export type TemplateKey =
   | "comparison-stunning"
   | "comparison-stunning-3"
@@ -39,8 +45,8 @@ export interface RenderContext<TInput = unknown> {
   locale: Locale;
   theme: Theme;
   input: TInput;
-  brandTokens?: BrandTokens; // project override; templates fall back to DEFAULT_BRAND_TOKENS
-  hookOutput?: HookOutput;   // populated by runner via template.generateHook() before render()
+  brandTokens?: BrandTokens;        // project override; templates fall back to DEFAULT_BRAND_TOKENS
+  generatedContent?: GeneratedContent; // populated by runner via template.generateContent() before render()
 }
 
 export interface SlideOutput {
@@ -97,17 +103,17 @@ export interface TemplateDefinition<TInput = unknown> {
   eligibility: EligibilityPredicate;
 
   /**
-   * Generate a validated hook for this template's cover/hook slide.
-   * Called by the runner before render(); result is passed via RenderContext.hookOutput.
+   * Generate hook + caption + hashtags in a single LLM call.
+   * Called by the runner before render(); result is passed via RenderContext.generatedContent.
    * The llmCaller callback wraps the Anthropic adapter — template stays adapter-free.
-   * Use generateHookWithGate() from @marketing-auto/core to implement this.
+   * Use generateContentWithGate() from @marketing-auto/core to implement this.
    */
-  generateHook: (
+  generateContent: (
     article: Article,
     input: TInput,
     locale: Locale,
     llmCaller: HookLlmCaller,
-  ) => Promise<HookOutput>;
+  ) => Promise<GeneratedContent>;
 
   buildInput: (article: Article, discovery: ArticleDiscovery) => Promise<TInput>;
   render: (context: RenderContext<TInput>) => Promise<RenderResult>;

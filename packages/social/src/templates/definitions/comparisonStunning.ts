@@ -5,16 +5,13 @@ import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonStunning.fixtures.ts";
 import {
-  generateHookWithGate,
+  generateContentWithGate,
   inferArticleType,
   selectPattern,
 } from "@marketing-auto/core";
 
-// Default brand tokens with all sub-schemas populated — render-server.ts skips Zod parsing,
-// so brandTokens: {} would leave colors/typography/social as undefined and crash the composition.
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
-// Slide dimensions for ListCarouselStunning (1080×1350)
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
 
@@ -61,13 +58,21 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     return { eligible: true };
   },
 
-  generateHook: async (article, input, _locale, llmCaller) => {
+  generateContent: async (article, input, locale, llmCaller) => {
     const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
     const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
     const pattern = selectPattern(article.id, articleType);
-    return generateHookWithGate(
+    return generateContentWithGate(
       { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
       pattern,
+      {
+        articleTitle: article.title ?? article.slug,
+        toolNames,
+        primaryKeyword: toolNames.join(" vs. "),
+        locale,
+        articleSlug: article.slug,
+        contentType: "comparison",
+      },
       llmCaller,
     );
   },
@@ -90,9 +95,7 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
         ? `TOOL-VERGLEICH · ${year}`
         : `TOOL COMPARISON · ${year}`;
 
-    // Use pre-validated hook from context (populated by runner via generateHook()).
-    // Programmatic fallback ensures render works even if runner didn't call generateHook yet.
-    const hook = context.hookOutput ?? {
+    const hook = context.generatedContent?.hookOutput ?? {
       pattern: "superlative_question" as const,
       leadPhrase: locale === "de" ? "Welches Tool" : "Which tool",
       highlightWord: locale === "de" ? "gewinnt wirklich?" : "really wins?",
@@ -104,7 +107,6 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       },
     };
 
-    // Build resolved tools in the ListCarouselInput shape
     const resolvedTools = input.tools.map((t, i) => ({
       slug: t.slug,
       rank: i + 1,
@@ -163,7 +165,6 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       },
     };
 
-    // Dynamic import — avoids bundling Remotion into non-render contexts
     const socialModule = await import("../../../render-server.ts") as unknown as {
       renderListCarouselStunning: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     };
@@ -178,13 +179,10 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       { width: SLIDE_W, height: SLIDE_H },
     );
 
-    const caption = buildCaption(input, locale, article.slug);
-    const hashtags = buildHashtags(locale);
-
     return {
       slides: slideOutputs,
-      caption,
-      hashtags,
+      caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
+      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
       metadata: { estimatedCostUsd: 0.01, templateKey: "comparison-stunning" },
     };
   },
@@ -192,17 +190,17 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
   mockFixtures: COMPARISON_STUNNING_FIXTURES,
 };
 
-function buildCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
+function fallbackCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
   const toolNames = input.tools.map((t) => t.name).join(" vs. ");
   if (locale === "de") {
-    return `${toolNames}: Wir haben beide Tools getestet — hier ist unser ehrliches Fazit.\n\nWelches Tool nutzt du? Schreib's in die Kommentare.\n\n→ Vollständiger Vergleich: toolwiki.ai/${slug}`;
+    return `${toolNames}: Wir haben beide Tools getestet — hier ist unser ehrliches Fazit.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/${slug}`;
   }
-  return `${toolNames}: We tested both tools — here's our honest verdict.\n\nWhich tool do you use? Let us know in the comments.\n\n→ Full comparison: toolwiki.ai/${slug}`;
+  return `${toolNames}: We tested both tools — here's our honest verdict.\n\nSave this post for your next tool decision.\n\n→ toolwiki.ai/${slug}`;
 }
 
-function buildHashtags(locale: "de" | "en"): string[] {
+function fallbackHashtags(locale: "de" | "en"): string[] {
   if (locale === "de") {
-    return ["#KITools", "#KIVergleich", "#Toolwiki", "#KIFürBusiness", "#DigitalTools", "#SoftwareTest"];
+    return ["#KITools", "#AITools", "#KIVergleich", "#AIComparison", "#KIFürBusiness", "#AIForBusiness", "#SoftwareTest"];
   }
-  return ["#AITools", "#AIComparison", "#Toolwiki", "#AIForBusiness", "#DigitalTools", "#SoftwareReview"];
+  return ["#AITools", "#AIComparison", "#AIForBusiness", "#SoftwareReview", "#Productivity", "#DigitalTools", "#TechTools"];
 }

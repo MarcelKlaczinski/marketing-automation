@@ -170,7 +170,7 @@ async function handleRenderTemplateJob(templateRenderId: string): Promise<void> 
       }
     };
 
-    const hookOutput = await template.generateHook(
+    const generatedContent = await template.generateContent(
       article as import("@marketing-auto/db").Article,
       renderInput,
       locale,
@@ -183,7 +183,7 @@ async function handleRenderTemplateJob(templateRenderId: string): Promise<void> 
       locale,
       theme: render.theme as import("@marketing-auto/social/templates").Theme,
       input: renderInput,
-      hookOutput,
+      generatedContent,
     });
 
     await db

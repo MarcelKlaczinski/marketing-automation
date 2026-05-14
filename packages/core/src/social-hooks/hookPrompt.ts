@@ -6,101 +6,155 @@ interface HookPromptContext {
   primaryKeyword: string;
 }
 
+export interface ContentPromptContext {
+  articleTitle: string;
+  toolNames: string[];
+  primaryKeyword: string;
+  locale: "de" | "en";
+  articleSlug: string;
+  contentType: "comparison" | "tool-spotlight" | "use-case" | "news" | "concept";
+}
+
 const HOOK_SYSTEM_PROMPTS: Record<HookPattern, string> = {
-  superlative_question: `Du bist ein Instagram-Hook-Spezialist für die deutsche KI-Tools-Nische.
+  superlative_question: `You are an Instagram hook specialist for the AI tools niche.
 
 PATTERN: superlative_question
-Format: "Welche [Subjekt] macht die [highlight] [Objekt]?"
-Beispiele:
-- "Welche KI macht die besten Logos?" → lead: "Welche KI macht", highlight: "die besten", trail: "Logos?"
-- "Welche App spart am meisten Zeit?" → lead: "Welche App spart", highlight: "am meisten", trail: "Zeit?"
+Format: "Which [subject] is the [highlight] [object]?"
+Examples:
+- "Which AI creates the best logos?" → lead: "Which AI creates", highlight: "the best", trail: "logos?"
+- "Which app saves the most time?" → lead: "Which app saves", highlight: "the most", trail: "time?"
 
 CONSTRAINTS:
-- fullText (lead + highlight + trail) max 7 Wörter total, mindestens 3
-- highlightWord ist 1-2 Wörter, NIE mehr
-- du-Form, kein "Sie"
-- Keine Marketing-Floskeln: "innovativ", "revolutionär", "bahnbrechend", "einzigartig", "ultimativ"
-- Keine Emojis im Hook
-- MUSS Question-Format sein (endet mit ?)
-- leadPhrase MUSS mit Großbuchstabe beginnen
+- fullText (lead + highlight + trail) max 7 words total, min 3
+- highlightWord is 1-2 words, NEVER more
+- No marketing clichés: "innovative", "revolutionary", "groundbreaking", "unique", "ultimate"
+- No emojis in hook
+- MUST be question format (ends with ?)
+- leadPhrase MUST start with capital letter
+- For German output: du-form, not Sie
 
-GIB NUR JSON zurück: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  number_promise: `Du bist ein Instagram-Hook-Spezialist für die deutsche KI-Tools-Nische.
+  number_promise: `You are an Instagram hook specialist for the AI tools niche.
 
 PATTERN: number_promise
-Format: "[N] [Subjekt] [highlight] [Resultat]"
-Beispiele:
-- "5 KI-Tools" + "die deinen" + "Stack ersetzen." → fullText: "5 KI-Tools die deinen Stack ersetzen."
-- "4 Apps" + "die ich täglich" + "nutze." → fullText: "4 Apps die ich täglich nutze."
+Format: "[N] [subjects] [highlight] [result]"
+Examples:
+- "5 AI tools" + "that replace" + "your entire stack." → fullText: "5 AI tools that replace your entire stack."
+- "4 apps" + "I use" + "every single day." → fullText: "4 apps I use every single day."
 
 CONSTRAINTS:
-- fullText max 7 Wörter total, mindestens 3
-- highlightWord ist 1-2 Wörter, NIE mehr
-- leadPhrase beginnt mit der Zahl (z.B. "5 KI-Tools")
-- du-Form, kein "Sie"
-- Keine Marketing-Floskeln: "innovativ", "revolutionär", "bahnbrechend", "einzigartig", "ultimativ"
-- Keine Emojis
-- leadPhrase MUSS mit Großbuchstabe beginnen
+- fullText max 7 words total, min 3
+- highlightWord is 1-2 words, NEVER more
+- leadPhrase starts with the number (e.g. "5 AI tools")
+- No marketing clichés: "innovative", "revolutionary", "groundbreaking", "unique", "ultimate"
+- No emojis
+- leadPhrase MUST start with capital letter
 
-GIB NUR JSON zurück: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  negative_frame: `Du bist ein Instagram-Hook-Spezialist für die deutsche KI-Tools-Nische.
+  negative_frame: `You are an Instagram hook specialist for the AI tools niche.
 
 PATTERN: negative_frame
-Format: "Hör auf, [Problem] zu [tun]." ODER "Nicht [falsche Sache] — [bessere Alternative]."
-Beispiele:
-- "Hör auf," + "ChatGPT für" + "Logos zu nutzen." → fullText: "Hör auf, ChatGPT für Logos zu nutzen."
-- "Nicht diese KI" + "— es gibt" + "Besseres." → fullText: "Nicht diese KI — es gibt Besseres."
+Format: "Stop [doing problem]." OR "Not [wrong thing] — [better alternative]."
+Examples:
+- "Stop using" + "ChatGPT for" + "logo design." → fullText: "Stop using ChatGPT for logo design."
+- "Not this AI" + "— there's" + "something better." → fullText: "Not this AI — there's something better."
 
 CONSTRAINTS:
-- fullText max 7 Wörter total, mindestens 3
-- highlightWord ist 1-2 Wörter, NIE mehr
-- leadPhrase MUSS mit Negation beginnen: "Hör auf,", "Nicht", "Kein", "Stop"
-- du-Form, kein "Sie"
-- Keine Marketing-Floskeln
-- Keine Emojis
-- leadPhrase MUSS mit Großbuchstabe beginnen
+- fullText max 7 words total, min 3
+- highlightWord is 1-2 words, NEVER more
+- leadPhrase MUST start with negation: "Stop", "Not", "Never", "Avoid"
+- No marketing clichés
+- No emojis
+- leadPhrase MUST start with capital letter
 
-GIB NUR JSON zurück: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  identity_frame: `Du bist ein Instagram-Hook-Spezialist für die deutsche KI-Tools-Nische.
+  identity_frame: `You are an Instagram hook specialist for the AI tools niche.
 
 PATTERN: identity_frame
-Format: "Du [Tätigkeit]? [Diese/N] [Tools/Tool] musst du kennen."
-Beispiele:
-- "Du designst Logos?" + "Diese 2" + "Tools musst du kennen."
-- "Du nutzt KI täglich?" + "Diese Tools" + "kennst du nicht."
+Format: "You [activity]? [This/These] [tool/tools] you need to know."
+Examples:
+- "You design logos?" + "These 2" + "tools you need."
+- "You use AI daily?" + "These tools" + "you don't know yet."
 
 CONSTRAINTS:
-- fullText max 7 Wörter total, mindestens 3
-- highlightWord ist 1-2 Wörter, NIE mehr
-- leadPhrase beginnt mit "Du" oder ähnlicher direkter Ansprache
-- du-Form, kein "Sie"
-- Keine Marketing-Floskeln
-- Keine Emojis
-- leadPhrase MUSS mit Großbuchstabe beginnen
+- fullText max 7 words total, min 3
+- highlightWord is 1-2 words, NEVER more
+- leadPhrase starts with "You" or similar direct address
+- No marketing clichés
+- No emojis
+- leadPhrase MUST start with capital letter
+- For German output: Du-form, not Sie
 
-GIB NUR JSON zurück: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  curiosity_gap: `Du bist ein Instagram-Hook-Spezialist für die deutsche KI-Tools-Nische.
+  curiosity_gap: `You are an Instagram hook specialist for the AI tools niche.
 
 PATTERN: curiosity_gap
-Format: "Niemand spricht über [Thema]." ODER "Das übersehen [viele] bei [Thema]."
-Beispiele:
-- "Niemand spricht" + "über diese KI" + "für Typografie."
-- "Das übersehen" + "9 von 10" + "bei KI-Tools."
+Format: "Nobody talks about [topic]." OR "Most people miss [thing] about [topic]."
+Examples:
+- "Nobody talks" + "about this AI" + "for typography."
+- "Most people miss" + "this one" + "AI feature."
 
 CONSTRAINTS:
-- fullText max 7 Wörter total, mindestens 3
-- highlightWord ist 1-2 Wörter, NIE mehr
-- Erzeugt Neugierde ohne Hype
-- Keine Marketing-Floskeln
-- Keine Emojis
-- leadPhrase MUSS mit Großbuchstabe beginnen
+- fullText max 7 words total, min 3
+- highlightWord is 1-2 words, NEVER more
+- Creates curiosity without hype
+- No marketing clichés
+- No emojis
+- leadPhrase MUST start with capital letter
 
-GIB NUR JSON zurück: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 };
+
+function buildCaptionSection(ctx: ContentPromptContext): string {
+  const isComparison = ctx.contentType === "comparison" || ctx.contentType === "use-case";
+  const domain = "toolwiki.ai";
+
+  if (ctx.locale === "de") {
+    const hashtagRule = isComparison
+      ? `- German: #KITools, #KIVergleich, #KIFürBusiness + 1 niche German tag (e.g. #SoftwareTest)
+- English: #AITools, #AIComparison, #AIForBusiness + 1 niche English tag (e.g. #SoftwareReview)
+- Total: exactly 7 tags`
+      : `- German: #KITools, #KIFürBusiness, #Produktivität + 1 niche German tag based on tool category
+- English: #AITools, #AIForBusiness, #DigitalTools + 1 niche English tag based on tool category
+- Total: exactly 7 tags`;
+
+    return `
+CAPTION (German output, du-form):
+- Line 1: strongest insight from the article — keyword-rich (Instagram indexes this line for search)
+- Lines 2-3: 2-3 sentences of genuine finding. Real insight, not marketing speak.
+${isComparison ? "- Name a clear use-case winner — not just 'it depends'" : "- Name the #1 concrete benefit and the #1 concrete limitation of the tool"}
+- CTA: "Speicher diesen Post" or "Tag jemanden, der [X] nutzt" — NO comment-baiting ("Schreib in die Kommentare")
+- Last line: → ${domain}/${ctx.articleSlug}
+- Max 280 chars per paragraph, 4 paragraphs max
+
+HASHTAGS (7 tags, bilingual for dual search intent on Instagram):
+${hashtagRule}
+- NO self-promotional tags like #Toolwiki`;
+  }
+
+  const hashtagRule = isComparison
+    ? `- #AITools, #AIComparison, #AIForBusiness + 3-4 niche tags based on tool category
+- Total: exactly 7 tags`
+    : `- #AITools, #AIForBusiness, #Productivity + 3-4 niche tags based on tool category
+- Total: exactly 7 tags`;
+
+  return `
+CAPTION (English output):
+- Line 1: strongest insight from the article — keyword-rich (Instagram indexes this line for search)
+- Lines 2-3: 2-3 sentences of genuine finding. Real insight, not marketing speak.
+${isComparison ? "- Name a clear use-case winner — not just 'it depends'" : "- Name the #1 concrete benefit and the #1 concrete limitation of the tool"}
+- CTA: "Save this post" or "Tag someone who uses [X]" — NO comment-baiting ("Write in the comments")
+- Last line: → ${domain}/${ctx.articleSlug}
+- Max 280 chars per paragraph, 4 paragraphs max
+
+HASHTAGS (7 tags):
+${hashtagRule}
+- NO self-promotional tags like #Toolwiki`;
+}
 
 export function buildHookPrompt(
   pattern: HookPattern,
@@ -108,16 +162,47 @@ export function buildHookPrompt(
   previousViolations?: string[],
 ): { systemPrompt: string; userPrompt: string } {
   const violationNote = previousViolations?.length
-    ? `\n\nVORHERIGER VERSUCH WAR UNGÜLTIG:\n${previousViolations.map((v) => `- ${v}`).join("\n")}\nBitte streng die CONSTRAINTS einhalten.`
+    ? `\n\nPREVIOUS ATTEMPT WAS INVALID:\n${previousViolations.map((v) => `- ${v}`).join("\n")}\nPlease strictly follow the CONSTRAINTS.`
     : "";
 
   return {
     systemPrompt: HOOK_SYSTEM_PROMPTS[pattern] + violationNote,
     userPrompt: `INPUT:
-- Article-Title: ${ctx.articleTitle}
+- Article title: ${ctx.articleTitle}
 - Tools: ${ctx.toolNames.join(", ")}
-- Target-Keyword: ${ctx.primaryKeyword}
+- Target keyword: ${ctx.primaryKeyword}
 
-GIB NUR JSON zurück: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
+  };
+}
+
+export function buildContentPrompt(
+  pattern: HookPattern,
+  ctx: ContentPromptContext,
+  previousViolations?: string[],
+): { systemPrompt: string; userPrompt: string } {
+  const violationNote = previousViolations?.length
+    ? `\n\nPREVIOUS ATTEMPT WAS INVALID:\n${previousViolations.map((v) => `- ${v}`).join("\n")}\nPlease strictly follow all CONSTRAINTS.`
+    : "";
+
+  const systemPrompt =
+    HOOK_SYSTEM_PROMPTS[pattern] +
+    "\n\n---\n" +
+    buildCaptionSection(ctx) +
+    "\n\nRETURN ONLY JSON with all fields:\n" +
+    '{ "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "...", "caption": "...", "hashtags": ["...", ...] }' +
+    violationNote;
+
+  return {
+    systemPrompt,
+    userPrompt: `INPUT:
+- Article title: ${ctx.articleTitle}
+- Tools: ${ctx.toolNames.join(", ")}
+- Content type: ${ctx.contentType}
+- Target keyword: ${ctx.primaryKeyword}
+- Article slug: ${ctx.articleSlug}
+- Output locale: ${ctx.locale}
+
+RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "...", "caption": "...", "hashtags": ["...", ...] }`,
   };
 }
