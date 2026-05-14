@@ -118,6 +118,7 @@ fields with their types, allowed values, and format hints. This block is project
 3. `DraftStep` additionally instructs the LLM to output a
    `<!-- FRONTMATTER_EXTRAS: {...JSON...} -->` block at end of body; it parses
    this, strips it from `bodyMd`, and saves to `articles.frontmatterExtras`.
+4. **Tool spotlight fields (Spec 54l):** When `intentType` is `overview`, `features`, `review`, `pricing`, or `use-cases` AND `primaryTool` is set, `DraftStep` also emits `pros`, `cons`, `features`, `useCases`, `pricingTier`, `priceFrom`, `rating` in `FRONTMATTER_EXTRAS`. These fields are required for `single-tool-spotlight` eligibility. Articles with `intentType: "general"` or `"tutorial"` do not get these fields — by design.
 
 ### Tagged-block output pattern (multi-field LLM responses)
 

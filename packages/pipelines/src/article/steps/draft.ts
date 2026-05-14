@@ -144,6 +144,29 @@ FRONTMATTER_EXTRAS fields — output every field that applies:
   - "testMethodology": 1-3 sentences how you tested — ONLY for hands-on testing articles
   - "useCaseVerdicts": array of {useCase, winner, reason} — ONLY for "depends" winner comparisons
 
+  TOOL SPOTLIGHT FIELDS — include ONLY when ALL three conditions are true:
+    (a) intentType is "overview", "features", "review", "pricing", or "use-cases"
+    (b) the article focuses on a single named AI tool (primaryTool is set)
+    (c) you have enough information from the outline to fill the fields meaningfully
+  If any condition is false, OMIT these fields entirely — do not write empty arrays or null values:
+  - "pros": array of 2-5 objects, each {"text": "one concrete advantage of this tool"}
+      Write factual pros backed by the article content. No marketing fluff.
+  - "cons": array of 0-4 objects, each {"text": "one concrete limitation or drawback"}
+      Include ONLY real limitations. Omit the field entirely if there are none worth mentioning.
+  - "features": array of 0-6 strings, each a key feature name (e.g. "GPT-4o integration", "API access")
+      Write feature names, not sentences.
+  - "useCases": array of 0-4 strings, each a concrete use case (e.g. "Code review", "Email drafting")
+      These feed the social media template — keep them short (2-4 words each).
+  - "pricingTier": EXACTLY ONE of these values (copy character-for-character): "free" | "freemium" | "paid" | "enterprise"
+      "free" = completely free, no paid tier
+      "freemium" = free tier exists + paid upgrades
+      "paid" = paid only, no meaningful free tier
+      "enterprise" = enterprise/custom pricing only
+  - "priceFrom": the starting price in USD/EUR per month as a number (e.g. 20 for "$20/month")
+      Use 0 when pricingTier is "free". Omit if price is unknown or enterprise-only.
+  - "rating": a number from 0.0 to 5.0 reflecting the overall tool quality based on article content
+      Use one decimal place (e.g. 4.2). Omit if the article does not reach a clear verdict.
+
   LISTICLE FIELDS — include ONLY for top-X or "alternatives to X" articles:
   - "listicleType": pick from allowed enum in "# Frontmatter Requirements"
 
