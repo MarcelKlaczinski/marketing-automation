@@ -22,6 +22,7 @@ import {
   VoiceRefinementQuestionsPipeline,
   VoiceSynthesisPipeline,
   closePipelineInfrastructure,
+  discoverArticleStep,
   pipelineRegistry,
   registerChainCallbacks,
   registerDraftDiscoveryCallback,
@@ -33,7 +34,6 @@ import {
 } from "@marketing-auto/pipelines";
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
-import { discoverArticleStep } from "@marketing-auto/pipelines";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";

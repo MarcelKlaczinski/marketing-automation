@@ -1,6 +1,6 @@
 import { pruneOldNotifications } from "@marketing-auto/core/notifications";
 import { articleDiscovery, articles, db, templateRenders } from "@marketing-auto/db";
-import { and, eq, inArray, isNotNull, sql } from "@marketing-auto/db";
+import { and, desc, eq, inArray, isNotNull, sql } from "@marketing-auto/db";
 import type { Article, ArticleDiscovery } from "@marketing-auto/db";
 import { templateRegistry } from "@marketing-auto/social/templates";
 import type { TemplateKey } from "@marketing-auto/social/templates";
@@ -330,6 +330,42 @@ adminRoutes.post(
       return c.json({ ok: false, error: "Article discovery not found — run discovery first" }, 404);
     }
 
+    // ── Check for existing ready render (skip re-render if not forced) ────────
+    if (!force) {
+      const [existingRender] = await db
+        .select()
+        .from(templateRenders)
+        .where(
+          and(
+            eq(templateRenders.articleId, body.sampleArticleId),
+            eq(templateRenders.templateKey, templateKey),
+            eq(templateRenders.locale, body.locale),
+            eq(templateRenders.theme, body.theme),
+            eq(templateRenders.status, "ready"),
+          ),
+        )
+        .orderBy(desc(templateRenders.completedAt))
+        .limit(1);
+
+      if (existingRender?.outputFiles) {
+        const out = existingRender.outputFiles;
+        const slides = out.slides.map((s) => ({ ...s, filePath: filePathToUrl(s.filePath) }));
+        log.info({ templateKey, articleId: body.sampleArticleId }, "Returning existing template_render — skipping re-render");
+        return c.json({
+          ok: true,
+          data: {
+            slides,
+            caption: out.caption,
+            hashtags: out.hashtags,
+            metadata: { estimatedCostUsd: 0, templateKey },
+            fromCache: true,
+            fromDb: true,
+            renderedAt: existingRender.completedAt?.toISOString() ?? existingRender.createdAt.toISOString(),
+          },
+        });
+      }
+    }
+
     const eligibility = template.eligibility(
       articleRow as Article,
       discoveryRow as ArticleDiscovery,
@@ -375,9 +411,44 @@ adminRoutes.post(
       return c.json({ ok: false, error: `Render failed: ${err instanceof Error ? err.message : String(err)}` }, 500);
     }
 
+    // ── Persist result to template_renders (upsert: insert new row, mark old as replaced) ──
+    const outputFiles = {
+      slides: result.slides,
+      caption: result.caption,
+      hashtags: result.hashtags,
+    };
+    // buildInput() returns unknown (generic template contract) — cast required for DB insert
+    const renderInput = (input as Record<string, unknown>) ?? {};
+    const completedAt = new Date();
+    const costUsd = result.metadata?.estimatedCostUsd ?? null;
+
+    await db.insert(templateRenders).values({
+      articleId: body.sampleArticleId,
+      templateKey,
+      locale: body.locale,
+      theme: body.theme,
+      status: "ready",
+      renderInput,
+      outputFiles,
+      costUsd: costUsd !== null ? String(costUsd) : null,
+      completedAt,
+    });
+
+    log.info({ templateKey, articleId: body.sampleArticleId }, "Saved render to template_renders");
+
     const slides = result.slides.map((s) => ({ ...s, filePath: filePathToUrl(s.filePath) }));
-    const cacheKey = `tmpl-preview:v2:${templateKey}:sample:${body.sampleArticleId}:${body.theme}:${body.locale}${body.projectId ? `:${body.projectId}` : ""}`;
-    return c.json({ ok: true, data: { slides, caption: result.caption, hashtags: result.hashtags, metadata: result.metadata, cacheKey, fromCache: false } });
+    return c.json({
+      ok: true,
+      data: {
+        slides,
+        caption: result.caption,
+        hashtags: result.hashtags,
+        metadata: result.metadata,
+        fromCache: false,
+        fromDb: false,
+        renderedAt: completedAt.toISOString(),
+      },
+    });
   },
 );
 

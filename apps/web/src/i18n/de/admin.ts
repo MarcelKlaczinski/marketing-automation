@@ -20,5 +20,7 @@ export default {
     noEligibleArticles: "Keine passenden Artikel gefunden",
     empty: "Keine Templates registriert",
     projectBrandTokens: "Projekt-Brand-Tokens aktiv",
+    savedRender: "Gespeicherter Render vom",
+    reRender: "Neu rendern",
   },
 };

@@ -636,7 +636,17 @@
       "Bash(bun --cwd apps/api run tsc)",
       "Bash(git reset *)",
       "Bash(bun --env-file .env run --cwd packages/db tsx -e ' *)",
-      "Bash(bun --env-file .env packages/db/src/query.ts)"
+      "Bash(bun --env-file .env packages/db/src/query.ts)",
+      "Bash(psql -U marketing_user -d marketing_automation -c \"SELECT id, article_id, tool_name, verdict, created_at FROM use_case_verdicts WHERE article_id = '1712d2e0-186b-433e-8589-3471bdb83238' LIMIT 10;\")",
+      "Bash(psql -U marketing_user -d marketing_automation -c \"\\\\dt\")",
+      "Bash(psql -U marketing_user -d marketing_automation -c \"SELECT id, article_id, tool_name, created_at FROM article_use_case_verdicts WHERE article_id = '1712d2e0-186b-433e-8589-3471bdb83238' LIMIT 10;\")",
+      "Bash(psql -U marketing_user -d marketing_automation -c \"SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename;\")",
+      "Bash(cat > *)",
+      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query.ts)",
+      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query2.ts)",
+      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query3.ts)",
+      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query4.ts)",
+      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query5.ts)"
     ]
   }
 }

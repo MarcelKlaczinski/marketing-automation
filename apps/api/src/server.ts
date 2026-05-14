@@ -19,7 +19,7 @@ import { cornerstoneSpecRoutes } from "./routes/cornerstone-specs.ts";
 import { notificationRoutes } from "./routes/notifications.ts";
 import { pushSubscriptionRoutes } from "./routes/push-subscriptions.ts";
 import { systemRoutes } from "./routes/system.ts";
-import { socialPostRoutes, socialPostDetailRoutes, socialPostBatchRoutes } from "./routes/social-posts.ts";
+import { socialPostRoutes, socialPostDetailRoutes, socialPostBatchRoutes, templateRenderDetailRoutes } from "./routes/social-posts.ts";
 import { brandAssetRoutes } from "./routes/brand-assets.ts";
 import { brandTokenRoutes } from "./routes/brand-tokens.ts";
 
@@ -79,6 +79,7 @@ app.route("/api/push", pushSubscriptionRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/api/articles", socialPostRoutes);
 app.route("/api/social-posts", socialPostDetailRoutes);
+app.route("/api/template-renders", templateRenderDetailRoutes);
 app.route("/api/projects", brandAssetRoutes);
 app.route("/api/projects", brandTokenRoutes);
 app.route("/api/projects", socialPostBatchRoutes);

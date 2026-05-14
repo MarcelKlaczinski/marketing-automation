@@ -125,7 +125,10 @@ export default defineComponent({
         if (res.data.ok) {
           this.suggestions = res.data.data.suggestions;
           this.renders = res.data.data.renders;
-          this.$emit("suggestions-loaded", this.suggestions.length);
+          const pending = this.suggestions.filter(
+            (s) => this.renders[s.templateKey] !== "ready"
+          ).length;
+          this.$emit("suggestions-loaded", { total: this.suggestions.length, pending });
         }
       } catch {
         // silently ignore

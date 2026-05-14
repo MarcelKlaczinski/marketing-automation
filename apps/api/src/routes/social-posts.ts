@@ -1,5 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { articleDiscovery, articles, db, projects, socialPosts, templateRenders } from "@marketing-auto/db";
+import type { Article, ArticleDiscovery } from "@marketing-auto/db";
+import { readFile } from "node:fs/promises";
 import { templateRegistry } from "@marketing-auto/social/templates";
 import { enqueueSocialImagePipeline } from "@marketing-auto/pipelines";
 import { enqueueTemplateRenderJob } from "../workers/discoveryWorker.ts";
@@ -440,6 +442,80 @@ socialPostRoutes.get("/:articleId/template-suggestions", async (c) => {
   return c.json({ ok: true, data: { suggestions, renders: renderByKey } });
 });
 
+// ─── GET /api/articles/:articleId/all-templates ──────────────────────────────
+// All registered templates with eligibility + latest render status + slide URLs
+
+socialPostRoutes.get("/:articleId/all-templates", async (c) => {
+  const articleId = c.req.param("articleId");
+
+  const [article] = await db
+    .select()
+    .from(articles)
+    .where(eq(articles.id, articleId))
+    .limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  const [discovery] = await db
+    .select()
+    .from(articleDiscovery)
+    .where(eq(articleDiscovery.articleId, articleId))
+    .limit(1);
+
+  // Most recent render per template key (ordered newest-first)
+  const renderRows = await db
+    .select()
+    .from(templateRenders)
+    .where(eq(templateRenders.articleId, articleId))
+    .orderBy(desc(templateRenders.createdAt));
+
+  const renderByKey: Record<string, typeof templateRenders.$inferSelect> = {};
+  for (const r of renderRows) {
+    if (r.templateKey && !(r.templateKey in renderByKey)) {
+      renderByKey[r.templateKey] = r;
+    }
+  }
+
+  const allTemplates = templateRegistry.list();
+
+  const result = allTemplates.map((t) => {
+    const eligibility = discovery
+      ? t.eligibility(article as Article, discovery as ArticleDiscovery)
+      : ({ eligible: false, reason: "Discovery not yet run" } as { eligible: false; reason: string });
+
+    const render = renderByKey[t.key] ?? null;
+
+    let slides: Array<{ imageUrl: string }> | null = null;
+    if (render?.status === "ready" && render.outputFiles) {
+      const out = render.outputFiles;
+      if (Array.isArray(out?.slides)) {
+        slides = out.slides
+          .map((s) => {
+            const parts = s.filePath.split("renders/");
+            return parts[1] ? { imageUrl: `/renders/${parts[1]}` } : null;
+          })
+          .filter((s): s is { imageUrl: string } => s !== null);
+      }
+    }
+
+    return {
+      templateKey: t.key,
+      displayName: t.displayName,
+      description: t.description,
+      estimatedCostUsd: t.estimatedCostUsd,
+      eligible: eligibility.eligible,
+      ineligibleReason: !eligibility.eligible
+        ? (eligibility as { eligible: false; reason?: string }).reason
+        : undefined,
+      renderStatus: render?.status ?? null,
+      renderId: render?.id ?? null,
+      slides,
+      completedAt: render?.completedAt?.toISOString() ?? null,
+    };
+  });
+
+  return c.json({ ok: true, data: { templates: result } });
+});
+
 // ─── POST /api/articles/:articleId/generate-templates ────────────────────────
 // Enqueue BullMQ render jobs for one or more templateKeys
 
@@ -543,3 +619,59 @@ socialPostRoutes.post(
   }
 );
 
+
+// ─── GET /api/template-renders/:id/download ──────────────────────────────────
+
+export const templateRenderDetailRoutes = new Hono();
+templateRenderDetailRoutes.use(requireAuth);
+
+templateRenderDetailRoutes.get("/:id/download", async (c) => {
+  const id = c.req.param("id");
+
+  const [render] = await db
+    .select()
+    .from(templateRenders)
+    .where(eq(templateRenders.id, id))
+    .limit(1);
+
+  if (!render) return c.json({ ok: false, error: "Template render not found" }, 404);
+  if (render.status !== "ready") return c.json({ ok: false, error: "Render not ready" }, 400);
+
+  const out = render.outputFiles;
+  if (!out?.slides?.length) return c.json({ ok: false, error: "No output files" }, 400);
+
+  const zipEntries: Record<string, Uint8Array> = {};
+
+  for (let i = 0; i < out.slides.length; i++) {
+    const slide = out.slides[i]!;
+    try {
+      const buf = await readFile(slide.filePath);
+      zipEntries[`slide-${String(i + 1).padStart(2, "0")}.png`] = new Uint8Array(buf);
+    } catch {
+      log.warn({ filePath: slide.filePath }, "Slide file missing — skipping");
+    }
+  }
+
+  if (out.caption) {
+    zipEntries["caption.txt"] = new TextEncoder().encode(out.caption);
+  }
+  if (out.hashtags?.length) {
+    zipEntries["hashtags.txt"] = new TextEncoder().encode(out.hashtags.join("\n"));
+  }
+
+  const zip = zipSync(zipEntries, { level: 0 });
+
+  const slug = render.articleId
+    ? (await db.select({ slug: articles.slug }).from(articles).where(eq(articles.id, render.articleId)).limit(1))[0]?.slug
+    : null;
+
+  const filename = `${render.templateKey}-${slug ?? id}-${render.locale}-${render.theme}.zip`;
+
+  return new Response(zip, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(zip.byteLength),
+    },
+  });
+});

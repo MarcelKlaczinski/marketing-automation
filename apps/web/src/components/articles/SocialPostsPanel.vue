@@ -9,11 +9,18 @@
     >
       <q-tab name="generate" :label="$t('social.tabs.generate')" />
       <q-tab name="suggestions" :label="$t('social.tabs.suggestions')">
+        <!-- Orange number badge: pending suggestions remain -->
         <q-badge
           v-if="pendingSuggestionsCount > 0"
           color="warning"
           floating
         >{{ pendingSuggestionsCount }}</q-badge>
+        <!-- Green check badge: all suggestions done -->
+        <q-badge
+          v-else-if="totalSuggestionsCount > 0 && pendingSuggestionsCount === 0"
+          color="positive"
+          floating
+        ><q-icon name="check" size="10px" /></q-badge>
       </q-tab>
       <q-tab name="history" :label="$t('social.tabs.history')" />
     </q-tabs>
@@ -21,85 +28,119 @@
     <q-tab-panels v-model="activeTab" animated class="social-posts-panel__panels">
       <!-- Generate panel -->
       <q-tab-panel name="generate" class="q-pa-none">
-    <!-- Generate form -->
-    <div class="social-posts-panel__section">
-      <div class="social-posts-panel__title">{{ $t('social.title') }}</div>
+        <div class="social-posts-panel__section">
+          <div class="social-posts-panel__title">{{ $t('social.templateGallery.title') }}</div>
 
-      <div class="social-posts-panel__field">
-        <div class="social-posts-panel__label">{{ $t('social.format.label') }}</div>
-        <div class="social-posts-panel__options">
-          <button
-            :class="['option-btn', { 'option-btn--active': selectedFormat === 'list_carousel' }]"
-            type="button"
-            @click="selectedFormat = 'list_carousel'"
+          <!-- Global theme selector -->
+          <div class="social-posts-panel__field">
+            <div class="social-posts-panel__label">{{ $t('social.theme.label') }}</div>
+            <div class="social-posts-panel__options">
+              <button
+                :class="['option-btn', { 'option-btn--active': selectedTheme === 'dark' }]"
+                type="button"
+                @click="selectedTheme = 'dark'"
+              >{{ $t('social.theme.dark') }}</button>
+              <button
+                :class="['option-btn', { 'option-btn--active': selectedTheme === 'light' }]"
+                type="button"
+                @click="selectedTheme = 'light'"
+              >{{ $t('social.theme.light') }}</button>
+            </div>
+          </div>
+
+          <!-- Template cards -->
+          <div v-if="templatesLoading" class="social-posts-panel__empty">
+            <q-spinner size="28px" color="primary" />
+          </div>
+
+          <div v-else-if="availableTemplates.length === 0" class="social-posts-panel__empty">
+            {{ $t('social.templateGallery.noTemplates') }}
+          </div>
+
+          <div
+            v-for="tpl in availableTemplates"
+            :key="tpl.templateKey"
+            class="template-card"
           >
-            {{ $t('social.format.listCarousel') }}
-          </button>
-          <button
-            class="option-btn option-btn--disabled"
-            type="button"
-            disabled
-          >
-            {{ $t('social.format.comparison') }}
-          </button>
+            <div class="template-card__header">
+              <span class="template-card__name">{{ tpl.displayName }}</span>
+              <q-badge
+                v-if="tpl.renderStatus === 'ready'"
+                color="positive"
+                class="template-card__badge"
+              >{{ $t('social.templateGallery.statusReady') }}</q-badge>
+              <q-badge
+                v-else-if="tpl.renderStatus === 'rendering' || tpl.renderStatus === 'pending'"
+                color="warning"
+                class="template-card__badge"
+              >{{ $t('social.templateGallery.statusRendering') }}</q-badge>
+              <q-badge
+                v-else-if="tpl.renderStatus === 'failed'"
+                color="negative"
+                class="template-card__badge"
+              >{{ $t('social.templateGallery.statusFailed') }}</q-badge>
+              <q-badge
+                v-else-if="tpl.eligible && !tpl.renderStatus"
+                color="grey-5"
+                class="template-card__badge"
+              >{{ $t('social.templateGallery.statusNever') }}</q-badge>
+            </div>
+
+            <div class="template-card__desc">{{ tpl.description }}</div>
+
+            <!-- Slide thumbnails when ready -->
+            <div v-if="tpl.slides && tpl.slides.length" class="post-card__slides-strip">
+              <img
+                v-for="(s, i) in tpl.slides.slice(0, 4)"
+                :key="i"
+                :src="apiBase + s.imageUrl"
+                class="post-card__slide-thumb"
+                alt=""
+              />
+              <div v-if="tpl.slides.length > 4" class="post-card__slide-more">
+                +{{ tpl.slides.length - 4 }}
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="template-card__actions">
+              <button
+                v-if="tpl.slides && tpl.slides.length"
+                class="action-link"
+                type="button"
+                @click="onPreviewTemplate(tpl)"
+              >{{ $t('social.templateGallery.preview') }}</button>
+
+              <button
+                v-if="tpl.renderId && tpl.renderStatus === 'ready'"
+                class="action-link"
+                type="button"
+                @click="onDownloadRender(tpl.renderId)"
+              >{{ $t('social.download') }}</button>
+
+              <button
+                v-if="tpl.eligible"
+                :class="['generate-btn', 'generate-btn--sm', { 'generate-btn--loading': generatingKey === tpl.templateKey }]"
+                :disabled="generatingKey === tpl.templateKey"
+                type="button"
+                @click="onGenerateTemplate(tpl.templateKey)"
+              >
+                <q-spinner v-if="generatingKey === tpl.templateKey" size="12px" color="white" class="q-mr-xs" />
+                {{ tpl.renderStatus
+                  ? $t('social.regenerateTemplate')
+                  : $t('social.generateTemplate') }}
+                <span v-if="tpl.estimatedCostUsd" class="generate-btn__hint">
+                  {{ $t('social.templateGallery.costHint', { cost: tpl.estimatedCostUsd.toFixed(3) }) }}
+                </span>
+              </button>
+
+              <span v-else class="template-card__ineligible">
+                {{ $t('social.templateGallery.notEligible') }}
+                <q-tooltip v-if="tpl.ineligibleReason">{{ tpl.ineligibleReason }}</q-tooltip>
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
-
-      <div class="social-posts-panel__field">
-        <div class="social-posts-panel__label">{{ $t('social.theme.label') }}</div>
-        <div class="social-posts-panel__options">
-          <button
-            :class="['option-btn', { 'option-btn--active': selectedTheme === 'dark' }]"
-            type="button"
-            @click="selectedTheme = 'dark'"
-          >
-            {{ $t('social.theme.dark') }}
-          </button>
-          <button
-            :class="['option-btn', { 'option-btn--active': selectedTheme === 'light' }]"
-            type="button"
-            @click="selectedTheme = 'light'"
-          >
-            {{ $t('social.theme.light') }}
-          </button>
-        </div>
-      </div>
-
-      <div class="social-posts-panel__field">
-        <div class="social-posts-panel__label">{{ $t('social.variant.label') }}</div>
-        <div class="social-posts-panel__options">
-          <button
-            :class="['option-btn', 'option-btn--stunning', { 'option-btn--active': selectedVariant === 'stunning' }]"
-            type="button"
-            @click="selectedVariant = 'stunning'"
-          >
-            {{ $t('social.variant.stunning') }}
-          </button>
-          <button
-            :class="['option-btn', 'option-btn--legacy', { 'option-btn--active': selectedVariant === 'editorial' }]"
-            type="button"
-            @click="selectedVariant = 'editorial'"
-          >
-            {{ $t('social.variant.editorial') }}
-          </button>
-        </div>
-        <div class="social-posts-panel__variant-hint">
-          {{ selectedVariant === 'stunning' ? $t('social.variant.stunningHint') : $t('social.variant.editorialHint') }}
-        </div>
-      </div>
-
-      <button
-        :class="['generate-btn', { 'generate-btn--loading': generating }]"
-        :disabled="generating"
-        type="button"
-        @click="onGenerate"
-      >
-        <q-spinner v-if="generating" size="14px" color="white" class="q-mr-xs" />
-        {{ generating ? $t('social.generating') : $t('social.generate') }}
-        <span class="generate-btn__hint">{{ $t('social.cost') }}</span>
-      </button>
-    </div>
-
       </q-tab-panel>
 
       <!-- Suggestions panel -->
@@ -279,6 +320,19 @@ interface SocialPost {
   createdAt: string;
 }
 
+interface TemplateInfo {
+  templateKey: string;
+  displayName: string;
+  description: string;
+  estimatedCostUsd: number | null;
+  eligible: boolean;
+  ineligibleReason?: string;
+  renderStatus: string | null;
+  renderId: string | null;
+  slides: Array<{ imageUrl: string }> | null;
+  completedAt: string | null;
+}
+
 export default defineComponent({
   name: "SocialPostsPanel",
 
@@ -294,13 +348,19 @@ export default defineComponent({
   data: () => ({
     activeTab: "generate" as "generate" | "suggestions" | "history",
     pendingSuggestionsCount: 0,
-    selectedFormat: "list_carousel" as "list_carousel",
+    totalSuggestionsCount: 0,
     selectedTheme: "dark" as "dark" | "light",
-    selectedVariant: "stunning" as "editorial" | "stunning",
     generating: false,
+    generatingKey: null as string | null,
+    templatesLoading: false,
+    availableTemplates: [] as TemplateInfo[],
+    templatePollingTimer: null as ReturnType<typeof setInterval> | null,
     posts: [] as SocialPost[],
     previewOpen: false,
     previewPost: null as SocialPost | null,
+    previewSlideUrls_: [] as string[],
+    previewCaption_: "" as string,
+    previewHashtags_: "" as string,
     previewSlideIndex: 0,
     pollingTimer: null as ReturnType<typeof setInterval> | null,
     showReRenderConfirm: false,
@@ -309,28 +369,126 @@ export default defineComponent({
   }),
 
   computed: {
+    apiBase(): string {
+      return (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api").replace(/\/api$/, "");
+    },
     previewSlideUrls(): string[] {
+      if (this.previewSlideUrls_.length) return this.previewSlideUrls_;
       return this.previewPost ? this.postSlideUrls(this.previewPost) : [];
     },
     previewCaption(): string {
-      return this.previewPost?.content?.caption ?? "";
+      return this.previewCaption_ || (this.previewPost?.content?.caption ?? "");
     },
     previewHashtags(): string {
-      return (this.previewPost?.content?.hashtags ?? []).join(" ");
+      return this.previewHashtags_ || (this.previewPost?.content?.hashtags ?? []).join(" ");
     },
   },
 
   mounted() {
     this.loadPosts();
+    this.loadTemplates();
+    this.loadSuggestionsCount();
   },
 
   beforeUnmount() {
     this.stopPolling();
+    this.stopTemplatePolling();
   },
 
   methods: {
-    onSuggestionsLoaded(count: number) {
-      this.pendingSuggestionsCount = count;
+    async loadSuggestionsCount() {
+      try {
+        const res = await api.get<{
+          ok: boolean;
+          data: { suggestions: Array<{ templateKey: string; confidence: number }>; renders: Record<string, string> };
+        }>(`/articles/${this.articleId}/template-suggestions`);
+        if (res.data.ok) {
+          const { suggestions, renders } = res.data.data;
+          this.totalSuggestionsCount = suggestions.length;
+          this.pendingSuggestionsCount = suggestions.filter((s) => renders[s.templateKey] !== "ready").length;
+        }
+      } catch {
+        // silently ignore
+      }
+    },
+
+    onSuggestionsLoaded(payload: { total: number; pending: number }) {
+      this.totalSuggestionsCount = payload.total;
+      this.pendingSuggestionsCount = payload.pending;
+    },
+
+    async loadTemplates() {
+      this.templatesLoading = true;
+      try {
+        const res = await api.get<{ ok: boolean; data: { templates: TemplateInfo[] } }>(
+          `/articles/${this.articleId}/all-templates`
+        );
+        if (res.data.ok) this.availableTemplates = res.data.data.templates;
+      } catch {
+        // silently ignore
+      } finally {
+        this.templatesLoading = false;
+      }
+    },
+
+    async onGenerateTemplate(templateKey: string) {
+      this.generatingKey = templateKey;
+      try {
+        await api.post(`/articles/${this.articleId}/generate-templates`, {
+          templateKeys: [templateKey],
+          locale: "de",
+          theme: this.selectedTheme,
+        });
+        this.startTemplatePolling();
+      } catch {
+        this.generatingKey = null;
+      }
+    },
+
+    startTemplatePolling() {
+      this.templatePollingTimer = setInterval(async () => {
+        await this.loadTemplates();
+        const isStillRendering = this.availableTemplates.some(
+          (t) => t.renderStatus === "rendering" || t.renderStatus === "pending"
+        );
+        if (!isStillRendering) {
+          this.stopTemplatePolling();
+          this.generatingKey = null;
+        }
+      }, 2000);
+    },
+
+    stopTemplatePolling() {
+      if (this.templatePollingTimer) {
+        clearInterval(this.templatePollingTimer);
+        this.templatePollingTimer = null;
+      }
+    },
+
+    onPreviewTemplate(tpl: TemplateInfo) {
+      this.previewPost = null;
+      this.previewSlideUrls_ = (tpl.slides ?? []).map((s) => this.apiBase + s.imageUrl);
+      this.previewCaption_ = "";
+      this.previewHashtags_ = "";
+      this.previewSlideIndex = 0;
+      this.previewOpen = true;
+    },
+
+    async onDownloadRender(renderId: string) {
+      const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
+      const resp = await fetch(`${base}/template-renders/${renderId}/download`, { credentials: "include" });
+      if (!resp.ok) return;
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const disposition = resp.headers.get("Content-Disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      a.download = match?.[1] ?? `render-${renderId}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
     },
 
     postSlideUrls(post: SocialPost): string[] {
@@ -356,20 +514,6 @@ export default defineComponent({
       }
     },
 
-    async onGenerate() {
-      this.generating = true;
-      try {
-        await api.post(`/articles/${this.articleId}/social-posts/generate`, {
-          format: this.selectedFormat,
-          theme: this.selectedTheme,
-          variant: this.selectedVariant,
-        });
-        this.startPolling();
-      } catch {
-        this.generating = false;
-      }
-    },
-
     startPolling() {
       this.pollingTimer = setInterval(async () => {
         await this.loadPosts();
@@ -391,6 +535,9 @@ export default defineComponent({
 
     onPreview(post: SocialPost) {
       this.previewPost = post;
+      this.previewSlideUrls_ = [];
+      this.previewCaption_ = "";
+      this.previewHashtags_ = "";
       this.previewSlideIndex = 0;
       this.previewOpen = true;
     },
@@ -561,6 +708,60 @@ export default defineComponent({
   font-size: 13px;
   color: var(--q-secondary);
   font-style: italic;
+}
+
+.template-card {
+  border: 1px solid var(--q-separator-color);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.template-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.template-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.template-card__badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.template-card__desc {
+  font-size: 12px;
+  color: var(--q-secondary);
+  line-height: 1.4;
+}
+
+.template-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.template-card__ineligible {
+  font-size: 12px;
+  color: var(--q-secondary);
+  font-style: italic;
+  cursor: default;
+}
+
+.generate-btn--sm {
+  padding: 7px 14px;
+  font-size: 13px;
 }
 
 .post-card {

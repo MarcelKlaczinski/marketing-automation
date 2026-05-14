@@ -170,6 +170,7 @@ Implemented specs (do not re-implement):
 - /specs/49b-content-gap-detection.md
 - /specs/49c-gap-generation.md
 - /specs/50-astro-schema-awareness.md
+- /specs/54c-discovery-pipeline-integration.md (discovery-gate UI, sync gap-fix discovery, project-scoped social tab)
 
 ## Project Marketing Contexts
 

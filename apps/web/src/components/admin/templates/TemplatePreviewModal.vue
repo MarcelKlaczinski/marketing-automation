@@ -55,7 +55,19 @@
           {{ $t('admin.templates.projectBrandTokens') }}
         </q-chip>
 
-        <q-btn flat dense icon="refresh" class="q-ml-sm" @click="forceReload" />
+        <q-chip
+          v-if="renderResult?.fromDb && renderResult.renderedAt"
+          dense
+          size="sm"
+          color="teal-8"
+          text-color="white"
+          icon="save"
+          class="q-ml-sm"
+        >
+          {{ $t('admin.templates.savedRender') }} {{ formatRenderedAt(renderResult.renderedAt) }}
+        </q-chip>
+
+        <q-btn flat dense icon="refresh" :label="renderResult?.fromDb ? $t('admin.templates.reRender') : undefined" class="q-ml-sm" @click="forceReload" />
         <q-btn flat dense icon="close" v-close-popup />
       </q-toolbar>
 
@@ -157,6 +169,8 @@ interface RenderResult {
   caption: string;
   hashtags: string[];
   metadata: { estimatedCostUsd: number; templateKey: string };
+  fromDb?: boolean;
+  renderedAt?: string;
 }
 
 interface ArticleOption {
@@ -197,6 +211,12 @@ export default defineComponent({
     },
   },
   methods: {
+    formatRenderedAt(iso: string): string {
+      return new Date(iso).toLocaleString(this.$i18n.locale === 'de' ? 'de-DE' : 'en-US', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      });
+    },
     slideUrl(filePath: string): string {
       const base = (import.meta.env.VITE_API_BASE_URL as string ?? '').replace(/\/api$/, '');
       // filePath is already a /renders/... path — just prepend the origin
