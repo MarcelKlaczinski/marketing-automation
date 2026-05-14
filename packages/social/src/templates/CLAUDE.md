@@ -83,31 +83,43 @@ export const myTemplate: TemplateDefinition<MyContext> = {
 };
 ```
 
-**`generateHook()` is required on every template (Spec 54h).** Implement via `generateHookWithGate()` from `@marketing-auto/core`:
+**`generateContent()` is required on every template (Spec 54h/54i).** Returns `{ hookOutput, caption, hashtags }` from a single LLM call. Implement via `generateContentWithGate()` from `@marketing-auto/core`:
 
 ```ts
-import { generateHookWithGate, inferArticleType, selectPattern } from "@marketing-auto/core";
+import { generateContentWithGate, inferArticleType, selectPattern } from "@marketing-auto/core";
 
-generateHook: async (article, input, _locale, llmCaller) => {
+generateContent: async (article, input, locale, llmCaller) => {
   const ctx = input as MyContext;
-  const articleType = inferArticleType(article.title ?? article.slug, ctx.tools.length);
+  const toolNames = ctx.tools.map(t => t.name);
+  const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
   const pattern = selectPattern(article.id, articleType);
-  return generateHookWithGate(
-    { id: article.id, title: article.title ?? article.slug, toolCount: ctx.tools.length, toolNames: ctx.tools.map(t => t.name) },
+  return generateContentWithGate(
+    { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
     pattern,
+    {
+      articleTitle: article.title ?? article.slug,
+      toolNames,
+      primaryKeyword: toolNames.join(" vs. "),
+      locale,
+      articleSlug: article.slug,
+      contentType: "comparison", // or "tool-spotlight" | "use-case"
+    },
     llmCaller,
   );
 },
 ```
 
+**Key rules:**
 - `llmCaller` is dependency-injected by the runner — templates never import `@marketing-auto/adapter-anthropic` directly.
 - `article.title` is `string | null` — always use `article.title ?? article.slug` as fallback.
-- `inferArticleType` takes tool count to distinguish single-tool vs. comparison articles.
-- `generateHookWithGate` validates (word count 3–7, forbidden words, pattern rules), retries twice, falls back to `programmaticFallbackHook()` — never throws.
+- `contentType` controls bilingual hashtag rule: `comparison`/`use-case` get `#KIVergleich`; `tool-spotlight` does not.
+- `generateContentWithGate` validates hook (word count 3–7, forbidden words, pattern rules), retries twice, falls back to static captions — never throws.
 
-**Hook output in `render()`:** the runner calls `generateHook()` before `render()` and passes the result as `context.hookOutput`. Templates should use `context.hookOutput ?? fallbackHook` — never re-generate the hook inside `render()`.
+**In `render()`:** use `context.generatedContent?.caption ?? fallbackCaption(...)` — keep a private `fallbackCaption` function as safety net but never call it as the primary path.
 
-**Schema fields added in 54g** (`outputFormat`, `compatibleChannels`, `generationClass`, `plannerMeta`) are now required on `TemplateDefinition`. TypeScript enforces this at build time.
+**All prompts must be in English** — output language is specified inline in the prompt ("German output, du-form"). See `packages/core/src/social-hooks/hookPrompt.ts`.
+
+**Schema fields** (`outputFormat`, `compatibleChannels`, `generationClass`, `plannerMeta`) are required. TypeScript enforces at build time.
 
 **`TemplateKey` union** is in `src/templates/types.ts`. Add your key there first — if it's missing, the discovery pipeline filters it as a hallucination and the template is never surfaced.
 
