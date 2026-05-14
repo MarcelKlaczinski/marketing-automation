@@ -1,4 +1,4 @@
-import { db, articles, and, eq, inArray } from "@marketing-auto/db";
+import { db, articles, projectBrandAssets, and, eq, inArray } from "@marketing-auto/db";
 import type { ToolReference } from "./types.ts";
 
 // Brand-color fallbacks for well-known tool slugs — used when the tool article in DB
@@ -6,8 +6,8 @@ import type { ToolReference } from "./types.ts";
 // Exported so getToolContext() in tool.ts can apply the same fallback for single-article lookups.
 export const KNOWN_TOOL_ICONS: Record<string, { iconInitials?: string; iconHue?: number; iconSvg?: string }> = {
   cursor:     { iconInitials: "CU", iconHue: 220, iconSvg: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.9 2.7L0 21.3h23.8Zm0 3.918L20.857 19.5H3Z"/></svg>' },
-  windsurf:   { iconInitials: "WI", iconHue: 145 },
-  codeium:    { iconInitials: "CO", iconHue: 175 },
+  windsurf:   { iconInitials: "WI", iconHue: 145, iconSvg: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 7h18l-3 3H3zm0 4h14l-3 3H3zm0 4h10l-3 3H3z"/></svg>' },
+  codeium:    { iconInitials: "CO", iconHue: 175, iconSvg: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 2L4 14h7l-1.5 8L19 10h-7L13 2z"/></svg>' },
   chatgpt:    { iconInitials: "GP", iconHue: 160 },
   claude:     { iconInitials: "CL", iconHue: 200 },
   copilot:    { iconInitials: "CP", iconHue: 240 },
@@ -69,7 +69,7 @@ export async function buildToolLookup(
       ),
     );
 
-  return new Map(
+  const refMap = new Map<string, ToolReference>(
     toolArticles.map((t) => {
       const extras = (t.frontmatterExtras ?? {}) as {
         logoUrl?: string;
@@ -92,17 +92,50 @@ export async function buildToolLookup(
       if (extras.iconInitials !== undefined) ref.iconInitials = extras.iconInitials;
       if (extras.iconHue !== undefined) ref.iconHue = extras.iconHue;
 
-      // Apply brand-color fallback when the article has no icon data
-      if (ref.iconSvg === undefined && ref.iconInitials === undefined) {
-        const defaults = KNOWN_TOOL_ICONS[t.slug];
-        if (defaults !== undefined) {
-          if (defaults.iconSvg !== undefined) ref.iconSvg = defaults.iconSvg;
-          if (defaults.iconInitials !== undefined) ref.iconInitials = defaults.iconInitials;
-          if (defaults.iconHue !== undefined) ref.iconHue = defaults.iconHue;
-        }
-      }
-
       return [t.slug, ref];
     }),
   );
+
+  // For tools missing icon data, query project_brand_assets (populated by resolveToolIcon pipeline).
+  // This is where simple-icons / lobe-icons are cached after the icon-resolution step runs.
+  const slugsNeedingIcons = [...refMap.entries()]
+    .filter(([, ref]) => ref.iconSvg === undefined && ref.iconInitials === undefined)
+    .map(([slug]) => slug);
+
+  if (slugsNeedingIcons.length > 0) {
+    const brandAssets = await db
+      .select({
+        assetKey: projectBrandAssets.assetKey,
+        source: projectBrandAssets.source,
+        inlineSvg: projectBrandAssets.inlineSvg,
+      })
+      .from(projectBrandAssets)
+      .where(
+        and(
+          eq(projectBrandAssets.projectId, projectId),
+          eq(projectBrandAssets.assetType, "tool_icon"),
+          inArray(projectBrandAssets.assetKey, slugsNeedingIcons),
+        ),
+      );
+
+    for (const asset of brandAssets) {
+      const ref = refMap.get(asset.assetKey);
+      if (!ref || !asset.inlineSvg || asset.source === "deterministic-avatar") continue;
+      ref.iconSvg = asset.inlineSvg;
+    }
+  }
+
+  // Last resort: KNOWN_TOOL_ICONS hardcoded fallback for tools still without icon data.
+  for (const [slug, ref] of refMap.entries()) {
+    if (ref.iconSvg === undefined && ref.iconInitials === undefined) {
+      const defaults = KNOWN_TOOL_ICONS[slug];
+      if (defaults !== undefined) {
+        if (defaults.iconSvg !== undefined) ref.iconSvg = defaults.iconSvg;
+        if (defaults.iconInitials !== undefined) ref.iconInitials = defaults.iconInitials;
+        if (defaults.iconHue !== undefined) ref.iconHue = defaults.iconHue;
+      }
+    }
+  }
+
+  return refMap;
 }

@@ -96,6 +96,7 @@ Designed to evolve into SaaS.
 - DO NOT implement custom ZIP builders — use `fflate` (`zipSync` for synchronous in-memory ZIP, `level: 0` for stored/uncompressed). The hand-rolled PKZIP implementation in `social-posts.ts` produced corrupted ZIPs that macOS and Windows refused to open; it was replaced in Spec 52a with `fflate` which is battle-tested and handles CRC, offsets, and end-of-central-directory records correctly
 - DO NOT import `drizzle-orm` operators (`and`, `eq`, `inArray`, `ne`, `gte`, `lte`, `gt`, `lt`, `isNull`, `isNotNull`, `sql`) directly from `drizzle-orm` in workspace packages other than `packages/db` — each package may have its own installed version of drizzle-orm, causing TypeScript type incompatibilities (`Type 'Column<...>' is not assignable to parameter`). Always import these operators from `@marketing-auto/db` instead: `import { and, eq, inArray } from "@marketing-auto/db"`. The re-export in `packages/db/src/index.ts` is the canonical source for the workspace-wide drizzle-orm version
 - DO NOT import from `packages/pipelines/src/_lib/` using relative paths in `apps/api` — cross-workspace imports must go through the `@marketing-auto/pipelines` workspace alias. If the symbol you need isn't exported from `packages/pipelines/src/index.ts`, add it there first, then add `"@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"]` to `apps/api/tsconfig.json` paths if missing. Relative cross-workspace paths like `../../../packages/...` produce `TS2307 Cannot find module` errors that TypeScript reports but Bun silently ignores at runtime
+- DO NOT pass `toolCategory: "AI tool"` or a similarly generic string to `generateContentWithGate()` when `primaryCategory` is not set — the LLM echoes the generic value and produces nonsensical hooks like "Welche KI macht die besten KI-Tools?". Omit `toolCategory` entirely when unknown (use the `...(toolCategory !== undefined && { toolCategory })` spread pattern), which makes `buildContentPrompt` send the sentinel `"(infer from tool names)"` that tells the LLM to derive the specific domain from the tool names (Cursor + Windsurf + Codeium → "KI-Code-Editor"). See `packages/core/src/social-hooks/hookPrompt.ts` INFERENCE RULE for the full mapping
 
 ## Local DB Setup
 
@@ -176,6 +177,8 @@ Implemented specs (do not re-implement):
 - /specs/49c-gap-generation.md
 - /specs/50-astro-schema-awareness.md
 - /specs/54c-discovery-pipeline-integration.md (discovery-gate UI, sync gap-fix discovery, project-scoped social tab)
+- /specs/54d-template-preview-gallery.md (admin template gallery with mock fixtures, side-by-side theme previews, download)
+- /specs/54e-project-scoped-template-gallery.md (gallery moved into project detail tab with brand tokens + eligible articles scoped to project)
 - /specs/54f-single-tool-spotlight.md
 - /specs/54g-schema-formalization.md (outputFormat, compatibleChannels, generationClass, plannerMeta on TemplateDefinition; QW-1 slide count fix; QW-2 brandTokens consistency)
 - /specs/54h-mandatory-hook-contract.md (generateHook() required on all templates; hook engine migrated to packages/core; wired in discoveryWorker.ts)

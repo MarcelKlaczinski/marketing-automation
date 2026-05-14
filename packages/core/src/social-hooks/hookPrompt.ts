@@ -15,16 +15,39 @@ export interface ContentPromptContext {
   contentType: "comparison" | "tool-spotlight" | "use-case" | "news" | "concept";
   /** Project website domain for the caption CTA link. Defaults to "toolwiki.ai". */
   domain?: string;
+  /**
+   * Specific tool category derived from article frontmatter (e.g. "KI-Code-Editor", "Bildgenerator").
+   * Injected into the hook prompt so the LLM generates domain-specific hooks
+   * instead of the generic fallback "KI-Tools".
+   */
+  toolCategory?: string;
 }
 
 const HOOK_SYSTEM_PROMPTS: Record<HookPattern, string> = {
   superlative_question: `You are an Instagram hook specialist for the AI tools niche.
 
 PATTERN: superlative_question
-Format: "Which [subject] is the [highlight] [object]?"
-Examples:
-- "Which AI creates the best logos?" → lead: "Which AI creates", highlight: "the best", trail: "logos?"
-- "Which app saves the most time?" → lead: "Which app saves", highlight: "the most", trail: "time?"
+Format: "Which [specific subject] is the [highlight] [object]?"
+
+CRITICAL: Use the SPECIFIC tool category in the hook subject, NEVER a generic word like "tools", "KI-Tools", or "KI".
+
+INFERENCE RULE: If toolCategory in the input is "(infer from tool names)", you MUST derive the specific domain from the tool names:
+- Cursor + Windsurf + Codeium → "KI-Code-Editor" / "AI code editor"
+- Midjourney + DALL-E + Ideogram → "Bildgenerator" / "image generator"
+- ChatGPT + Claude + Gemini → "KI-Assistent" / "AI assistant"
+- Jasper + Copy.ai → "KI-Texter" / "AI writing tool"
+
+Examples of GOOD hooks (domain-specific):
+- "Which AI code editor" + "really wins?" → lead: "Which AI code editor", highlight: "really wins?"
+- "Which image generator" + "beats the rest?" → lead: "Which image generator", highlight: "beats the rest?"
+- "Welcher KI-Code-Editor" + "gewinnt wirklich?" → lead: "Welcher KI-Code-Editor", highlight: "gewinnt wirklich?"
+
+Examples of BAD hooks (too generic — NEVER do this):
+- "Which KI-Tool is the best?" ← "KI-Tool" is not the specific category
+- "Welche KI macht die besten KI-Tools?" ← nonsensical — tools don't make tools
+- "Welches AI-Tool" + "gewinnt?" ← still too generic
+
+The subject MUST be the SPECIFIC product category. Always infer it from the tool names if not provided.
 
 CONSTRAINTS:
 - fullText (lead + highlight + trail) max 7 words total, min 3
@@ -200,6 +223,7 @@ export function buildContentPrompt(
     userPrompt: `INPUT:
 - Article title: ${ctx.articleTitle}
 - Tools: ${ctx.toolNames.join(", ")}
+- Tool category: ${ctx.toolCategory ?? "(infer from tool names)"}
 - Content type: ${ctx.contentType}
 - Target keyword: ${ctx.primaryKeyword}
 - Article slug: ${ctx.articleSlug}

@@ -59,9 +59,11 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
   },
 
   generateContent: async (article, input, locale, llmCaller) => {
-    const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
+    const ctx = input as ComparisonContext;
+    const toolNames = ctx.tools.map((t) => t.name);
     const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
     const pattern = selectPattern(article.id, articleType);
+    const toolCategory = ctx.tools[0]?.primaryCategory ?? undefined;
     return generateContentWithGate(
       { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
       pattern,
@@ -72,6 +74,7 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
         locale,
         articleSlug: article.slug,
         contentType: "comparison",
+        ...(toolCategory !== undefined && { toolCategory }),
       },
       llmCaller,
     );
@@ -107,23 +110,52 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       },
     };
 
-    const resolvedTools = input.tools.map((t, i) => ({
-      slug: t.slug,
-      rank: i + 1,
-      name: t.name,
-      domain: t.slug + ".com",
-      eyebrow: `${String(i + 1).padStart(2, "0")} · ${(t.primaryCategory ?? "KI-TOOL").toUpperCase()}`,
-      tagline: input.verdict.slice(0, 120),
-      strengths: locale === "de" ? ["Getestet", "Verglichen"] : ["Tested", "Compared"],
-      pricing: {
-        tier: (t.pricingTier === "enterprise" ? "paid" : (t.pricingTier ?? "freemium")) as "free" | "freemium" | "paid",
-        label: t.priceFrom === 0 ? "ab 0€" : t.priceFrom ? `ab ${t.priceFrom}€/Monat` : "Preis auf Anfrage",
-      },
-      ...(t.iconSvg !== undefined && { iconSvg: t.iconSvg }),
-      ...(t.iconInitials !== undefined && { iconInitials: t.iconInitials }),
-      ...(t.iconHue !== undefined && { iconHue: t.iconHue }),
-      ...(t.endSlideToken !== undefined && { endSlideToken: t.endSlideToken }),
-    }));
+    const resolvedTools = input.tools.map((t, i) => {
+      const wonVerdicts = input.useCaseVerdicts.filter((v) => v.winner === t.slug);
+      const isOverallWinner = input.winner === t.slug;
+
+      const tagline = (
+        wonVerdicts[0]?.reason?.slice(0, 120)
+        ?? (isOverallWinner
+          ? (locale === "de" ? "Unser Testsieger im direkten Vergleich." : "Our top pick in the head-to-head test.")
+          : t.primaryCategory
+            ? (locale === "de" ? `Stark bei: ${t.primaryCategory}` : `Strong at: ${t.primaryCategory}`)
+            : input.verdict.slice(0, 80))
+      );
+
+      const wonUseCases = wonVerdicts.map((v) => v.useCase).slice(0, 3);
+      const fallbackStrength = locale === "de"
+        ? (t.primaryCategory ?? "Im Test bewertet")
+        : (t.primaryCategory ?? "Evaluated in test");
+      const strengths: string[] = wonUseCases.length >= 2
+        ? wonUseCases
+        : wonUseCases.length === 1
+          ? [wonUseCases[0]!, fallbackStrength]
+          : [fallbackStrength, locale === "de" ? "Im Vergleich getestet" : "Compared head-to-head"];
+
+      const bestFor = wonVerdicts[0]?.useCase?.slice(0, 40)
+        ?? (isOverallWinner ? (locale === "de" ? "Testsieger" : "Top pick") : undefined);
+
+      return {
+        slug: t.slug,
+        rank: i + 1,
+        name: t.name,
+        domain: t.slug + ".com",
+        eyebrow: `${String(i + 1).padStart(2, "0")} · ${(t.primaryCategory ?? "KI-TOOL").toUpperCase()}`,
+        tagline,
+        strengths,
+        ...(bestFor !== undefined && { bestFor }),
+        ...(wonVerdicts[0]?.reason !== undefined && { starStrength: wonVerdicts[0].useCase }),
+        pricing: {
+          tier: (t.pricingTier === "enterprise" ? "paid" : (t.pricingTier ?? "freemium")) as "free" | "freemium" | "paid",
+          label: t.priceFrom === 0 ? "ab 0€" : t.priceFrom ? `ab ${t.priceFrom}€/Monat` : "Preis auf Anfrage",
+        },
+        ...(t.iconSvg !== undefined && { iconSvg: t.iconSvg }),
+        ...(t.iconInitials !== undefined && { iconInitials: t.iconInitials }),
+        ...(t.iconHue !== undefined && { iconHue: t.iconHue }),
+        ...(t.endSlideToken !== undefined && { endSlideToken: t.endSlideToken }),
+      };
+    });
 
     const carouselInput = {
       theme,
