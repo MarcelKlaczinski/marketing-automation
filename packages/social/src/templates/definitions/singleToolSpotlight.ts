@@ -32,6 +32,16 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
   defaultSlideCount: 4,
   estimatedCostUsd: 0.006,
 
+  outputFormat: "carousel",
+  compatibleChannels: ["instagram", "tiktok"],
+  generationClass: "frontmatter-derived",
+  plannerMeta: {
+    contentType: "tool-spotlight",
+    estimatedEngagementTier: "medium",
+    recycleableFromExistingArticle: true,
+    requiresLiveData: false,
+  },
+
   eligibility: (article, _discovery) => {
     if (article.collection !== "tools") {
       return { eligible: false, reason: "Nur für tools-Collection" };

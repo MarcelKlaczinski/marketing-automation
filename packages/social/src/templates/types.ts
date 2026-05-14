@@ -15,6 +15,17 @@ export type TemplateKey =
 export type Theme = "dark" | "light";
 export type Locale = "de" | "en";
 
+export type OutputFormat    = "carousel" | "reel" | "story";
+export type Channel         = "instagram" | "tiktok" | "linkedin";
+export type GenerationClass = "frontmatter-derived" | "llm-live";
+
+export interface TemplatePlannerMeta {
+  contentType: "comparison" | "tool-spotlight" | "use-case" | "news" | "concept";
+  estimatedEngagementTier: "low" | "medium" | "high";
+  recycleableFromExistingArticle: boolean;
+  requiresLiveData: boolean;
+}
+
 export interface RenderContext<TInput = unknown> {
   article: Article;
   discovery: ArticleDiscovery;
@@ -69,6 +80,11 @@ export interface TemplateDefinition<TInput = unknown> {
   description: string;
   defaultSlideCount: number;
   estimatedCostUsd: number;
+
+  outputFormat: OutputFormat;
+  compatibleChannels: Channel[];
+  generationClass: GenerationClass;
+  plannerMeta: TemplatePlannerMeta;
 
   eligibility: EligibilityPredicate;
 

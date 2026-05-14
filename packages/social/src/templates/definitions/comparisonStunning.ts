@@ -21,6 +21,16 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
   defaultSlideCount: 4,
   estimatedCostUsd: 0.01,
 
+  outputFormat: "carousel",
+  compatibleChannels: ["instagram", "tiktok"],
+  generationClass: "frontmatter-derived",
+  plannerMeta: {
+    contentType: "comparison",
+    estimatedEngagementTier: "high",
+    recycleableFromExistingArticle: true,
+    requiresLiveData: false,
+  },
+
   eligibility: (article, _discovery) => {
     if (article.collection !== "comparisons") {
       return { eligible: false, reason: "Nur für comparisons-Collection" };

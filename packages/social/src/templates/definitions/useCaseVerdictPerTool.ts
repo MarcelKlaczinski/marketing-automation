@@ -2,8 +2,11 @@ import type { TemplateDefinition } from "../types.ts";
 import { getComparisonContext, type ComparisonContext } from "../adapters/comparison.ts";
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
+import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/useCaseVerdict.fixtures.ts";
 import type { UseCaseVerdictItem } from "../../compositions/use-case-verdict/types.ts";
+
+const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
@@ -15,6 +18,16 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
     "Pro Use-Case eine Slide mit Gewinner-Tool und Begründung. Schließt mit Recap-Tally.",
   defaultSlideCount: 7,
   estimatedCostUsd: 0.008,
+
+  outputFormat: "carousel",
+  compatibleChannels: ["instagram", "tiktok"],
+  generationClass: "frontmatter-derived",
+  plannerMeta: {
+    contentType: "use-case",
+    estimatedEngagementTier: "medium",
+    recycleableFromExistingArticle: true,
+    requiresLiveData: false,
+  },
 
   eligibility: (article, _discovery) => {
     if (article.collection !== "comparisons") {
@@ -50,12 +63,13 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
     const locale = (article.locale ?? "de") as "de" | "en";
     const toolLookup = await buildToolLookup(extras.toolSlugs ?? [], locale, article.projectId);
     const ctx = getComparisonContext(article, toolLookup);
-    // Cap at 8 — carousel would be too long beyond that; take the most impactful first 8
-    return { ...ctx, useCaseVerdicts: ctx.useCaseVerdicts.slice(0, 8) };
+    // Cap at 7 — 1 cover + 7 verdicts + 2 (tally + recap) = 10 ≤ Instagram carousel limit
+    return { ...ctx, useCaseVerdicts: ctx.useCaseVerdicts.slice(0, 7) };
   },
 
   render: async (context) => {
     const { article, input, locale, theme } = context;
+    const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
 
     const resolvedTools = input.tools.map((t) => ({
       slug: t.slug,
@@ -76,8 +90,8 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
       theme,
       locale,
       slideIndex: 0,
-      websiteUrl: "toolwiki.ai",
-      instagramHandle: "@toolwiki.ai",
+      websiteUrl: brandTokens.social.websiteUrl ?? "toolwiki.ai",
+      instagramHandle: brandTokens.social.instagramHandle ?? "@toolwiki.ai",
       articleSlug: article.slug,
       tools: resolvedTools,
       verdicts,
