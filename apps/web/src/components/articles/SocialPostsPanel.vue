@@ -57,10 +57,11 @@
             {{ $t('social.templateGallery.noTemplates') }}
           </div>
 
+          <div class="stagger-list">
           <div
             v-for="tpl in availableTemplates"
             :key="tpl.templateKey"
-            class="template-card"
+            class="template-card stagger-item"
           >
             <div class="template-card__header">
               <span class="template-card__name">{{ tpl.displayName }}</span>
@@ -140,6 +141,7 @@
               </span>
             </div>
           </div>
+          </div><!-- /stagger-list -->
         </div>
       </q-tab-panel>
 
@@ -164,7 +166,8 @@
             {{ $t('social.historyEmpty') }}
           </div>
 
-          <div v-for="r in renderHistory" :key="r.id" class="post-card" :class="{ 'post-card--superseded': r.status === 'superseded' }">
+          <div class="stagger-list">
+          <div v-for="r in renderHistory" :key="r.id" class="post-card stagger-item" :class="{ 'post-card--superseded': r.status === 'superseded' }">
             <!-- Header row: template name + status badge -->
             <div class="post-card__meta">
               <span class="post-card__template-name">{{ r.displayName }}</span>
@@ -229,6 +232,7 @@
               >{{ $t('social.download') }}</button>
             </div>
           </div>
+          </div><!-- /stagger-list -->
         </div>
       </q-tab-panel>
     </q-tab-panels>
@@ -713,7 +717,13 @@ export default defineComponent({
   background: transparent;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  transition: background 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              border-color 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+
+  &:active {
+    transform: scale(0.97);
+  }
 }
 
 .option-btn--active {
@@ -748,8 +758,13 @@ export default defineComponent({
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   align-self: flex-start;
+
+  &:not(:disabled):active {
+    transform: scale(0.97);
+  }
 }
 
 .generate-btn:disabled {
@@ -920,6 +935,13 @@ export default defineComponent({
   font-size: 13px;
   cursor: pointer;
   padding: 0;
+  transition: opacity 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+
+  @media (hover: hover) and (pointer: fine) {
+    &:hover { opacity: 0.75; }
+  }
+
+  &:active { opacity: 0.55; }
 }
 
 .action-link--rerender {
@@ -972,12 +994,18 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   line-height: 1;
-  transition: background 0.15s;
+  transition: background 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              transform 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
   z-index: 10;
 }
 .ig-arrow--left  { left:  calc(50% - 240px); }
 .ig-arrow--right { right: calc(50% - 240px); }
-.ig-arrow:hover { background: rgba(255,255,255,0.22); }
+
+@media (hover: hover) and (pointer: fine) {
+  .ig-arrow:hover { background: rgba(255,255,255,0.22); }
+}
+
+.ig-arrow:active { transform: translateY(-50%) scale(0.93); }
 
 /* Phone frame */
 .ig-frame {

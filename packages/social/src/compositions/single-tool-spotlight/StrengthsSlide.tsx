@@ -132,7 +132,9 @@ export function StrengthsSlide({ input, slideNumber }: Props) {
           </div>
         )}
 
-        {/* Remaining pros */}
+        {/* Remaining pros — visual stagger via opacity: each item slightly less
+            prominent than the last, creating natural reading hierarchy.
+            Clamped at 0.65 so no item becomes unreadable. */}
         {restPros.length > 0 && (
           <div style={{ marginTop: 28, display: "flex", flexDirection: "column", gap: 16 }}>
             {restPros.map((pro, i) => (
@@ -142,6 +144,7 @@ export function StrengthsSlide({ input, slideNumber }: Props) {
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 18,
+                  opacity: Math.max(0.65, 1 - i * 0.12),
                 }}
               >
                 <span
@@ -152,6 +155,7 @@ export function StrengthsSlide({ input, slideNumber }: Props) {
                     background: theme.accent,
                     flexShrink: 0,
                     marginTop: 12,
+                    opacity: Math.max(0.65, 1 - i * 0.08),
                   }}
                 />
                 <span style={{ fontFamily: FONT, fontSize: 30, fontWeight: 500, color: theme.ink, lineHeight: 1.3 }}>

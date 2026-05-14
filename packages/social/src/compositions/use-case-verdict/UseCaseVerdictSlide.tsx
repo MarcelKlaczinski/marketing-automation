@@ -188,7 +188,9 @@ export function UseCaseVerdictSlide({
           </div>
         </div>
 
-        {/* Progress dots */}
+        {/* Progress dots — active dot is pill-shaped (wider), inactive dots are
+            circular. No CSS transition needed for static renders; shape difference
+            alone communicates position clearly. */}
         <div
           style={{
             marginTop: 64,
@@ -197,20 +199,23 @@ export function UseCaseVerdictSlide({
             alignItems: "center",
           }}
         >
-          {Array.from({ length: input.verdicts.length }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                width: i === verdictIndex - 1 ? 28 : 10,
-                height: 10,
-                borderRadius: 5,
-                background: i === verdictIndex - 1
-                  ? theme.brand
-                  : `color-mix(in oklch, ${theme.inkMuted} 30%, transparent)`,
-                transition: "width 0.2s",
-              }}
-            />
-          ))}
+          {Array.from({ length: input.verdicts.length }).map((_, i) => {
+            const isActive = i === verdictIndex - 1;
+            const distFromActive = Math.abs(i - (verdictIndex - 1));
+            return (
+              <div
+                key={i}
+                style={{
+                  width: isActive ? 32 : 10,
+                  height: 10,
+                  borderRadius: 5,
+                  background: isActive
+                    ? theme.brand
+                    : `color-mix(in oklch, ${theme.inkMuted} ${Math.max(20, 50 - distFromActive * 10)}%, transparent)`,
+                }}
+              />
+            );
+          })}
         </div>
       </div>
 

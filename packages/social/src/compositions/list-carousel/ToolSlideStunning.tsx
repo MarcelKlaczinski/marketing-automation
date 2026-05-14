@@ -222,7 +222,9 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
             </li>
           )}
 
-          {/* Regular strengths */}
+          {/* Regular strengths — visual stagger via opacity: each item slightly
+              less prominent than the last, creating depth and hierarchy.
+              Clamped at 0.65 so no item becomes unreadable. */}
           {regularStrengths.map((s, i) => (
             <li
               key={i}
@@ -234,6 +236,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
                 fontSize: 30,
                 color: theme.ink,
                 lineHeight: 1.25,
+                opacity: Math.max(0.65, 1 - i * 0.12),
               }}
             >
               <span
@@ -244,6 +247,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
                   background: theme.accent,
                   flexShrink: 0,
                   marginTop: 10,
+                  opacity: Math.max(0.65, 1 - i * 0.08),
                 }}
               />
               {s}
