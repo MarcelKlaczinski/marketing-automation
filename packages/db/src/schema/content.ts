@@ -341,6 +341,10 @@ export const socialPosts = pgTable(
     costEur: numeric("cost_eur", { precision: 10, scale: 4 }).$type<string>().notNull().default("0"),
     generatedAt: timestamp("generated_at", { withTimezone: true }),
 
+    // Spec 54k: content planner columns
+    templateKey: text("template_key"),  // e.g. "single-tool-spotlight" — enables dedup query
+    locale: text("locale"),             // "de" | "en"
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -349,6 +353,8 @@ export const socialPosts = pgTable(
     statusIdx: index("social_posts_status_idx").on(t.projectId, t.status),
     scheduledIdx: index("social_posts_scheduled_idx").on(t.scheduledAt),
     articleIdx: index("social_posts_article_idx").on(t.articleId),
+    templateKeyIdx: index("social_posts_template_key_idx").on(t.projectId, t.templateKey),
+    articleTemplateIdx: index("social_posts_article_template_idx").on(t.articleId, t.templateKey, t.locale),
   })
 );
 
