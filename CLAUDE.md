@@ -85,6 +85,7 @@ Designed to evolve into SaaS.
 - DO NOT pass `frontmatterSchema` to `buildSystemPrompt()` as a raw `z.unknown()` array without casting — the function expects `FrontmatterFieldDescriptor[]` (from `@marketing-auto/db`). Import the type at the top of the step file and cast: `frontmatterSchema as FrontmatterFieldDescriptor[]`
 - DO NOT use `sql\`${col} != ${value}\`` for inequality comparisons in Drizzle — the `!=` operator is not handled by parameter binding and silently produces incorrect queries. Use `ne(col, value)` from `drizzle-orm` instead. The `ne()` operator is listed alongside `eq`, `gt`, `lt` etc. in the SQL Date-Binding Convention above and auto-serializes values correctly
 - DO NOT query by `translationKey` alone — it is project-scoped by convention but not by a DB unique constraint. Always pair it with `eq(articles.projectId, projectId)` to prevent cross-tenant sibling matches in any pipeline or route that joins on translation siblings
+- DO NOT pass `pipelineRunId: null` to `anthropic.messages()` — the adapter field accepts `string` only, not `null`. Omit the field entirely when there is no pipeline run context (e.g. ad-hoc hook generation in `discoveryWorker.ts`). TypeScript surfaces this as "Type 'null' is not assignable to type 'string'" at the call site
 - DO NOT use `claude-opus-4-7` as the default model in pipeline steps without explicit justification — Opus is ~5× more expensive than Sonnet and only warranted for tasks requiring deep multi-step reasoning (e.g. open-ended research synthesis, complex refactoring). Structured JSON generation (outline, schema detection, JSON translation) uses Sonnet 4.6 or Haiku 4.5. Model hierarchy: Haiku for classification/extraction tasks, Sonnet for creative/free-text generation, Opus only when Sonnet demonstrably fails on the task. See `audit/COST_AUDIT_2026-05-12.md` for cost data.
 - DO NOT forget that `pricing.ts` uses hardcoded rates for `claude-opus-4-7` ($5/$25 per 1M input/output) which may be lower than Anthropic's actual billing rate — the 2026-05-12 audit found a $0.26 discrepancy between the DB total and Anthropic dashboard for a single Opus call. Verify `packages/cost-tracker/src/pricing.ts` rates against the Anthropic console whenever Opus is used at scale, and update `EUR_PER_USD` if FX shifts >5%
 - DO NOT add transparency to oklch colors by appending hex-alpha digits (e.g. `oklch(64% 0.16 248)33`) — CSS hex-alpha syntax only works on 6-digit hex values; appending to oklch is invalid and Chromium silently drops the entire `background` property. Use `color-mix(in oklch, <color> <percent>%, transparent)` instead: `color-mix(in oklch, ${theme.brand} 15%, transparent)`
@@ -171,6 +172,9 @@ Implemented specs (do not re-implement):
 - /specs/49c-gap-generation.md
 - /specs/50-astro-schema-awareness.md
 - /specs/54c-discovery-pipeline-integration.md (discovery-gate UI, sync gap-fix discovery, project-scoped social tab)
+- /specs/54f-single-tool-spotlight.md
+- /specs/54g-schema-formalization.md (outputFormat, compatibleChannels, generationClass, plannerMeta on TemplateDefinition; QW-1 slide count fix; QW-2 brandTokens consistency)
+- /specs/54h-mandatory-hook-contract.md (generateHook() required on all templates; hook engine migrated to packages/core; wired in discoveryWorker.ts)
 
 ## Project Marketing Contexts
 

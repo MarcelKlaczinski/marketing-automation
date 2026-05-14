@@ -66,12 +66,48 @@ export const myTemplate: TemplateDefinition<MyContext> = {
   description: "...",
   defaultSlideCount: 4,
   estimatedCostUsd: 0.006,
+  outputFormat: "carousel",
+  compatibleChannels: ["instagram"],
+  generationClass: "frontmatter-derived",
+  plannerMeta: {
+    contentType: "tool-spotlight",
+    estimatedEngagementTier: "medium",
+    recycleableFromExistingArticle: true,
+    requiresLiveData: false,
+  },
   eligibility,                 // pure, no async, no DB
+  generateHook,                // required — see below
   buildInput,                  // async — DB lookups allowed
   render,                      // async — calls render-server.ts via dynamic import
   mockFixtures,
 };
 ```
+
+**`generateHook()` is required on every template (Spec 54h).** Implement via `generateHookWithGate()` from `@marketing-auto/core`:
+
+```ts
+import { generateHookWithGate, inferArticleType, selectPattern } from "@marketing-auto/core";
+
+generateHook: async (article, input, _locale, llmCaller) => {
+  const ctx = input as MyContext;
+  const articleType = inferArticleType(article.title ?? article.slug, ctx.tools.length);
+  const pattern = selectPattern(article.id, articleType);
+  return generateHookWithGate(
+    { id: article.id, title: article.title ?? article.slug, toolCount: ctx.tools.length, toolNames: ctx.tools.map(t => t.name) },
+    pattern,
+    llmCaller,
+  );
+},
+```
+
+- `llmCaller` is dependency-injected by the runner — templates never import `@marketing-auto/adapter-anthropic` directly.
+- `article.title` is `string | null` — always use `article.title ?? article.slug` as fallback.
+- `inferArticleType` takes tool count to distinguish single-tool vs. comparison articles.
+- `generateHookWithGate` validates (word count 3–7, forbidden words, pattern rules), retries twice, falls back to `programmaticFallbackHook()` — never throws.
+
+**Hook output in `render()`:** the runner calls `generateHook()` before `render()` and passes the result as `context.hookOutput`. Templates should use `context.hookOutput ?? fallbackHook` — never re-generate the hook inside `render()`.
+
+**Schema fields added in 54g** (`outputFormat`, `compatibleChannels`, `generationClass`, `plannerMeta`) are now required on `TemplateDefinition`. TypeScript enforces this at build time.
 
 **`TemplateKey` union** is in `src/templates/types.ts`. Add your key there first — if it's missing, the discovery pipeline filters it as a hallucination and the template is never surfaced.
 
