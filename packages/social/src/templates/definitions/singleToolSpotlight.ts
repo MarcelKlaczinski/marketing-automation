@@ -1,7 +1,11 @@
 import type { TemplateDefinition } from "../types.ts";
 import { getToolContext, type ToolContext } from "../adapters/tool.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
+import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { SINGLE_TOOL_SPOTLIGHT_FIXTURES } from "./fixtures/singleToolSpotlight.fixtures.ts";
+
+// Parsed default ensures brandTokens.social.* are never undefined in single-tool renders
+const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
@@ -72,7 +76,7 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
 
   render: async (context) => {
     const { article, input, locale, theme } = context;
-    const brandTokens = context.brandTokens;
+    const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
 
     const hasUseCaseSlide = input.useCases.length >= 3;
     const totalSlides = hasUseCaseSlide ? 5 : 4;
@@ -83,15 +87,14 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
     const useCases = input.useCases.slice(0, SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS.fieldBounds.useCases.maxItems);
 
     const pricingTier = (input.pricingTier === "enterprise" ? "paid" : (input.pricingTier ?? "freemium")) as "free" | "freemium" | "paid";
-    const pricingLabel = buildPricingLabel(pricingTier, input.priceFrom, locale);
 
     const carouselInput = {
       theme,
       locale,
       slideIndex: 0,
       totalSlides,
-      websiteUrl: brandTokens?.social.websiteUrl ?? "toolwiki.ai",
-      instagramHandle: brandTokens?.social.instagramHandle ?? "@toolwiki.ai",
+      websiteUrl: brandTokens.social.websiteUrl ?? "toolwiki.ai",
+      instagramHandle: brandTokens.social.instagramHandle ?? "@toolwiki.ai",
       articleSlug: article.slug,
       tool: {
         slug: input.slug,
@@ -101,7 +104,6 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
         features,
         useCases,
         pricingTier,
-        pricingLabel,
         ...(input.tagline !== undefined && { tagline: input.tagline }),
         ...(input.website !== undefined && { website: input.website }),
         ...(input.primaryCategory !== undefined && { primaryCategory: input.primaryCategory }),
@@ -144,17 +146,6 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
 
   mockFixtures: SINGLE_TOOL_SPOTLIGHT_FIXTURES,
 };
-
-function buildPricingLabel(tier: "free" | "freemium" | "paid", priceFrom: number | undefined, locale: "de" | "en"): string {
-  if (tier === "free") return locale === "de" ? "Kostenlos" : "Free";
-  if (tier === "paid") {
-    if (priceFrom) return locale === "de" ? `ab ${priceFrom}€/Monat` : `from $${priceFrom}/month`;
-    return locale === "de" ? "Kostenpflichtig" : "Paid";
-  }
-  // freemium
-  if (priceFrom) return locale === "de" ? `Freemium · Pro ab ${priceFrom}€/Monat` : `Freemium · Pro from $${priceFrom}/month`;
-  return "Freemium";
-}
 
 function buildCaption(input: ToolContext, locale: "de" | "en", slug: string): string {
   const topPro = input.pros[0]?.text ?? "";
