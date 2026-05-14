@@ -1,5 +1,5 @@
 // Custom global styles. Quasar variables are loaded automatically by quasar.config.ts.
-@use './animations.scss';
+@import './animations';
 
 body {
   font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

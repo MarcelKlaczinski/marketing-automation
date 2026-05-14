@@ -18,6 +18,10 @@ Compositions live in `src/compositions/<template-name>/`, shared primitives in `
 
 - **oklch transparency** — use `color-mix(in oklch, <color> <pct>%, transparent)` for all alpha overlays. Appending hex alpha digits to oklch strings (e.g. `oklch(...)33`) is invalid CSS and Chromium silently drops the rule.
 
+- **Visual hierarchy on list items** — for ordered lists (strengths, pros, use-cases), apply decreasing opacity to simulate the depth that stagger animation creates in web UI. Pattern: `opacity: Math.max(0.65, 1 - i * 0.12)` on each list item. The clamp at `0.65` ensures no item becomes unreadable. The "star" first item always stays at full opacity since it's pulled out separately.
+
+- **`transition` in inline styles is a no-op** — Remotion renders static PNGs via `renderStill()`. CSS `transition` properties in inline styles are silently ignored. For visual state differences (e.g. active progress dot vs. inactive), use shape/size/color differences directly rather than transitions. See `UseCaseVerdictSlide.tsx` for the progress-dot pattern.
+
 - **Fixed-height slide layout — do NOT use `justifyContent: "space-between"`** — in a 1080×1080 slide, `space-between` distributes dead space between sections when content is short. Instead: set `paddingBottom: 140` on the outer container, give the main content block `flex: 1` so it fills all remaining space, and position the footer with `position: "absolute", bottom: 72`. This keeps content dense and fonts large regardless of how much text there is.
 
 ## Composition structure

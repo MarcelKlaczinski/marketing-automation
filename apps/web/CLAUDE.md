@@ -23,6 +23,31 @@ Each namespace is a separate file (`app.ts`, `nav.ts`, `auth.ts`, `home.ts`, etc
 When adding a new namespace: create the file in both `de/` and `en/`, wire into both index files.
 Type augmentation in `src/boot/i18n.ts` makes `$t()` type-safe — if a key isn't in `de/`, the IDE will warn.
 
+## Animation System
+
+Global animation utilities live in `src/css/animations.scss` (imported by `app.scss`).
+
+**CSS custom properties** (available everywhere):
+```css
+--ease-out:    cubic-bezier(0.23, 1, 0.32, 1)   /* entries, button press */
+--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1)  /* on-screen movement */
+--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1)   /* drawers/sheets */
+```
+
+**Stagger pattern** — for lists that should cascade in:
+```html
+<div class="stagger-list">
+  <div v-for="item in items" class="stagger-item">...</div>
+</div>
+```
+Delays: 0/45/90/135/180/215/245ms. Keep delays short — 30-80ms per item is the sweet spot.
+
+**Rules when writing new CSS transitions:**
+- Always specify exact properties — never `transition: all`
+- Use `var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1))` (with inline fallback for scoped styles)
+- Gate hover animations: `@media (hover: hover) and (pointer: fine) { :hover { ... } }`
+- Button/pressable `:active` state: `transform: scale(0.97)`, 160ms
+
 ## HTTP Client
 - All API calls go through `src/lib/api-client.ts` (`api` Axios instance).
 - Error handling uses `src/lib/http-error.ts` (`HttpError` class with `originalCause`, NOT `cause`).
@@ -126,3 +151,5 @@ Global navigation guards live in `src/router/guards.ts` as `registerGuards(route
 - DO NOT use `vue-chartjs` chart components without calling `Chart.register(...)` for every Chart.js element used — tree-shaking requires explicit registration per component file. Missing registration silently renders a blank canvas. Pattern: import the needed elements (e.g. `ArcElement, Tooltip, Legend`) and call `Chart.register(...)` at module level before the `defineComponent` call.
 - DO NOT assume Chart.js tick/tooltip callbacks have narrowed numeric types — `ChartOptions` types the y-axis `ticks.callback` value as `number | string` even on a `LinearScale` (which only emits numbers), and `ctx.parsed.y` in tooltip callbacks is typed `number | null`. Null-guard with `?? 0` or `== null` check; cast `v as number` when it's provably a LinearScale and add a justification comment.
 - DO NOT mix `display: flex` and `display: -webkit-box` in the same CSS rule — `-webkit-line-clamp` (for text truncation) requires `display: -webkit-box` which overrides a preceding `display: flex`, breaking flex child alignment. If you need both a flex row (icon + text) and line-clamping, wrap the text in a separate inner element and apply `-webkit-line-clamp` only to that inner wrapper.
+- DO NOT write `transition: all` or bare `transition: opacity 0.15s` in new CSS — use explicit properties with `var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1))`. The inline fallback is required in `<style scoped>` blocks where the CSS variable defined in `animations.scss` may not resolve. Avoid `ease-in` on any UI element — it starts slow and feels sluggish.
+- DO NOT rely on Quasar's default `q-transition--scale` dialog animation looking polished — it starts from `scale(0)` which looks like elements spawn from nothing. `animations.scss` overrides this globally to `scale(0.95)` with custom easing. If you add a dialog with a different `transition-show` prop, apply the same `scale(0.95)` start manually or leave the default `scale` to inherit the fix.
