@@ -10,11 +10,11 @@ loadFont();
 
 const FONT = "Space Grotesk, sans-serif";
 const W = 1080;
-const H = 1080;
+const H = 1350;
 const PAD_X = 80;
 const PAD_Y = 100;
 const FOOTER_BOTTOM = 72;
-const BAR_MAX_WIDTH = 580;
+const BAR_MAX_WIDTH = 660;
 
 function computeTally(verdicts: UseCaseVerdictItem[]): TallyEntry[] {
   const counts = new Map<string, number>();
@@ -123,7 +123,7 @@ export function UseCaseVerdictRecapSlide({ input, slideIndex, totalSlides }: Pro
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      maxWidth: BAR_MAX_WIDTH + 160,
+                      maxWidth: BAR_MAX_WIDTH + 180,
                     }}
                   >
                     <span
@@ -188,6 +188,67 @@ export function UseCaseVerdictRecapSlide({ input, slideIndex, totalSlides }: Pro
           }}
         >
           {summaryText}
+        </div>
+
+        {/* Verdict breakdown grid */}
+        <div style={{ marginTop: 56 }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 20,
+              fontWeight: 600,
+              color: theme.inkMuted,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase" as const,
+              marginBottom: 20,
+            }}
+          >
+            {input.locale === "de" ? "Alle Verdicts" : "All verdicts"}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 10,
+            }}
+          >
+            {input.verdicts.map((v) => {
+              const winnerTool = input.tools.find((t) => t.slug === v.winner);
+              return (
+                <div
+                  key={v.useCase}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    background: input.theme === "dark"
+                      ? "oklch(22% 0.025 250)"
+                      : "oklch(94% 0.01 250)",
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                  }}
+                >
+                  <ToolIconImage
+                    {...(winnerTool?.iconSvg !== undefined && { iconSvg: winnerTool.iconSvg })}
+                    initials={winnerTool?.iconInitials ?? (v.winner.slice(0, 2).toUpperCase())}
+                    hue={winnerTool?.iconHue ?? 220}
+                    size={32}
+                  />
+                  <span
+                    style={{
+                      fontFamily: FONT,
+                      fontSize: 19,
+                      fontWeight: 500,
+                      color: theme.ink,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {v.useCase}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

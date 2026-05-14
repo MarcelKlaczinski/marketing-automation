@@ -121,23 +121,12 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
 
         {/* Icon (prominent) + Name row */}
         <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-          {/* Larger icon with brand ring */}
-          <div style={{ position: "relative" }}>
-            <div
-              style={{
-                position: "absolute",
-                inset: -3,
-                borderRadius: "50%",
-                border: `2.5px solid color-mix(in oklch, ${theme.brand} 50%, transparent)`,
-              }}
-            />
-            <ToolIconImage
-              {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
-              {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
-              {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
-              size={144}
-            />
-          </div>
+          <ToolIconImage
+            {...(tool.iconSvg !== undefined && { iconSvg: tool.iconSvg })}
+            {...(tool.iconInitials !== undefined && { initials: tool.iconInitials })}
+            {...(tool.iconHue !== undefined && { hue: tool.iconHue })}
+            size={144}
+          />
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span

@@ -10,7 +10,7 @@ loadFont();
 
 const FONT = "Space Grotesk, sans-serif";
 const W = 1080;
-const H = 1080;
+const H = 1350;
 const PAD_X = 80;
 const PAD_Y = 100;
 const FOOTER_BOTTOM = 72;
@@ -141,7 +141,7 @@ export function UseCaseVerdictCoverSlide({ input, totalSlides }: Props) {
         </div>
 
         {/* Promise block */}
-        <div style={{ marginTop: 48, display: "flex", gap: 24, alignItems: "flex-start" }}>
+        <div style={{ marginTop: 64, display: "flex", gap: 24, alignItems: "flex-start" }}>
           <div
             style={{
               width: 8,
@@ -158,6 +158,69 @@ export function UseCaseVerdictCoverSlide({ input, totalSlides }: Props) {
             <div style={{ fontFamily: FONT, fontSize: 32, fontWeight: 700, color: theme.inkMuted }}>
               {promise2}
             </div>
+          </div>
+        </div>
+
+        {/* Use-case preview grid */}
+        <div style={{ marginTop: 72 }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 22,
+              fontWeight: 600,
+              color: theme.inkMuted,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase" as const,
+              marginBottom: 24,
+            }}
+          >
+            {input.locale === "de" ? "Was dich erwartet" : "What's inside"}
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 12,
+            }}
+          >
+            {input.verdicts.map((v, i) => (
+              <div
+                key={v.useCase}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  background: input.theme === "dark"
+                    ? "oklch(22% 0.025 250)"
+                    : "oklch(94% 0.01 250)",
+                  borderRadius: 12,
+                  padding: "14px 18px",
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: theme.brand,
+                    minWidth: 28,
+                  }}
+                >
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: 20,
+                    fontWeight: 500,
+                    color: theme.ink,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {v.useCase}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>

@@ -1,6 +1,55 @@
 import { db, articles, and, eq, inArray } from "@marketing-auto/db";
 import type { ToolReference } from "./types.ts";
 
+// Brand-color fallbacks for well-known tool slugs — used when the tool article in DB
+// has no iconSvg / iconInitials / iconHue in frontmatterExtras.
+// Exported so getToolContext() in tool.ts can apply the same fallback for single-article lookups.
+export const KNOWN_TOOL_ICONS: Record<string, { iconInitials?: string; iconHue?: number; iconSvg?: string }> = {
+  cursor:     { iconInitials: "CU", iconHue: 220, iconSvg: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.9 2.7L0 21.3h23.8Zm0 3.918L20.857 19.5H3Z"/></svg>' },
+  windsurf:   { iconInitials: "WI", iconHue: 145 },
+  codeium:    { iconInitials: "CO", iconHue: 175 },
+  chatgpt:    { iconInitials: "GP", iconHue: 160 },
+  claude:     { iconInitials: "CL", iconHue: 200 },
+  copilot:    { iconInitials: "CP", iconHue: 240 },
+  recraft:    { iconInitials: "RC", iconHue: 220 },
+  ideogram:   { iconInitials: "ID", iconHue: 280 },
+  midjourney: { iconInitials: "MJ", iconHue: 50  },
+  perplexity: { iconInitials: "PX", iconHue: 195 },
+  gemini:     { iconInitials: "GE", iconHue: 35  },
+  grok:       { iconInitials: "GK", iconHue: 270 },
+  runway:     { iconInitials: "RW", iconHue: 310 },
+  kling:      { iconInitials: "KL", iconHue: 255 },
+  sora:       { iconInitials: "SO", iconHue: 15  },
+  synthesia:  { iconInitials: "SY", iconHue: 200 },
+  heygen:     { iconInitials: "HG", iconHue: 180 },
+  descript:   { iconInitials: "DE", iconHue: 240 },
+  figma:      { iconInitials: "FI", iconHue: 310 },
+  canva:      { iconInitials: "CA", iconHue: 170 },
+  notion:     { iconInitials: "NO", iconHue: 220 },
+  linear:     { iconInitials: "LN", iconHue: 250 },
+  gamma:      { iconInitials: "GA", iconHue: 285, iconSvg: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 3h18v3.5H7V21H3V3z"/></svg>' },
+  tome:       { iconInitials: "TO", iconHue: 230 },
+  beautiful:  { iconInitials: "BA", iconHue: 340 },
+  pitch:      { iconInitials: "PT", iconHue: 210 },
+  prezi:      { iconInitials: "PR", iconHue: 15  },
+  jasper:     { iconInitials: "JA", iconHue: 150 },
+  writesonic: { iconInitials: "WS", iconHue: 195 },
+  grammarly:  { iconInitials: "GR", iconHue: 130 },
+  deepl:      { iconInitials: "DL", iconHue: 245 },
+  elevenlabs: { iconInitials: "EL", iconHue: 155 },
+  murf:       { iconInitials: "MU", iconHue: 270 },
+  luma:       { iconInitials: "LU", iconHue: 40  },
+  pika:       { iconInitials: "PI", iconHue: 300 },
+  leonardo:   { iconInitials: "LE", iconHue: 25  },
+  adobe:      { iconInitials: "AD", iconHue: 355 },
+  airtable:   { iconInitials: "AT", iconHue: 175 },
+  clickup:    { iconInitials: "CK", iconHue: 270 },
+  asana:      { iconInitials: "AS", iconHue: 355 },
+  monday:     { iconInitials: "MO", iconHue: 355 },
+  zapier:     { iconInitials: "ZA", iconHue: 15  },
+  make:       { iconInitials: "MK", iconHue: 265 },
+};
+
 export async function buildToolLookup(
   toolSlugs: string[],
   locale: "de" | "en",
@@ -42,6 +91,16 @@ export async function buildToolLookup(
       if (extras.iconSvg !== undefined) ref.iconSvg = extras.iconSvg;
       if (extras.iconInitials !== undefined) ref.iconInitials = extras.iconInitials;
       if (extras.iconHue !== undefined) ref.iconHue = extras.iconHue;
+
+      // Apply brand-color fallback when the article has no icon data
+      if (ref.iconSvg === undefined && ref.iconInitials === undefined) {
+        const defaults = KNOWN_TOOL_ICONS[t.slug];
+        if (defaults !== undefined) {
+          if (defaults.iconSvg !== undefined) ref.iconSvg = defaults.iconSvg;
+          if (defaults.iconInitials !== undefined) ref.iconInitials = defaults.iconInitials;
+          if (defaults.iconHue !== undefined) ref.iconHue = defaults.iconHue;
+        }
+      }
 
       return [t.slug, ref];
     }),

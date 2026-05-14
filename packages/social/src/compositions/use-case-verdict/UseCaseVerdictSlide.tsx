@@ -10,7 +10,7 @@ loadFont();
 
 const FONT = "Space Grotesk, sans-serif";
 const W = 1080;
-const H = 1080;
+const H = 1350;
 const PAD_X = 80;
 const PAD_Y = 100;
 const FOOTER_BOTTOM = 72;
@@ -41,6 +41,9 @@ export function UseCaseVerdictSlide({
 
   const winnerLabel = input.locale === "de" ? "GEWINNT" : "WINS";
 
+  const winnerInitials =
+    winnerTool?.iconInitials ?? (winnerTool?.name.slice(0, 2).toUpperCase() ?? "??");
+
   return (
     <div
       style={{
@@ -56,14 +59,36 @@ export function UseCaseVerdictSlide({
         boxSizing: "border-box",
       }}
     >
-      {/* Subtle gradient */}
+      {/* Dual-source gradient — brand top-right + accent bottom-left */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          background: `radial-gradient(ellipse 60% 50% at 90% 5%, color-mix(in oklch, ${theme.brand} 6%, transparent), transparent 55%)`,
+          background: `
+            radial-gradient(ellipse 70% 55% at 95% 0%, color-mix(in oklch, ${theme.brand} 10%, transparent), transparent 55%),
+            radial-gradient(ellipse 60% 50% at 5% 100%, color-mix(in oklch, ${theme.accent} 6%, transparent), transparent 55%)
+          `,
         }}
       />
+
+      {/* Ghost initial of the winning tool — decorative, bottom-right */}
+      <div
+        style={{
+          position: "absolute",
+          right: -20,
+          bottom: 100,
+          fontFamily: FONT,
+          fontSize: 480,
+          fontWeight: 900,
+          color: theme.ink,
+          opacity: input.theme === "dark" ? 0.05 : 0.03,
+          lineHeight: 1,
+          userSelect: "none",
+          letterSpacing: "-0.05em",
+        }}
+      >
+        {winnerInitials}
+      </div>
 
       <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
         <Eyebrow
@@ -76,71 +101,116 @@ export function UseCaseVerdictSlide({
         {/* Use-case title */}
         <div
           style={{
-            marginTop: 48,
+            marginTop: 52,
             fontFamily: FONT,
             fontSize: 72,
             fontWeight: 800,
             lineHeight: 1.1,
             color: theme.ink,
-            maxWidth: 900,
+            maxWidth: 880,
           }}
         >
           {verdict.useCase}
         </div>
 
-        {/* Winner block */}
+        {/* Winner block — more prominent */}
         <div
           style={{
-            marginTop: 56,
+            marginTop: 72,
             display: "flex",
             alignItems: "center",
-            gap: 24,
+            gap: 28,
             background: input.theme === "dark"
-              ? "oklch(22% 0.02 248)"
+              ? "oklch(22% 0.025 248)"
               : "oklch(96% 0.01 250)",
-            border: `2px solid color-mix(in oklch, ${theme.brand} 30%, transparent)`,
-            borderRadius: 20,
-            padding: "28px 36px",
+            border: `2px solid color-mix(in oklch, ${theme.brand} 35%, transparent)`,
+            borderRadius: 24,
+            padding: "36px 48px",
+            boxShadow: `0 8px 48px color-mix(in oklch, ${theme.brand} 12%, transparent)`,
           }}
         >
           <ToolIconImage
             {...(winnerTool?.iconSvg !== undefined && { iconSvg: winnerTool.iconSvg })}
-            initials={winnerTool?.iconInitials ?? (winnerTool?.name.slice(0, 2).toUpperCase() ?? "??")}
+            initials={winnerInitials}
             hue={winnerTool?.iconHue ?? 220}
-            size={80}
+            size={96}
           />
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <div
               style={{
                 fontFamily: FONT,
                 fontSize: 22,
                 fontWeight: 700,
-                letterSpacing: "0.1em",
+                letterSpacing: "0.12em",
                 textTransform: "uppercase",
                 color: theme.brand,
               }}
             >
               {winnerLabel}
             </div>
-            <div style={{ fontFamily: FONT, fontSize: 48, fontWeight: 800, color: theme.ink }}>
+            <div style={{ fontFamily: FONT, fontSize: 56, fontWeight: 800, color: theme.ink, lineHeight: 1.05 }}>
               {winnerTool?.name ?? verdict.winner}
             </div>
           </div>
         </div>
 
-        {/* Reason */}
+        {/* Reason — styled with left accent bar */}
         <div
           style={{
-            marginTop: 48,
-            fontFamily: FONT,
-            fontSize: 30,
-            fontWeight: 400,
-            lineHeight: 1.55,
-            color: theme.inkMuted,
-            maxWidth: 880,
+            marginTop: 56,
+            display: "flex",
+            gap: 24,
+            alignItems: "flex-start",
           }}
         >
-          {verdict.reason}
+          <div
+            style={{
+              width: 5,
+              alignSelf: "stretch",
+              minHeight: 40,
+              background: `linear-gradient(180deg, ${theme.brand}, color-mix(in oklch, ${theme.brand} 30%, transparent))`,
+              borderRadius: 3,
+              flexShrink: 0,
+              marginTop: 4,
+            }}
+          />
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 34,
+              fontWeight: 400,
+              lineHeight: 1.55,
+              color: theme.inkMuted,
+              maxWidth: 840,
+            }}
+          >
+            {verdict.reason}
+          </div>
+        </div>
+
+        {/* Progress dots */}
+        <div
+          style={{
+            marginTop: 64,
+            display: "flex",
+            gap: 10,
+            alignItems: "center",
+          }}
+        >
+          {Array.from({ length: input.verdicts.length }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                width: i === verdictIndex - 1 ? 28 : 10,
+                height: 10,
+                borderRadius: 5,
+                background: i === verdictIndex - 1
+                  ? theme.brand
+                  : `color-mix(in oklch, ${theme.inkMuted} 30%, transparent)`,
+                transition: "width 0.2s",
+              }}
+            />
+          ))}
         </div>
       </div>
 

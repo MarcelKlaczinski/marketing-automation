@@ -6,7 +6,7 @@ import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/useCaseVerdict.fixtures.ts
 import type { UseCaseVerdictItem } from "../../compositions/use-case-verdict/types.ts";
 
 const SLIDE_W = 1080;
-const SLIDE_H = 1080;
+const SLIDE_H = 1350;
 
 export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext> = {
   key: "use-case-verdict-per-tool",

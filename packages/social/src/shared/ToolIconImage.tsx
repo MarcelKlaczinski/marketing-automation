@@ -48,7 +48,7 @@ export function ToolIconImage({ iconSvg, initials, hue = 200, size = 80, invertS
         width: size,
         height: size,
         borderRadius: "50%",
-        background: `radial-gradient(135deg at 30% 30%, oklch(65% 0.18 ${hue}), oklch(40% 0.15 ${hue + 40}))`,
+        background: `linear-gradient(135deg, oklch(65% 0.18 ${hue}), oklch(40% 0.15 ${hue + 40}))`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

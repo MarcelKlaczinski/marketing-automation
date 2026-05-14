@@ -528,7 +528,7 @@ export type NewArticleDiscovery = typeof articleDiscovery.$inferInsert;
 
 // ─── Spec 54a: Template Renders ───────────────────────────────────────────────
 
-export type TemplateRenderStatus = "pending" | "rendering" | "ready" | "failed";
+export type TemplateRenderStatus = "pending" | "rendering" | "ready" | "failed" | "superseded";
 
 export type TemplateRenderOutputFiles = {
   slides: Array<{ filePath: string; width: number; height: number }>;

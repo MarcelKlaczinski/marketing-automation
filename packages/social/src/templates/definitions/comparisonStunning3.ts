@@ -71,7 +71,7 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
       domain: t.slug + ".com",
       eyebrow: `${String(i + 1).padStart(2, "0")} · ${(t.primaryCategory ?? "KI-TOOL").toUpperCase()}`,
       tagline: input.verdict.slice(0, 120),
-      strengths: ["Getestet", "Verglichen"],
+      strengths: locale === "de" ? ["Getestet", "Verglichen"] : ["Tested", "Compared"],
       pricing: {
         tier: (t.pricingTier === "enterprise" ? "paid" : (t.pricingTier ?? "freemium")) as "free" | "freemium" | "paid",
         label: t.priceFrom === 0 ? "ab 0€" : t.priceFrom ? `ab ${t.priceFrom}€/Monat` : "Preis auf Anfrage",
@@ -113,8 +113,12 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
           closer: {
             pattern: "verdict_recap" as const,
             line1: {
-              leadText: locale === "de" ? "Unser Sieger:" : "Our winner:",
-              highlightText: input.tools.find((t) => t.slug === input.winner)?.name ?? input.winner,
+              leadText: input.winner === "depends"
+                ? (locale === "de" ? "Unser Fazit:" : "Our verdict:")
+                : (locale === "de" ? "Unser Sieger:" : "Our winner:"),
+              highlightText: input.winner === "depends"
+                ? (locale === "de" ? "kommt drauf an" : "depends")
+                : (input.tools.find((t) => t.slug === input.winner)?.name ?? input.winner),
               trailText: ".",
             },
             line2: {

@@ -153,60 +153,83 @@
 
       <!-- History panel -->
       <q-tab-panel name="history" class="q-pa-none">
-    <!-- History -->
-    <div class="social-posts-panel__section">
-      <div class="social-posts-panel__title">{{ $t('social.history') }}</div>
+        <div class="social-posts-panel__section">
+          <div class="social-posts-panel__title">{{ $t('social.history') }}</div>
 
-      <div v-if="posts.length === 0" class="social-posts-panel__empty">
-        {{ $t('social.noPostsYet') }}
-      </div>
+          <div v-if="rendersLoading" class="social-posts-panel__empty">
+            <q-spinner size="28px" color="primary" />
+          </div>
 
-      <div v-for="post in posts" :key="post.id" class="post-card">
-        <div class="post-card__meta">
-          <q-badge
-            :color="post.theme === 'dark' ? 'grey-8' : 'amber-2'"
-            :text-color="post.theme === 'dark' ? 'white' : 'dark'"
-            :label="post.theme === 'dark' ? $t('social.darkTheme') : $t('social.lightTheme')"
-          />
-          <span class="post-card__slides">
-            {{ $t('social.slides', { n: post.totalSlides ?? '?' }) }}
-          </span>
-          <span class="post-card__time">{{ formatTime(post.generatedAt ?? post.createdAt) }}</span>
-        </div>
+          <div v-else-if="renderHistory.length === 0" class="social-posts-panel__empty">
+            {{ $t('social.historyEmpty') }}
+          </div>
 
-        <!-- Slide preview strip -->
-        <div v-if="postSlideUrls(post).length" class="post-card__slides-strip">
-          <img
-            v-for="(url, i) in postSlideUrls(post).slice(0, 4)"
-            :key="i"
-            :src="url"
-            class="post-card__slide-thumb"
-            alt=""
-          />
-          <div v-if="postSlideUrls(post).length > 4" class="post-card__slide-more">
-            +{{ postSlideUrls(post).length - 4 }}
+          <div v-for="r in renderHistory" :key="r.id" class="post-card" :class="{ 'post-card--superseded': r.status === 'superseded' }">
+            <!-- Header row: template name + status badge -->
+            <div class="post-card__meta">
+              <span class="post-card__template-name">{{ r.displayName }}</span>
+              <q-badge
+                v-if="r.status === 'ready'"
+                color="positive"
+              >{{ $t('social.renderCard.statusReady') }}</q-badge>
+              <q-badge
+                v-else-if="r.status === 'rendering' || r.status === 'pending'"
+                color="warning"
+              >{{ $t('social.renderCard.statusRendering') }}</q-badge>
+              <q-badge
+                v-else-if="r.status === 'failed'"
+                color="negative"
+              >{{ $t('social.renderCard.statusFailed') }}</q-badge>
+              <q-badge
+                v-else-if="r.status === 'superseded'"
+                color="grey-6"
+              >{{ $t('social.renderCard.statusSuperseded') }}</q-badge>
+            </div>
+
+            <!-- Meta row: locale, theme, timestamp, cost, duration -->
+            <div class="post-card__submeta">
+              <span>{{ r.locale.toUpperCase() }}</span>
+              <span>{{ r.theme === 'dark' ? $t('social.darkTheme') : $t('social.lightTheme') }}</span>
+              <span>{{ formatTime(r.createdAt) }}</span>
+              <span v-if="r.durationMs">{{ $t('social.renderCard.duration', { s: (r.durationMs / 1000).toFixed(1) }) }}</span>
+              <span v-if="r.costUsd">{{ $t('social.renderCard.costUsd', { cost: Number(r.costUsd).toFixed(4) }) }}</span>
+            </div>
+
+            <!-- Error message -->
+            <div v-if="r.status === 'failed' && r.error" class="post-card__error">
+              {{ $t('social.renderCard.error') }}: {{ r.error }}
+            </div>
+
+            <!-- Slide thumbnails -->
+            <div v-if="r.slides && r.slides.length" class="post-card__slides-strip">
+              <img
+                v-for="(s, i) in r.slides.slice(0, 5)"
+                :key="i"
+                :src="apiBase + s.imageUrl"
+                class="post-card__slide-thumb"
+                alt=""
+              />
+              <div v-if="r.slides.length > 5" class="post-card__slide-more">
+                +{{ r.slides.length - 5 }}
+              </div>
+            </div>
+
+            <div class="post-card__actions">
+              <button
+                v-if="r.slides && r.slides.length"
+                class="action-link"
+                type="button"
+                @click="onPreviewRender(r)"
+              >{{ $t('social.preview') }}</button>
+              <button
+                v-if="r.status === 'ready'"
+                class="action-link"
+                type="button"
+                @click="onDownloadRender(r.id)"
+              >{{ $t('social.download') }}</button>
+            </div>
           </div>
         </div>
-
-        <div class="post-card__actions">
-          <button class="action-link" type="button" @click="onPreview(post)">
-            {{ $t('social.preview') }}
-          </button>
-          <button class="action-link" type="button" @click="onDownload(post)">
-            {{ $t('social.download') }}
-          </button>
-          <button
-            class="action-link action-link--rerender"
-            type="button"
-            :disabled="reRenderingId === post.id"
-            @click="onReRender(post)"
-          >
-            {{ reRenderingId === post.id ? '…' : $t('brand.reRender.single') }}
-          </button>
-        </div>
-      </div>
-    </div>
-
       </q-tab-panel>
     </q-tab-panels>
 
@@ -333,6 +356,21 @@ interface TemplateInfo {
   completedAt: string | null;
 }
 
+interface RenderHistoryItem {
+  id: string;
+  templateKey: string | null;
+  displayName: string;
+  locale: string;
+  theme: string;
+  status: string;
+  slides: Array<{ imageUrl: string }> | null;
+  costUsd: string | null;
+  durationMs: number | null;
+  error: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 export default defineComponent({
   name: "SocialPostsPanel",
 
@@ -356,6 +394,8 @@ export default defineComponent({
     availableTemplates: [] as TemplateInfo[],
     templatePollingTimer: null as ReturnType<typeof setInterval> | null,
     posts: [] as SocialPost[],
+    renderHistory: [] as RenderHistoryItem[],
+    rendersLoading: false,
     previewOpen: false,
     previewPost: null as SocialPost | null,
     previewSlideUrls_: [] as string[],
@@ -388,6 +428,7 @@ export default defineComponent({
     this.loadPosts();
     this.loadTemplates();
     this.loadSuggestionsCount();
+    this.loadRenderHistory();
   },
 
   beforeUnmount() {
@@ -445,9 +486,33 @@ export default defineComponent({
       }
     },
 
+    async loadRenderHistory() {
+      this.rendersLoading = true;
+      try {
+        const res = await api.get<{ ok: boolean; data: { renders: RenderHistoryItem[] } }>(
+          `/articles/${this.articleId}/template-renders`
+        );
+        if (res.data.ok) this.renderHistory = res.data.data.renders;
+      } catch {
+        // silently ignore
+      } finally {
+        this.rendersLoading = false;
+      }
+    },
+
+    onPreviewRender(r: RenderHistoryItem) {
+      this.previewPost = null;
+      this.previewSlideUrls_ = (r.slides ?? []).map((s) => this.apiBase + s.imageUrl);
+      this.previewCaption_ = "";
+      this.previewHashtags_ = "";
+      this.previewSlideIndex = 0;
+      this.previewOpen = true;
+    },
+
     startTemplatePolling() {
       this.templatePollingTimer = setInterval(async () => {
         await this.loadTemplates();
+        await this.loadRenderHistory();
         const isStillRendering = this.availableTemplates.some(
           (t) => t.renderStatus === "rendering" || t.renderStatus === "pending"
         );
@@ -474,21 +539,16 @@ export default defineComponent({
       this.previewOpen = true;
     },
 
-    async onDownloadRender(renderId: string) {
+    onDownloadRender(renderId: string) {
+      // Direct navigation — browser sends SameSite=Lax session cookie automatically
+      // and handles Content-Disposition: attachment natively without fetch+blob.
       const base = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000/api";
-      const resp = await fetch(`${base}/template-renders/${renderId}/download`, { credentials: "include" });
-      if (!resp.ok) return;
-      const blob = await resp.blob();
-      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = blobUrl;
-      const disposition = resp.headers.get("Content-Disposition") ?? "";
-      const match = disposition.match(/filename="([^"]+)"/);
-      a.download = match?.[1] ?? `render-${renderId}.zip`;
+      a.href = `${base}/template-renders/${renderId}/download`;
+      a.style.display = "none";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
     },
 
     postSlideUrls(post: SocialPost): string[] {
@@ -773,10 +833,46 @@ export default defineComponent({
   gap: 10px;
 }
 
+.post-card--superseded {
+  opacity: 0.55;
+}
+
 .post-card__meta {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.post-card__template-name {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.post-card__submeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--q-secondary);
+}
+
+.post-card__submeta span::before {
+  content: "·";
+  margin-right: 8px;
+}
+
+.post-card__submeta span:first-child::before {
+  content: none;
+}
+
+.post-card__error {
+  font-size: 11px;
+  color: var(--q-negative);
+  background: color-mix(in srgb, var(--q-negative) 8%, transparent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  word-break: break-word;
 }
 
 .post-card__slides,

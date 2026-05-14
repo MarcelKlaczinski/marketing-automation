@@ -1,5 +1,5 @@
 import { discoverArticleStep } from "@marketing-auto/pipelines";
-import { articleDiscovery, articles, db, eq, templateRenders } from "@marketing-auto/db";
+import { articleDiscovery, articles, db, and, eq, templateRenders } from "@marketing-auto/db";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Queue, Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
@@ -124,12 +124,36 @@ async function handleRenderTemplateJob(templateRenderId: string): Promise<void> 
 
     const template = socialTemplates.templateRegistry.getById(render.templateKey);
 
+    // If the stored renderInput was built from a different-locale article (e.g. EN article
+    // queued with locale=de), rebuild it from the correct sibling before rendering.
+    let renderInput = render.renderInput;
+    if (render.locale && article.locale && render.locale !== article.locale && article.translationKey) {
+      const [sibling] = await db
+        .select()
+        .from(articles)
+        .where(
+          and(
+            eq(articles.projectId, article.projectId),
+            eq(articles.translationKey, article.translationKey),
+            eq(articles.locale, render.locale),
+          )
+        )
+        .limit(1);
+      if (sibling) {
+        renderInput = (await template.buildInput(
+          sibling as import("@marketing-auto/db").Article,
+          discovery as import("@marketing-auto/db").ArticleDiscovery,
+        )) as Record<string, unknown>;
+        log.info({ templateRenderId, siblingId: sibling.id, locale: render.locale }, "Rebuilt renderInput from locale sibling");
+      }
+    }
+
     const renderResult = await template.render({
       article: article as import("@marketing-auto/db").Article,
       discovery: discovery as import("@marketing-auto/db").ArticleDiscovery,
       locale: render.locale as import("@marketing-auto/social/templates").Locale,
       theme: render.theme as import("@marketing-auto/social/templates").Theme,
-      input: render.renderInput,
+      input: renderInput,
     });
 
     await db

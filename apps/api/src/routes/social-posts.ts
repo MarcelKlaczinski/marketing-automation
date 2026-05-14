@@ -6,7 +6,7 @@ import { templateRegistry } from "@marketing-auto/social/templates";
 import { enqueueSocialImagePipeline } from "@marketing-auto/pipelines";
 import { enqueueTemplateRenderJob } from "../workers/discoveryWorker.ts";
 import { createLogger } from "@marketing-auto/shared";
-import { and, desc, eq, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, inArray, lt } from "@marketing-auto/db";
 import { zipSync } from "fflate";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -537,14 +537,43 @@ socialPostRoutes.post(
         id: articles.id,
         projectId: articles.projectId,
         slug: articles.slug,
+        title: articles.title,
         collection: articles.collection,
         locale: articles.locale,
+        translationKey: articles.translationKey,
         frontmatterExtras: articles.frontmatterExtras,
       })
       .from(articles)
       .where(eq(articles.id, articleId))
       .limit(1);
     if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+    // When the requested locale differs from the article's locale, use the sibling article's
+    // content for buildInput so the rendered slides contain the correct language.
+    let contentArticle: typeof article = article;
+    if (body.locale !== article.locale && article.translationKey) {
+      const [sibling] = await db
+        .select({
+          id: articles.id,
+          projectId: articles.projectId,
+          slug: articles.slug,
+          title: articles.title,
+          collection: articles.collection,
+          locale: articles.locale,
+          translationKey: articles.translationKey,
+          frontmatterExtras: articles.frontmatterExtras,
+        })
+        .from(articles)
+        .where(
+          and(
+            eq(articles.projectId, article.projectId),
+            eq(articles.translationKey, article.translationKey),
+            eq(articles.locale, body.locale),
+          )
+        )
+        .limit(1);
+      if (sibling) contentArticle = sibling;
+    }
 
     const [discovery] = await db
       .select()
@@ -569,7 +598,7 @@ socialPostRoutes.post(
       }
 
       const eligibility = template.eligibility(
-        article as import("@marketing-auto/db").Article,
+        contentArticle as import("@marketing-auto/db").Article,
         discovery as import("@marketing-auto/db").ArticleDiscovery,
       );
       if (!eligibility.eligible) {
@@ -583,7 +612,7 @@ socialPostRoutes.post(
       let renderInput: Record<string, unknown>;
       try {
         renderInput = (await template.buildInput(
-          article as import("@marketing-auto/db").Article,
+          contentArticle as import("@marketing-auto/db").Article,
           discovery as import("@marketing-auto/db").ArticleDiscovery,
         )) as Record<string, unknown>;
       } catch (err) {
@@ -591,8 +620,22 @@ socialPostRoutes.post(
         continue;
       }
 
-      // Create templateRender row and enqueue worker job
-      const [renderRow] = await db
+      // Supersede any active rows (pending/rendering/ready) so the partial unique index
+      // allows the new INSERT. Old rows are kept with status="superseded" for history.
+      await db
+        .update(templateRenders)
+        .set({ status: "superseded" })
+        .where(
+          and(
+            eq(templateRenders.articleId, articleId),
+            eq(templateRenders.templateKey, templateKey),
+            eq(templateRenders.locale, body.locale),
+            eq(templateRenders.theme, body.theme),
+            inArray(templateRenders.status, ["pending", "rendering", "ready"]),
+          )
+        );
+
+      const [insertedRow] = await db
         .insert(templateRenders)
         .values({
           articleId,
@@ -604,13 +647,15 @@ socialPostRoutes.post(
         })
         .returning({ id: templateRenders.id });
 
-      if (!renderRow) {
+      if (!insertedRow) {
         jobs.push({ templateKey, status: "skipped", reason: "DB insert failed" });
         continue;
       }
 
-      const { jobId } = await enqueueTemplateRenderJob(renderRow.id);
-      jobs.push({ templateKey, status: "queued", jobId, renderId: renderRow.id });
+      const renderId = insertedRow.id;
+
+      const { jobId } = await enqueueTemplateRenderJob(renderId);
+      jobs.push({ templateKey, status: "queued", jobId, renderId });
     }
 
     const queued = jobs.filter((j) => j.status === "queued").length;
@@ -619,6 +664,54 @@ socialPostRoutes.post(
   }
 );
 
+
+// ─── GET /api/articles/:articleId/template-renders ───────────────────────────
+// Full render history: ALL rows for this article, newest first, with slide URLs.
+
+socialPostRoutes.get("/:articleId/template-renders", async (c) => {
+  const articleId = c.req.param("articleId");
+
+  const rows = await db
+    .select()
+    .from(templateRenders)
+    .where(eq(templateRenders.articleId, articleId))
+    .orderBy(desc(templateRenders.createdAt));
+
+  const allTemplates = templateRegistry.list();
+  const displayNameByKey = Object.fromEntries(allTemplates.map((t) => [t.key, t.displayName]));
+
+  const data = rows.map((r) => {
+    let slides: Array<{ imageUrl: string }> | null = null;
+    if (r.status === "ready" && r.outputFiles) {
+      const out = r.outputFiles;
+      if (Array.isArray(out?.slides)) {
+        slides = out.slides
+          .map((s) => {
+            const parts = s.filePath.split("renders/");
+            return parts[1] ? { imageUrl: `/renders/${parts[1]}` } : null;
+          })
+          .filter((s): s is { imageUrl: string } => s !== null);
+      }
+    }
+
+    return {
+      id: r.id,
+      templateKey: r.templateKey,
+      displayName: r.templateKey ? (displayNameByKey[r.templateKey] ?? r.templateKey) : r.templateKey,
+      locale: r.locale,
+      theme: r.theme,
+      status: r.status,
+      slides,
+      costUsd: r.costUsd,
+      durationMs: r.durationMs,
+      error: r.error,
+      createdAt: r.createdAt?.toISOString() ?? null,
+      completedAt: r.completedAt?.toISOString() ?? null,
+    };
+  });
+
+  return c.json({ ok: true, data: { renders: data } });
+});
 
 // ─── GET /api/template-renders/:id/download ──────────────────────────────────
 

@@ -4,6 +4,8 @@ import { ListCarouselStunning } from "./compositions/list-carousel/ListCarouselS
 import { listCarouselInputSchema } from "./compositions/list-carousel/types.ts";
 import { UseCaseVerdictComposition } from "./compositions/use-case-verdict/UseCaseVerdictComposition.tsx";
 import { useCaseVerdictInputSchema } from "./compositions/use-case-verdict/types.ts";
+import { SingleToolSpotlightComposition } from "./compositions/single-tool-spotlight/SingleToolSpotlightComposition.tsx";
+import { singleToolSpotlightInputSchema } from "./compositions/single-tool-spotlight/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -151,7 +153,7 @@ export function RemotionRoot() {
         durationInFrames={1}
         fps={30}
         width={1080}
-        height={1080}
+        height={1350}
         schema={useCaseVerdictInputSchema}
         defaultProps={useCaseVerdictInputSchema.parse({
           theme: "dark",
@@ -169,6 +171,45 @@ export function RemotionRoot() {
             { useCase: "Text im Bild", winner: "ideogram", reason: "Lesbarere Schrift." },
             { useCase: "Social Posts", winner: "recraft", reason: "Mehr Templates." },
           ],
+        })}
+      />
+      <Composition
+        id="SingleToolSpotlight"
+        component={SingleToolSpotlightComposition}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={singleToolSpotlightInputSchema}
+        defaultProps={singleToolSpotlightInputSchema.parse({
+          theme: "dark",
+          locale: "de",
+          slideIndex: 0,
+          websiteUrl: "toolwiki.ai",
+          instagramHandle: "@toolwiki.ai",
+          articleSlug: "synthesia",
+          tool: {
+            slug: "synthesia",
+            name: "Synthesia",
+            tagline: "Enterprise-grade KI-Avatarvideos für Training & Marketing.",
+            primaryCategory: "KI-Video",
+            pricingTier: "paid",
+            priceFrom: 22,
+            rating: 4.4,
+            pros: [
+              { text: "Enterprise-grade Compliance (SOC 2, ISO 27001)" },
+              { text: "Keine Kamera-Crew nötig" },
+              { text: "Training-Videos in 140 Sprachen" },
+            ],
+            cons: [
+              { text: "Lippen-Sync nicht immer perfekt" },
+              { text: "Hohe Kosten bei vielen Minuten" },
+            ],
+            features: ["160+ vorgefertigte Avatare", "140 Sprachen"],
+            useCases: ["Corporate Training", "Compliance-Schulungen", "Produktvideos in 140 Sprachen"],
+            iconInitials: "SY",
+            iconHue: 200,
+          },
         })}
       />
     </>
