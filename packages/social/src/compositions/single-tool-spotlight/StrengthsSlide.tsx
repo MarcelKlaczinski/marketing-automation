@@ -22,7 +22,7 @@ function RatingStars({ rating, brand, inkMuted }: { rating: number; brand: strin
       {Array.from({ length: full }).map((_, i) => (
         <span key={`f${i}`} style={{ color: brand, fontSize: 32 }}>★</span>
       ))}
-      {half && <span style={{ color: brand, fontSize: 32 }}>⭐</span>}
+      {half && <span style={{ color: brand, fontSize: 32, opacity: 0.5 }}>★</span>}
       {Array.from({ length: empty }).map((_, i) => (
         <span key={`e${i}`} style={{ color: inkMuted, fontSize: 32 }}>★</span>
       ))}

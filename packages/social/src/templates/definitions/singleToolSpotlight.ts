@@ -175,14 +175,16 @@ function buildCaption(input: ToolContext, locale: "de" | "en", slug: string): st
 }
 
 function buildHashtags(input: ToolContext, locale: "de" | "en"): string[] {
-  const category = input.primaryCategory?.replace(/\s+/g, "") ?? "KITools";
+  const category = input.primaryCategory?.replace(/\s+/g, "") ?? "KITool";
   if (locale === "de") {
+    // Mix of German KI-tags and English AI-tags so DE posts rank for both
+    // "beste KI Tools" and "best AI tools" search intents on Instagram (OD-4)
     return [
       "#KITools",
+      "#AITools",
       `#${category}`,
       "#Toolwiki",
       "#KIFürBusiness",
-      "#DigitalTools",
       "#SoftwareTest",
       "#Produktivität",
     ];
