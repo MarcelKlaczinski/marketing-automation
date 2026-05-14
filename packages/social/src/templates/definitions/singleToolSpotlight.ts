@@ -3,6 +3,11 @@ import { getToolContext, type ToolContext } from "../adapters/tool.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { SINGLE_TOOL_SPOTLIGHT_FIXTURES } from "./fixtures/singleToolSpotlight.fixtures.ts";
+import {
+  generateHookWithGate,
+  inferArticleType,
+  selectPattern,
+} from "@marketing-auto/core";
 
 // Parsed default ensures brandTokens.social.* are never undefined in single-tool renders
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
@@ -78,6 +83,17 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
     }
 
     return { eligible: true };
+  },
+
+  generateHook: async (article, input, _locale, llmCaller) => {
+    const ctx = input as ToolContext;
+    const articleType = inferArticleType(article.title ?? article.slug, 1);
+    const pattern = selectPattern(article.id, articleType);
+    return generateHookWithGate(
+      { id: article.id, title: article.title ?? article.slug, toolCount: 1, toolNames: [ctx.name] },
+      pattern,
+      llmCaller,
+    );
   },
 
   buildInput: async (article, _discovery) => {

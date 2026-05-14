@@ -148,12 +148,42 @@ async function handleRenderTemplateJob(templateRenderId: string): Promise<void> 
       }
     }
 
+    // Build the llmCaller for hook generation (dependency-injected to keep social package adapter-free)
+    const { anthropic } = await import("@marketing-auto/adapter-anthropic");
+    const locale = render.locale as import("@marketing-auto/social/templates").Locale;
+    const llmCaller: import("@marketing-auto/social/templates").HookLlmCaller = async (systemPrompt, userPrompt) => {
+      try {
+        const resp = await anthropic.messages({
+          projectId: article.projectId,
+          operation: "SOCIAL_HOOK_GENERATION",
+          model: "claude-haiku-4-5",
+          systemPrefix: "",
+          systemSuffix: systemPrompt,
+          userMessage: userPrompt,
+          maxTokens: 256,
+          estimatedCostEur: 0.001,
+          jsonMode: true,
+        });
+        return resp.raw;
+      } catch {
+        return null;
+      }
+    };
+
+    const hookOutput = await template.generateHook(
+      article as import("@marketing-auto/db").Article,
+      renderInput,
+      locale,
+      llmCaller,
+    );
+
     const renderResult = await template.render({
       article: article as import("@marketing-auto/db").Article,
       discovery: discovery as import("@marketing-auto/db").ArticleDiscovery,
-      locale: render.locale as import("@marketing-auto/social/templates").Locale,
+      locale,
       theme: render.theme as import("@marketing-auto/social/templates").Theme,
       input: renderInput,
+      hookOutput,
     });
 
     await db

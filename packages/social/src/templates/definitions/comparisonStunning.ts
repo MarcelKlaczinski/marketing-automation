@@ -4,6 +4,11 @@ import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonStunning.fixtures.ts";
+import {
+  generateHookWithGate,
+  inferArticleType,
+  selectPattern,
+} from "@marketing-auto/core";
 
 // Default brand tokens with all sub-schemas populated — render-server.ts skips Zod parsing,
 // so brandTokens: {} would leave colors/typography/social as undefined and crash the composition.
@@ -56,6 +61,17 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     return { eligible: true };
   },
 
+  generateHook: async (article, input, _locale, llmCaller) => {
+    const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
+    const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
+    const pattern = selectPattern(article.id, articleType);
+    return generateHookWithGate(
+      { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
+      pattern,
+      llmCaller,
+    );
+  },
+
   buildInput: async (article, _discovery) => {
     const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[] };
     const locale = (article.locale ?? "de") as "de" | "en";
@@ -67,15 +83,26 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
     const { article, input, locale, theme } = context;
     const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
 
-    const toolNames = input.tools.map((t) => t.name).join(" vs. ");
+    const toolNamesStr = input.tools.map((t) => t.name).join(" vs. ");
     const year = new Date().getFullYear();
     const eyebrow =
       locale === "de"
         ? `TOOL-VERGLEICH · ${year}`
         : `TOOL COMPARISON · ${year}`;
 
-    const hookLeadPhrase = locale === "de" ? "Welches Tool" : "Which tool";
-    const hookHighlight = locale === "de" ? "gewinnt wirklich?" : "really wins?";
+    // Use pre-validated hook from context (populated by runner via generateHook()).
+    // Programmatic fallback ensures render works even if runner didn't call generateHook yet.
+    const hook = context.hookOutput ?? {
+      pattern: "superlative_question" as const,
+      leadPhrase: locale === "de" ? "Welches Tool" : "Which tool",
+      highlightWord: locale === "de" ? "gewinnt wirklich?" : "really wins?",
+      trailPhrase: "",
+      fullText: locale === "de" ? "Welches Tool gewinnt wirklich?" : "Which tool really wins?",
+      promiseBlock: {
+        line1: locale === "de" ? `${toolNamesStr} im Praxistest.` : `${toolNamesStr} put to the test.`,
+        line2: locale === "de" ? "Kein Hype. Echte Ergebnisse." : "No hype. Real results.",
+      },
+    };
 
     // Build resolved tools in the ListCarouselInput shape
     const resolvedTools = input.tools.map((t, i) => ({
@@ -103,19 +130,9 @@ export const comparisonStunningTemplate: TemplateDefinition<ComparisonContext> =
       slideIndex: 0,
       cover: {
         eyebrow,
-        headlineLead: hookLeadPhrase,
-        headlineHighlight: hookHighlight,
-        hookOutput: {
-          pattern: "curiosity_gap" as const,
-          leadPhrase: hookLeadPhrase,
-          highlightWord: hookHighlight,
-          trailPhrase: "",
-          fullText: `${hookLeadPhrase} ${hookHighlight}`,
-          promiseBlock: {
-            line1: locale === "de" ? `${toolNames} im Praxistest.` : `${toolNames} put to the test.`,
-            line2: locale === "de" ? "Kein Hype. Echte Ergebnisse." : "No hype. Real results.",
-          },
-        },
+        headlineLead: hook.leadPhrase,
+        headlineHighlight: hook.highlightWord,
+        hookOutput: hook,
       },
       tools: resolvedTools,
       end: {

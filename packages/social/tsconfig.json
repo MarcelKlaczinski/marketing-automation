@@ -6,6 +6,7 @@
     "allowImportingTsExtensions": true,
     "noUnusedLocals": false,
     "paths": {
+      "@marketing-auto/core": ["../../packages/core/src/index.ts"],
       "@marketing-auto/db": ["../../packages/db/src/index.ts"],
       "drizzle-orm": ["../../packages/db/node_modules/drizzle-orm/index.d.ts"],
       "drizzle-orm/*": ["../../packages/db/node_modules/drizzle-orm/*"]

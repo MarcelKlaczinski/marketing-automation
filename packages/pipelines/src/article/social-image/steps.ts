@@ -22,12 +22,12 @@ import {
   type HookOutput,
   type HookPattern,
   buildPromiseBlock,
+  buildHookPrompt,
   inferArticleType,
   programmaticFallbackHook,
   selectPattern,
-} from "./hookEngine.ts";
-import { buildHookPrompt } from "./hookPrompt.ts";
-import { validateHook } from "./hookValidator.ts";
+  validateHook,
+} from "@marketing-auto/core";
 
 const log = createLogger("pipelines:social-image");
 

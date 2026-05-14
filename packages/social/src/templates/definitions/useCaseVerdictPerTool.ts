@@ -5,6 +5,11 @@ import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/useCaseVerdict.fixtures.ts";
 import type { UseCaseVerdictItem } from "../../compositions/use-case-verdict/types.ts";
+import {
+  generateHookWithGate,
+  inferArticleType,
+  selectPattern,
+} from "@marketing-auto/core";
 
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
@@ -56,6 +61,17 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
     }
 
     return { eligible: true };
+  },
+
+  generateHook: async (article, input, _locale, llmCaller) => {
+    const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
+    const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
+    const pattern = selectPattern(article.id, articleType);
+    return generateHookWithGate(
+      { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
+      pattern,
+      llmCaller,
+    );
   },
 
   buildInput: async (article, _discovery) => {
