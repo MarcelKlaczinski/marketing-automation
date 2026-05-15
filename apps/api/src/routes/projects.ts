@@ -703,21 +703,67 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
 
   const [gap] = await db
     .select({
-      id:        contentGaps.id,
-      gapType:   contentGaps.gapType,
-      clusterId: contentGaps.clusterId,
+      id:         contentGaps.id,
+      gapType:    contentGaps.gapType,
+      clusterId:  contentGaps.clusterId,
       intentType: contentGaps.intentType,
-      locale:    contentGaps.locale,
-      metadata:  contentGaps.metadata,
+      locale:     contentGaps.locale,
+      metadata:   contentGaps.metadata,
     })
     .from(contentGaps)
     .where(and(eq(contentGaps.id, gapId), eq(contentGaps.projectId, project.id)))
     .limit(1);
   if (!gap) return c.json({ ok: false, error: "Gap not found" }, 404);
 
+  // Load the brief for this gap (Spec 54.3: brief is SSoT for keyword data)
+  const activeBriefStatuses: Array<"pending" | "approved"> = ["pending", "approved"];
+  const [brief] = await db
+    .select()
+    .from(topicBriefs)
+    .where(and(
+      eq(topicBriefs.gapId, gapId),
+      inArray(topicBriefs.approvalStatus, activeBriefStatuses),
+    ))
+    .limit(1);
+  if (!brief) return c.json({ ok: false, error: "No active brief for this gap" }, 404);
+
+  // Idempotency: return cached data if brief already has keywords
+  if (brief.secondaryKeywords.length > 0 && brief.primaryKeyword) {
+    return c.json({
+      ok: true,
+      data: {
+        suggestedTitle:     brief.suggestedTitle ?? "",
+        suggestedSlug:      brief.suggestedSlug ?? "",
+        suggestedMeta:      brief.suggestedMeta ?? "",
+        primaryKeyword:     brief.primaryKeyword,
+        secondaryKeywords:  brief.secondaryKeywords,
+        briefId:            brief.id,
+        clusterUpdated:     false,
+        cached:             true,
+      },
+    });
+  }
+
   const suggestion = await suggestGapTitle({ projectId: project.id, gap });
   if (!suggestion) return c.json({ ok: false, error: "LLM suggestion failed" }, 500);
 
+  const secondaryKeywords = suggestion.discoveredKeywords ?? [];
+
+  // Write to brief (primary destination — Spec 54.3)
+  await db
+    .update(topicBriefs)
+    .set({
+      primaryKeyword:    suggestion.cornerstoneKeyword,
+      secondaryKeywords,
+      suggestedTitle:    suggestion.title,
+      suggestedSlug:     suggestion.slug,
+      suggestedMeta:     suggestion.metaDescription,
+      heroImagePrompt:   suggestion.heroImagePrompt,
+      updatedAt:         new Date(),
+    })
+    .where(eq(topicBriefs.id, brief.id));
+
+  // Dual-write to content_gaps.metadata for backward-compat readers (Spec 54.3 Decision 8)
   await db
     .update(contentGaps)
     .set({
@@ -727,14 +773,30 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
         suggestedSlug:            suggestion.slug,
         suggestedMetaDescription: suggestion.metaDescription,
         suggestedHeroImagePrompt: suggestion.heroImagePrompt,
-        ...(suggestion.cornerstoneKeyword ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword } : {}),
-        ...(suggestion.discoveredKeywords  ? { discoveredKeywords: suggestion.discoveredKeywords }         : {}),
+        ...(suggestion.cornerstoneKeyword
+          ? { suggestedCornerstoneKeyword: suggestion.cornerstoneKeyword }
+          : {}),
+        ...(secondaryKeywords.length > 0
+          ? { discoveredKeywords: secondaryKeywords }
+          : {}),
       },
       updatedAt: new Date(),
     })
     .where(eq(contentGaps.id, gapId));
 
-  return c.json({ ok: true, data: suggestion });
+  return c.json({
+    ok: true,
+    data: {
+      suggestedTitle:    suggestion.title,
+      suggestedSlug:     suggestion.slug,
+      suggestedMeta:     suggestion.metaDescription,
+      primaryKeyword:    suggestion.cornerstoneKeyword,
+      secondaryKeywords,
+      briefId:           brief.id,
+      clusterUpdated:    false,
+      cached:            false,
+    },
+  });
 });
 
 // POST /:slug/content-gaps/:id/generate — trigger article / cornerstone spec creation

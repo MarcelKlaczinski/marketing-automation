@@ -9,10 +9,9 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { dataforseo } from "@marketing-auto/adapter-dataforseo";
 import { COST_OPS } from "@marketing-auto/core";
-import { clusters, db, type SatelliteKeywordEntry } from "@marketing-auto/db";
+import { clusters, db, eq } from "@marketing-auto/db";
 import { loadProjectContext } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
-import { eq } from "drizzle-orm";
 import type { KeywordOverviewItem, RelatedKeywordItem } from "@marketing-auto/adapter-dataforseo";
 
 const log = createLogger("gap-service");
@@ -41,7 +40,7 @@ export interface GapSuggestion {
   cornerstoneKeyword: string;
   metaDescription: string;
   heroImagePrompt: string;
-  /** Keywords discovered via DataForSEO and written back to cluster.satelliteKeywords */
+  /** Keywords discovered via DataForSEO (written to topic_briefs.secondary_keywords by /suggest) */
   discoveredKeywords?: string[];
 }
 
@@ -183,53 +182,9 @@ export async function suggestGapTitle(input: GapSuggestionInput): Promise<GapSug
 
       keywordHintLines = sorted.slice(0, 10).map((item) => formatRelatedHint(item));
 
-      // ── Persist discovered keywords to cluster.satelliteKeywords ─────────────
-      // This bootstraps keyword data for Astro-imported clusters so that
-      // TopicIntakeStep can find satellite keywords when the article:outline
-      // pipeline runs. Future suggest calls will use Path A (keywordOverview)
-      // instead of re-discovering via relatedKeywords.
-      if (sorted.length > 0 && gap.clusterId) {
-        // The top keyword becomes the cornerstoneKeyword for this entry
-        const topKeyword = sorted[0]!.keyword;
-        const newEntry: SatelliteKeywordEntry = {
-          cornerstoneKeyword: topKeyword,
-          keywords: sorted.map((k) => ({
-            keyword:      k.keyword,
-            searchVolume: k.searchVolume ?? null,
-            difficulty:   null, // relatedKeywords doesn't return difficulty
-          })),
-        };
-
-        // Load current satelliteKeywords to avoid overwriting existing entries
-        const [clusterRow] = await db
-          .select({ satelliteKeywords: clusters.satelliteKeywords, primaryKeyword: clusters.primaryKeyword })
-          .from(clusters)
-          .where(eq(clusters.id, gap.clusterId))
-          .limit(1);
-
-        const existing = clusterRow?.satelliteKeywords ?? [];
-        const alreadyHasEntry = existing.some(
-          (e) => e.cornerstoneKeyword === topKeyword
-        );
-
-        if (!alreadyHasEntry) {
-          const updatedKeywords = [...existing, newEntry];
-          await db
-            .update(clusters)
-            .set({
-              satelliteKeywords: updatedKeywords,
-              // Also set primaryKeyword if not yet set — used by cluster list UI
-              ...(!clusterRow?.primaryKeyword ? { primaryKeyword: topKeyword } : {}),
-            })
-            .where(eq(clusters.id, gap.clusterId));
-
-          log.info(
-            { clusterId: gap.clusterId, topKeyword, keywordCount: sorted.length },
-            "Persisted discovered keywords to cluster.satelliteKeywords"
-          );
-        }
-
-        // Surface discovered keywords in suggestion result for UI display
+      // Spec 54.3: discovered keywords are written to topic_briefs.secondary_keywords
+      // by the /suggest route — no longer written to cluster.satelliteKeywords.
+      if (sorted.length > 0) {
         discoveredKeywordsResult = sorted.map((k) => k.keyword);
       }
 
