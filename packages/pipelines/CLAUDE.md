@@ -395,3 +395,27 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT query by `translationKey` alone in multi-tenant pipelines — translationKeys are project-scoped by convention but not enforced by a DB constraint. Always add `eq(articles.projectId, input.projectId)` alongside `eq(articles.translationKey, ...)` to prevent cross-tenant sibling matches. See `hero-generation/pipeline.ts` `afterComplete`.
 - DO NOT assume `packages/pipelines/src/article/social-image/hookPrompt.ts` is dead code — it is an active, separate code path from `packages/core/src/social-hooks/hookPrompt.ts`. The pipelines version (`buildHookPrompt`) handles hook-only generation for the social-image pipeline's `GenerateHookStep`. The core version (`buildContentPrompt`) handles hook+caption+hashtags for the newer `generateContentWithGate` flow used by template definitions. Two different call sites, two different prompt shapes.
 - DO NOT extract a `*_DEFAULT_PROMPT` constant to module level when the prompt string uses runtime values (`input.*`, locale labels, author lists, etc.) — template literals with variable interpolation must be scoped inside `execute()` or a private method. Module-level constants only work for fully static prompts (no interpolation). Both placements are valid; the name is what matters for clarity. See `SelfReviewStep` (static = module-level) vs `OutlineStep` (dynamic = inside execute) for examples.
+- DO NOT import the named `embed` function from `@marketing-auto/adapter-voyage` — it's an ESM binding and cannot be replaced in tests. Always use `voyage.embed(...)` (the object property). See `src/topic-sources/trend-discovery/coverage.ts` for the canonical pattern.
+
+## Trend Discovery Topic Source (Spec 54.5+)
+
+`TrendDiscoveryTopicSource` lives in `src/topic-sources/trend-discovery/`. It implements `TopicSource<Input>` and produces TopicBriefs from `external_signals`.
+
+**Module map:**
+- `types.ts` — `SynthesisTopic`, `SynthesisOutput`, `ScoreBreakdown`, `CoverageResult`, `ClusterMatchResult`, `MAJOR_VENDOR_DOMAINS`
+- `score.ts` — `computeTrendScore()`: 5-component weighted score (buzz + growth + official + SERP volatility - coverage penalty)
+- `coverage.ts` — `checkExistingCoverage()`: pgvector cosine similarity check + lazy article embedding backfill + Haiku LLM tiebreaker for the 0.60-0.85 band
+- `cluster-match.ts` — `findMatchingCluster()`: pgvector similarity search against `clusters.embedding` (threshold 0.65) + lazy cluster embedding backfill
+
+**Score weights (fixed for 54.5):**
+```
+buzz=30, growth=25, official=15, serp=20, coverage_penalty=40
+```
+
+**Coverage thresholds:** sim > 0.85 → covered (reject), sim < 0.60 → new (accept), 0.60–0.85 → Haiku tiebreaker.
+
+**Cluster-match threshold:** 0.65 → `cluster_action = 'append_to_existing'`; below → `cluster_action = 'create_new'`.
+
+**Embedding backfill pattern (articles + clusters):** Queries `WHERE embedding IS NULL`, embeds `title + meta_description` (articles) or `name + primary_keyword` (clusters), writes back via raw SQL `UPDATE ... SET embedding = '...'::vector`. Failures are logged as `warn` and skipped — backfill is opportunistic.
+
+**Partial index on `rejected_topic_candidates`:** PostgreSQL does not allow non-immutable functions (`NOW()`, `CURRENT_TIMESTAMP`) in partial index `WHERE` clauses. The index on `(project_id, expires_at)` has no WHERE predicate — the query filter `expires_at > NOW()` is applied at query time only.

@@ -77,6 +77,7 @@ export const costServiceEnum = pgEnum("cost_service", [
   "replicate",
   "dataforseo",
   "smtp",
+  "voyage",
 ]);
 
 export const pipelineRunStatusEnum = pgEnum("pipeline_run_status", [

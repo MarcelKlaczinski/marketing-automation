@@ -22,6 +22,7 @@ export const MasterPromptKey = z.enum([
   "article.self_review",
   "article.localize.fresh",
   "article.localize.translate",
+  "trend.synthesis",
 ]);
 export type MasterPromptKey = z.infer<typeof MasterPromptKey>;
 
@@ -41,6 +42,17 @@ export const TopicScopeSchema = z
   .object({
     languages: z.array(z.enum(["de", "en"])).min(1),
     exclusions: z.array(z.string()).default([]),
+    // Spec 54.5: additional fields for trend synthesis
+    primary_themes: z.array(z.string()).default([]),
+    relevance_keywords: z.array(z.string()).default([]),
+    min_trend_score: z.number().int().min(0).max(100).default(40),
+    min_signal_thresholds: z
+      .object({
+        hackernews: z.number().int().default(3),
+        producthunt: z.number().int().default(0),
+        vendor_rss: z.number().int().default(0),
+      })
+      .default({}),
   })
   .default({ languages: ["de", "en"], exclusions: [] });
 export type TopicScope = z.infer<typeof TopicScopeSchema>;

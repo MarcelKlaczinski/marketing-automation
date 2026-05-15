@@ -20,6 +20,7 @@
     "@iconify-json/skill-icons": "^1.2.4",
     "@iconify/utils": "^3.1.3",
     "@marketing-auto/adapter-anthropic": "workspace:*",
+    "@marketing-auto/adapter-voyage": "workspace:*",
     "@marketing-auto/adapter-astro-sync": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",
     "@marketing-auto/adapter-replicate": "workspace:*",

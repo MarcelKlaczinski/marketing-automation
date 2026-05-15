@@ -1,4 +1,5 @@
 export { serp, keywordOverview, relatedKeywords, rankedKeywords } from "./client.ts";
+export { trendsExplore } from "./trends.ts";
 export {
   LOCATION_CODES,
   LANGUAGE_CODES,
@@ -19,6 +20,7 @@ export {
   type RankedKeywordsResult,
   type RankedKeywordItem,
 } from "./types.ts";
+export { type TrendsExploreInput, type TrendsExploreItem } from "./trends.ts";
 
 import {
   keywordOverview as _keywordOverview,
@@ -26,10 +28,12 @@ import {
   relatedKeywords as _relatedKeywords,
   serp as _serp,
 } from "./client.ts";
+import { trendsExplore as _trendsExplore } from "./trends.ts";
 
 export const dataforseo = {
   serp: _serp,
   keywordOverview: _keywordOverview,
   relatedKeywords: _relatedKeywords,
   rankedKeywords: _rankedKeywords,
+  trendsExplore: _trendsExplore,
 };

@@ -841,3 +841,42 @@ export const externalSignals = pgTable(
 export type ExternalSignal    = typeof externalSignals.$inferSelect;
 export type NewExternalSignal = typeof externalSignals.$inferInsert;
 export type TopicBrief       = typeof topicBriefs.$inferSelect;
+
+// ── rejected_topic_candidates ─────────────────────────────────────────────────
+// Topics that were evaluated during trend synthesis but rejected. 30-day expiry
+// allows the same topic to resurface if signals rebuild momentum.
+// FK to articles(id) declared via raw SQL migration (same 54.1 circular-import rule).
+
+export type RejectedTopicReason =
+  | "existing_coverage"
+  | "low_score"
+  | "excluded_by_scope"
+  | "low_signal_volume";
+
+export const rejectedTopicCandidates = pgTable(
+  "rejected_topic_candidates",
+  {
+    id:                       uuid("id").primaryKey().defaultRandom(),
+    projectId:                uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+    topicTitle:               text("topic_title").notNull(),
+    candidateTitleNormalized: text("candidate_title_normalized").notNull(),
+
+    reason:                   text("reason").notNull().$type<RejectedTopicReason>(),
+    trendScore:               integer("trend_score"),
+    similarityScore:          numeric("similarity_score", { precision: 4, scale: 3 }),
+    matchedArticleId:         uuid("matched_article_id"),
+
+    sourceSignalIds:          jsonb("source_signal_ids").$type<string[]>().notNull(),
+
+    rejectedAt:               timestamp("rejected_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt:                timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => ({
+    projectActiveIdx:  index("rejected_topic_candidates_project_active_idx").on(t.projectId, t.expiresAt),
+    normalizedIdx:     index("rejected_topic_candidates_normalized_idx").on(t.projectId, t.candidateTitleNormalized),
+  }),
+);
+
+export type RejectedTopicCandidate    = typeof rejectedTopicCandidates.$inferSelect;
+export type NewRejectedTopicCandidate = typeof rejectedTopicCandidates.$inferInsert;

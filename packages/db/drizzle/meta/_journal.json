@@ -274,6 +274,27 @@
       "when": 1781600000000,
       "tag": "0038_hackernews_queries_array",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0039_rejected_topic_candidates",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1781800000000,
+      "tag": "0040_clusters_embedding",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1781900000000,
+      "tag": "0041_cost_service_voyage",
+      "breakpoints": true
     }
   ]
 }

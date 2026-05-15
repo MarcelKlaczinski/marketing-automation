@@ -29,7 +29,8 @@ Designed to evolve into SaaS.
 - **LLM calls**: always via `@marketing-auto/adapter-anthropic` (`anthropic.messages()`), never `@anthropic-ai/sdk` directly
 - **Image generation**: always via `@marketing-auto/adapter-replicate` (`replicate.generateImage()`), never the `replicate` npm package directly
 - **Object storage**: always via `@marketing-auto/adapter-storage` (`r2.put()` etc.), never `Bun.S3Client` directly
-- **SEO data**: always via `@marketing-auto/adapter-dataforseo` (`dataforseo.serp()` etc.), never `dataforseo-client` directly
+- **SEO data**: always via `@marketing-auto/adapter-dataforseo` (`dataforseo.serp()`, `dataforseo.trendsExplore()` etc.), never `dataforseo-client` directly
+- **Embeddings**: always via `@marketing-auto/adapter-voyage` (`voyage.embed()` / `voyage.embedBatch()`), never the Voyage AI REST API directly. Use the `voyage` object export (not named `embed` export) so the function is patchable in tests
 - **Transactional email**: always via `@marketing-auto/adapter-email` (`email.sendEmail()` / `email.sendMagicLinkEmail()`), never `nodemailer` directly
 
 ## Vue/Quasar Conventions (from Marcel's existing standards)
@@ -188,6 +189,7 @@ Implemented specs (do not re-implement):
 - /specs/54l-draftStep-tool-frontmatter.md (DraftStep now emits pros/cons/features/useCases/pricingTier/priceFrom/rating for tool articles; closes single-tool-spotlight eligibility gap for pipeline-generated articles)
 - /specs/54-0-content-planner-adr.md (ADR: Content Planner architecture — TopicBrief contract, 3-layer model, 9-spec decomposition for Theme 54; no code changes)
 - /specs/54.3-topic-routing.md (TopicRoutingPolicy: decideRoute + executeDecision pure functions; /suggest idempotency; /generate + /automate use brief as SSoT; TopicIntakeStep brief-sourced; source='imported' filter removed; Phase A complete)
+- /specs/54.5-trend-scoring-topic-synthesis.md (Session 1+2 done: adapter-voyage, dataforseo.trendsExplore, score.ts, coverage.ts, cluster-match.ts + tests; Session 3 next: prompts.ts, synthesize.ts, emit-brief.ts, source.ts, fetch-signals.ts)
 
 ## Project Marketing Contexts
 

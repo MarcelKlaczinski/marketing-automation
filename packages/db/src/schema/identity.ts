@@ -8,6 +8,7 @@ import {
   timestamp,
   uuid,
 } from "drizzle-orm/pg-core";
+import { vector } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
 import type { IntentTaxonomy } from "./project-config.ts";
 
@@ -80,11 +81,14 @@ export const clusters = pgTable(
     status: text("status").notNull().default("proposed"),
     pillarArticleId: uuid("pillar_article_id"),
     position: integer("position").notNull().default(0),
+    // Vector embedding for cluster matching in trend synthesis (Spec 54.5) — 1024-dim voyage-3
+    embedding: vector("embedding", { dimensions: 1024 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     projectIdx: index("clusters_project_idx").on(t.projectId),
     pillarIdx: index("clusters_pillar_idx").on(t.pillarId),
     pillarPositionIdx: index("clusters_pillar_position_idx").on(t.pillarId, t.position),
+    embeddingIdx: index("clusters_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   })
 );

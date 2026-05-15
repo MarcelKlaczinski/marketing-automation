@@ -41,6 +41,8 @@
       "@marketing-auto/adapter-producthunt/verify": ["../../packages/adapters/producthunt/src/verify.ts"],
       "@marketing-auto/adapter-hackernews": ["../../packages/adapters/hackernews/src/index.ts"],
       "@marketing-auto/adapter-vendor-rss": ["../../packages/adapters/vendor-rss/src/index.ts"],
+      "@marketing-auto/adapter-voyage": ["../../packages/adapters/voyage/src/index.ts"],
+      "@marketing-auto/adapter-voyage/verify": ["../../packages/adapters/voyage/src/verify.ts"],
       "@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"],
       "@marketing-auto/pipelines/engine": ["../../packages/pipelines/src/engine/index.ts"],
       "@marketing-auto/social/templates": ["../../packages/social/src/templates/index.ts"]

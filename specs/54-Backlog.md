@@ -23,3 +23,22 @@
 
 5. **dual-write deprecation: content_gaps → topic_briefs only**
   - Once 54.9 UI is on briefs, content_gaps table can be deprecated.
+
+## Per-source configuration in signal_sources
+
+**Priority:** Low — implement when 54.6 UI surfaces signal-source tuning needs
+**Estimate:** 1-2 hours
+
+Currently `maxAgeDays` and `minPoints` are hardcoded defaults in adapter implementations.
+For multi-project flexibility, these should live in `project_configurations.signal_sources`:
+
+```json
+{
+  "hackernews": { "enabled": true, "maxAgeDays": 30, "minPoints": 3, "queries": [...] },
+  "vendor_rss": { "enabled": true, "maxAgeDays": 14, "feeds": [...] },
+  "producthunt": { "enabled": true, "topic": "artificial-intelligence", "first": 20 }
+}
+```
+
+Adapters read these from loaded config at fetch time. Schema migration + Zod updates + adapter refactor.
+Triggered when toolwiki needs different thresholds than a future second project, or when 54.6 UI exposes signal tuning.
