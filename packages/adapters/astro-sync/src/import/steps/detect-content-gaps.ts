@@ -2,9 +2,11 @@
 // Detects missing_hub, missing_translation, missing_spoke_type, cluster_too_small gaps
 // and writes them to content_gaps table. Existing open gaps are re-stamped; resolved
 // gaps (no longer applicable) are automatically closed.
+// Spec 54.1: dual-writes a topic_briefs row for every open/restamped gap inside the
+// same db.transaction(), keeping gap + brief creation atomic.
 
-import { articles, clusters, contentGaps, db, projects } from "@marketing-auto/db";
-import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
+import { articles, clusters, contentGaps, db, projects, topicBriefs } from "@marketing-auto/db";
+import { BaseStep, GapAnalysisTopicSource, type StepContext } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -218,41 +220,10 @@ export class DetectContentGapsStep extends BaseStep<
       ])
     );
 
-    // ── 5. Insert new gaps / re-stamp existing ones ───────────────────────────
-    let gapsCreated   = 0;
-    let gapsRestamped = 0;
+    // ── 5 + 6 + 54.1: Insert/restamp gaps, resolve stale ones, dual-write briefs ─
+    // All writes in a single transaction: gap row and its brief are created together
+    // or not at all (spec 54.1 atomicity requirement).
 
-    for (const gap of candidates) {
-      const fp = fingerprint(
-        gap.clusterId,
-        gap.gapType,
-        gap.locale ?? null,
-        gap.intentType ?? null,
-        gap.translationKey ?? null
-      );
-      const existingId = existingByFp.get(fp);
-
-      if (existingId) {
-        // Re-stamp: update detectedAt so UI shows "last seen"
-        await db
-          .update(contentGaps)
-          .set({ detectedAt: new Date(), updatedAt: new Date() })
-          .where(eq(contentGaps.id, existingId));
-        gapsRestamped += 1;
-      } else {
-        // New gap: insert
-        await db
-          .insert(contentGaps)
-          .values({
-            ...gap,
-            detectedAt: new Date(),
-          });
-        gapsCreated += 1;
-      }
-    }
-
-    // ── 6. Resolve gaps that no longer apply ──────────────────────────────────
-    // Any open gap whose fingerprint is NOT in the current candidate set gets resolved.
     const validFingerprints = new Set(
       candidates.map((c) =>
         fingerprint(c.clusterId, c.gapType, c.locale ?? null, c.intentType ?? null, c.translationKey ?? null)
@@ -268,20 +239,112 @@ export class DetectContentGapsStep extends BaseStep<
       )
       .map((g) => g.id);
 
-    let gapsResolved = 0;
-    if (toResolveIds.length > 0) {
-      const resolvedRows = await db
-        .update(contentGaps)
-        .set({ status: "resolved", resolvedAt: new Date(), updatedAt: new Date() })
-        .where(
-          and(
-            eq(contentGaps.projectId, projectId),
-            inArray(contentGaps.id, toResolveIds)
+    const { gapsCreated, gapsRestamped, gapsResolved } = await db.transaction(async (tx) => {
+      let created   = 0;
+      let restamped = 0;
+
+      // Collect full gap rows for brief emission
+      const newGapRows:       import("@marketing-auto/db").ContentGap[] = [];
+      const restampedGapIds:  string[] = [];
+
+      for (const gap of candidates) {
+        const fp = fingerprint(
+          gap.clusterId,
+          gap.gapType,
+          gap.locale ?? null,
+          gap.intentType ?? null,
+          gap.translationKey ?? null
+        );
+        const existingId = existingByFp.get(fp);
+
+        if (existingId) {
+          await tx
+            .update(contentGaps)
+            .set({ detectedAt: new Date(), updatedAt: new Date() })
+            .where(eq(contentGaps.id, existingId));
+          restampedGapIds.push(existingId);
+          restamped += 1;
+        } else {
+          const [row] = await tx
+            .insert(contentGaps)
+            .values({ ...gap, detectedAt: new Date() })
+            .returning();
+          if (row) newGapRows.push(row);
+          created += 1;
+        }
+      }
+
+      // Resolve stale gaps
+      let resolved = 0;
+      if (toResolveIds.length > 0) {
+        const resolvedRows = await tx
+          .update(contentGaps)
+          .set({ status: "resolved", resolvedAt: new Date(), updatedAt: new Date() })
+          .where(
+            and(
+              eq(contentGaps.projectId, projectId),
+              inArray(contentGaps.id, toResolveIds)
+            )
           )
-        )
-        .returning({ id: contentGaps.id });
-      gapsResolved = resolvedRows.length;
-    }
+          .returning({ id: contentGaps.id });
+        resolved = resolvedRows.length;
+      }
+
+      // ── 54.1: emit and upsert topic_briefs ───────────────────────────────────
+
+      // Load full rows for restamped gaps so mapGapToBrief has all fields
+      const restampedGapRows: import("@marketing-auto/db").ContentGap[] =
+        restampedGapIds.length > 0
+          ? await tx.select().from(contentGaps).where(inArray(contentGaps.id, restampedGapIds))
+          : [];
+
+      const source = new GapAnalysisTopicSource();
+      const briefs = await source.emit(
+        { gaps: [...newGapRows, ...restampedGapRows] },
+        { projectId },
+      );
+
+      if (briefs.length > 0) {
+        // Under exactOptionalPropertyTypes, TopicBriefInsert optional fields are 'T | undefined'
+        // but Drizzle's insert type expects 'T | null'. mapGapToBrief never emits undefined
+        // (all absent optional fields are set to null explicitly), so this strip is safe.
+        const dbBriefs = briefs.map((b) =>
+          Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined))
+        ) as Array<typeof topicBriefs.$inferInsert>;
+
+        await tx
+          .insert(topicBriefs)
+          .values(dbBriefs)
+          .onConflictDoUpdate({
+            target: topicBriefs.gapId,
+            // targetWhere mirrors the partial unique index predicate
+            targetWhere: sql`approval_status IN ('pending', 'approved', 'auto_approved', 'routed')`,
+            set: {
+              topicTitle:  sql`excluded.topic_title`,
+              gapMetadata: sql`excluded.gap_metadata`,
+              updatedAt:   sql`now()`,
+            },
+          });
+      }
+
+      // Mark superseded for resolved gaps
+      if (toResolveIds.length > 0) {
+        const activeStatuses: Array<"pending" | "approved" | "auto_approved"> = [
+          "pending", "approved", "auto_approved",
+        ];
+        await tx
+          .update(topicBriefs)
+          .set({ approvalStatus: "superseded", updatedAt: new Date() })
+          .where(
+            and(
+              inArray(topicBriefs.gapId, toResolveIds),
+              inArray(topicBriefs.approvalStatus, activeStatuses),
+            )
+          );
+      }
+
+      return { gapsCreated: created, gapsRestamped: restamped, gapsResolved: resolved };
+    });
 
     // ── 7. Count total open gaps after the run ────────────────────────────────
     const totalOpenResult = await db

@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, pipelineChains, projects } from "@marketing-auto/db";
+import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, pipelineChains, projects, topicBriefs } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
@@ -548,6 +548,22 @@ projectRoutes.patch(
       .returning({ id: contentGaps.id });
 
     if (updated.length === 0) return c.json({ ok: false, error: "Gap not found" }, 404);
+
+    // Spec 54.1: mirror resolve/dismiss → supersede any active briefs for this gap
+    if (body.status === "resolved" || body.status === "dismissed") {
+      const activeStatuses: Array<"pending" | "approved" | "auto_approved"> = [
+        "pending", "approved", "auto_approved",
+      ];
+      await db
+        .update(topicBriefs)
+        .set({ approvalStatus: "superseded", updatedAt: now })
+        .where(
+          and(
+            eq(topicBriefs.gapId, gapId),
+            inArray(topicBriefs.approvalStatus, activeStatuses),
+          )
+        );
+    }
 
     return c.json({ ok: true, data: { id: gapId, status: body.status } });
   }
