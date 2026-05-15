@@ -225,6 +225,13 @@
       "when": 1780900000000,
       "tag": "0031_social_posts_planner_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1781000000000,
+      "tag": "0032_topic_briefs",
+      "breakpoints": true
     }
   ]
 }

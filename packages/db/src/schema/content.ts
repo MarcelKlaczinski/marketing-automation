@@ -568,3 +568,218 @@ export const templateRenders = pgTable(
 
 export type TemplateRender    = typeof templateRenders.$inferSelect;
 export type NewTemplateRender = typeof templateRenders.$inferInsert;
+
+// ─── Spec 54.1: Topic Briefs ───────────────────────────────────────────────────
+
+import { z } from "zod";
+
+// ── Source-specific metadata schemas ─────────────────────────────────────────
+
+export const GapMetadataSchema = z.object({
+  gapType: z.enum([
+    "missing_hub",
+    "missing_spoke_type",
+    "missing_translation",
+    "cluster_too_small",
+  ]),
+  priority: z.number().int().min(1).max(3),
+  clusterName: z.string().optional(),
+  clusterMemberCount: z.number().optional(),
+  existingLocale: z.enum(["de", "en"]).optional(),
+  existingArticleSlug: z.string().optional(),
+  spokesPresent: z.array(z.string()).optional(),
+  translationKey: z.string().optional(),
+  suggestedCornerstoneKeyword: z.string().optional(),
+  discoveredKeywords: z.array(z.string()).optional(),
+});
+export type GapMetadata = z.infer<typeof GapMetadataSchema>;
+
+export const TrendMetadataSchema = z.object({
+  trendScore: z.number(),
+  signals: z.array(
+    z.object({
+      source: z.enum([
+        "producthunt",
+        "hackernews",
+        "reddit",
+        "github",
+        "vendor_rss",
+        "dataforseo_trends",
+      ]),
+      externalId: z.string(),
+      url: z.string().url().optional(),
+      capturedAt: z.string(),
+    }),
+  ),
+  freshnessWindow: z.enum(["breaking", "rising", "stable"]),
+  relatedEvent: z.string().optional(),
+});
+export type TrendMetadata = z.infer<typeof TrendMetadataSchema>;
+
+export const RefreshMetadataSchema = z.object({
+  targetArticleId: z.string().uuid(),
+  staleness: z.object({
+    daysSinceLastUpdate: z.number(),
+    rankingChange: z.number().nullable(),
+    competitorRefreshed: z.boolean(),
+  }),
+});
+export type RefreshMetadata = z.infer<typeof RefreshMetadataSchema>;
+
+// ── Drizzle table ─────────────────────────────────────────────────────────────
+
+export const topicBriefs = pgTable(
+  "topic_briefs",
+  {
+    id:        uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+    source: text("source").notNull().$type<
+      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual"
+    >(),
+
+    // FK to content_gaps declared in migration SQL (avoids circular ordering within this file)
+    gapId: uuid("gap_id"),
+
+    topicTitle:        text("topic_title").notNull(),
+    primaryKeyword:    text("primary_keyword"),
+    secondaryKeywords: jsonb("secondary_keywords").$type<string[]>().notNull().default([]),
+    locale:            text("locale"),
+    intentType:        text("intent_type"),
+
+    clusterId:     uuid("cluster_id"),
+    clusterAction: text("cluster_action").notNull().$type<
+      "append_to_existing" | "create_new" | "translation" | "refresh" | "standalone"
+    >(),
+
+    searchVolumeDe: integer("search_volume_de"),
+    searchVolumeEn: integer("search_volume_en"),
+    difficulty:     integer("difficulty"),
+    serpSnapshot:   jsonb("serp_snapshot"),
+
+    suggestedTitle:  text("suggested_title"),
+    suggestedSlug:   text("suggested_slug"),
+    suggestedMeta:   text("suggested_meta"),
+    heroImagePrompt: text("hero_image_prompt"),
+    generationMode:  text("generation_mode").$type<
+      "evergreen" | "timely" | "pillar" | "spoke" | "refresh" | "translation" | null
+    >(),
+
+    approvalRequired: boolean("approval_required").notNull().default(true),
+    approvalStatus:   text("approval_status").notNull().default("pending").$type<
+      "pending" | "approved" | "rejected" | "auto_approved" | "superseded" | "routed"
+    >(),
+    approvedBy: text("approved_by"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+
+    gapMetadata:     jsonb("gap_metadata").$type<GapMetadata>(),
+    trendMetadata:   jsonb("trend_metadata").$type<TrendMetadata>(),
+    refreshMetadata: jsonb("refresh_metadata").$type<RefreshMetadata>(),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    projectIdx:       index("topic_briefs_project_idx").on(t.projectId),
+    projectStatusIdx: index("topic_briefs_project_status_idx").on(t.projectId, t.approvalStatus),
+    projectSourceIdx: index("topic_briefs_project_source_idx").on(t.projectId, t.source),
+  }),
+);
+
+// ── TopicBrief Zod schema (public insert contract) ───────────────────────────
+
+export const TopicBriefInsertSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    source: z.enum(["gap_analysis", "trend_discovery", "refresh_detection", "manual"]),
+    gapId: z.string().uuid().nullable().optional(),
+
+    topicTitle:        z.string().min(3).max(300),
+    primaryKeyword:    z.string().nullable().optional(),
+    secondaryKeywords: z.array(z.string()).default([]),
+    locale:            z.enum(["de", "en"]).nullable().optional(),
+    intentType:        z.string().nullable().optional(),
+
+    clusterId:     z.string().uuid().nullable().optional(),
+    clusterAction: z.enum([
+      "append_to_existing",
+      "create_new",
+      "translation",
+      "refresh",
+      "standalone",
+    ]),
+
+    searchVolumeDe: z.number().int().nullable().optional(),
+    searchVolumeEn: z.number().int().nullable().optional(),
+    difficulty:     z.number().int().nullable().optional(),
+    serpSnapshot:   z.unknown().nullable().optional(),
+
+    suggestedTitle:  z.string().nullable().optional(),
+    suggestedSlug:   z.string().nullable().optional(),
+    suggestedMeta:   z.string().nullable().optional(),
+    heroImagePrompt: z.string().nullable().optional(),
+    generationMode:  z
+      .enum(["evergreen", "timely", "pillar", "spoke", "refresh", "translation"])
+      .nullable()
+      .optional(),
+
+    approvalRequired: z.boolean().default(true),
+    approvalStatus:   z
+      .enum(["pending", "approved", "rejected", "auto_approved", "superseded", "routed"])
+      .default("pending"),
+    approvedBy: z.string().nullable().optional(),
+    approvedAt: z.date().nullable().optional(),
+
+    gapMetadata:     GapMetadataSchema.nullable().optional(),
+    trendMetadata:   TrendMetadataSchema.nullable().optional(),
+    refreshMetadata: RefreshMetadataSchema.nullable().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasGap     = data.gapMetadata     != null;
+    const hasTrend   = data.trendMetadata   != null;
+    const hasRefresh = data.refreshMetadata != null;
+    const total      = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0);
+
+    if (data.source === "manual") {
+      if (total !== 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "manual source must have no source-specific metadata",
+        });
+      }
+      return;
+    }
+
+    if (total !== 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `source '${data.source}' requires exactly one matching metadata field`,
+      });
+      return;
+    }
+
+    const expectedMap = {
+      gap_analysis:      hasGap,
+      trend_discovery:   hasTrend,
+      refresh_detection: hasRefresh,
+    } as const;
+
+    if (!expectedMap[data.source as keyof typeof expectedMap]) {
+      const fieldName = { gap_analysis: "gap_metadata", trend_discovery: "trend_metadata", refresh_detection: "refresh_metadata" }[data.source as keyof typeof expectedMap];
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `source '${data.source}' requires '${fieldName}' to be set`,
+      });
+    }
+
+    // gapId must be set iff source='gap_analysis'
+    if (data.source === "gap_analysis" && !data.gapId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "gap_analysis briefs require gapId" });
+    }
+    if (data.source !== "gap_analysis" && data.gapId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "only gap_analysis briefs may set gapId" });
+    }
+  });
+
+export type TopicBriefInsert = z.infer<typeof TopicBriefInsertSchema>;
+export type TopicBrief       = typeof topicBriefs.$inferSelect;
