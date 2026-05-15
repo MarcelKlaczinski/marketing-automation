@@ -1,15 +1,14 @@
 import { zValidator } from "@hono/zod-validator";
 import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, pipelineChains, projectConfigurations, projects, topicBriefs } from "@marketing-auto/db";
+import { articles, astroImportRuns, clusters, contentGaps, db, pipelineChains, projectConfigurations, projects, topicBriefs, and, desc, eq, inArray, sql } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
-import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
+import { enqueueArticleOutlinePipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
 import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain } from "../lib/chain-orchestrator.ts";
 import { createLogger } from "@marketing-auto/shared";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
@@ -739,37 +738,21 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
 });
 
 // POST /:slug/content-gaps/:id/generate — trigger article / cornerstone spec creation
-const generateBodySchema = z.object({
-  title:  z.string().optional(),
-  locale: z.string().optional(),
-});
+// (Spec 54.3: now routes via TopicRoutingPolicy — brief is the Single Source of Truth)
 
 projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
-  const slug    = c.req.param("slug");
-  const gapId   = c.req.param("id");
-  const rawBody = await c.req.json().catch(() => ({}));
-  const body    = generateBodySchema.safeParse(rawBody).data ?? {};
+  const slug  = c.req.param("slug");
+  const gapId = c.req.param("id");
 
   const [project] = await db
-    .select({
-      id:             projects.id,
-      pipelineConfig: projects.pipelineConfig,
-    })
+    .select({ id: projects.id, pipelineConfig: projects.pipelineConfig })
     .from(projects)
     .where(eq(projects.slug, slug))
     .limit(1);
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
   const [gap] = await db
-    .select({
-      id:             contentGaps.id,
-      gapType:        contentGaps.gapType,
-      clusterId:      contentGaps.clusterId,
-      intentType:     contentGaps.intentType,
-      locale:         contentGaps.locale,
-      status:         contentGaps.status,
-      metadata:       contentGaps.metadata,
-    })
+    .select({ id: contentGaps.id, status: contentGaps.status })
     .from(contentGaps)
     .where(and(eq(contentGaps.id, gapId), eq(contentGaps.projectId, project.id)))
     .limit(1);
@@ -777,185 +760,115 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
   if (gap.status === "dismissed" || gap.status === "resolved")
     return c.json({ ok: false, error: "Gap is already closed" }, 409);
 
-  if (gap.gapType === "missing_translation") {
+  const activeBriefStatuses: Array<"pending" | "approved"> = ["pending", "approved"];
+  const [brief] = await db
+    .select()
+    .from(topicBriefs)
+    .where(and(
+      eq(topicBriefs.gapId, gapId),
+      inArray(topicBriefs.approvalStatus, activeBriefStatuses),
+    ))
+    .limit(1);
+  if (!brief) return c.json({ ok: false, error: "No active brief for this gap" }, 404);
+
+  const decision = decideRoute(brief);
+  const routeResult = await db.transaction(async (tx) =>
+    executeDecision(decision, brief, tx),
+  );
+
+  if (routeResult.kind === "skipped") {
     return c.json(
-      { ok: false, error: "Translation generation not yet implemented" },
-      400
+      { ok: false, error: routeResult.reason, data: { briefId: routeResult.briefId } },
+      422,
     );
   }
 
-  const locale = body.locale ?? gap.locale ?? "de";
-  const meta   = gap.metadata ?? {};
-  const proposedTitle =
-    body.title ??
-    meta.suggestedTitle ??
-    (meta.clusterName ? `${meta.clusterName} – Übersicht` : "Neuer Artikel");
-  const proposedSlug = meta.suggestedSlug ?? slugify(proposedTitle);
-
-  // ── missing_hub → cornerstone spec ──────────────────────────────────────────
-  if (gap.gapType === "missing_hub") {
-    if (!gap.clusterId) return c.json({ ok: false, error: "Gap has no clusterId" }, 400);
-
-    // Guard: spec for this cluster+locale may already exist
-    const [existing] = await db
-      .select({ id: cornerstoneSpecs.id })
-      .from(cornerstoneSpecs)
-      .where(
-        and(
-          eq(cornerstoneSpecs.clusterId, gap.clusterId),
-          eq(cornerstoneSpecs.locale, locale)
-        )
-      )
-      .limit(1);
-
-    if (existing) {
-      // Link gap to existing spec and mark in_progress
-      await db
-        .update(contentGaps)
-        .set({
-          filledBySpecId:          existing.id,
-          generationTriggeredAt:   new Date(),
-          status:                  "in_progress",
-          updatedAt:               new Date(),
-        })
-        .where(eq(contentGaps.id, gapId));
-
-      return c.json({
-        ok: true,
-        data: {
-          type:             "cornerstone_spec",
-          cornerstoneSpecId: existing.id,
-          gapStatus:        "in_progress",
-          deduped:          true,
-        },
-      });
-    }
-
-    const [newSpec] = await db
-      .insert(cornerstoneSpecs)
-      .values({
-        projectId:          project.id,
-        clusterId:          gap.clusterId,
-        locale,
-        translationKey:     crypto.randomUUID(),
-        cornerstoneKeyword: slugify(proposedTitle),
-        proposedTitle,
-        proposedSlug,
-        metaDescription:    meta.suggestedMetaDescription ?? "",
-        estimatedWordCount: 2000,
-        h2Outline:          [],
-        status:             "proposed",
-      })
-      .returning({ id: cornerstoneSpecs.id });
-
-    if (!newSpec) return c.json({ ok: false, error: "Failed to create cornerstone spec" }, 500);
+  if (
+    routeResult.kind === "article_created" ||
+    routeResult.kind === "translation_created"
+  ) {
+    const triggerResult = await triggerWithPreRunId({
+      pipelineName: "article:outline",
+      projectId:    project.id,
+      uniqueKey:    { field: "articleId", value: routeResult.articleId },
+      costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+      extraInput:   { articleId: routeResult.articleId },
+      enqueue:      enqueueArticleOutlinePipeline,
+    });
 
     await db
       .update(contentGaps)
       .set({
-        filledBySpecId:        newSpec.id,
+        filledByArticleId:     routeResult.articleId,
         generationTriggeredAt: new Date(),
         status:                "in_progress",
         updatedAt:             new Date(),
       })
       .where(eq(contentGaps.id, gapId));
 
-    log.info({ gapId, specId: newSpec.id, slug }, "Created cornerstone spec from gap");
+    log.info(
+      { gapId, articleId: routeResult.articleId, briefId: routeResult.briefId },
+      "Created article from gap via routing policy",
+    );
+
+    if ("error" in triggerResult)
+      return c.json({ ok: false, error: triggerResult.error }, 402);
+
+    return c.json(
+      {
+        ok:   true,
+        data: {
+          type:      "article",
+          articleId: routeResult.articleId,
+          runId:     triggerResult.runId,
+          jobId:     triggerResult.jobId,
+          deduped:   triggerResult.deduped,
+          gapStatus: "in_progress",
+          briefId:   routeResult.briefId,
+        },
+      },
+      triggerResult.deduped ? 200 : 202,
+    );
+  }
+
+  if (routeResult.kind === "cornerstone_spec_created") {
+    await db
+      .update(contentGaps)
+      .set({
+        filledBySpecId:        routeResult.cornerstoneSpecId,
+        generationTriggeredAt: new Date(),
+        status:                "in_progress",
+        updatedAt:             new Date(),
+      })
+      .where(eq(contentGaps.id, gapId));
+
+    log.info(
+      { gapId, specId: routeResult.cornerstoneSpecId, briefId: routeResult.briefId, slug },
+      "Created cornerstone spec from gap via routing policy",
+    );
     return c.json({
-      ok: true,
+      ok:   true,
       data: {
         type:              "cornerstone_spec",
-        cornerstoneSpecId: newSpec.id,
+        cornerstoneSpecId: routeResult.cornerstoneSpecId,
         gapStatus:         "in_progress",
+        briefId:           routeResult.briefId,
       },
     });
   }
 
-  // ── missing_spoke_type / cluster_too_small → article + outline pipeline ─────
-  const articleSlug = meta.suggestedSlug ?? `gap-${gapId.slice(0, 8)}`;
-
-  // Use the LLM-suggested cornerstoneKeyword if available — it's anchored to real cluster
-  // keywords from Cold-Start Phase 3 and drives the DataForSEO SERP lookup in ResearchStep.
-  // Falling back to slugify(title) would produce a bad keyword and empty satellite-keyword matches.
-  const cornerstoneKeyword =
-    (meta.suggestedCornerstoneKeyword as string | undefined) ?? slugify(proposedTitle);
-
-  // Build insert value — intentType is optional; use conditional spread for exactOptionalPropertyTypes
-  const articleInsert: typeof articles.$inferInsert = {
-    projectId:          project.id,
-    clusterId:          gap.clusterId ?? null,
-    source:             "generated",
-    status:             "proposed",
-    locale,
-    collection:         "blog",
-    clusterRole:        "spoke",
-    cornerstoneKeyword,
-    title:              proposedTitle,
-    slug:               articleSlug,
-    approvalMode:       "manual",
-    ...(gap.intentType ? { intentType: gap.intentType } : {}),
-  };
-
-  const [newArticle] = await db
-    .insert(articles)
-    .values(articleInsert)
-    .returning({ id: articles.id });
-
-  if (!newArticle) return c.json({ ok: false, error: "Failed to create article" }, 500);
-
-  // Trigger outline pipeline using preRunId pattern
-  const result = await triggerWithPreRunId({
-    pipelineName: "article:outline",
-    projectId:    project.id,
-    uniqueKey:    { field: "articleId", value: newArticle.id },
-    costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-    extraInput:   { articleId: newArticle.id },
-    enqueue:      enqueueArticleOutlinePipeline,
-  });
-
-  await db
-    .update(contentGaps)
-    .set({
-      filledByArticleId:     newArticle.id,
-      generationTriggeredAt: new Date(),
-      status:                "in_progress",
-      updatedAt:             new Date(),
-    })
-    .where(eq(contentGaps.id, gapId));
-
-  log.info({ gapId, articleId: newArticle.id }, "Created article from gap");
-
-  // Can't spread `meta` into TriggerResult — return shape manually
-  if ("error" in result) return c.json({ ok: false, error: result.error }, 402);
-  return c.json({
-    ok:   true,
-    data: {
-      type:      "article",
-      articleId: newArticle.id,
-      runId:     result.runId,
-      jobId:     result.jobId,
-      deduped:   result.deduped,
-      gapStatus: "in_progress",
-    },
-  }, result.deduped ? 200 : 202);
+  return c.json({ ok: false, error: "Unexpected routing result" }, 500);
 });
 
 // suggestGapTitle() lives in src/lib/gap-service.ts (adapter calls must not be in routes)
 
 // ─── POST /:slug/content-gaps/:id/automate ────────────────────────────────────
 // Full automation chain: outline → draft → schema-de → localize → schema-en → [astro-transfer]
-// Only for missing_spoke_type + cluster_too_small gaps (not missing_hub, not missing_translation).
-
-const automateBodySchema = z.object({
-  title:  z.string().optional(),
-  locale: z.string().optional(),
-});
+// (Spec 54.3: now routes via TopicRoutingPolicy — brief is the Single Source of Truth)
 
 projectRoutes.post("/:slug/content-gaps/:id/automate", async (c) => {
   const slug  = c.req.param("slug");
   const gapId = c.req.param("id");
-  const rawBody = await c.req.json().catch(() => ({}));
-  const body    = automateBodySchema.safeParse(rawBody).data ?? {};
 
   const [project] = await db
     .select({ id: projects.id, autoPublish: projects.autoPublish })
@@ -965,16 +878,7 @@ projectRoutes.post("/:slug/content-gaps/:id/automate", async (c) => {
   if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
   const [gap] = await db
-    .select({
-      id:                contentGaps.id,
-      gapType:           contentGaps.gapType,
-      clusterId:         contentGaps.clusterId,
-      intentType:        contentGaps.intentType,
-      locale:            contentGaps.locale,
-      status:            contentGaps.status,
-      metadata:          contentGaps.metadata,
-      filledByArticleId: contentGaps.filledByArticleId,
-    })
+    .select({ id: contentGaps.id, status: contentGaps.status })
     .from(contentGaps)
     .where(and(eq(contentGaps.id, gapId), eq(contentGaps.projectId, project.id)))
     .limit(1);
@@ -982,20 +886,15 @@ projectRoutes.post("/:slug/content-gaps/:id/automate", async (c) => {
   if (gap.status === "dismissed" || gap.status === "resolved")
     return c.json({ ok: false, error: "Gap is already closed" }, 409);
 
-  if (gap.gapType === "missing_translation")
-    return c.json({ ok: false, error: "Translation generation not yet implemented" }, 400);
-  if (gap.gapType === "missing_hub")
-    return c.json({ ok: false, error: "Hub gaps use cornerstone spec workflow — use /generate instead" }, 400);
-
-  // Check for already-running chain for this gap (idempotency)
+  // Check for already-running chain for this gap (idempotency — checked before brief load)
   const [existingChain] = await db
     .select({ id: pipelineChains.id, status: pipelineChains.status })
     .from(pipelineChains)
     .where(
       and(
         eq(pipelineChains.gapId, gapId),
-        sql`${pipelineChains.status} IN ('queued', 'running')`
-      )
+        sql`${pipelineChains.status} IN ('queued', 'running')`,
+      ),
     )
     .limit(1);
   if (existingChain) {
@@ -1014,58 +913,70 @@ projectRoutes.post("/:slug/content-gaps/:id/automate", async (c) => {
     return c.json({ ok: false, error: "cost_limit_exceeded", data: costCheck }, 402);
   }
 
-  // Create article if it doesn't already exist for this gap
-  const locale = body.locale ?? gap.locale ?? "de";
-  const meta   = gap.metadata ?? {};
-  const proposedTitle =
-    body.title ??
-    meta.suggestedTitle ??
-    (meta.clusterName ? `${meta.clusterName} – Übersicht` : "Neuer Artikel");
-  const articleSlug        = meta.suggestedSlug ?? `gap-${gapId.slice(0, 8)}`;
-  const cornerstoneKeyword =
-    (meta.suggestedCornerstoneKeyword as string | undefined) ?? slugify(proposedTitle);
+  // Load active brief
+  const activeBriefStatuses: Array<"pending" | "approved"> = ["pending", "approved"];
+  const [brief] = await db
+    .select()
+    .from(topicBriefs)
+    .where(and(
+      eq(topicBriefs.gapId, gapId),
+      inArray(topicBriefs.approvalStatus, activeBriefStatuses),
+    ))
+    .limit(1);
+  if (!brief) return c.json({ ok: false, error: "No active brief for this gap" }, 404);
 
-  // Re-use article already linked to gap if one exists
-  let articleId: string;
-  if (gap.filledByArticleId) {
-    articleId = gap.filledByArticleId;
-  } else {
-    const articleInsert: typeof articles.$inferInsert = {
-      projectId:          project.id,
-      clusterId:          gap.clusterId ?? null,
-      source:             "generated",
-      status:             "proposed",
-      locale,
-      collection:         "blog",
-      clusterRole:        "spoke",
-      cornerstoneKeyword,
-      title:              proposedTitle,
-      slug:               articleSlug,
-      approvalMode:       "manual",
-      ...(gap.intentType ? { intentType: gap.intentType } : {}),
-    };
-    const [newArticle] = await db
-      .insert(articles)
-      .values(articleInsert)
-      .returning({ id: articles.id });
-    if (!newArticle) return c.json({ ok: false, error: "Failed to create article" }, 500);
-    articleId = newArticle.id;
+  const decision = decideRoute(brief);
 
-    await db
-      .update(contentGaps)
-      .set({
-        filledByArticleId:     articleId,
-        generationTriggeredAt: new Date(),
-        status:                "in_progress",
-        updatedAt:             new Date(),
-      })
-      .where(eq(contentGaps.id, gapId));
+  // Hub gaps produce a cornerstone spec, not a chain — direct caller to /generate
+  if (decision.kind === "create_cornerstone_spec") {
+    return c.json(
+      { ok: false, error: "Hub gaps use cornerstone spec workflow — use /generate instead" },
+      400,
+    );
   }
 
-  const { chainId } = await startChain({ projectId: project.id, gapId, articleId });
+  const routeResult = await db.transaction(async (tx) =>
+    executeDecision(decision, brief, tx),
+  );
 
-  log.info({ gapId, articleId, chainId, slug }, "Full-automation chain started");
-  return c.json({ ok: true, data: { chainId, articleId, deduped: false } }, 202);
+  if (routeResult.kind === "skipped") {
+    return c.json(
+      { ok: false, error: routeResult.reason, data: { briefId: routeResult.briefId } },
+      422,
+    );
+  }
+
+  if (
+    routeResult.kind !== "article_created" &&
+    routeResult.kind !== "translation_created"
+  ) {
+    return c.json({ ok: false, error: "Unexpected routing result for automate" }, 500);
+  }
+
+  const { chainId } = await startChain({
+    projectId: project.id,
+    gapId,
+    articleId: routeResult.articleId,
+  });
+
+  await db
+    .update(contentGaps)
+    .set({
+      filledByArticleId:     routeResult.articleId,
+      generationTriggeredAt: new Date(),
+      status:                "in_progress",
+      updatedAt:             new Date(),
+    })
+    .where(eq(contentGaps.id, gapId));
+
+  log.info(
+    { gapId, articleId: routeResult.articleId, chainId, briefId: routeResult.briefId, slug },
+    "Full-automation chain started via routing policy",
+  );
+  return c.json(
+    { ok: true, data: { chainId, articleId: routeResult.articleId, briefId: routeResult.briefId, deduped: false } },
+    202,
+  );
 });
 
 // ─── GET /:slug/pipeline-chains — list chains for project ─────────────────────
