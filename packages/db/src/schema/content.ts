@@ -683,6 +683,11 @@ export const topicBriefs = pgTable(
     trendMetadata:   jsonb("trend_metadata").$type<TrendMetadata>(),
     refreshMetadata: jsonb("refresh_metadata").$type<RefreshMetadata>(),
 
+    // Spec 54.3: direct FK to the article/spec created by executeDecision
+    // FKs declared via raw SQL migration (54.1 convention — avoids circular ordering within this file)
+    routedArticleId:         uuid("routed_article_id"),
+    routedCornerstoneSpecId: uuid("routed_cornerstone_spec_id"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
