@@ -298,11 +298,7 @@ trendRoutes.post("/:slug/trends/briefs/:briefId/dismiss", async (c) => {
 
   if (!brief) return c.json({ ok: false, error: "Trend brief not found or already processed" }, 404);
 
-  // TrendMetadata.$type<> doesn't include `id` on signals (added by emit-brief.ts at write time)
-  const meta = brief.trendMetadata as { signals?: Array<{ id?: string }> } | null;
-  const signalIds = (meta?.signals ?? [])
-    .map((s) => s.id)
-    .filter((id): id is string => typeof id === "string");
+  const signalIds = (brief.trendMetadata?.signals ?? []).map((s) => s.id);
 
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 

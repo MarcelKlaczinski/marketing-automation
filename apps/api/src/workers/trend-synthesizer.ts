@@ -173,8 +173,7 @@ async function handleSynthesizeProject(projectId: string): Promise<void> {
 
     // Stamp contributing signals with processed_into = brief.id now that we have the real IDs
     for (const row of inserted) {
-      const meta = row.trendMetadata as { signals?: Array<{ id?: string }> } | null;
-      const signalIds = (meta?.signals ?? []).map((s) => s.id).filter((id): id is string => typeof id === "string");
+      const signalIds = (row.trendMetadata?.signals ?? []).map((s) => s.id);
       if (signalIds.length > 0) {
         await db
           .update(externalSignals)

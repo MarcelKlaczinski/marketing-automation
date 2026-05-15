@@ -605,6 +605,7 @@ export const TrendMetadataSchema = z.object({
   trendScore: z.number(),
   signals: z.array(
     z.object({
+      id: z.string().uuid(),
       source: z.enum([
         "producthunt",
         "hackernews",
@@ -620,6 +621,13 @@ export const TrendMetadataSchema = z.object({
   ),
   freshnessWindow: z.enum(["breaking", "rising", "stable"]),
   relatedEvent: z.string().optional(),
+  scoreBreakdown: z.object({
+    communityBuzz: z.number(),
+    searchVolumeGrowth: z.number(),
+    officialAnnouncement: z.number(),
+    serpVolatility: z.number(),
+    existingCoveragePenalty: z.number(),
+  }).optional(),
 });
 export type TrendMetadata = z.infer<typeof TrendMetadataSchema>;
 
