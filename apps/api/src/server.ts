@@ -22,6 +22,7 @@ import { systemRoutes } from "./routes/system.ts";
 import { socialPostRoutes, socialPostDetailRoutes, socialPostBatchRoutes, templateRenderDetailRoutes } from "./routes/social-posts.ts";
 import { brandAssetRoutes } from "./routes/brand-assets.ts";
 import { brandTokenRoutes } from "./routes/brand-tokens.ts";
+import { trendRoutes } from "./routes/trends.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -83,6 +84,7 @@ app.route("/api/template-renders", templateRenderDetailRoutes);
 app.route("/api/projects", brandAssetRoutes);
 app.route("/api/projects", brandTokenRoutes);
 app.route("/api/projects", socialPostBatchRoutes);
+app.route("/api/projects", trendRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

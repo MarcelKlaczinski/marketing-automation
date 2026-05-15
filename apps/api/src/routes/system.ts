@@ -24,6 +24,7 @@ import { verifySmtp } from "@marketing-auto/adapter-email/verify";
 import { verifyProductHunt } from "@marketing-auto/adapter-producthunt/verify";
 import { verifyReplicate } from "@marketing-auto/adapter-replicate/verify";
 import { verifyR2 } from "@marketing-auto/adapter-storage/verify";
+import { verifyVoyage } from "@marketing-auto/adapter-voyage/verify";
 
 export const systemRoutes = new Hono();
 
@@ -72,7 +73,7 @@ systemRoutes.get("/status", async (c) => {
 // Auth required — only logged-in users may write credentials.
 
 const credentialSchema = z.object({
-  service: z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt"]),
+  service: z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage"]),
   key: z.string().min(1).max(100),
   value: z.string().min(1).max(10_000),
   metadata: z.record(z.unknown()).optional(),
@@ -117,7 +118,7 @@ systemRoutes.delete("/credentials/:service/:key", requireAuth, async (c) => {
 // ───── DELETE /api/system/credentials/:service ──────────────────────────────
 // Auth required — removes all credentials for a service and clears its verify status.
 
-const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt"] as const;
+const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage"] as const;
 
 systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
   const service = c.req.param("service");
@@ -134,7 +135,7 @@ systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
 // ───── POST /api/system/verify/:adapter ─────────────────────────────────────
 // Auth required — verifying runs a live network call against a configured credential.
 
-const adapterEnum = z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt"]);
+const adapterEnum = z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage"]);
 
 systemRoutes.post("/verify/:adapter", requireAuth, async (c) => {
   const parsed = adapterEnum.safeParse(c.req.param("adapter"));
@@ -221,5 +222,8 @@ async function runVerifyByAdapter(
     case "producthunt":
       if (!creds.api_key || !creds.api_secret) return { ok: false, message: "API key and API secret required" };
       return verifyProductHunt(creds.api_key, creds.api_secret);
+    case "voyage":
+      if (!creds.api_key) return { ok: false, message: "API key not set" };
+      return verifyVoyage(creds.api_key);
   }
 }

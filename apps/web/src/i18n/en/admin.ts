@@ -20,5 +20,7 @@ export default {
     noEligibleArticles: "No eligible articles found",
     empty: "No templates registered",
     projectBrandTokens: "Project brand tokens active",
+    savedRender: "Saved render from",
+    reRender: "Re-render",
   },
 };

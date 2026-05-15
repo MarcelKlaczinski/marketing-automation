@@ -705,7 +705,13 @@
       "Bash(kill -TERM 79333)",
       "Bash(echo \"Worker PID=$!\")",
       "Bash(bun --env-file ../../.env --filter @marketing-auto/api trends:synthesize toolwiki)",
-      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/topic-sources/trend-discovery/score.test.ts)"
+      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/topic-sources/trend-discovery/score.test.ts)",
+      "Bash(bun --filter @marketing-auto/api test --testPathPattern=\"trends\")",
+      "Bash(grep -rn '$tc\\(' apps/web/src/components/ apps/web/src/pages/)",
+      "Bash(grep -rn '$tc\\(' apps/web/src/)",
+      "Bash(grep -rn '$tc\\\\b' apps/web/src/components/ apps/web/src/pages/)",
+      "Bash(grep -rn '$tc\\\\b' apps/web/src/)",
+      "Bash(grep -rn '$tc\\\\|\"tc\"' apps/web/node_modules/vue-i18n/dist/vue-i18n.d.ts)"
     ]
   }
 }

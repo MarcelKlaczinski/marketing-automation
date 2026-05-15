@@ -41,7 +41,7 @@ export async function getAdapterStatus(
 }
 
 export async function getAllAdapterStatuses() {
-  const [anthropic, replicate, r2, dataforseo, smtp, githubApp, producthunt] = await Promise.all([
+  const [anthropic, replicate, r2, dataforseo, smtp, githubApp, producthunt, voyage] = await Promise.all([
     getAdapterStatus("anthropic", ["api_key"]),
     getAdapterStatus("replicate", ["api_token"]),
     getAdapterStatus("r2", [
@@ -55,8 +55,9 @@ export async function getAllAdapterStatuses() {
     getAdapterStatus("smtp", ["host", "port", "user", "password", "from_address"]),
     getAdapterStatus("github_app", ["app_id", "private_key_path"]),
     getAdapterStatus("producthunt", ["api_key", "api_secret"]),
+    getAdapterStatus("voyage", ["api_key"]),
   ]);
-  return { anthropic, replicate, r2, dataforseo, smtp, githubApp, producthunt };
+  return { anthropic, replicate, r2, dataforseo, smtp, githubApp, producthunt, voyage };
 }
 
 export async function checkPostgres(): Promise<{

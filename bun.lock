@@ -217,6 +217,7 @@
       "name": "@marketing-auto/adapter-voyage",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
         "zod": "^3.23.0",

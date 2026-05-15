@@ -116,6 +116,8 @@ const allStepDefs = [
   { id: "r2" },
   { id: "dataforseo" },
   { id: "githubApp" },
+  { id: "producthunt" },
+  { id: "voyage" },
   { id: "summary" },
 ] as const;
 
@@ -138,6 +140,8 @@ const COMPONENT_MAP: ComponentMapType = {
   r2: defineAsyncComponent(() => import("src/components/installer/StepR2.vue")),
   dataforseo: defineAsyncComponent(() => import("src/components/installer/StepDataforseo.vue")),
   githubApp: defineAsyncComponent(() => import("src/components/installer/StepGithubApp.vue")),
+  producthunt: defineAsyncComponent(() => import("src/components/installer/StepProducthunt.vue")),
+  voyage: defineAsyncComponent(() => import("src/components/installer/StepVoyage.vue")),
   summary: defineAsyncComponent(() => import("src/components/installer/InstallerSummary.vue")),
 };
 
@@ -173,6 +177,8 @@ export default defineComponent({
           r2: store.adapters.r2,
           dataforseo: store.adapters.dataforseo,
           githubApp: store.adapters.githubApp,
+          producthunt: store.adapters.producthunt,
+          voyage: store.adapters.voyage,
         };
         const s = map[id];
         if (!s) return "pending";

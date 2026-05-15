@@ -851,7 +851,8 @@ export type RejectedTopicReason =
   | "existing_coverage"
   | "low_score"
   | "excluded_by_scope"
-  | "low_signal_volume";
+  | "low_signal_volume"
+  | "manual_dismissal";
 
 export const rejectedTopicCandidates = pgTable(
   "rejected_topic_candidates",

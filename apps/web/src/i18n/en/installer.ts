@@ -152,6 +152,16 @@ export default {
       },
       hint: "[EN] Create an OAuth app at https://www.producthunt.com/v2/oauth/applications → copy Client ID and Client Secret.",
     },
+    voyage: {
+      title: "[EN] Voyage AI",
+      description: "[EN] Used for embedding generation in the Trend Discovery pipeline (Spec 54.5) — coverage check and cluster matching.",
+      consequenceIfSkipped:
+        "[EN] Trend Discovery will not work without Voyage AI. New trends cannot be checked against existing coverage or matched to clusters.",
+      fields: {
+        apiKey: "[EN] API Key",
+      },
+      hint: "[EN] Create a Voyage AI account at voyageai.com (200M tokens free per account). Then go to Dashboard → API Keys to create a new key and paste it here.",
+    },
     summary: {
       title: "[EN] Summary",
       readyTitle: "[EN] Ready to go",

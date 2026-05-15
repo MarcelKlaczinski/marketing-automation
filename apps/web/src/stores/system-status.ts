@@ -20,6 +20,7 @@ interface SystemStatusState {
     smtp: AdapterStatus;
     githubApp: AdapterStatus;
     producthunt: AdapterStatus;
+    voyage: AdapterStatus;
   };
   redis: AdapterStatus;
   postgres: AdapterStatus;
@@ -49,6 +50,7 @@ export const useSystemStatusStore = defineStore("systemStatus", {
       smtp: { ...unknownStatus },
       githubApp: { ...unknownStatus },
       producthunt: { ...unknownStatus },
+      voyage: { ...unknownStatus },
     },
     redis: { ...unknownStatus },
     postgres: { ...unknownStatus },
@@ -85,7 +87,9 @@ export const useSystemStatusStore = defineStore("systemStatus", {
         const res = await api.get<StatusApiResponse>("/system/status");
         const payload = res.data.data;
         this.initialized = payload.initialized;
-        this.adapters = payload.adapters;
+        // Merge rather than replace so keys added to the initial state
+        // (e.g. voyage) survive a stale API response that predates the field.
+        this.adapters = { ...this.adapters, ...payload.adapters };
         this.redis = payload.redis;
         this.postgres = payload.postgres;
       } catch {

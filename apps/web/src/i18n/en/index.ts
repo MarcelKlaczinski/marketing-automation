@@ -24,6 +24,7 @@ import pipelineTemplates from "./pipelineTemplates";
 import projectPause from "./projectPause";
 import projects from "./projects";
 import settings from "./settings";
+import trends from "./trends";
 
 export default {
   app,
@@ -52,4 +53,5 @@ export default {
   social,
   brand,
   admin,
+  trends,
 };

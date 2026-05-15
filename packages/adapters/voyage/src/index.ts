@@ -5,8 +5,8 @@ import {
   VOYAGE_COST_USD_PER_TOKEN,
   VoyageError,
   callVoyageEmbed,
-  getApiKey,
 } from "./client.ts";
+import { getApiKeyAsync } from "./credentials.ts";
 
 export { VoyageError } from "./client.ts";
 
@@ -24,7 +24,7 @@ export type EmbedContext = {
  * Cost: ~€0.000_000_05 per token ($0.06 / 1M × EUR_PER_USD).
  */
 export async function embed(text: string, ctx: EmbedContext): Promise<number[]> {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
 
   const result = await track({
     projectId: ctx.projectId,
@@ -73,7 +73,7 @@ export async function embedBatch(
     );
   }
 
-  const apiKey = getApiKey();
+  const apiKey = await getApiKeyAsync();
   const estimatedTokens = texts.reduce((sum, t) => sum + Math.ceil(t.length / 4), 0);
   const estimatedCostEur = estimatedTokens * VOYAGE_COST_USD_PER_TOKEN * EUR_PER_USD;
 

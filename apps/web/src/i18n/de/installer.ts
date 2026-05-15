@@ -152,6 +152,16 @@ export default {
       },
       hint: "OAuth-App unter https://www.producthunt.com/v2/oauth/applications anlegen → Client ID und Client Secret kopieren.",
     },
+    voyage: {
+      title: "Voyage AI",
+      description: "Wird für Embedding-Generierung beim Trend-Discovery-Pipeline (Spec 54.5) verwendet — Coverage-Check und Cluster-Matching.",
+      consequenceIfSkipped:
+        "Trend-Discovery funktioniert nicht ohne Voyage AI. Neue Trends können nicht gegen bestehende Coverage geprüft oder Clustern zugeordnet werden.",
+      fields: {
+        apiKey: "API-Key",
+      },
+      hint: "Voyage AI Account anlegen unter voyageai.com (200 Mio Tokens kostenlos pro Account). Anschließend im Dashboard → API Keys einen neuen Key erstellen und hier einfügen.",
+    },
     summary: {
       title: "Zusammenfassung",
       readyTitle: "Du kannst loslegen",

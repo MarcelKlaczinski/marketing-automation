@@ -6,4 +6,5 @@ export default {
   activity: "Activity",
   settings: "Settings",
   templates: "Templates",
+  trends: "Trends",
 };

@@ -74,6 +74,13 @@ const adapterList = [
     icon: "rocket_launch",
     component: defineAsyncComponent(() => import("src/components/installer/StepProducthunt.vue")),
   },
+  {
+    service: "voyage",
+    statusKey: "voyage" as const,
+    stepKey: "voyage",
+    icon: "explore",
+    component: defineAsyncComponent(() => import("src/components/installer/StepVoyage.vue")),
+  },
 ];
 
 export default defineComponent({

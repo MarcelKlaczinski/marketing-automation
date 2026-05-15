@@ -115,6 +115,15 @@
             <q-item-section avatar><q-icon name="photo_library" /></q-item-section>
             <q-item-section>{{ $t('brand.navigation.socialAdmin') }}</q-item-section>
           </q-item>
+          <q-item
+            :to="{ name: 'project-trends', params: { slug: projectContextStore.currentProjectSlug } }"
+            clickable
+            v-ripple
+            active-class="text-primary"
+          >
+            <q-item-section avatar><q-icon name="trending_up" /></q-item-section>
+            <q-item-section>{{ $t('nav.trends') }}</q-item-section>
+          </q-item>
           <q-separator class="q-my-md" />
         </template>
 

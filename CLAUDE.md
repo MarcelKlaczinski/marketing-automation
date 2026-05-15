@@ -191,6 +191,7 @@ Implemented specs (do not re-implement):
 - /specs/54.3-topic-routing.md (TopicRoutingPolicy: decideRoute + executeDecision pure functions; /suggest idempotency; /generate + /automate use brief as SSoT; TopicIntakeStep brief-sourced; source='imported' filter removed; Phase A complete)
 - /specs/54.5-trend-scoring-topic-synthesis.md (Sessions 1–4 done: adapter-voyage, dataforseo.trendsExplore, score.ts, coverage.ts, cluster-match.ts, prompts.ts, synthesize.ts, emit-brief.ts, source.ts, fetch-signals.ts, trend-synthesizer worker + cron + admin CLI; smoke test pending VOYAGE_API_KEY in .env)
 - /specs/54.5b-post-smoke-test-cleanup.md (loadActiveConfig JSONB parse through Zod schemas; ?? workarounds removed; score rebalanced buzz=15 growth=15 official=25 serp=20 diversity=25 coverage=40; source_diversity component added; MAJOR_VENDOR_DOMAINS expanded; COST_OPS registered for trend ops)
+- /specs/54.6-trend-discovery-ui.md (Voyage vault wiring; /projects/:slug/trends page; TrendBriefList, TrendBriefDetail, RejectedTopicsBrowser, SignalPoolInspector, SynthesisTriggerCard; 7 backend endpoints; manual_dismissal migration 0042; Phase B complete)
 
 ## Project Marketing Contexts
 
