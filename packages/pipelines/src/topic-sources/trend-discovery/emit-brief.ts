@@ -35,6 +35,7 @@ export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInser
       searchVolumeGrowth: score.search_volume_growth,
       officialAnnouncement: score.official_announcement,
       serpVolatility: score.serp_volatility,
+      sourceDiversity: score.source_diversity,
       existingCoveragePenalty: score.existing_coverage_penalty,
     },
     signals: candidateSignals.map((s) => ({
