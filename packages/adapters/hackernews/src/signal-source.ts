@@ -17,8 +17,8 @@ const DEFAULT_QUERIES = [
 const _InputSchema = z.object({
   queries:     z.array(z.string().min(1)).default(DEFAULT_QUERIES),
   hitsPerPage: z.number().int().min(1).max(100).default(50),
-  minPoints:   z.number().int().min(0).default(5),
-  maxAgeDays:  z.number().int().min(1).max(365).default(14),
+  minPoints:   z.number().int().min(0).default(3),
+  maxAgeDays:  z.number().int().min(1).max(365).default(30),
 });
 
 type Input = z.infer<typeof _InputSchema>;

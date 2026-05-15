@@ -25,24 +25,24 @@ describe("HackerNewsSignalSource — date filtering", () => {
     expect(sinceArg).toBeLessThanOrEqual(after + 60);
   });
 
-  it("uses maxAgeDays=14 by default", async () => {
+  it("uses maxAgeDays=30 by default", async () => {
     const source = new HackerNewsSignalSource();
-    const before = Math.floor((Date.now() - 14 * 86_400_000) / 1000);
+    const before = Math.floor((Date.now() - 30 * 86_400_000) / 1000);
 
-    await source.fetch({ queries: ["ai"], hitsPerPage: 5, minPoints: 0, maxAgeDays: 14 }, ctx);
+    await source.fetch({ queries: ["ai"], hitsPerPage: 5, minPoints: 0, maxAgeDays: 30 }, ctx);
 
-    const after = Math.floor((Date.now() - 14 * 86_400_000) / 1000);
+    const after = Math.floor((Date.now() - 30 * 86_400_000) / 1000);
     const sinceArg = mockSearchHnByDate.mock.calls[0]?.[2] as number;
 
     expect(sinceArg).toBeGreaterThanOrEqual(before - 60);
     expect(sinceArg).toBeLessThanOrEqual(after + 60);
   });
 
-  it("default input applies maxAgeDays=14 when called with empty object", async () => {
+  it("default input applies maxAgeDays=30 when called with empty object", async () => {
     const source = new HackerNewsSignalSource();
-    const expectedSince = Math.floor((Date.now() - 14 * 86_400_000) / 1000);
+    const expectedSince = Math.floor((Date.now() - 30 * 86_400_000) / 1000);
 
-    // {} as never — Zod applies all defaults including maxAgeDays=14
+    // {} as never — Zod applies all defaults including maxAgeDays=30
     await source.fetch({} as never, ctx);
 
     const sinceArg = mockSearchHnByDate.mock.calls[0]?.[2] as number;
