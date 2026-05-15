@@ -113,11 +113,9 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
     };
 
     const resolvedTools = input.tools.map((t, i) => {
-      // Use cases where this tool won — drives tagline + strengths per tool
       const wonVerdicts = input.useCaseVerdicts.filter((v) => v.winner === t.slug);
       const isOverallWinner = input.winner === t.slug;
 
-      // Tagline: first win reason (specific, punchy), else winner label, else category
       const tagline = (
         wonVerdicts[0]?.reason?.slice(0, 120)
         ?? (isOverallWinner
@@ -127,7 +125,6 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
             : input.verdict.slice(0, 80))
       );
 
-      // Strengths: use case names this tool won (short labels for bullet list).
       // Zod requires min(2) — pad with a category fallback if only 1 win.
       const wonUseCases = wonVerdicts.map((v) => v.useCase).slice(0, 3);
       const fallbackStrength = locale === "de"
@@ -139,7 +136,6 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
           ? [wonUseCases[0]!, fallbackStrength]
           : [fallbackStrength, locale === "de" ? "Im Vergleich getestet" : "Compared head-to-head"];
 
-      // bestFor: very short label for cover mini-card (max 40 chars)
       const bestFor = wonVerdicts[0]?.useCase?.slice(0, 40)
         ?? (isOverallWinner ? (locale === "de" ? "Testsieger" : "Top pick") : undefined);
 
