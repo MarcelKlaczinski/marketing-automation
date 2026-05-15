@@ -87,7 +87,7 @@ describe("/suggest idempotency (Spec 54.3)", () => {
         gapType: "cluster_too_small",
         priority: 2,
         status: "open",
-        metadata: { clusterName: "KI Tools", gapType: "cluster_too_small", priority: 2 },
+        metadata: { clusterName: "KI Tools" },
       })
       .returning();
     gapId = g!.id;

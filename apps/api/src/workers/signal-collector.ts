@@ -157,6 +157,7 @@ async function handleCollectAdapter(
         queries:     hnConfig.queries,
         hitsPerPage: hnConfig.hitsPerPage,
         minPoints:   hnConfig.minPoints,
+        maxAgeDays:  30,
       }, ctx);
       break;
     }
@@ -173,7 +174,7 @@ async function handleCollectAdapter(
         log.warn({ projectId }, "vendor_rss: enabled but no feeds configured");
         return;
       }
-      signals = await new VendorRssSignalSource().fetch({ feeds }, ctx);
+      signals = await new VendorRssSignalSource().fetch({ feeds, maxAgeDays: 14 }, ctx);
       break;
     }
   }
