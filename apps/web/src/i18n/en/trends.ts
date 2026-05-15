@@ -40,7 +40,7 @@ export default {
   },
   clusterAction: {
     append_to_existing: "Append to existing cluster",
-    create_new: "Create new cluster (Spec 54.7)",
+    create_new: "Create new cluster",
   },
 
   detail: {
