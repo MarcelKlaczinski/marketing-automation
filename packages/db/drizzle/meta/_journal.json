@@ -232,6 +232,20 @@
       "when": 1781000000000,
       "tag": "0032_topic_briefs",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1781100000000,
+      "tag": "0033_project_configurations",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1781200000000,
+      "tag": "0034_articles_config_link",
+      "breakpoints": true
     }
   ]
 }

@@ -4,7 +4,8 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "paths": {
-      "@marketing-auto/shared/hero-variants": ["../../../packages/shared/src/hero-variants.ts"]
+      "@marketing-auto/shared/hero-variants": ["../../../packages/shared/src/hero-variants.ts"],
+      "@marketing-auto/pipelines/config": ["../../../packages/pipelines/src/config/index.ts"]
     }
   },
   "include": ["src/**/*", "test/**/*"]

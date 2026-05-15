@@ -8,7 +8,8 @@
     "./engine": "./src/engine/index.ts",
     "./skills": "./src/skills/index.ts",
     "./cold-start": "./src/cold-start/index.ts",
-    "./cold-start/shared": "./src/cold-start/shared/index.ts"
+    "./cold-start/shared": "./src/cold-start/shared/index.ts",
+    "./config": "./src/config/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

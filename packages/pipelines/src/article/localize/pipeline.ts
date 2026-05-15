@@ -15,9 +15,9 @@
  */
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
-import { articles, db, projects } from "@marketing-auto/db";
+import { articles, db, eq, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
-import { eq } from "drizzle-orm";
+import { resolveMasterPrompt } from "../../config/index.ts";
 
 // Lazy chain callbacks (Spec 49d — registered at worker startup to avoid circular dep)
 let _advanceChain: ((chainId: string, step: string, runId: string) => Promise<void>) | null = null;
@@ -116,10 +116,7 @@ class LocalizeArticleStep extends BaseStep<
     targetLang: { lang: string; market: string; currency: string },
     ctx: StepContext
   ) {
-    const prompt = await buildSystemPrompt({
-      skills: ["copywriting", "ai-seo"],
-      projectIdOrSlug: input.projectSlug,
-      stepInstructions: `
+    const LOCALIZE_FRESH_DEFAULT_PROMPT = `
 You are a professional localisation specialist. Your task is to translate article metadata
 from ${sourceLang.lang} (${sourceLang.market}) to ${targetLang.lang} (${targetLang.market}).
 Adapt all market-specific references naturally — do not translate literally.
@@ -129,7 +126,18 @@ Output ONLY these four tagged blocks, nothing else:
 <SLUG>url-slug-in-target-language</SLUG>
 <META_DESCRIPTION>translated meta description (max 160 chars)</META_DESCRIPTION>
 <KEYWORD>main cornerstone keyword in target language</KEYWORD>
-      `.trim(),
+    `.trim();
+
+    const freshStepInstructions = await resolveMasterPrompt({
+      projectId: input.projectId,
+      promptKey: "article.localize.fresh",
+      fallback: LOCALIZE_FRESH_DEFAULT_PROMPT,
+    });
+
+    const prompt = await buildSystemPrompt({
+      skills: ["copywriting", "ai-seo"],
+      projectIdOrSlug: input.projectSlug,
+      stepInstructions: freshStepInstructions,
     });
 
     const userMsg = [
@@ -235,7 +243,7 @@ ${targetLang.lang} (${targetLang.market}).
 
     // ── Call 1: metadata + body ──────────────────────────────────────────────
 
-    const bodyInstructions = `${culturalRules}
+    const LOCALIZE_TRANSLATE_DEFAULT_PROMPT = `${culturalRules}
 
 ## Output format — return EXACTLY these tagged blocks, nothing else:
 
@@ -247,10 +255,16 @@ ${targetLang.lang} (${targetLang.market}).
 full translated article body in Markdown (preserving all MDX/imports)
 </BODY>`;
 
+    const translateStepInstructions = await resolveMasterPrompt({
+      projectId: input.projectId,
+      promptKey: "article.localize.translate",
+      fallback: LOCALIZE_TRANSLATE_DEFAULT_PROMPT,
+    });
+
     const bodyPrompt = await buildSystemPrompt({
       skills: ["copywriting", "copy-editing", "ai-seo"],
       projectIdOrSlug: input.projectSlug,
-      stepInstructions: bodyInstructions,
+      stepInstructions: translateStepInstructions,
     });
 
     const bodyUserMsg = [

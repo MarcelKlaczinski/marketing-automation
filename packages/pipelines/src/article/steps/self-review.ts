@@ -3,39 +3,10 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolveMasterPrompt } from "../../config/index.ts";
 import { SelfReviewIssueSchema } from "../types.ts";
 
-const InputSchema = z.object({
-  bodyMd: z.string(),
-  wordCount: z.number(),
-  cornerstoneKeyword: z.string(),
-  projectSlug: z.string(),
-});
-
-const OutputSchema = z.object({
-  score: z.number().int().min(0).max(100),
-  issues: z.array(SelfReviewIssueSchema),
-  shouldBlock: z.boolean(),
-  summary: z.string(),
-});
-
-export class SelfReviewStep extends BaseStep<
-  z.infer<typeof InputSchema>,
-  z.infer<typeof OutputSchema>
-> {
-  readonly name = "self-review";
-  readonly inputSchema = InputSchema;
-  readonly outputSchema = OutputSchema;
-
-  override estimatedCostEur(): number {
-    return 0.05;
-  }
-
-  async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
-    const prompt = await buildSystemPrompt({
-      skills: ["copy-editing", "product-marketing-context"],
-      projectIdOrSlug: input.projectSlug,
-      stepInstructions: `
+const SELF_REVIEW_STEP_DEFAULT_PROMPT = `
 You are reviewing a draft article for quality issues. You are STRICT.
 You are NOT writing the article. You are critiquing it.
 
@@ -85,7 +56,44 @@ Rules:
 - suggestion: optional — what to do to fix it
 - shouldBlock: true if ANY critical issue exists OR score < 70
 - If no issues found, set issues to an empty array []
-      `.trim(),
+`.trim();
+
+const InputSchema = z.object({
+  bodyMd: z.string(),
+  wordCount: z.number(),
+  cornerstoneKeyword: z.string(),
+  projectSlug: z.string(),
+});
+
+const OutputSchema = z.object({
+  score: z.number().int().min(0).max(100),
+  issues: z.array(SelfReviewIssueSchema),
+  shouldBlock: z.boolean(),
+  summary: z.string(),
+});
+
+export class SelfReviewStep extends BaseStep<
+  z.infer<typeof InputSchema>,
+  z.infer<typeof OutputSchema>
+> {
+  readonly name = "self-review";
+  readonly inputSchema = InputSchema;
+  readonly outputSchema = OutputSchema;
+
+  override estimatedCostEur(): number {
+    return 0.05;
+  }
+
+  async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
+    const stepInstructions = await resolveMasterPrompt({
+      projectId: ctx.projectId,
+      promptKey: "article.self_review",
+      fallback: SELF_REVIEW_STEP_DEFAULT_PROMPT,
+    });
+    const prompt = await buildSystemPrompt({
+      skills: ["copy-editing", "product-marketing-context"],
+      projectIdOrSlug: input.projectSlug,
+      stepInstructions,
     });
 
     const userMsg = [

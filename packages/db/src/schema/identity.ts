@@ -9,6 +9,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
+import type { IntentTaxonomy } from "./project-config.ts";
 
 export const brandVoices = pgTable(
   "brand_voices",
@@ -39,6 +40,8 @@ export const contentPillars = pgTable(
     name: text("name").notNull(),
     description: text("description"),
     position: integer("position").notNull().default(0),
+    // Spec 54.2: per-pillar intent taxonomy override; null = use project default
+    intentTaxonomyOverride: jsonb("intent_taxonomy_override").$type<IntentTaxonomy | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

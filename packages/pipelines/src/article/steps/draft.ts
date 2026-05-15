@@ -1,10 +1,10 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
-import { type FrontmatterFieldDescriptor, articles, db, projects } from "@marketing-auto/db";
-import { eq } from "drizzle-orm";
+import { eq, type FrontmatterFieldDescriptor, articles, db, projects } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolveMasterPrompt } from "../../config/index.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -65,7 +65,7 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
         }\nPick the author whose expertise best matches the article topic. If truly ambiguous, pick the first one.`
       : "";
 
-    const draftInstructions = `
+    const DRAFT_STEP_DEFAULT_PROMPT = `
 You are writing the FULL DRAFT of an article for toolwiki.ai — an AI tool wiki.
 
 SCOPE CHECK: Every article must be primarily about AI/ML tools, AI features, AI concepts,
@@ -187,6 +187,13 @@ Output format:
 
 <!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","intentType":"...","bottomLinksVariant":"...","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
     `.trim();
+
+    const draftInstructions = await resolveMasterPrompt({
+      projectId: input.projectId,
+      promptKey: "article.draft",
+      fallback: DRAFT_STEP_DEFAULT_PROMPT,
+    });
+
     const promptBase = {
       skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing-context"],
       projectIdOrSlug: input.projectSlug,

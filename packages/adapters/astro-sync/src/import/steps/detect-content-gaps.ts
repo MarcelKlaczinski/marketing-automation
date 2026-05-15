@@ -5,16 +5,13 @@
 // Spec 54.1: dual-writes a topic_briefs row for every open/restamped gap inside the
 // same db.transaction(), keeping gap + brief creation atomic.
 
-import { articles, clusters, contentGaps, db, projects, topicBriefs, type ContentGap, type ContentGapMetadata } from "@marketing-auto/db";
+import { and, articles, clusters, contentGaps, db, eq, inArray, projects, sql, topicBriefs, type ContentGap, type ContentGapMetadata } from "@marketing-auto/db";
 import { BaseStep, GapAnalysisTopicSource, type StepContext } from "@marketing-auto/pipelines";
+import { resolveIntentTaxonomy } from "@marketing-auto/pipelines/config";
 import { createLogger } from "@marketing-auto/shared";
-import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const log = createLogger("astro-import:detect-gaps");
-
-// Intent types expected in a well-formed cluster that has a hub
-const EXPECTED_SPOKE_INTENTS = ["comparison", "pricing", "alternatives", "use_case"] as const;
 
 const InputSchema = z.object({
   projectId: z.string().uuid(),
@@ -69,6 +66,7 @@ export class DetectContentGapsStep extends BaseStep<
       .select({
         id:              clusters.id,
         name:            clusters.name,
+        pillarId:        clusters.pillarId,
         pillarArticleId: clusters.pillarArticleId,
         memberCount:     sql<number>`count(${articles.id})::int`,
       })
@@ -138,7 +136,11 @@ export class DetectContentGapsStep extends BaseStep<
         const presentIntents = new Set(
           members.map((a) => a.intentType).filter((i): i is string => !!i)
         );
-        for (const intent of EXPECTED_SPOKE_INTENTS) {
+        const expectedIntents = await resolveIntentTaxonomy({
+          projectId,
+          pillarId: cluster.pillarId,
+        });
+        for (const intent of expectedIntents) {
           if (!presentIntents.has(intent)) {
             candidates.push({
               projectId,

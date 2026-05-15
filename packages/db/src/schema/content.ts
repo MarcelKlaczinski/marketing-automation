@@ -211,6 +211,11 @@ export const articles = pgTable(
     importedAt: timestamp("imported_at", { withTimezone: true }),
     lastImportedAt: timestamp("last_imported_at", { withTimezone: true }),
 
+    // Spec 54.2: links article to the project_configurations row active when it was generated
+    // FK declared via raw SQL migration (project-config.ts → projects.ts; no circular dep,
+    // but project-config.ts is loaded after content.ts in schema/index.ts ordering)
+    projectConfigVersionId: uuid("project_config_version_id"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

@@ -4,6 +4,7 @@ import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolveMasterPrompt } from "../../config/index.ts";
 import {
   type ArticleOutline,
   ArticleOutlineSchema,
@@ -41,7 +42,7 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
       (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
       "claude-sonnet-4-6";
 
-    const outlineInstructions = `
+    const OUTLINE_STEP_DEFAULT_PROMPT = `
 You are producing the OUTLINE for an article on toolwiki.ai — an AI tool wiki.
 
 SCOPE GUARDRAIL (check FIRST before anything else):
@@ -124,6 +125,13 @@ Output a single JSON object with EXACTLY this shape (no extra keys, no markdown)
 }
 Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWords 800-5000.
     `.trim();
+
+    const outlineInstructions = await resolveMasterPrompt({
+      projectId: ctx.projectId,
+      promptKey: "article.outline",
+      fallback: OUTLINE_STEP_DEFAULT_PROMPT,
+    });
+
     const promptBase = {
       skills: ["copywriting", "content-strategy", "ai-seo", "schema-markup"],
       projectIdOrSlug: input.projectSlug,

@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, pipelineChains, projects, topicBriefs } from "@marketing-auto/db";
+import { articles, astroImportRuns, clusters, contentGaps, cornerstoneSpecs, db, pipelineChains, projectConfigurations, projects, topicBriefs } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, slugify } from "@marketing-auto/pipelines";
@@ -151,6 +151,27 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       costLimits: DEFAULT_COST_LIMITS,
     })
     .returning();
+
+  if (created) {
+    await db.insert(projectConfigurations).values({
+      projectId: created.id,
+      version: 1,
+      status: "active",
+      activatedAt: new Date(),
+      intentTaxonomyDefault: ["comparison", "pricing", "alternatives", "use_case"],
+      masterPrompts: {},
+      topicScope: { languages: ["de", "en"], exclusions: [] },
+      signalSources: {
+        producthunt: false,
+        hackernews: false,
+        reddit: { enabled: false, subreddits: [] },
+        github: false,
+        vendor_rss: { enabled: false, feeds: [] },
+        dataforseo_trends: false,
+      },
+      automationRules: [],
+    });
+  }
 
   return c.json({ ok: true, data: created }, 201);
 });
