@@ -43,6 +43,7 @@ export default {
       settings: "Settings",
       templates: "Templates",
       social:   "Social",
+      trends:   "Trends",
     },
   },
 

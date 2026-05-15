@@ -711,7 +711,12 @@
       "Bash(grep -rn '$tc\\(' apps/web/src/)",
       "Bash(grep -rn '$tc\\\\b' apps/web/src/components/ apps/web/src/pages/)",
       "Bash(grep -rn '$tc\\\\b' apps/web/src/)",
-      "Bash(grep -rn '$tc\\\\|\"tc\"' apps/web/node_modules/vue-i18n/dist/vue-i18n.d.ts)"
+      "Bash(grep -rn '$tc\\\\|\"tc\"' apps/web/node_modules/vue-i18n/dist/vue-i18n.d.ts)",
+      "Bash(redis-cli -h localhost -p 6379 ZCARD bull:pipelines:failed)",
+      "Bash(redis-cli -h localhost -p 6379 ZCARD bull:trend-synthesizer:failed)",
+      "Bash(redis-cli -h localhost -p 6379 ZCARD bull:signal-collector:failed)",
+      "Bash(kill -TERM 93590)",
+      "Bash(echo \"93590\")"
     ]
   }
 }

@@ -50,6 +50,12 @@
             floating
           >{{ pendingSuggestions }}</q-badge>
         </q-tab>
+        <q-tab
+          name="trends"
+          :label="$t('projects.detail.tabs.trends')"
+          icon="trending_up"
+          @click="$router.push({ name: 'project-trends', params: { slug } })"
+        />
       </q-tabs>
 
       <q-tab-panels v-model="activeTab" animated class="bg-transparent">

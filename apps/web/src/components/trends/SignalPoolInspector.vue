@@ -33,12 +33,13 @@
     <q-table
       :rows="signals"
       :columns="columns"
-      :pagination="pagination"
+      v-model:pagination="pagination"
       :loading="loading"
       row-key="id"
       flat
       bordered
       dense
+      server-side
       @request="onTableRequest"
     >
       <!-- Source column -->
@@ -46,9 +47,9 @@
         <q-td :props="props">
           <q-chip
             dense
-            size="xs"
             :color="sourceColor(props.value)"
             text-color="white"
+            style="font-size: 11px;"
           >
             {{ $t(`trends.sources.${props.value}`) }}
           </q-chip>
@@ -68,6 +69,13 @@
           >
             {{ $t('trends.signalPool.openUrl') }}
           </a>
+        </q-td>
+      </template>
+
+      <!-- Published date column -->
+      <template #body-cell-publishedAt="props">
+        <q-td :props="props" style="white-space: nowrap;">
+          {{ formatDateTime(props.row.publishedAt) }}
         </q-td>
       </template>
 
@@ -257,6 +265,18 @@ export default defineComponent({
         this.$i18n.locale === "de" ? "de-DE" : "en-US",
         { day: "2-digit", month: "short", year: "numeric" },
       );
+    },
+
+    formatDateTime(iso: string | null): string {
+      if (!iso) return "—";
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
+      return new Date(iso).toLocaleString(locale, {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     },
   },
 });
