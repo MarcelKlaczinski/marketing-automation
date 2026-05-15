@@ -24,16 +24,6 @@
       </div>
     </q-card-section>
 
-    <!-- create_new disabled banner -->
-    <q-banner
-      v-if="brief.clusterAction === 'create_new'"
-      dense
-      rounded
-      class="bg-blue-1 text-blue-10 q-mx-md q-mb-md"
-    >
-      <template #avatar><q-icon name="info" color="blue" /></template>
-      {{ $t('trends.detail.createNewDisabledBanner') }}
-    </q-banner>
 
     <q-separator />
 
@@ -207,28 +197,46 @@
     <!-- Action bar -->
     <q-separator />
     <q-card-actions class="q-pa-md row q-gutter-sm">
-      <q-btn
-        unelevated
-        no-caps
-        color="positive"
-        icon="check"
-        :label="$t('trends.detail.approveQueue') as string"
-        :loading="approving"
-        :disable="brief.clusterAction === 'create_new' || editMode"
-        size="sm"
-        @click="confirmApprove('queue')"
-      />
-      <q-btn
-        unelevated
-        no-caps
-        color="positive"
-        icon="bolt"
-        :label="$t('trends.detail.approveGenerate') as string"
-        :loading="approving"
-        :disable="brief.clusterAction === 'create_new' || editMode"
-        size="sm"
-        @click="confirmApprove('generate')"
-      />
+      <!-- create_new: navigate to Cluster Creator -->
+      <template v-if="brief.clusterAction === 'create_new'">
+        <q-btn
+          unelevated
+          no-caps
+          color="primary"
+          icon="hub"
+          :label="$t('trends.detail.createClusterAndGenerate') as string"
+          size="sm"
+          :disable="editMode"
+          @click="goToClusterCreator"
+        />
+      </template>
+
+      <!-- append_to_existing: existing approve buttons unchanged -->
+      <template v-else>
+        <q-btn
+          unelevated
+          no-caps
+          color="positive"
+          icon="check"
+          :label="$t('trends.detail.approveQueue') as string"
+          :loading="approving"
+          :disable="editMode"
+          size="sm"
+          @click="confirmApprove('queue')"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          color="positive"
+          icon="bolt"
+          :label="$t('trends.detail.approveGenerate') as string"
+          :loading="approving"
+          :disable="editMode"
+          size="sm"
+          @click="confirmApprove('generate')"
+        />
+      </template>
+
       <q-space />
       <q-btn
         flat
@@ -491,6 +499,14 @@ export default defineComponent({
       } finally {
         this.saving = false;
       }
+    },
+
+    goToClusterCreator(): void {
+      void this.$router.push({
+        name: "cluster-creator",
+        params: { slug: this.projectSlug },
+        query: { fromBrief: this.brief.id },
+      });
     },
 
     confirmApprove(mode: ApproveMode): void {

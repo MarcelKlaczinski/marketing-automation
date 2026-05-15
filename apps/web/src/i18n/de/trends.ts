@@ -87,7 +87,7 @@ export default {
     confirm: "Bestätigen",
     cancel: "Abbrechen",
 
-    createNewDisabledBanner: "Dieser Brief erfordert einen neuen Cluster. Der Cluster Creator kommt in Spec 54.7.",
+    createClusterAndGenerate: "Cluster erstellen & generieren",
     approveSuccess: "Brief genehmigt. Artikel wird generiert.",
     dismissSuccess: "Brief abgelehnt.",
     editSuccess: "Änderungen gespeichert.",

@@ -15,3 +15,4 @@ export * from "./topic-sources/index.ts";
 export { loadActiveConfig, clearConfigCache } from "./config/index.ts";
 export * from "./routing/index.ts";
 export * from "./signal-sources/index.ts";
+export { proposeCluster, type ProposeClusterInput, ClusterProposalSchema, type ClusterProposal } from "./cluster-creator/index.ts";

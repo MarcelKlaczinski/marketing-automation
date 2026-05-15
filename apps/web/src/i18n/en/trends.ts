@@ -87,7 +87,7 @@ export default {
     confirm: "Confirm",
     cancel: "Cancel",
 
-    createNewDisabledBanner: "This brief requires a new cluster. The Cluster Creator is coming in Spec 54.7.",
+    createClusterAndGenerate: "Create cluster & generate",
     approveSuccess: "Brief approved. Article generation queued.",
     dismissSuccess: "Brief dismissed.",
     editSuccess: "Changes saved.",
