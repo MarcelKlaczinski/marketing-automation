@@ -18,6 +18,7 @@
 - JSONB for flexible config + a separate column when query-relevant
 - Indexes on every FK and frequently-filtered column
 - Enum types live in `_enums.ts`, prefixed with their domain
+- Every new table must export `$inferSelect` and `$inferInsert` type aliases (e.g. `export type Foo = typeof foo.$inferSelect; export type NewFoo = typeof foo.$inferInsert;`) — callers in other packages need these types; omitting them causes inline `import(...)` type annotations to proliferate
 
 ## Migrations
 - Generate with `bun --filter @marketing-auto/db generate`
@@ -51,3 +52,5 @@
 - DO NOT call `jsonb_array_elements()` or `jsonb_array_elements_text()` on a column that may contain objects instead of arrays — PostgreSQL throws `cannot extract elements from an object` at query time, not at write time. Guard with `WHERE jsonb_typeof(col) = 'array'` or fix the data before aggregating. Applies to any jsonb column that could hold mixed shapes across rows (e.g. `content_hooks` on `article_discovery`).
 - DO NOT use today's real Unix timestamp as the `when` value in `_journal.json` for manually written migrations — the Drizzle ORM migrator skips any migration whose `when` is ≤ the `MAX(created_at)` already recorded in `__drizzle_migrations`. Always use a value strictly greater than the last existing journal entry (inspect the file, add ~100000000 as margin).
 - DO NOT change a JSONB column's TypeScript type without also updating every adapter step that reads that column — the type is `$type<T>()` on the column definition, but adapter steps have their own local Zod schemas that echo the shape. Changing `Record<string,unknown>` to `Array<Record<string,unknown>>` (or any structural change) requires updating `inputSchema`/`outputSchema` in every step that touches the field, plus any integration test fixtures that hardcode the old shape.
+- DO NOT cast a `$type<T>()` jsonb column value to `Record<string, unknown>` before reading its fields — the column is already typed as `T`, so access `gap.metadata?.clusterName` directly. Casting through `Record<string, unknown>` loses the type and forces `as` re-casts for every field.
+- DO NOT pass a Zod-inferred type with `.optional()` fields directly to `db.insert().values()` under `exactOptionalPropertyTypes` — Zod optional fields are `T | undefined` but Drizzle's insert type expects `T | null`. Strip undefined entries first: `Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as typeof table.$inferInsert`. Safe when the mapper explicitly uses `null` (not `undefined`) for absent optional fields.

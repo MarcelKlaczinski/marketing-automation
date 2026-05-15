@@ -20,6 +20,18 @@ on top of this.
 - Steps MUST use `@marketing-auto/cost-tracker` for any external API call
 - Pipelines MUST be registered before workers start
 
+## Topic Sources (Spec 54.1+)
+
+`TopicSource<Input>` is a lighter-weight abstraction than `Pipeline` for anything that *produces data* rather than orchestrating a multi-step LLM workflow. Interface: one `emit(input, ctx): Promise<TopicBriefInsert[]>` method. Lives in `src/topic-sources/`.
+
+**When to use TopicSource vs Pipeline:**
+- `TopicSource`: single-concern data producers — gap analysis, RSS fetch, trend API call. No cost tracking, no step orchestration needed.
+- `Pipeline`: multi-step workflows where each step has cost tracking, idempotency keys, and retries.
+
+**Key invariant**: sources MUST NOT persist `TopicBriefInsert` rows themselves. The caller (route, worker, or import step) owns the `db.transaction()` so that dual-write atomicity is preserved. See `src/topic-sources/README.md`.
+
+**Adding a new source**: see `src/topic-sources/README.md`.
+
 ## Adding a New Pipeline
 
 1. Create `packages/pipelines/src/article/<pipeline-name>/` (or a peer directory under `src/`)
