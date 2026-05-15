@@ -58,6 +58,8 @@ const result = await db.transaction(async (tx) =>
 
 **`RoutingNotImplementedError`** — thrown for `create_cluster` (Spec 54.7) and `refresh_article` (future). Field is named `routingKind` (not `kind` or `cause`) to avoid conflict with `Error.cause` reserved built-in.
 
+**`Transaction` type** — `packages/db/src/client.ts` exports `type Transaction = Parameters<Parameters<DB["transaction"]>[0]>[0]`. Use it as the parameter type for any function that must run inside an existing Drizzle transaction (e.g. `executeDecision`). Never open a new transaction inside such a function — always receive `tx` from the caller so the boundary is composable.
+
 **TopicIntakeStep brief-sourced path (Spec 54.3)**: `TopicIntakeStep` calls `findBriefForArticle()` first. If a brief is linked, `brief.secondaryKeywords` is used as satellite keywords. If no brief is found (legacy article created before 54.1), falls back to cluster `satelliteKeywords` match with a `log.warn`. Both paths produce identical output shapes — downstream steps are unaffected.
 
 ## Adding a New Pipeline
