@@ -101,6 +101,30 @@ bun --filter @marketing-auto/pipelines test
 The test script itself does `cd ../.. && bun test packages/pipelines/test` to ensure
 the root `.env` is auto-loaded by Bun.
 
+## Project Config Resolvers (Spec 54.2+)
+
+`src/config/` provides three resolver functions consumed by article generation steps and gap detection:
+
+- **`loadActiveConfig(projectId)`** — loads the active `project_configurations` row for a project; 60s in-process cache; throws on missing config (system invariant).
+- **`resolveMasterPrompt({ projectId, promptKey, fallback })`** — returns the DB override for a prompt key if set, otherwise the code-default fallback. Supported keys: `"article.outline"`, `"article.draft"`, `"article.self_review"`, `"article.localize.fresh"`, `"article.localize.translate"`.
+- **`resolveIntentTaxonomy({ projectId, pillarId })`** — returns the pillar's `intent_taxonomy_override` if set, otherwise the project's `intent_taxonomy_default`.
+
+**Pattern for any new article generation step:**
+```typescript
+// Keep the code default as a named constant for fallback
+const MY_STEP_DEFAULT_PROMPT = `...static instructions...`.trim();
+// OR inside execute() if the prompt uses runtime values (input.*, locale labels, etc.)
+
+const stepInstructions = await resolveMasterPrompt({
+  projectId: ctx.projectId,   // or input.projectId
+  promptKey: "article.outline",
+  fallback: MY_STEP_DEFAULT_PROMPT,
+});
+const prompt = await buildSystemPrompt({ ..., stepInstructions });
+```
+
+**Scoping rule:** if the prompt string uses runtime values (cluster name, locale, author list), the constant MUST be inside `execute()` — it cannot be a module-level const. If it's fully static, prefer module-level for readability.
+
 ## Prompt Composition
 
 All generative pipeline steps must use `buildSystemPrompt()` from
@@ -312,3 +336,4 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT exceed 8192 tokens per LLM call when using claude-sonnet-4-6 — that model's hard `MAX_OUTPUT_TOKENS` cap is 8192. Long article translations (body + outline + extras) must be split into at least two calls; throw explicitly when `stopReason === "max_tokens"` so the failure is visible rather than silently truncated. See `article/localize/pipeline.ts` two-call split pattern.
 - DO NOT query by `translationKey` alone in multi-tenant pipelines — translationKeys are project-scoped by convention but not enforced by a DB constraint. Always add `eq(articles.projectId, input.projectId)` alongside `eq(articles.translationKey, ...)` to prevent cross-tenant sibling matches. See `hero-generation/pipeline.ts` `afterComplete`.
 - DO NOT assume `packages/pipelines/src/article/social-image/hookPrompt.ts` is dead code — it is an active, separate code path from `packages/core/src/social-hooks/hookPrompt.ts`. The pipelines version (`buildHookPrompt`) handles hook-only generation for the social-image pipeline's `GenerateHookStep`. The core version (`buildContentPrompt`) handles hook+caption+hashtags for the newer `generateContentWithGate` flow used by template definitions. Two different call sites, two different prompt shapes.
+- DO NOT extract a `*_DEFAULT_PROMPT` constant to module level when the prompt string uses runtime values (`input.*`, locale labels, author lists, etc.) — template literals with variable interpolation must be scoped inside `execute()` or a private method. Module-level constants only work for fully static prompts (no interpolation). Both placements are valid; the name is what matters for clarity. See `SelfReviewStep` (static = module-level) vs `OutlineStep` (dynamic = inside execute) for examples.
