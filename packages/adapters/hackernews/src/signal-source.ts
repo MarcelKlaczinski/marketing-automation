@@ -5,10 +5,19 @@ import { searchHnByDate, type HnHit } from "./client.ts";
 
 const log = createLogger("adapter:hackernews");
 
+// Algolia HN silently returns 0 hits for queries with 7+ OR terms.
+// Use multiple short queries (≤5 OR terms each) and deduplicate by objectID.
+const DEFAULT_QUERIES = [
+  'ai OR llm OR gpt OR claude OR gemini',
+  'midjourney OR "stable diffusion" OR flux OR sora OR runway',
+  'cursor OR copilot OR devin OR codeium',
+  'openai OR anthropic OR huggingface OR replicate',
+];
+
 const _InputSchema = z.object({
-  query:       z.string().default('ai OR llm OR claude OR gpt OR "generative ai"'),
+  queries:     z.array(z.string().min(1)).default(DEFAULT_QUERIES),
   hitsPerPage: z.number().int().min(1).max(100).default(50),
-  minPoints:   z.number().int().min(0).default(20),
+  minPoints:   z.number().int().min(0).default(5),
 });
 
 type Input = z.infer<typeof _InputSchema>;
@@ -22,11 +31,28 @@ export class HackerNewsSignalSource implements ExternalSignalSource<Input> {
 
   async fetch(input: Input, ctx: SignalSourceContext): Promise<RawSignal[]> {
     const parsed = this.inputSchema.parse(input);
-    log.info({ projectId: ctx.projectId, query: parsed.query }, "fetching HN hits");
+    log.info({ projectId: ctx.projectId, queryCount: parsed.queries.length }, "fetching HN hits");
 
-    const hits = await searchHnByDate(parsed.query, parsed.hitsPerPage);
+    const results = await Promise.allSettled(
+      parsed.queries.map((q) => searchHnByDate(q, parsed.hitsPerPage)),
+    );
 
-    const filtered = hits.filter(
+    const seen = new Set<string>();
+    const allHits: HnHit[] = [];
+    for (const [i, res] of results.entries()) {
+      if (res.status === "fulfilled") {
+        for (const hit of res.value) {
+          if (!seen.has(hit.objectID)) {
+            seen.add(hit.objectID);
+            allHits.push(hit);
+          }
+        }
+      } else {
+        log.warn({ query: parsed.queries[i], err: res.reason }, "HN query failed, skipping");
+      }
+    }
+
+    const filtered = allHits.filter(
       (h) =>
         (h.points ?? 0) >= parsed.minPoints &&
         (h.title ?? h.story_title) &&
@@ -47,7 +73,7 @@ export class HackerNewsSignalSource implements ExternalSignalSource<Input> {
       };
     });
 
-    log.info({ rawCount: hits.length, filteredCount: signals.length }, "fetched HN signals");
+    log.info({ rawCount: allHits.length, filteredCount: signals.length }, "fetched HN signals");
     return signals;
   }
 }

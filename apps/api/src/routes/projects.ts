@@ -162,7 +162,7 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       topicScope: { languages: ["de", "en"], exclusions: [] },
       signalSources: {
         producthunt: false,
-        hackernews: false,
+        hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5 },
         reddit: { enabled: false, subreddits: [] },
         github: false,
         vendor_rss: { enabled: false, feeds: [] },

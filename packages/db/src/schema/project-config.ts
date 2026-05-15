@@ -45,10 +45,26 @@ export const TopicScopeSchema = z
   .default({ languages: ["de", "en"], exclusions: [] });
 export type TopicScope = z.infer<typeof TopicScopeSchema>;
 
+// Algolia HN silently returns 0 hits for queries with 7+ OR terms.
+// Split into multiple short queries (≤5 terms each); adapter fans them out in parallel.
+const HN_DEFAULT_QUERIES = [
+  'ai OR llm OR gpt OR claude OR gemini',
+  'midjourney OR "stable diffusion" OR flux OR sora OR runway',
+  'cursor OR copilot OR devin OR codeium',
+  'openai OR anthropic OR huggingface OR replicate',
+];
+
 export const SignalSourcesSchema = z
   .object({
     producthunt: z.boolean().default(false),
-    hackernews: z.boolean().default(false),
+    hackernews: z
+      .object({
+        enabled:     z.boolean().default(false),
+        queries:     z.array(z.string().min(1)).default(HN_DEFAULT_QUERIES),
+        hitsPerPage: z.number().int().min(1).max(100).default(50),
+        minPoints:   z.number().int().min(0).default(5),
+      })
+      .default({ enabled: false, queries: HN_DEFAULT_QUERIES, hitsPerPage: 50, minPoints: 5 }),
     reddit: z
       .object({
         enabled: z.boolean().default(false),
@@ -66,7 +82,7 @@ export const SignalSourcesSchema = z
   })
   .default({
     producthunt: false,
-    hackernews: false,
+    hackernews: { enabled: false, queries: HN_DEFAULT_QUERIES, hitsPerPage: 50, minPoints: 5 },
     reddit: { enabled: false, subreddits: [] },
     github: false,
     vendor_rss: { enabled: false, feeds: [] },

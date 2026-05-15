@@ -114,7 +114,7 @@ async function handleCollectProject(projectId: string): Promise<void> {
 
   const enabled: Array<"producthunt" | "hackernews" | "vendor_rss"> = [];
   if (config.signalSources.producthunt) enabled.push("producthunt");
-  if (config.signalSources.hackernews)  enabled.push("hackernews");
+  if (config.signalSources.hackernews.enabled) enabled.push("hackernews");
   if (config.signalSources.vendor_rss.enabled) enabled.push("vendor_rss");
 
   if (enabled.length === 0) {
@@ -146,8 +146,18 @@ async function handleCollectAdapter(
       break;
     }
     case "hackernews": {
-      // Empty object — inputSchema.parse() applies defaults (query, hitsPerPage, minPoints)
-      signals = await new HackerNewsSignalSource().fetch({} as never, ctx);
+      let hnConfig;
+      try {
+        hnConfig = (await loadActiveConfig(projectId)).signalSources.hackernews;
+      } catch {
+        log.warn({ projectId }, "hackernews: no active config, skipping");
+        return;
+      }
+      signals = await new HackerNewsSignalSource().fetch({
+        queries:     hnConfig.queries,
+        hitsPerPage: hnConfig.hitsPerPage,
+        minPoints:   hnConfig.minPoints,
+      }, ctx);
       break;
     }
     case "vendor_rss": {
