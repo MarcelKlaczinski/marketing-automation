@@ -57,7 +57,7 @@
     <!-- Routing Preview -->
     <q-card-section class="q-pt-none">
       <div class="text-subtitle2 q-mb-xs">{{ $t('trends.detail.routingPreview') }}</div>
-      <div v-if="brief.clusterAction === 'create_new'" class="text-orange text-caption">
+      <div v-if="brief.clusterAction === 'create_new'" class="text-caption text-grey-8">
         {{ $t('trends.detail.routingCreateNew') }}
       </div>
       <div v-else-if="brief.clusterId" class="text-caption text-grey-8">

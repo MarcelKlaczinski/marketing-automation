@@ -68,7 +68,7 @@ export default {
 
     routingPreview: "Routing-Vorschau",
     routingAppend: "Wird Cluster \"{cluster}\" hinzugefügt (Intent: {intent})",
-    routingCreateNew: "Neuen Cluster erstellen — deaktiviert (Cluster Creator kommt in Spec 54.7)",
+    routingCreateNew: "Neuen Cluster erstellen — über \"Cluster erstellen & generieren\" starten.",
     noCluster: "Kein Cluster zugewiesen",
 
     editMode: "Felder bearbeiten",
