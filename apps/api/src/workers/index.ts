@@ -35,6 +35,7 @@ import {
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
 import { startSignalCollectorWorker, registerSignalCollectorCron } from "./signal-collector.ts";
+import { startTrendSynthesizerWorker, registerTrendSynthesizerCron } from "./trend-synthesizer.ts";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
@@ -165,6 +166,8 @@ async function main() {
   const discoveryWorker = startDiscoveryWorker();
   const signalCollectorWorker = startSignalCollectorWorker();
   await registerSignalCollectorCron();
+  const trendSynthesizerWorker = startTrendSynthesizerWorker();
+  await registerTrendSynthesizerCron();
   const schedulerWorker = await startScheduler();
 
   log.info("Workers running");
@@ -174,6 +177,7 @@ async function main() {
     await pipelineWorker.close();
     await discoveryWorker.close();
     await signalCollectorWorker.close();
+    await trendSynthesizerWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

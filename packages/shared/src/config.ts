@@ -75,6 +75,12 @@ const envSchema = z.object({
   // Signal collector cron (Spec 54.4) — default: daily at 00:30 UTC
   SIGNAL_COLLECTOR_CRON: optionalStr(z.string().min(1)),
 
+  // Trend synthesizer cron (Spec 54.5) — default: daily at 01:30 UTC (after collector)
+  TREND_SYNTHESIZER_CRON: optionalStr(z.string().min(1)),
+
+  // Voyage AI (Spec 54.5) — text embeddings for trend synthesis coverage check
+  VOYAGE_API_KEY: optionalStr(z.string().min(1)),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

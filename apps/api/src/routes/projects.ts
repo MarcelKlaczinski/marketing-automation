@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, db, pipelineChains, projectConfigurations, projects, topicBriefs, and, desc, eq, inArray, sql } from "@marketing-auto/db";
+import { articles, astroImportRuns, clusters, contentGaps, db, pipelineChains, projectConfigurations, projects, topicBriefs, and, desc, eq, inArray, sql, TopicScopeSchema } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
@@ -159,7 +159,7 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       activatedAt: new Date(),
       intentTaxonomyDefault: ["comparison", "pricing", "alternatives", "use_case"],
       masterPrompts: {},
-      topicScope: { languages: ["de", "en"], exclusions: [] },
+      topicScope: TopicScopeSchema.parse({ languages: ["de", "en"] }),
       signalSources: {
         producthunt: false,
         hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5 },
