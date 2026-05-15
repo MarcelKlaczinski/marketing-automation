@@ -128,8 +128,8 @@ export class TrendDiscoveryTopicSource implements TopicSource<Input> {
       });
 
       briefsToEmit.push(brief);
-
-      await this.stampSignalsProcessed(candidate.related_signal_ids, null);
+      // Signal stamping for accepted briefs is deferred to the worker, which stamps
+      // them with processed_into = brief.id after the DB insert returns the brief UUID.
 
       log.info(
         {

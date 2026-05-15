@@ -3,6 +3,7 @@ import {
   computeCommunityBuzz,
   computeOfficialAnnouncementBonus,
   computeCoveragePenalty,
+  computeSourceDiversity,
   normalizeGrowthRatio,
   computeSerpVolatilityFromResults,
   computeTrendScore,
@@ -128,6 +129,36 @@ describe("computeOfficialAnnouncementBonus", () => {
     const signals = [makeSignal({ source: "vendor_rss", url: null })];
     expect(computeOfficialAnnouncementBonus(signals)).toBe(0);
   });
+
+  it("returns 100 for github.blog (Microsoft/GitHub)", () => {
+    const signals = [makeSignal({ source: "vendor_rss", url: "https://github.blog/copilot-update" })];
+    expect(computeOfficialAnnouncementBonus(signals)).toBe(100);
+  });
+
+  it("returns 100 for cursor.sh (Cursor)", () => {
+    const signals = [makeSignal({ source: "vendor_rss", url: "https://cursor.sh/blog/release" })];
+    expect(computeOfficialAnnouncementBonus(signals)).toBe(100);
+  });
+
+  it("returns 100 for replicate.com (Replicate)", () => {
+    const signals = [makeSignal({ source: "vendor_rss", url: "https://replicate.com/blog/post" })];
+    expect(computeOfficialAnnouncementBonus(signals)).toBe(100);
+  });
+
+  it("returns 100 for blogs.nvidia.com (NVIDIA)", () => {
+    const signals = [makeSignal({ source: "vendor_rss", url: "https://blogs.nvidia.com/ai-news" })];
+    expect(computeOfficialAnnouncementBonus(signals)).toBe(100);
+  });
+
+  it("returns 100 for ai.meta.com (Meta AI)", () => {
+    const signals = [makeSignal({ source: "vendor_rss", url: "https://ai.meta.com/blog/llama4" })];
+    expect(computeOfficialAnnouncementBonus(signals)).toBe(100);
+  });
+
+  it("returns 0 for unrecognized domain", () => {
+    const signals = [makeSignal({ source: "vendor_rss", url: "https://example.com/post" })];
+    expect(computeOfficialAnnouncementBonus(signals)).toBe(0);
+  });
 });
 
 // ─── normalizeGrowthRatio ─────────────────────────────────────────────────────
@@ -247,7 +278,7 @@ describe("computeTrendScore (with mocked DataForSEO)", () => {
     expect(result.total).toBe(0);
   });
 
-  it("max positive components, zero penalty → total ≤ 90 (sum of weights w/o coverage)", async () => {
+  it("max positive components, zero penalty → total = 100 (weights: 15+15+25+20+25)", async () => {
     const dfs = await import("@marketing-auto/adapter-dataforseo");
     // growth ratio 2.0 → normalized 100
     dfs.dataforseo.trendsExplore = mock(async () => [{ keyword: "x", growth_ratio: 2.0, current_volume: 5000, prev_year_volume: 1000 }]);
@@ -262,28 +293,32 @@ describe("computeTrendScore (with mocked DataForSEO)", () => {
       checkUrl: "",
     }));
 
-    const signalId = crypto.randomUUID();
-    const signal = makeSignal({
-      id: signalId,
-      source: "vendor_rss",
-      url: "https://anthropic.com/blog/major-release",
-      metrics: { points: 5000 },
-    });
+    // Two signals from different sources → diversity = 50 (hackernews + vendor_rss)
+    // Add a third source to get diversity = 100
+    const signalId1 = crypto.randomUUID();
+    const signalId2 = crypto.randomUUID();
+    const signalId3 = crypto.randomUUID();
+    const signals = [
+      makeSignal({ id: signalId1, source: "vendor_rss", url: "https://anthropic.com/blog/major-release", metrics: { points: 5000 } }),
+      makeSignal({ id: signalId2, source: "hackernews", metrics: { points: 200 } }),
+      makeSignal({ id: signalId3, source: "producthunt", metrics: { votes: 100 } }),
+    ];
 
     const result = await computeTrendScore({
       projectId: PROJECT_ID,
-      candidate: makeTopic({ related_signal_ids: [signalId] }),
-      signalPool: [signal],
+      candidate: makeTopic({ related_signal_ids: [signalId1, signalId2, signalId3] }),
+      signalPool: signals,
       maxExistingSimilarity: 0,
     });
 
-    // Max without coverage: w_buzz(30) + w_growth(25) + w_official(15) + w_serp(20) = 90
-    expect(result.total).toBeLessThanOrEqual(90);
+    // Max positive: w_buzz(15) + w_growth(15) + w_official(25) + w_serp(20) + w_diversity(25) = 100
+    expect(result.total).toBeLessThanOrEqual(100);
     expect(result.official_announcement).toBe(100);
+    expect(result.source_diversity).toBe(100);
     expect(result.existing_coverage_penalty).toBe(0);
   });
 
-  it("max positive, max coverage penalty → total ≤ 50", async () => {
+  it("max positive, max coverage penalty → total ≤ 60 (100 - 40)", async () => {
     const dfs = await import("@marketing-auto/adapter-dataforseo");
     dfs.dataforseo.trendsExplore = mock(async () => [{ keyword: "x", growth_ratio: 2.0, current_volume: 5000, prev_year_volume: 1000 }]);
     dfs.dataforseo.serp = mock(async () => ({
@@ -291,24 +326,25 @@ describe("computeTrendScore (with mocked DataForSEO)", () => {
       organicResults: [], peopleAlsoAsk: [], relatedSearches: [], checkUrl: "",
     }));
 
-    const signalId = crypto.randomUUID();
-    const signal = makeSignal({
-      id: signalId,
-      source: "vendor_rss",
-      url: "https://anthropic.com/blog/release",
-      metrics: { points: 5000 },
-    });
+    const signalId1 = crypto.randomUUID();
+    const signalId2 = crypto.randomUUID();
+    const signalId3 = crypto.randomUUID();
+    const signals = [
+      makeSignal({ id: signalId1, source: "vendor_rss", url: "https://anthropic.com/blog/release", metrics: { points: 5000 } }),
+      makeSignal({ id: signalId2, source: "hackernews", metrics: { points: 200 } }),
+      makeSignal({ id: signalId3, source: "producthunt", metrics: { votes: 100 } }),
+    ];
 
     const result = await computeTrendScore({
       projectId: PROJECT_ID,
-      candidate: makeTopic({ related_signal_ids: [signalId] }),
-      signalPool: [signal],
+      candidate: makeTopic({ related_signal_ids: [signalId1, signalId2, signalId3] }),
+      signalPool: signals,
       maxExistingSimilarity: 0.9, // → penalty 100
     });
 
-    // max positive ≤ 90, penalty = 40 → total ≤ 90 - 40 = 50
+    // max positive = 100, coverage penalty weight = 40 → total ≤ 100 - 40 = 60
     expect(result.existing_coverage_penalty).toBe(100);
-    expect(result.total).toBeLessThanOrEqual(50);
+    expect(result.total).toBeLessThanOrEqual(60);
   });
 
   it("DataForSEO failure → growth = 0, no crash", async () => {
@@ -328,7 +364,7 @@ describe("computeTrendScore (with mocked DataForSEO)", () => {
     expect(result.total).toBe(0);
   });
 
-  it("single official announcement: contributes w_official (15) to total", async () => {
+  it("single official announcement, single source: contributes w_official (25) only", async () => {
     const dfs = await import("@marketing-auto/adapter-dataforseo");
     dfs.dataforseo.trendsExplore = mock(async () => [{ keyword: "x", growth_ratio: null, current_volume: null, prev_year_volume: null }]);
     dfs.dataforseo.serp = mock(async () => ({ keyword: "x", totalResults: 0, serpFeatures: [], organicResults: [], peopleAlsoAsk: [], relatedSearches: [], checkUrl: "" }));
@@ -348,8 +384,80 @@ describe("computeTrendScore (with mocked DataForSEO)", () => {
       maxExistingSimilarity: 0,
     });
 
-    // Only official announcement contributes: (15 * 100) / 100 = 15
+    // Only official_announcement (25) contributes; diversity=0 (single source, vendor_rss only)
     expect(result.official_announcement).toBe(100);
-    expect(result.total).toBe(15);
+    expect(result.source_diversity).toBe(0);
+    expect(result.total).toBe(25);
+  });
+
+  it("result includes source_diversity field", async () => {
+    const dfs = await import("@marketing-auto/adapter-dataforseo");
+    dfs.dataforseo.trendsExplore = mock(async () => [{ keyword: "x", growth_ratio: null, current_volume: null, prev_year_volume: null }]);
+    dfs.dataforseo.serp = mock(async () => ({ keyword: "x", totalResults: 0, serpFeatures: [], organicResults: [], peopleAlsoAsk: [], relatedSearches: [], checkUrl: "" }));
+
+    const result = await computeTrendScore({
+      projectId: PROJECT_ID,
+      candidate: makeTopic({ related_signal_ids: [] }),
+      signalPool: [],
+      maxExistingSimilarity: 0,
+    });
+
+    expect(result).toHaveProperty("source_diversity");
+    expect(typeof result.source_diversity).toBe("number");
+  });
+});
+
+// ─── computeSourceDiversity ───────────────────────────────────────────────────
+
+describe("computeSourceDiversity", () => {
+  it("returns 0 for empty signal set", () => {
+    expect(computeSourceDiversity([])).toBe(0);
+  });
+
+  it("returns 0 for a single distinct source", () => {
+    const signals = [
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "hackernews" }),
+    ];
+    expect(computeSourceDiversity(signals)).toBe(0);
+  });
+
+  it("returns 50 for exactly two distinct sources", () => {
+    const signals = [
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "vendor_rss" }),
+    ];
+    expect(computeSourceDiversity(signals)).toBe(50);
+  });
+
+  it("returns 100 for three or more distinct sources", () => {
+    const signals = [
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "vendor_rss" }),
+      makeSignal({ source: "producthunt" }),
+    ];
+    expect(computeSourceDiversity(signals)).toBe(100);
+  });
+
+  it("returns 100 for four distinct sources", () => {
+    const signals = [
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "vendor_rss" }),
+      makeSignal({ source: "producthunt" }),
+      makeSignal({ source: "reddit" }),
+    ];
+    expect(computeSourceDiversity(signals)).toBe(100);
+  });
+
+  it("counts distinct sources, not total signals", () => {
+    // 5 signals but only 2 distinct sources
+    const signals = [
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "hackernews" }),
+      makeSignal({ source: "vendor_rss" }),
+      makeSignal({ source: "vendor_rss" }),
+    ];
+    expect(computeSourceDiversity(signals)).toBe(50);
   });
 });

@@ -163,7 +163,7 @@ the root `.env` is auto-loaded by Bun.
 
 `src/config/` provides three resolver functions consumed by article generation steps and gap detection:
 
-- **`loadActiveConfig(projectId)`** — loads the active `project_configurations` row for a project; 60s in-process cache; throws on missing config (system invariant).
+- **`loadActiveConfig(projectId)`** — loads the active `project_configurations` row for a project; 60s in-process cache; throws on missing config (system invariant). Parses `topicScope` and `masterPrompts` JSONB fields through their Zod schemas on every cache miss — Zod `.default()` values are applied to rows stored before new fields were added (spec 54.5b forward-compat fix).
 - **`resolveMasterPrompt({ projectId, promptKey, fallback })`** — returns the DB override for a prompt key if set, otherwise the code-default fallback. Supported keys: `"article.outline"`, `"article.draft"`, `"article.self_review"`, `"article.localize.fresh"`, `"article.localize.translate"`.
 - **`resolveIntentTaxonomy({ projectId, pillarId })`** — returns the pillar's `intent_taxonomy_override` if set, otherwise the project's `intent_taxonomy_default`.
 
@@ -403,14 +403,17 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 
 **Module map:**
 - `types.ts` — `SynthesisTopic`, `SynthesisOutput`, `ScoreBreakdown`, `CoverageResult`, `ClusterMatchResult`, `MAJOR_VENDOR_DOMAINS`
-- `score.ts` — `computeTrendScore()`: 5-component weighted score (buzz + growth + official + SERP volatility - coverage penalty)
+- `score.ts` — `computeTrendScore()`: 6-component weighted score (buzz + growth + official + SERP volatility + source diversity - coverage penalty)
 - `coverage.ts` — `checkExistingCoverage()`: pgvector cosine similarity check + lazy article embedding backfill + Haiku LLM tiebreaker for the 0.60-0.85 band
 - `cluster-match.ts` — `findMatchingCluster()`: pgvector similarity search against `clusters.embedding` (threshold 0.65) + lazy cluster embedding backfill
 
-**Score weights (fixed for 54.5):**
+**Score weights (rebalanced in 54.5b — positive weights sum to 100):**
 ```
-buzz=30, growth=25, official=15, serp=20, coverage_penalty=40
+buzz=15, growth=15, official=25, serp=20, diversity=25, coverage_penalty=40
 ```
+`source_diversity` = 0 (single/no source), 50 (two distinct sources), 100 (3+ distinct sources). Rebalance rationale: RSS-only signals (no engagement metrics) were scoring zero on buzz and growth, causing valid topics to be rejected. Diversity rewards cross-source confirmation; official raised because vendor announcements are strong trend signals regardless of community engagement.
+
+`min_trend_score` default is **25** (lowered from 40 in 54.5b).
 
 **Coverage thresholds:** sim > 0.85 → covered (reject), sim < 0.60 → new (accept), 0.60–0.85 → Haiku tiebreaker.
 

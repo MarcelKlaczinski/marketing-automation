@@ -5,12 +5,16 @@ import { MAJOR_VENDOR_DOMAINS, type ScoreBreakdown, type SynthesisTopic } from "
 
 const log = createLogger("trend-discovery:score");
 
-// ─── Weights (spec 54.5 fixed constants) ─────────────────────────────────────
+// ─── Weights (spec 54.5b rebalanced constants) ───────────────────────────────
+// buzz+growth halved to reduce RSS signal bias; diversity added (cross-source validation);
+// official raised (vendor announcements are legitimate trend signals).
+// Positive weights sum to 100: 15+15+25+20+25 = 100.
 const W = {
-  buzz: 30,
-  growth: 25,
-  official: 15,
+  buzz: 15,
+  growth: 15,
+  official: 25,
   serp: 20,
+  diversity: 25,
   coverage: 40, // penalty — subtracted
 } as const;
 
@@ -99,6 +103,17 @@ export function computeSerpVolatilityFromResults(
 }
 
 /**
+ * Source diversity score (0, 50, or 100).
+ * A topic confirmed by multiple distinct sources is a stronger trend signal.
+ */
+export function computeSourceDiversity(signals: ExternalSignal[]): number {
+  const uniqueSources = new Set(signals.map((s) => s.source));
+  if (uniqueSources.size <= 1) return 0;  // 0 or 1 distinct source → no diversity signal
+  if (uniqueSources.size === 2) return 50;
+  return 100; // 3+ sources
+}
+
+/**
  * Compute the existing-coverage penalty (0-100) from a raw similarity score.
  *
  * Scale: similarity 0.85 → penalty 100, similarity 0.50 → penalty 0.
@@ -134,6 +149,7 @@ export async function computeTrendScore(
 
   const buzz = computeCommunityBuzz(candidateSignals);
   const official = computeOfficialAnnouncementBonus(candidateSignals);
+  const diversity = computeSourceDiversity(candidateSignals);
   const coveragePenalty = computeCoveragePenalty(maxExistingSimilarity);
 
   // DataForSEO Trends — optional; falls back to 0 on failure
@@ -172,7 +188,8 @@ export async function computeTrendScore(
     (W.buzz * buzz) / 100 +
     (W.growth * growth) / 100 +
     (W.official * official) / 100 +
-    (W.serp * serpVol) / 100 -
+    (W.serp * serpVol) / 100 +
+    (W.diversity * diversity) / 100 -
     (W.coverage * coveragePenalty) / 100;
 
   const total = Math.round(clamp(raw, 0, 100));
@@ -185,6 +202,7 @@ export async function computeTrendScore(
       growth,
       official,
       serpVol,
+      diversity,
       coveragePenalty,
       total,
     },
@@ -196,6 +214,7 @@ export async function computeTrendScore(
     search_volume_growth: growth,
     official_announcement: official,
     serp_volatility: serpVol,
+    source_diversity: diversity,
     existing_coverage_penalty: coveragePenalty,
     total,
   };

@@ -37,6 +37,10 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
 
     // Spec 50: frontmatter field suggestion (Claude Haiku, ~1500 tokens total)
     [COST_OPS.FRONTMATTER_SUGGEST]: 0.02,
+
+    // Spec 54.5: trend discovery synthesis
+    [COST_OPS.TREND_SYNTHESIS]:           0.40,  // Opus 4.7, ~5k input + 3k output tokens per project
+    [COST_OPS.TREND_COVERAGE_TIEBREAKER]: 0.005, // Haiku, ~800 tokens per borderline candidate
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,
@@ -46,6 +50,13 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     [COST_OPS.GAP_KEYWORD_OVERVIEW]:  0.01,
     // Spec 49c: relatedKeywords fallback for Astro-imported clusters (no Cold-Start data)
     [COST_OPS.GAP_RELATED_KEYWORDS]:  0.015,
+
+    // Spec 54.5: trend discovery DataForSEO growth lookup per keyword
+    [COST_OPS.DATAFORSEO_TRENDS_EXPLORE]: 0.010,
+  },
+  voyage: {
+    // Spec 54.5: Voyage AI embeddings for coverage check & cluster match (voyage-3-large)
+    [COST_OPS.VOYAGE_EMBED_TEXT]: 0.0001,
   },
   replicate: {
     [COST_OPS.HERO_IMAGE]: 0.1,

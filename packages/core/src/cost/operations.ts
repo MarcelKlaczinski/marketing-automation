@@ -77,6 +77,12 @@ export const COST_OPS = {
   SOCIAL_IMAGE_EXTRACT:   "social-image-extract",    // Haiku: extract tools from article
   SOCIAL_IMAGE_CAPTION:   "social-image-caption",    // Sonnet: write Instagram caption
   SOCIAL_IMAGE_HASHTAGS:  "social-image-hashtags",   // Haiku: generate hashtag list
+
+  // === Spec 54.5: Trend discovery synthesis ===
+  TREND_SYNTHESIS:              "trend-synthesis",              // Opus: daily LLM synthesis of signals into TopicBriefs
+  TREND_COVERAGE_TIEBREAKER:    "trend-coverage-tiebreaker",    // Haiku: disambiguate borderline topic similarity
+  DATAFORSEO_TRENDS_EXPLORE:    "dataforseo-trends-explore",    // DataForSEO Trends per-keyword growth lookup
+  VOYAGE_EMBED_TEXT:            "voyage-embed-text",            // Voyage AI embedding for coverage & cluster match
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

@@ -687,7 +687,25 @@
       "Bash(node -e \"console.log\\(JSON.stringify\\([0.5, 0.5]\\)\\)\")",
       "Bash(echo \"JSON.stringify\\([0.5, 0.5]\\) = $\\(node -e \"console.log\\(JSON.stringify\\([0.5, 0.5]\\)\\)\"\\)\")",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/pipelines/src/topic-sources/trend-discovery/prompts.ts packages/pipelines/src/topic-sources/trend-discovery/synthesize.ts packages/pipelines/src/topic-sources/trend-discovery/emit-brief.ts packages/pipelines/src/topic-sources/trend-discovery/fetch-signals.ts packages/pipelines/src/topic-sources/trend-discovery/source.ts packages/pipelines/src/topic-sources/trend-discovery/index.ts packages/pipelines/src/topic-sources/index.ts)",
-      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/workers/signal-collector.ts apps/api/test/routes/projects-suggest-idempotent.test.ts)"
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add apps/api/src/workers/signal-collector.ts apps/api/test/routes/projects-suggest-idempotent.test.ts)",
+      "Bash(echo \"Worker restart initiated, PID=$!\")",
+      "Bash(bun --env-file .env --filter @marketing-auto/api trends:synthesize toolwiki)",
+      "Bash(kill -TERM 73878)",
+      "Bash(bun --env-file ../../.env src/workers/index.ts)",
+      "Bash(echo \"New worker PID=$!\")",
+      "Bash(awk '{print \"PID:\", $2}')",
+      "Bash(redis-cli -h localhost -p 6379 HGET \"bull:trend-synthesizer:synthesize-project-3fad7929-b06d-47ce-b6a1-8ac134362c42-manual-1778851673960\" \"failedReason\")",
+      "Bash(redis-cli -h localhost -p 6379 HGET \"bull:trend-synthesizer:synthesize-project-3fad7929-b06d-47ce-b6a1-8ac134362c42-manual-1778851673960\" \"stacktrace\")",
+      "Bash(kill -TERM 76917)",
+      "Bash(redis-cli -h localhost -p 6379 ZCARD \"bull:trend-synthesizer:failed\")",
+      "Bash(redis-cli -h localhost -p 6379 ZCARD \"bull:trend-synthesizer:completed\")",
+      "Bash(redis-cli -h localhost -p 6379 ZRANGE \"bull:trend-synthesizer:failed\" 0 -1)",
+      "Bash(redis-cli -h localhost -p 6379 HGET \"bull:trend-synthesizer:synthesize-project-3fad7929-b06d-47ce-b6a1-8ac134362c42-manual-1778852410717\" \"failedReason\")",
+      "Bash(redis-cli -h localhost -p 6379 HGET \"bull:trend-synthesizer:synthesize-project-3fad7929-b06d-47ce-b6a1-8ac134362c42-manual-1778852046396\" \"failedReason\")",
+      "Bash(kill -TERM 79333)",
+      "Bash(echo \"Worker PID=$!\")",
+      "Bash(bun --env-file ../../.env --filter @marketing-auto/api trends:synthesize toolwiki)",
+      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/topic-sources/trend-discovery/score.test.ts)"
     ]
   }
 }

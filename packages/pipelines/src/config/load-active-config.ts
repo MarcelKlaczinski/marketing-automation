@@ -1,5 +1,6 @@
 import { and, eq } from "@marketing-auto/db";
 import { db, projectConfigurations, type ProjectConfiguration } from "@marketing-auto/db";
+import { TopicScopeSchema, MasterPromptsSchema } from "@marketing-auto/db";
 
 // In-process cache: projectId → active config + cached-at timestamp.
 // 60s TTL — short enough for SQL edits to take effect in dev, long enough to amortize across batch jobs.
@@ -12,7 +13,7 @@ export async function loadActiveConfig(projectId: string): Promise<ProjectConfig
     return cached.config;
   }
 
-  const [config] = await db
+  const [raw] = await db
     .select()
     .from(projectConfigurations)
     .where(
@@ -23,12 +24,20 @@ export async function loadActiveConfig(projectId: string): Promise<ProjectConfig
     )
     .limit(1);
 
-  if (!config) {
+  if (!raw) {
     throw new Error(
       `No active project_configuration for project ${projectId}. ` +
         `System invariant violation — every project must have an active config.`,
     );
   }
+
+  // Parse JSONB fields through their schemas so Zod .default() values are applied
+  // to rows stored before new fields were added (e.g. 54.2 → 54.5 schema migration).
+  const config: ProjectConfiguration = {
+    ...raw,
+    topicScope: TopicScopeSchema.parse(raw.topicScope),
+    masterPrompts: MasterPromptsSchema.parse(raw.masterPrompts ?? {}),
+  };
 
   cache.set(projectId, { config, cachedAt: Date.now() });
   return config;

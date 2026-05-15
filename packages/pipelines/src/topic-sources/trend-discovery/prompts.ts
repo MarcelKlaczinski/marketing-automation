@@ -8,19 +8,23 @@ import type { TopicScope } from "@marketing-auto/db";
  * Per CLAUDE.md: dynamic prompts MUST live inside a function, not at module level.
  */
 export function buildTrendSynthesisDefaultPrompt(scope: TopicScope): string {
+  const exclusions = scope.exclusions;
+  const relevanceKeywords = scope.relevance_keywords;
+  const primaryThemes = scope.primary_themes;
+
   const exclusionBlock =
-    scope.exclusions.length > 0
-      ? `\n\nDo NOT propose topics about:\n${scope.exclusions.map((e) => `- ${e}`).join("\n")}`
+    exclusions.length > 0
+      ? `\n\nDo NOT propose topics about:\n${exclusions.map((e) => `- ${e}`).join("\n")}`
       : "";
 
   const relevanceBlock =
-    scope.relevance_keywords.length > 0
-      ? `\n\nPrioritize topics that relate to these project focus areas:\n${scope.relevance_keywords.map((k) => `- ${k}`).join("\n")}`
+    relevanceKeywords.length > 0
+      ? `\n\nPrioritize topics that relate to these project focus areas:\n${relevanceKeywords.map((k) => `- ${k}`).join("\n")}`
       : "";
 
   const themesBlock =
-    scope.primary_themes.length > 0
-      ? `\n\nPrimary themes to guide clustering:\n${scope.primary_themes.map((t) => `- ${t}`).join("\n")}`
+    primaryThemes.length > 0
+      ? `\n\nPrimary themes to guide clustering:\n${primaryThemes.map((t) => `- ${t}`).join("\n")}`
       : "";
 
   return `

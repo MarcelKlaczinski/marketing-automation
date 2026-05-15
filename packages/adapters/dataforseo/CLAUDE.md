@@ -23,6 +23,7 @@ falling back to `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` env vars. Set via ins
 - `keywordOverview()`: when you need search volume, CPC, difficulty for a list of keywords (cluster planning)
 - `relatedKeywords()`: when expanding a cluster (give me 100 related ideas to "claude prompts")
 - `rankedKeywords()`: when analyzing a competitor's full keyword footprint ("what does horstmar.de rank for?")
+- `trendsExplore()`: when you need YoY search-volume growth for a keyword — used in Trend Score scoring (spec 54.5). Returns `current_volume`, `prev_year_volume`, and `growth_ratio` per keyword. Returns `null` values when DataForSEO has no data for the keyword (callers treat null as `growth_ratio = 0`, not as an error). Cost: ~€0.010 per call (up to 5 keywords per call).
 
 ## Cost Awareness
 
@@ -32,6 +33,7 @@ falling back to `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` env vars. Set via ins
 | `keywordOverview` (700 keywords) | €0.018 | once per cluster |
 | `relatedKeywords` (limit=100) | €0.011 | once per cluster |
 | `rankedKeywords` (limit=100) | €0.011 | once per competitor research run |
+| `trendsExplore` (1-5 keywords) | €0.010 | once per trend-score candidate (spec 54.5) |
 
 For KI-Wissensraum cold-start (50 keywords + 5 competitor analyses + 30 article SERPs):
 expect total ~€0.15.
@@ -53,3 +55,6 @@ expect total ~€0.15.
   results differ significantly from desktop
 - DO NOT run `bun run test` from inside this package — Bun resolves the same-name script before
   the built-in and recurses. Use `bun --filter @marketing-auto/adapter-dataforseo test` instead.
+- DO NOT call `trendsExplore()` without catching errors at the call site — the scoring pipeline
+  must treat a failed trends call as `growth_ratio = 0` (graceful degradation), not as a synthesis
+  abort. Log the warning and continue; the remaining score components carry the evaluation.

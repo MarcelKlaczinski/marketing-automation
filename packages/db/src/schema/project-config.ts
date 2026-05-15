@@ -45,7 +45,7 @@ export const TopicScopeSchema = z
     // Spec 54.5: additional fields for trend synthesis
     primary_themes: z.array(z.string()).default([]),
     relevance_keywords: z.array(z.string()).default([]),
-    min_trend_score: z.number().int().min(0).max(100).default(40),
+    min_trend_score: z.number().int().min(0).max(100).default(25),
     min_signal_thresholds: z
       .object({
         hackernews: z.number().int().default(3),

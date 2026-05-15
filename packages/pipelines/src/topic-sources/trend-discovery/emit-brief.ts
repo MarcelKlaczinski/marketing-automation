@@ -30,7 +30,15 @@ export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInser
 
   const trendMetadata = {
     trendScore: score.total,
+    scoreBreakdown: {
+      communityBuzz: score.community_buzz,
+      searchVolumeGrowth: score.search_volume_growth,
+      officialAnnouncement: score.official_announcement,
+      serpVolatility: score.serp_volatility,
+      existingCoveragePenalty: score.existing_coverage_penalty,
+    },
     signals: candidateSignals.map((s) => ({
+      id: s.id,
       source: s.source,
       externalId: s.externalId,
       ...(s.url !== null && s.url !== undefined && { url: s.url }),

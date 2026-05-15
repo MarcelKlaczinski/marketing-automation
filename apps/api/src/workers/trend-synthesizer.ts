@@ -8,6 +8,7 @@ import {
   projects,
   and,
   eq,
+  inArray,
   isNull,
   lt,
 } from "@marketing-auto/db";
@@ -165,9 +166,23 @@ async function handleSynthesizeProject(projectId: string): Promise<void> {
       (b) =>
         Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined)) as DrizzleInsert,
     );
-    await db.transaction(async (tx) => {
-      await tx.insert(topicBriefs).values(rows);
+
+    const inserted = await db.transaction(async (tx) => {
+      return tx.insert(topicBriefs).values(rows).returning({ id: topicBriefs.id, trendMetadata: topicBriefs.trendMetadata });
     });
+
+    // Stamp contributing signals with processed_into = brief.id now that we have the real IDs
+    for (const row of inserted) {
+      const meta = row.trendMetadata as { signals?: Array<{ id?: string }> } | null;
+      const signalIds = (meta?.signals ?? []).map((s) => s.id).filter((id): id is string => typeof id === "string");
+      if (signalIds.length > 0) {
+        await db
+          .update(externalSignals)
+          .set({ processedAt: new Date(), processedInto: row.id })
+          .where(and(inArray(externalSignals.id, signalIds), isNull(externalSignals.processedAt)));
+      }
+    }
+
     log.info({ projectId, briefsInserted: briefs.length }, "trend synthesis: briefs persisted");
   } else {
     log.info({ projectId }, "trend synthesis: no briefs emitted");

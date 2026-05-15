@@ -117,6 +117,61 @@ bei Stalls zusätzlich.
 - **`/me` response shape**: `{ ok: true, data: { id, email } }` — only id and email. `name` and `role` are available on the DB user row but not currently exposed; add them if RBAC is needed.
 - **Email shim** (`src/lib/email.ts`): always return `SendEmailResult` (not `void`) so callers can check `.delivered` to detect the SMTP-not-configured dev fallback and log the verify URL.
 
+## Trend Synthesizer Worker (Spec 54.5)
+
+`src/workers/trend-synthesizer.ts` — daily synthesis of `external_signals` into `topic_briefs`.
+
+### Three job types (mirrors signal-collector pattern)
+
+```
+schedule-daily  →  synthesize-all  →  synthesize-project (one per project)
+```
+
+- `schedule-daily`: fans out to a single `synthesize-all` job
+- `synthesize-all`: queries all projects, fans out one `synthesize-project` per project
+- `synthesize-project`: runs the full per-project synthesis pipeline (janitor + `TrendDiscoveryTopicSource.emit()` + brief insert)
+
+### Janitor
+
+Each `synthesize-project` run stamps signals older than 14 days that were never processed:
+
+```typescript
+await db.update(externalSignals)
+  .set({ processedAt: new Date() })
+  .where(and(
+    eq(externalSignals.projectId, projectId),
+    isNull(externalSignals.processedAt),
+    lt(externalSignals.collectedAt, new Date(Date.now() - 14 * 86_400_000)),
+  ))
+  .returning({ id: externalSignals.id });
+```
+
+### Cron
+
+Registered in `src/workers/index.ts` via `registerTrendSynthesizerCron()`:
+- Default: `30 1 * * *` (01:30 UTC — 60 min after signal-collector at 00:30)
+- Override: `TREND_SYNTHESIZER_CRON` env var
+
+### Brief persistence pattern
+
+The `TrendDiscoveryTopicSource` returns briefs without persisting — the worker owns the transaction (54.1 convention). Drizzle insert requires stripping `undefined` fields because Zod-inferred `TopicBriefInsert` uses `field?: T | undefined` while Drizzle's `$inferInsert` uses `field?: T`:
+
+```typescript
+type DrizzleInsert = typeof topicBriefs.$inferInsert;
+const rows = briefs.map(
+  (b) => Object.fromEntries(Object.entries(b).filter(([, v]) => v !== undefined)) as DrizzleInsert,
+);
+await db.transaction(async (tx) => { await tx.insert(topicBriefs).values(rows); });
+```
+
+### Manual trigger
+
+```bash
+bun --filter @marketing-auto/api trends:synthesize <slug>
+```
+
+Enqueues a `synthesize-project` job with a unique jobId. Useful during dev without waiting for the cron.
+
 ## Scheduler Pattern
 Scheduled jobs live as `registerScheduledJob()` calls in `src/workers/index.ts`, not as standalone processes. The handler function can be extracted to its own file (see `src/workers/article-scheduler.ts`) that exports a single tick function for testability. Gate optional schedulers behind an env flag checked at registration time so they never fire in envs where the flag is absent.
 

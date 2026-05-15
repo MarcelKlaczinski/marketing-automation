@@ -189,7 +189,8 @@ Implemented specs (do not re-implement):
 - /specs/54l-draftStep-tool-frontmatter.md (DraftStep now emits pros/cons/features/useCases/pricingTier/priceFrom/rating for tool articles; closes single-tool-spotlight eligibility gap for pipeline-generated articles)
 - /specs/54-0-content-planner-adr.md (ADR: Content Planner architecture — TopicBrief contract, 3-layer model, 9-spec decomposition for Theme 54; no code changes)
 - /specs/54.3-topic-routing.md (TopicRoutingPolicy: decideRoute + executeDecision pure functions; /suggest idempotency; /generate + /automate use brief as SSoT; TopicIntakeStep brief-sourced; source='imported' filter removed; Phase A complete)
-- /specs/54.5-trend-scoring-topic-synthesis.md (Session 1+2 done: adapter-voyage, dataforseo.trendsExplore, score.ts, coverage.ts, cluster-match.ts + tests; Session 3 next: prompts.ts, synthesize.ts, emit-brief.ts, source.ts, fetch-signals.ts)
+- /specs/54.5-trend-scoring-topic-synthesis.md (Sessions 1–4 done: adapter-voyage, dataforseo.trendsExplore, score.ts, coverage.ts, cluster-match.ts, prompts.ts, synthesize.ts, emit-brief.ts, source.ts, fetch-signals.ts, trend-synthesizer worker + cron + admin CLI; smoke test pending VOYAGE_API_KEY in .env)
+- /specs/54.5b-post-smoke-test-cleanup.md (loadActiveConfig JSONB parse through Zod schemas; ?? workarounds removed; score rebalanced buzz=15 growth=15 official=25 serp=20 diversity=25 coverage=40; source_diversity component added; MAJOR_VENDOR_DOMAINS expanded; COST_OPS registered for trend ops)
 
 ## Project Marketing Contexts
 
