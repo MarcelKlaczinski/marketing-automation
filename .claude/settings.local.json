@@ -720,7 +720,9 @@
       "Bash(echo \"Synthesis job enqueued, PID=$!\")",
       "Bash(echo \"PID=$!\")",
       "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"\\\\d rejected_topic_candidates\")",
-      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"SELECT * FROM rejected_topic_candidates WHERE project_id = \\(SELECT id FROM projects WHERE slug = 'toolwiki'\\) ORDER BY created_at DESC LIMIT 10;\")"
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"SELECT * FROM rejected_topic_candidates WHERE project_id = \\(SELECT id FROM projects WHERE slug = 'toolwiki'\\) ORDER BY created_at DESC LIMIT 10;\")",
+      "Bash(curl -s \"http://localhost:3000/api/projects/toolwiki/trends/signal-pool?limit=1&offset=0&processed=unprocessed\" -H \"Cookie: ma_session=$\\(cat /tmp/ma_session \\)\")",
+      "Bash(bun -e \"const d = await new Response\\(process.stdin\\).json\\(\\); console.log\\(JSON.stringify\\({ total: d?.data?.total, itemCount: d?.data?.items?.length }\\)\\)\")"
     ]
   }
 }
