@@ -103,6 +103,22 @@ The step parses this with a regex, strips it from `bodyMd`, and saves to `articl
   Stages `auth` and `config` are error categories for the load phase and intentionally excluded from
   the DB column (they indicate config problems, not pipeline-stage failures). See `afterError()` in
   `pipeline.ts` for the filter list.
+- DO NOT use `targetWhere` that only partially matches a partial index predicate in Drizzle's
+  `onConflictDoUpdate` — PostgreSQL requires the `targetWhere` clause to match the index predicate
+  EXACTLY (every condition). The `topic_briefs_unique_open_per_gap` index has TWO conditions:
+  `WHERE "gap_id" IS NOT NULL AND "approval_status" IN (...)`. If `targetWhere` only has the
+  `approval_status IN (...)` part, Postgres throws "there is no unique or exclusion constraint
+  matching the ON CONFLICT specification" at runtime. Always reproduce the full index WHERE clause.
+
+## Gap Detection (Spec 54.3)
+
+`DetectContentGapsStep` counts ALL project articles regardless of `source` (imported, generated,
+manual). The `eq(articles.source, "imported")` filter was removed in Spec 54.3 (Tech Debt #1).
+Generated and imported articles now equally count toward:
+- Cluster size (`cluster_too_small` threshold of 3)
+- Intent coverage (`missing_spoke_type` check)
+- Translation pairing (`missing_translation` check)
+- Hub presence (`missing_hub` check)
 
 ## Performance / Cost
 

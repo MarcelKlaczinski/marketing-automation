@@ -193,6 +193,33 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT register a named sub-route (e.g. `/across-projects`) after a wildcard param route (e.g. `/:id`) in the same Hono router — Hono matches in registration order, so `/:id` silently captures the named route as `id="across-projects"`. Always register specific named paths before wildcard params. See the ordering in `src/routes/articles.ts` (line ~87 `across-projects` before line ~128 `/:id`).
 - DO NOT use `z.string().optional()` for query params that must match a known enum set — an invalid value passes validation and produces a silent empty result instead of a 400. Use `z.enum(VALID_VALUES).optional()` so the boundary rejects bad input. See the `lane` param in `articles.ts` for the canonical example.
 
+## Gap Routes — TopicBrief as SSoT (Spec 54.3)
+
+Three routes under `/api/projects/:slug/content-gaps/:id/` consume `TopicBrief` as the Single Source of Truth:
+
+### `/suggest` (idempotency pattern)
+1. Load brief by `gapId` + `approvalStatus IN ['pending','approved']` → 404 if missing
+2. Idempotency check: `if (brief.secondaryKeywords.length > 0 && brief.primaryKeyword)` → return `{ cached: true, clusterUpdated: false, briefId }` without any adapter call
+3. Call `suggestGapTitle()` from `src/lib/gap-service.ts` (returns data, does NOT write cluster)
+4. Write to `topicBriefs` only (NOT `clusters.satelliteKeywords`)
+5. Dual-write to `contentGaps.metadata` for backward compat
+6. Response: `{ suggestedTitle, suggestedSlug, suggestedMeta, primaryKeyword, secondaryKeywords, briefId, clusterUpdated: false, cached: false }`
+
+`clusterUpdated` is ALWAYS `false` after Spec 54.3 — kept in response for backward compat shape only.
+
+### `/generate` (routing pattern)
+1. Load brief by `gapId` → 404 if no active brief
+2. `const decision = decideRoute(brief)` (pure, from `@marketing-auto/pipelines`)
+3. `const result = await db.transaction(async (tx) => executeDecision(decision, brief, tx))`
+4. For article/translation: trigger outline pipeline, update `contentGaps`, return with `briefId`
+5. For cornerstone_spec: update `contentGaps.filledBySpecId`, return with `briefId`
+6. For skip: return 422
+
+### `/automate` (chain pattern)
+Same brief load + `decideRoute` + `executeDecision` in transaction, then `startChain()` outside the transaction (BullMQ call must not be inside a DB transaction). Returns `{ chainId, articleId, briefId, deduped: false }`.
+
+**DO NOT** call `decideRoute` / `executeDecision` directly from routes without the brief — the brief is the SSoT. The gap metadata in `contentGaps` is secondary (backward compat only).
+
 ## Notifications Deploy Checklist (Spec 40)
 
 When deploying to production for the first time (after local development):

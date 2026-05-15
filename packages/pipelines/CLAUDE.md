@@ -32,6 +32,34 @@ on top of this.
 
 **Adding a new source**: see `src/topic-sources/README.md`.
 
+## TopicRoutingPolicy (Spec 54.3)
+
+`src/routing/` contains pure functions that map a `TopicBrief` to a DB action:
+
+```typescript
+import { decideRoute, executeDecision } from "@marketing-auto/pipelines";
+
+const decision = decideRoute(brief);          // pure — no DB
+const result = await db.transaction(async (tx) =>
+  executeDecision(decision, brief, tx)        // transactional
+);
+```
+
+**`decideRoute(brief): RoutingDecision`** — pure function, no I/O. Maps `brief.source + gapMetadata.gapType` to a discriminated union:
+- `missing_hub` → `create_cornerstone_spec`
+- `missing_spoke_type` → `create_article` (requires `intentType`)
+- `cluster_too_small` → `create_article` (defaults `intentType` to `"use_case"`)
+- `missing_translation` → `create_translation` (requires `translationKey + locale`)
+- Non-gap_analysis source → `skip`
+
+**`executeDecision(decision, brief, tx): Promise<RoutingResult>`** — runs inside a transaction passed by the caller. Inserts article/spec/translation AND marks the brief as `routed` atomically. For `skip` decisions, marks brief as `superseded`.
+
+**`findBriefForArticle(articleId): Promise<TopicBrief | null>`** — looks up the `TopicBrief` linked to an article via `routedArticleId`. Used by `TopicIntakeStep` for brief-sourced keyword resolution.
+
+**`RoutingNotImplementedError`** — thrown for `create_cluster` (Spec 54.7) and `refresh_article` (future). Field is named `routingKind` (not `kind` or `cause`) to avoid conflict with `Error.cause` reserved built-in.
+
+**TopicIntakeStep brief-sourced path (Spec 54.3)**: `TopicIntakeStep` calls `findBriefForArticle()` first. If a brief is linked, `brief.secondaryKeywords` is used as satellite keywords. If no brief is found (legacy article created before 54.1), falls back to cluster `satelliteKeywords` match with a `log.warn`. Both paths produce identical output shapes — downstream steps are unaffected.
+
 ## Adding a New Pipeline
 
 1. Create `packages/pipelines/src/article/<pipeline-name>/` (or a peer directory under `src/`)

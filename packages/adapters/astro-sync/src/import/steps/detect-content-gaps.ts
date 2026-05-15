@@ -314,8 +314,9 @@ export class DetectContentGapsStep extends BaseStep<
           .values(dbBriefs)
           .onConflictDoUpdate({
             target: topicBriefs.gapId,
-            // targetWhere mirrors the partial unique index predicate
-            targetWhere: sql`approval_status IN ('pending', 'approved', 'auto_approved', 'routed')`,
+            // targetWhere must match the partial index predicate EXACTLY (PostgreSQL requirement)
+            // Index: WHERE "gap_id" IS NOT NULL AND "approval_status" IN (...)
+            targetWhere: sql`gap_id IS NOT NULL AND approval_status IN ('pending', 'approved', 'auto_approved', 'routed')`,
             set: {
               topicTitle:  sql`excluded.topic_title`,
               gapMetadata: sql`excluded.gap_metadata`,
