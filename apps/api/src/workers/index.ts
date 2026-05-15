@@ -122,29 +122,29 @@ async function main() {
   pipelineRegistry.register(new RepoImportPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
-  // Register scheduled jobs
-  registerScheduledJob({
-    name: "auth-cleanup",
-    cron: "0 3 * * *", // 03:00 daily
-    handler: async () => {
-      const { tokensDeleted, sessionsDeleted } = await runAuthCleanup();
-      log.info({ tokensDeleted, sessionsDeleted }, "Auth cleanup result");
-    },
-  });
+  // Register scheduled jobs (temporarily disabled)
+  // registerScheduledJob({
+  //   name: "auth-cleanup",
+  //   cron: "0 3 * * *", // 03:00 daily
+  //   handler: async () => {
+  //     const { tokensDeleted, sessionsDeleted } = await runAuthCleanup();
+  //     log.info({ tokensDeleted, sessionsDeleted }, "Auth cleanup result");
+  //   },
+  // });
 
-  if (env.ARTICLE_SCHEDULER_ENABLED) {
-    registerScheduledJob({
-      name: "article-scheduler",
-      cron: "0 3 * * *", // 03:00 daily
-      handler: async () => {
-        const results = await runArticleSchedulerTick();
-        log.info(results, "Article scheduler tick complete");
-      },
-    });
-    log.info("Article scheduler enabled (runs daily at 03:00)");
-  } else {
-    log.info("Article scheduler disabled (ARTICLE_SCHEDULER_ENABLED not set)");
-  }
+  // if (env.ARTICLE_SCHEDULER_ENABLED) {
+  //   registerScheduledJob({
+  //     name: "article-scheduler",
+  //     cron: "0 3 * * *", // 03:00 daily
+  //     handler: async () => {
+  //       const results = await runArticleSchedulerTick();
+  //       log.info(results, "Article scheduler tick complete");
+  //     },
+  //   });
+  //   log.info("Article scheduler enabled (runs daily at 03:00)");
+  // } else {
+  //   log.info("Article scheduler disabled (ARTICLE_SCHEDULER_ENABLED not set)");
+  // }
 
   // Spec 49d: wire chain advancement callbacks into pipeline afterComplete hooks
   const chainCallbacks = {
@@ -165,9 +165,9 @@ async function main() {
   const pipelineWorker = startPipelineWorker({ concurrency: 5 });
   const discoveryWorker = startDiscoveryWorker();
   const signalCollectorWorker = startSignalCollectorWorker();
-  await registerSignalCollectorCron();
+  // await registerSignalCollectorCron(); // temporarily disabled
   const trendSynthesizerWorker = startTrendSynthesizerWorker();
-  await registerTrendSynthesizerCron();
+  // await registerTrendSynthesizerCron(); // temporarily disabled
   const schedulerWorker = await startScheduler();
 
   log.info("Workers running");
