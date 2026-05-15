@@ -432,6 +432,9 @@ export const contentGaps = pgTable(
   })
 );
 
+export type ContentGap    = typeof contentGaps.$inferSelect;
+export type NewContentGap = typeof contentGaps.$inferInsert;
+
 // ─── Spec 49d: Pipeline Chains ────────────────────────────────────────────────
 
 export type ChainStatus = "queued" | "running" | "paused" | "completed" | "failed" | "cancelled";

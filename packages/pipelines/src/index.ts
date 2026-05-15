@@ -11,3 +11,4 @@ export * from "./internal-linking/index.ts";
 export * from "./cold-start/index.ts";
 export * from "./cold-start/triggers.ts";
 export { resolveToolIcon, type ResolvedIcon } from "./_lib/resolve-tool-icon.ts";
+export * from "./topic-sources/index.ts";
