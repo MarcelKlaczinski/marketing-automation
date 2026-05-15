@@ -185,6 +185,7 @@ Implemented specs (do not re-implement):
 - /specs/54i-llm-content-generation.md (generateContent() replaces static captions; English prompts; bilingual DE hashtags; one LLM call for hook+caption+hashtags)
 - /specs/54k-social-posts-planner-columns.md (templateKey + locale columns on social_posts; migration 0031)
 - /specs/54l-draftStep-tool-frontmatter.md (DraftStep now emits pros/cons/features/useCases/pricingTier/priceFrom/rating for tool articles; closes single-tool-spotlight eligibility gap for pipeline-generated articles)
+- /specs/54-0-content-planner-adr.md (ADR: Content Planner architecture — TopicBrief contract, 3-layer model, 9-spec decomposition for Theme 54; no code changes)
 
 ## Project Marketing Contexts
 

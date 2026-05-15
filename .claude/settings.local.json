@@ -646,7 +646,11 @@
       "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query2.ts)",
       "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query3.ts)",
       "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query4.ts)",
-      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query5.ts)"
+      "Bash(bun --env-file .env /Users/marcelklaczinski/WebstormProjects/marketing-automation/tmp-db-query5.ts)",
+      "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); print\\(j['entries'][-1]\\)\")",
+      "Bash(bun --filter @marketing-auto/db test packages/db/test/topic-briefs.test.ts)",
+      "Bash(psql -U marketing_user -d marketing_automation -c \"\\\\d topic_briefs\")",
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"\\\\d topic_briefs\")"
     ]
   }
 }
