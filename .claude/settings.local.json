@@ -653,7 +653,8 @@
       "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"\\\\d topic_briefs\")",
       "Bash(RUN_DB_TESTS=1 bun --filter @marketing-auto/db test)",
       "Bash(RUN_DB_TESTS=1 bun --filter @marketing-auto/pipelines test)",
-      "Bash(RUN_DB_TESTS=1 bun --filter @marketing-auto/adapter-astro-sync test)"
+      "Bash(RUN_DB_TESTS=1 bun --filter @marketing-auto/adapter-astro-sync test)",
+      "Bash(rm /Users/marcelklaczinski/WebstormProjects/marketing-automation/.git/index.lock *)"
     ]
   }
 }
