@@ -716,7 +716,11 @@
       "Bash(redis-cli -h localhost -p 6379 ZCARD bull:trend-synthesizer:failed)",
       "Bash(redis-cli -h localhost -p 6379 ZCARD bull:signal-collector:failed)",
       "Bash(kill -TERM 93590)",
-      "Bash(echo \"93590\")"
+      "Bash(echo \"93590\")",
+      "Bash(echo \"Synthesis job enqueued, PID=$!\")",
+      "Bash(echo \"PID=$!\")",
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"\\\\d rejected_topic_candidates\")",
+      "Bash(psql \"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\" -c \"SELECT * FROM rejected_topic_candidates WHERE project_id = \\(SELECT id FROM projects WHERE slug = 'toolwiki'\\) ORDER BY created_at DESC LIMIT 10;\")"
     ]
   }
 }
