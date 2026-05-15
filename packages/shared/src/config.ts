@@ -72,6 +72,9 @@ const envSchema = z.object({
   // Optional: 25k requests/day with key, 400/day without
   PAGESPEED_INSIGHTS_API_KEY: optionalStr(z.string().min(1)),
 
+  // Signal collector cron (Spec 54.4) — default: daily at 00:30 UTC
+  SIGNAL_COLLECTOR_CRON: optionalStr(z.string().min(1)),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

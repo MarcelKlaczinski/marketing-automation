@@ -67,6 +67,13 @@ const adapterList = [
     icon: "code",
     component: defineAsyncComponent(() => import("src/components/installer/StepGithubApp.vue")),
   },
+  {
+    service: "producthunt",
+    statusKey: "producthunt" as const,
+    stepKey: "producthunt",
+    icon: "rocket_launch",
+    component: defineAsyncComponent(() => import("src/components/installer/StepProducthunt.vue")),
+  },
 ];
 
 export default defineComponent({

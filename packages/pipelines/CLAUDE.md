@@ -20,6 +20,34 @@ on top of this.
 - Steps MUST use `@marketing-auto/cost-tracker` for any external API call
 - Pipelines MUST be registered before workers start
 
+## External Signal Sources (Spec 54.4+)
+
+`ExternalSignalSource<Input>` is a parallel abstraction to `TopicSource` for fetching raw external signals (PH launches, HN posts, RSS items). Lives in `src/signal-sources/`.
+
+Interface (three required members):
+```typescript
+interface ExternalSignalSource<Input = unknown> {
+  readonly source: ExternalSignalSourceValue;   // must match DB enum
+  readonly inputSchema: z.ZodType<Input>;        // Zod validates + applies defaults
+  fetch(input: Input, ctx: SignalSourceContext): Promise<RawSignal[]>;
+}
+```
+
+**Key invariants:**
+- MUST NOT persist — the BullMQ worker owns the `db.transaction()` + `onConflictDoNothing`
+- MUST set `externalId` to the source's stable per-entity ID (dedup key)
+- No cost tracking required — these adapters call free public APIs (€0/day)
+- Caller passes `{} as never` for adapters that rely entirely on Zod `.default()` input fields; Zod `.parse()` inside `fetch()` applies the defaults at runtime
+
+**`as z.ZodType<Input>` cast pattern** — required whenever `inputSchema` has `.default()` fields. Zod `.default()` makes `_input` type `T | undefined`, which fails `ZodType<T>`. Split into `_Schema` + cast alias:
+```typescript
+const _InputSchema = z.object({ topic: z.string().default("artificial-intelligence") });
+type Input = z.infer<typeof _InputSchema>;
+const InputSchema = _InputSchema as z.ZodType<Input>; // resolves exactOptionalPropertyTypes variance
+```
+
+**Adding a new source**: create `packages/adapters/<name>/`, implement `ExternalSignalSource<Input>`, add the adapter to the `collect-adapter` switch in `signal-collector.ts`, and register it in `handleCollectProject()`.
+
 ## Topic Sources (Spec 54.1+)
 
 `TopicSource<Input>` is a lighter-weight abstraction than `Pipeline` for anything that *produces data* rather than orchestrating a multi-step LLM workflow. Interface: one `emit(input, ctx): Promise<TopicBriefInsert[]>` method. Lives in `src/topic-sources/`.

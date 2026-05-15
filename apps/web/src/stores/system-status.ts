@@ -19,6 +19,7 @@ interface SystemStatusState {
     dataforseo: AdapterStatus;
     smtp: AdapterStatus;
     githubApp: AdapterStatus;
+    producthunt: AdapterStatus;
   };
   redis: AdapterStatus;
   postgres: AdapterStatus;
@@ -47,6 +48,7 @@ export const useSystemStatusStore = defineStore("systemStatus", {
       dataforseo: { ...unknownStatus },
       smtp: { ...unknownStatus },
       githubApp: { ...unknownStatus },
+      producthunt: { ...unknownStatus },
     },
     redis: { ...unknownStatus },
     postgres: { ...unknownStatus },

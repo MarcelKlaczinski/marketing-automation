@@ -1,0 +1,21 @@
+{
+  "name": "@marketing-auto/adapter-producthunt",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./verify": "./src/verify.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/producthunt/test"
+  },
+  "dependencies": {
+    "@marketing-auto/pipelines": "workspace:*",
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "graphql-request": "^7.0.0",
+    "zod": "^3.23.0"
+  }
+}

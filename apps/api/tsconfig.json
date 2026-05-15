@@ -37,6 +37,10 @@
       "@marketing-auto/adapter-astro-sync/import": [
         "../../packages/adapters/astro-sync/src/import/index.ts"
       ],
+      "@marketing-auto/adapter-producthunt": ["../../packages/adapters/producthunt/src/index.ts"],
+      "@marketing-auto/adapter-producthunt/verify": ["../../packages/adapters/producthunt/src/verify.ts"],
+      "@marketing-auto/adapter-hackernews": ["../../packages/adapters/hackernews/src/index.ts"],
+      "@marketing-auto/adapter-vendor-rss": ["../../packages/adapters/vendor-rss/src/index.ts"],
       "@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"],
       "@marketing-auto/pipelines/engine": ["../../packages/pipelines/src/engine/index.ts"],
       "@marketing-auto/social/templates": ["../../packages/social/src/templates/index.ts"]

@@ -34,6 +34,7 @@ import {
 } from "@marketing-auto/pipelines";
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
+import { startSignalCollectorWorker, registerSignalCollectorCron } from "./signal-collector.ts";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { runAuthCleanup } from "../lib/cleanup.ts";
 import { runArticleSchedulerTick } from "./article-scheduler.ts";
@@ -162,6 +163,8 @@ async function main() {
 
   const pipelineWorker = startPipelineWorker({ concurrency: 5 });
   const discoveryWorker = startDiscoveryWorker();
+  const signalCollectorWorker = startSignalCollectorWorker();
+  await registerSignalCollectorCron();
   const schedulerWorker = await startScheduler();
 
   log.info("Workers running");
@@ -170,6 +173,7 @@ async function main() {
     log.info("Shutting down workers");
     await pipelineWorker.close();
     await discoveryWorker.close();
+    await signalCollectorWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

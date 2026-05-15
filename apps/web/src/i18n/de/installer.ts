@@ -141,6 +141,17 @@ export default {
       modeNoteSelfHosted:
         "Self-Hosted-Modus: Inhalt der PEM-Datei einfügen (wird verschlüsselt gespeichert).",
     },
+    producthunt: {
+      title: "Product Hunt API",
+      description: "Wird vom Signal-Collector (Spec 54.4) verwendet, um täglich neue AI-Tool-Launches von Product Hunt abzurufen.",
+      consequenceIfSkipped:
+        "Product-Hunt-Signale werden nicht gesammelt. HN- und RSS-Quellen laufen weiterhin.",
+      fields: {
+        apiKey: "API-Key (Client ID)",
+        apiSecret: "API-Secret (Client Secret)",
+      },
+      hint: "OAuth-App unter https://www.producthunt.com/v2/oauth/applications anlegen → Client ID und Client Secret kopieren.",
+    },
     summary: {
       title: "Zusammenfassung",
       readyTitle: "Du kannst loslegen",

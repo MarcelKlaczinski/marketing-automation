@@ -184,7 +184,7 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 
 ## Common Mistakes to Avoid
 - DO NOT do business logic in route handlers — that goes in /packages/core (or `src/lib/<domain>-service.ts` for bootstrap/system routes without project context)
-- DO NOT call adapters directly from routes — always via core services (exception: installer verify flow per spec Decision 10, with a justification comment)
+- DO NOT call adapters directly from routes — always via core services (exception: installer verify flow per spec Decision 10, with a justification comment). When adding a new adapter verify flow, the verify function MUST live in `packages/adapters/<name>/src/verify.ts` (exported via `"./verify"` subpath) and be imported from there — do NOT define it inline in `system.ts`. All existing adapters follow this pattern: `verifyAnthropic`, `verifyReplicate`, `verifySmtp`, etc. all live in their adapter packages. The system.ts header comment ("each adapter owns its verify logic") is the rule, not just documentation.
 - DO NOT use `process.env` directly — use typed `getEnv()` from @marketing-auto/shared
 - DO NOT use console.log — use the pino logger
 - DO NOT omit `--env-file ../../.env` from package.json scripts — `bun --filter` runs from the package dir, not the repo root, so `.env` at the root is not auto-loaded. Every script that touches `getEnv()` (directly or via imports) needs this flag.

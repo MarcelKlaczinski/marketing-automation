@@ -141,6 +141,17 @@ export default {
       modeNoteLokal: "[EN] Local mode: path to the PEM file on your Mac.",
       modeNoteSelfHosted: "[EN] Self-hosted mode: paste the PEM content (stored encrypted).",
     },
+    producthunt: {
+      title: "[EN] Product Hunt API",
+      description: "[EN] Used by the signal collector (Spec 54.4) to fetch new AI tool launches from Product Hunt daily.",
+      consequenceIfSkipped:
+        "[EN] Product Hunt signals will not be collected. HN and RSS sources continue to run.",
+      fields: {
+        apiKey: "[EN] API Key (Client ID)",
+        apiSecret: "[EN] API Secret (Client Secret)",
+      },
+      hint: "[EN] Create an OAuth app at https://www.producthunt.com/v2/oauth/applications → copy Client ID and Client Secret.",
+    },
     summary: {
       title: "[EN] Summary",
       readyTitle: "[EN] Ready to go",

@@ -795,4 +795,49 @@ export const TopicBriefInsertSchema = z
   });
 
 export type TopicBriefInsert = z.infer<typeof TopicBriefInsertSchema>;
+
+// ── external_signals ─────────────────────────────────────────────────────────
+// Raw signals fetched by adapter packages (producthunt, hackernews, vendor_rss).
+// Dedup key: (source, external_id). FK to topic_briefs declared via raw SQL migration
+// (54.1 convention: avoids circular Drizzle import ordering within this file).
+
+export type ExternalSignalSource =
+  | "producthunt"
+  | "hackernews"
+  | "vendor_rss"
+  | "reddit"
+  | "github"
+  | "dataforseo_trends";
+
+export const externalSignals = pgTable(
+  "external_signals",
+  {
+    id:         uuid("id").primaryKey().defaultRandom(),
+    projectId:  uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+    source:     text("source").notNull().$type<ExternalSignalSource>(),
+    externalId: text("external_id").notNull(),
+
+    title:       text("title").notNull(),
+    url:         text("url"),
+    summary:     text("summary"),
+    author:      text("author"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+
+    rawPayload: jsonb("raw_payload").notNull().$type<Record<string, unknown>>(),
+    metrics:    jsonb("metrics").notNull().default({}).$type<Record<string, number>>(),
+
+    collectedAt:   timestamp("collected_at",  { withTimezone: true }).notNull().defaultNow(),
+    processedAt:   timestamp("processed_at",  { withTimezone: true }),
+    processedInto: uuid("processed_into"),
+    expiredAt:     timestamp("expired_at",    { withTimezone: true }),
+  },
+  (t) => ({
+    sourceExternalUnique: uniqueIndex("external_signals_source_external_unique").on(t.source, t.externalId),
+    projectSourceIdx:     index("external_signals_project_source_idx").on(t.projectId, t.source),
+  }),
+);
+
+export type ExternalSignal    = typeof externalSignals.$inferSelect;
+export type NewExternalSignal = typeof externalSignals.$inferInsert;
 export type TopicBrief       = typeof topicBriefs.$inferSelect;
