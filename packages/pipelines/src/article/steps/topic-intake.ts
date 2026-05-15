@@ -1,8 +1,11 @@
-import { type FrontmatterFieldDescriptor, articles, clusters, db, projects } from "@marketing-auto/db";
-import { eq } from "drizzle-orm";
+import { type FrontmatterFieldDescriptor, articles, clusters, db, eq, projects } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { findBriefForArticle } from "../../routing/find-brief-for-article.ts";
 import { ArticlePipelineError } from "../types.ts";
+
+const log = createLogger("pipelines:topic-intake");
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),
@@ -70,17 +73,30 @@ export class TopicIntakeStep extends BaseStep<
     if (!project)
       throw new ArticlePipelineError(`Project ${input.projectId} not found`, "topic_intake");
 
-    const clusterData = cluster.satelliteKeywords ?? [];
-    const matchingEntry = clusterData.find(
-      (e) => e.cornerstoneKeyword === article.cornerstoneKeyword
-    );
-    const satelliteKeywords = matchingEntry?.keywords.map((k) => k.keyword) ?? [];
-
     if (!article.cornerstoneKeyword)
       throw new ArticlePipelineError(
         `Article ${input.articleId} has no cornerstoneKeyword — cannot run pipeline`,
         "topic_intake"
       );
+
+    // Spec 54.3: prefer brief-sourced keywords (TopicBrief is SSoT).
+    // Fall back to cluster satellite keyword match if no brief is linked (legacy articles).
+    const brief = await findBriefForArticle(input.articleId);
+    let satelliteKeywords: string[];
+
+    if (brief) {
+      satelliteKeywords = brief.secondaryKeywords ?? [];
+    } else {
+      log.warn(
+        { articleId: input.articleId },
+        "No linked TopicBrief found — falling back to cluster satelliteKeywords match (legacy path)"
+      );
+      const clusterData = cluster.satelliteKeywords ?? [];
+      const matchingEntry = clusterData.find(
+        (e) => e.cornerstoneKeyword === article.cornerstoneKeyword
+      );
+      satelliteKeywords = matchingEntry?.keywords.map((k) => k.keyword) ?? [];
+    }
 
     // locale defaults to "de" for articles created before multi-language was introduced
     const locale = (article.locale as "de" | "en") ?? "de";

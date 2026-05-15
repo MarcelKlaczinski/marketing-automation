@@ -75,7 +75,7 @@ export class DetectContentGapsStep extends BaseStep<
       .where(eq(clusters.projectId, projectId))
       .groupBy(clusters.id, clusters.name, clusters.pillarArticleId);
 
-    // ── 2. Load all imported articles ─────────────────────────────────────────
+    // ── 2. Load all project articles (Spec 54.3 Tech Debt #1: removed source='imported' filter)
     const articleRows = await db
       .select({
         id:             articles.id,
@@ -87,12 +87,7 @@ export class DetectContentGapsStep extends BaseStep<
         slug:           articles.slug,
       })
       .from(articles)
-      .where(
-        and(
-          eq(articles.projectId, projectId),
-          eq(articles.source, "imported")
-        )
-      );
+      .where(eq(articles.projectId, projectId));
 
     // ── 3. Build gap candidates ───────────────────────────────────────────────
     const candidates: GapInsert[] = [];
