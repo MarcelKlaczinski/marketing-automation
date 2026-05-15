@@ -5,7 +5,7 @@
 // Spec 54.1: dual-writes a topic_briefs row for every open/restamped gap inside the
 // same db.transaction(), keeping gap + brief creation atomic.
 
-import { articles, clusters, contentGaps, db, projects, topicBriefs } from "@marketing-auto/db";
+import { articles, clusters, contentGaps, db, projects, topicBriefs, type ContentGap, type ContentGapMetadata } from "@marketing-auto/db";
 import { BaseStep, GapAnalysisTopicSource, type StepContext } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -174,7 +174,7 @@ export class DetectContentGapsStep extends BaseStep<
         if (locales.has(existing) && !locales.has(missing)) {
           const existingArticle = group.find((a) => a.locale === existing);
           const cluster = clusterRows.find((c) => c.id === existingArticle?.clusterId);
-          const translationMeta: import("@marketing-auto/db").ContentGapMetadata = {
+          const translationMeta: ContentGapMetadata = {
             clusterName:        cluster?.name ?? "unknown",
             clusterMemberCount: cluster?.memberCount ?? 0,
             existingLocale:     existing,
@@ -244,7 +244,7 @@ export class DetectContentGapsStep extends BaseStep<
       let restamped = 0;
 
       // Collect full gap rows for brief emission
-      const newGapRows:       import("@marketing-auto/db").ContentGap[] = [];
+      const newGapRows:       ContentGap[] = [];
       const restampedGapIds:  string[] = [];
 
       for (const gap of candidates) {
@@ -293,7 +293,7 @@ export class DetectContentGapsStep extends BaseStep<
       // ── 54.1: emit and upsert topic_briefs ───────────────────────────────────
 
       // Load full rows for restamped gaps so mapGapToBrief has all fields
-      const restampedGapRows: import("@marketing-auto/db").ContentGap[] =
+      const restampedGapRows: ContentGap[] =
         restampedGapIds.length > 0
           ? await tx.select().from(contentGaps).where(inArray(contentGaps.id, restampedGapIds))
           : [];

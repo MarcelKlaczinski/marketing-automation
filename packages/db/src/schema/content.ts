@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { z } from "zod";
 import { vector } from "drizzle-orm/pg-core";
 import {
   articleSourceEnum,
@@ -574,8 +575,6 @@ export type NewTemplateRender = typeof templateRenders.$inferInsert;
 
 // ─── Spec 54.1: Topic Briefs ───────────────────────────────────────────────────
 
-import { z } from "zod";
-
 // ── Source-specific metadata schemas ─────────────────────────────────────────
 
 export const GapMetadataSchema = z.object({
@@ -767,6 +766,7 @@ export const TopicBriefInsertSchema = z
       refresh_detection: hasRefresh,
     } as const;
 
+    // safe: "manual" was returned early above, so data.source is one of the three non-manual values
     if (!expectedMap[data.source as keyof typeof expectedMap]) {
       const fieldName = { gap_analysis: "gap_metadata", trend_discovery: "trend_metadata", refresh_detection: "refresh_metadata" }[data.source as keyof typeof expectedMap];
       ctx.addIssue({

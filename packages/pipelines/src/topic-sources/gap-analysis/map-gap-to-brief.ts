@@ -5,19 +5,19 @@ import type { ContentGap, GapMetadata, TopicBriefInsert } from "@marketing-auto/
  * No DB calls, no LLM, no side effects. Safe to unit-test in isolation.
  */
 export function mapGapToBrief(gap: ContentGap): TopicBriefInsert {
-  const meta = gap.metadata as Record<string, unknown> | null | undefined;
+  const meta = gap.metadata;
 
   const gapMetadata: GapMetadata = {
-    gapType: gap.gapType as GapMetadata["gapType"],
-    priority: gap.priority,
-    clusterName:                 meta?.clusterName                 as string | undefined,
-    clusterMemberCount:          meta?.clusterMemberCount          as number | undefined,
-    existingLocale:              meta?.existingLocale              as "de" | "en" | undefined,
-    existingArticleSlug:         meta?.existingArticleSlug         as string | undefined,
-    spokesPresent:               meta?.spokesPresent               as string[] | undefined,
-    translationKey:              gap.translationKey                ?? undefined,
-    suggestedCornerstoneKeyword: meta?.suggestedCornerstoneKeyword as string | undefined,
-    discoveredKeywords:          meta?.discoveredKeywords          as string[] | undefined,
+    gapType:                     gap.gapType,
+    priority:                    gap.priority,
+    clusterName:                 meta?.clusterName,
+    clusterMemberCount:          meta?.clusterMemberCount,
+    existingLocale:              meta?.existingLocale,
+    existingArticleSlug:         meta?.existingArticleSlug,
+    spokesPresent:               meta?.spokesPresent,
+    translationKey:              gap.translationKey ?? undefined,
+    suggestedCornerstoneKeyword: meta?.suggestedCornerstoneKeyword,
+    discoveredKeywords:          meta?.discoveredKeywords,
   };
 
   return {
@@ -28,6 +28,7 @@ export function mapGapToBrief(gap: ContentGap): TopicBriefInsert {
     topicTitle:        buildTopicTitle(gap, gapMetadata),
     primaryKeyword:    gapMetadata.suggestedCornerstoneKeyword ?? null,
     secondaryKeywords: gapMetadata.discoveredKeywords ?? [],
+    // locale column is text (not narrowed to "de"|"en" at DB level)
     locale:            (gap.locale as "de" | "en" | null) ?? null,
     intentType:        gap.intentType ?? null,
 

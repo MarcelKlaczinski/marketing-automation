@@ -8,6 +8,7 @@ type Input = { gaps: ContentGap[] };
 export class GapAnalysisTopicSource implements TopicSource<Input> {
   readonly source = "gap_analysis" as const;
 
+  // safe: z.array(z.unknown()) satisfies the schema at runtime; cast resolves Zod _input variance
   readonly inputSchema: z.ZodType<Input> = z.object({
     gaps: z.array(z.unknown()),
   }) as z.ZodType<Input>;
