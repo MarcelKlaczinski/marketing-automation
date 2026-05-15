@@ -192,6 +192,7 @@ Implemented specs (do not re-implement):
 - /specs/54.5-trend-scoring-topic-synthesis.md (Sessions 1–4 done: adapter-voyage, dataforseo.trendsExplore, score.ts, coverage.ts, cluster-match.ts, prompts.ts, synthesize.ts, emit-brief.ts, source.ts, fetch-signals.ts, trend-synthesizer worker + cron + admin CLI; smoke test pending VOYAGE_API_KEY in .env)
 - /specs/54.5b-post-smoke-test-cleanup.md (loadActiveConfig JSONB parse through Zod schemas; ?? workarounds removed; score rebalanced buzz=15 growth=15 official=25 serp=20 diversity=25 coverage=40; source_diversity component added; MAJOR_VENDOR_DOMAINS expanded; COST_OPS registered for trend ops)
 - /specs/54.6-trend-discovery-ui.md (Voyage vault wiring; /projects/:slug/trends page; TrendBriefList, TrendBriefDetail, RejectedTopicsBrowser, SignalPoolInspector, SynthesisTriggerCard; 7 backend endpoints; manual_dismissal migration 0042; Phase B complete)
+- /specs/54.7-cluster-creator.md (LLM cluster proposal via claude-opus-4-7; /projects/:slug/clusters/propose + /create-from-brief endpoints; atomic contentPillars+clusters+cornerstoneSpecs+brief-approve transaction; 3-step ClusterCreatorPage stepper; TrendBriefDetail create_new CTA wired; Phase C complete)
 
 ## Project Marketing Contexts
 
