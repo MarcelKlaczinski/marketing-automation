@@ -18,6 +18,7 @@ const _InputSchema = z.object({
   queries:     z.array(z.string().min(1)).default(DEFAULT_QUERIES),
   hitsPerPage: z.number().int().min(1).max(100).default(50),
   minPoints:   z.number().int().min(0).default(5),
+  maxAgeDays:  z.number().int().min(1).max(365).default(14),
 });
 
 type Input = z.infer<typeof _InputSchema>;
@@ -31,10 +32,14 @@ export class HackerNewsSignalSource implements ExternalSignalSource<Input> {
 
   async fetch(input: Input, ctx: SignalSourceContext): Promise<RawSignal[]> {
     const parsed = this.inputSchema.parse(input);
-    log.info({ projectId: ctx.projectId, queryCount: parsed.queries.length }, "fetching HN hits");
+    const sinceUnixSeconds = Math.floor((Date.now() - parsed.maxAgeDays * 86_400_000) / 1000);
+    log.info(
+      { projectId: ctx.projectId, queryCount: parsed.queries.length, maxAgeDays: parsed.maxAgeDays, sinceUnixSeconds },
+      "fetching HN hits",
+    );
 
     const results = await Promise.allSettled(
-      parsed.queries.map((q) => searchHnByDate(q, parsed.hitsPerPage)),
+      parsed.queries.map((q) => searchHnByDate(q, parsed.hitsPerPage, sinceUnixSeconds)),
     );
 
     const seen = new Set<string>();

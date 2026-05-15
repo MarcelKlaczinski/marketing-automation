@@ -17,12 +17,16 @@ export type HnHit = {
 export async function searchHnByDate(
   query: string,
   hitsPerPage = 50,
+  sinceUnixSeconds?: number,
 ): Promise<HnHit[]> {
   const params = new URLSearchParams({
     query,
     tags: "story",
     hitsPerPage: String(hitsPerPage),
   });
+  if (sinceUnixSeconds !== undefined) {
+    params.set("numericFilters", `created_at_i>${sinceUnixSeconds}`);
+  }
   const res = await fetch(`${HN_ENDPOINT}/search_by_date?${params}`, {
     headers: { "User-Agent": "marketing-auto-signal-collector/1.0" },
   });
