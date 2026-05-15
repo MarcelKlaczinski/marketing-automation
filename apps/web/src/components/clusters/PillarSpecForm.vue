@@ -6,7 +6,7 @@
       outlined
       :label="$t('clusters.create.pillarTitle') as string"
       :hint="$t('clusters.create.pillarTitleHint') as string"
-      :rules="[v => (v && v.length >= 10 && v.length <= 200) || 'Mindestens 10 Zeichen']"
+      :rules="[v => (v && v.length >= 10 && v.length <= 200) || $t('clusters.validation.pillarTitleTooShort') as string]"
       maxlength="200"
       counter
       lazy-rules
@@ -19,7 +19,7 @@
       outlined
       :label="$t('clusters.create.pillarSlug') as string"
       :hint="$t('clusters.create.pillarSlugHint') as string"
-      :rules="[v => /^[a-z0-9-]+$/.test(v) || 'Nur Kleinbuchstaben, Zahlen und Bindestriche']"
+      :rules="[v => /^[a-z0-9-]+$/.test(v) || $t('clusters.validation.slugInvalid') as string]"
       maxlength="120"
       lazy-rules
       style="font-family: monospace;"
@@ -34,8 +34,8 @@
         :label="$t('clusters.create.pillarMeta') as string"
         :hint="`${$t('clusters.create.pillarMetaHint')} (${local.pillar_meta?.length ?? 0}/160)`"
         :rules="[
-          v => (v && v.length >= 50) || 'Mindestens 50 Zeichen',
-          v => v.length <= 160 || 'Maximal 160 Zeichen'
+          v => (v && v.length >= 50) || $t('clusters.validation.metaTooShort') as string,
+          v => v.length <= 160 || $t('clusters.validation.metaTooLong') as string
         ]"
         maxlength="160"
         rows="3"

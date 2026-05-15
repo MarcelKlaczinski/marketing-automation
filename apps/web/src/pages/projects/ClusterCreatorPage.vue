@@ -162,11 +162,15 @@ export default defineComponent({
       this.loading = true;
       this.loadError = null;
       try {
-        const res = await api.post<{ ok: boolean; data: { proposal: ClusterProposal } }>(
+        const res = await api.post<{
+          ok: boolean;
+          data: { proposal: ClusterProposal; projectDefaultIntents: string[] };
+        }>(
           `/projects/${this.slug}/clusters/propose`,
           { fromBriefId: this.fromBriefId },
         );
         this.proposal = res.data.data.proposal;
+        this.projectDefaultIntents = res.data.data.projectDefaultIntents;
       } catch (err) {
         this.loadError = err instanceof HttpError ? err.userMessage : String(err);
       } finally {

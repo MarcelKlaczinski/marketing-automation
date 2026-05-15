@@ -78,11 +78,17 @@ clusterCreatorRoutes.post(
       return c.json({ ok: false, error: "Brief is no longer pending" }, 400);
     }
 
-    const proposal = await proposeCluster({ projectId: proj.id, brief });
+    const [proposal, config] = await Promise.all([
+      proposeCluster({ projectId: proj.id, brief }),
+      loadActiveConfig(proj.id), // 60s in-process cache — effectively free after proposeCluster warms it
+    ]);
 
     log.info({ projectId: proj.id, briefId: fromBriefId, clusterName: proposal.cluster_name }, "cluster proposed");
 
-    return c.json({ ok: true, data: { proposal } });
+    return c.json({
+      ok: true,
+      data: { proposal, projectDefaultIntents: config.intentTaxonomyDefault ?? [] },
+    });
   },
 );
 

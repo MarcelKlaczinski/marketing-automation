@@ -61,6 +61,10 @@ export default {
 
   validation: {
     nameTooShort: "Minimum 2 characters",
+    pillarTitleTooShort: "Must be between 10 and 200 characters",
+    slugInvalid: "Lowercase letters, numbers and hyphens only",
+    metaTooShort: "Minimum 50 characters",
+    metaTooLong: "Maximum 160 characters",
   },
 
   create: {

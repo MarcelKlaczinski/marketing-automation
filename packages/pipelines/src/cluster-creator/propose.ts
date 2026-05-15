@@ -48,6 +48,8 @@ export async function proposeCluster(input: ProposeClusterInput): Promise<Cluste
   const result = await anthropic.messages({
     projectId,
     operation: "cluster-proposal",
+    // Opus justified: open-ended strategic proposal (cluster shape, pillar structure, intent taxonomy)
+    // requires deep multi-step reasoning; Sonnet produced low-quality cluster names in testing
     model: "claude-opus-4-7",
     systemPrefix: systemPrompt,
     systemSuffix: "",

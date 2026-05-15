@@ -10,7 +10,6 @@
       maxlength="100"
       counter
       lazy-rules
-      @update:model-value="onNameChange"
     />
 
     <!-- Primary keyword -->
@@ -148,11 +147,6 @@ export default defineComponent({
   },
 
   methods: {
-    onNameChange(val: string | number | null): void {
-      // auto-derive slug hint for pillar (not exposed here — handled in PillarSpecForm)
-      void val;
-    },
-
     addIntent(): void {
       const trimmed = this.newIntentInput.trim();
       if (!trimmed) return;
