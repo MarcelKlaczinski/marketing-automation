@@ -83,6 +83,12 @@ export const COST_OPS = {
   TREND_COVERAGE_TIEBREAKER:    "trend-coverage-tiebreaker",    // Haiku: disambiguate borderline topic similarity
   DATAFORSEO_TRENDS_EXPLORE:    "dataforseo-trends-explore",    // DataForSEO Trends per-keyword growth lookup
   VOYAGE_EMBED_TEXT:            "voyage-embed-text",            // Voyage AI embedding for coverage & cluster match
+
+  // === Spec 54.10: Refresh + Translation modes ===
+  TRANSLATION_DECISION:  "translation-decision",   // Haiku: decide literal vs adaptive translation path (~€0.005)
+  TRANSLATE_DRAFT:       "translate-draft",         // Sonnet: translate DE body to EN (literal path, ~€0.20)
+  REFRESH_OUTLINE:       "refresh-outline",         // Sonnet: re-generate outline with voice refs (~€0.07)
+  REFRESH_DRAFT:         "refresh-draft",           // Sonnet: re-generate draft with voice refs (~€0.22)
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

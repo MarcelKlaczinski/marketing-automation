@@ -41,6 +41,12 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // Spec 54.5: trend discovery synthesis
     [COST_OPS.TREND_SYNTHESIS]:           0.40,  // Opus 4.7, ~5k input + 3k output tokens per project
     [COST_OPS.TREND_COVERAGE_TIEBREAKER]: 0.005, // Haiku, ~800 tokens per borderline candidate
+
+    // Spec 54.10: refresh + translation modes (validated against real 54.9 cost data)
+    [COST_OPS.TRANSLATION_DECISION]: 0.005,  // Haiku 4.5, ~1k tokens — literal vs adaptive decision
+    [COST_OPS.TRANSLATE_DRAFT]:      0.20,   // Sonnet 4.6, ~4k input + 4k output — literal translation
+    [COST_OPS.REFRESH_OUTLINE]:      0.07,   // Sonnet 4.6 + voice ref context (~2k extra input)
+    [COST_OPS.REFRESH_DRAFT]:        0.22,   // Sonnet 4.6 + voice ref context (~2k extra input)
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,

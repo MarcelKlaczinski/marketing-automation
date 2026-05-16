@@ -8,3 +8,5 @@ export * from "./social-image/trigger.ts";
 export * from "./discovery/index.ts";
 export * from "./blog/pipeline.ts";
 export * from "./blog/trigger.ts";
+export * from "./voice-reference/loader.ts";
+export * from "./translation/sibling.ts";
