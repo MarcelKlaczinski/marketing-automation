@@ -89,6 +89,9 @@ export const COST_OPS = {
   TRANSLATE_DRAFT:       "translate-draft",         // Sonnet: translate DE body to EN (literal path, ~€0.20)
   REFRESH_OUTLINE:       "refresh-outline",         // Sonnet: re-generate outline with voice refs (~€0.07)
   REFRESH_DRAFT:         "refresh-draft",           // Sonnet: re-generate draft with voice refs (~€0.22)
+
+  // === Spec 54.12: Full Cluster Generation ===
+  CLUSTER_PLAN_GENERATION: "cluster-plan-generation", // Sonnet: expand trend brief into Hub + 4-6 Spokes (~€0.40)
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

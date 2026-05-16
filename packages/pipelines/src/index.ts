@@ -16,3 +16,13 @@ export { loadActiveConfig, clearConfigCache } from "./config/index.ts";
 export * from "./routing/index.ts";
 export * from "./signal-sources/index.ts";
 export { proposeCluster, type ProposeClusterInput, ClusterProposalSchema, type ClusterProposal } from "./cluster-creator/index.ts";
+export {
+  generateClusterPlan,
+  ClusterPlanOutputSchema,
+  ProposedSpokeSchema,
+  ProposedHubSchema,
+  type ClusterPlanInput,
+  type ClusterPlanOutput,
+  type ProposedSpokeParsed,
+  type ProposedHubParsed,
+} from "./cluster/full-plan/index.ts";

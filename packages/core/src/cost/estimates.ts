@@ -47,6 +47,9 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     [COST_OPS.TRANSLATE_DRAFT]:      0.20,   // Sonnet 4.6, ~4k input + 4k output — literal translation
     [COST_OPS.REFRESH_OUTLINE]:      0.07,   // Sonnet 4.6 + voice ref context (~2k extra input)
     [COST_OPS.REFRESH_DRAFT]:        0.22,   // Sonnet 4.6 + voice ref context (~2k extra input)
+
+    // Spec 54.12: cluster plan generation
+    [COST_OPS.CLUSTER_PLAN_GENERATION]: 0.40, // Sonnet 4.6, ~4k input + 3k output (hub + 4-6 spokes)
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,
