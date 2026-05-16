@@ -197,7 +197,7 @@
     <!-- Action bar -->
     <q-separator />
     <q-card-actions class="q-pa-md row q-gutter-sm">
-      <!-- create_new: navigate to Cluster Creator -->
+      <!-- create_new: navigate to Cluster Creator OR generate full cluster -->
       <template v-if="brief.clusterAction === 'create_new'">
         <q-btn
           unelevated
@@ -208,6 +208,17 @@
           size="sm"
           :disable="editMode"
           @click="goToClusterCreator"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          color="secondary"
+          icon="auto_awesome"
+          :label="$t('clusters.fullCluster.createBtn') as string"
+          size="sm"
+          :disable="editMode"
+          :loading="generatingPlan"
+          @click="onCreateFullCluster"
         />
       </template>
 
@@ -380,6 +391,7 @@ export default defineComponent({
     saving: false,
     approving: false,
     dismissing: false,
+    generatingPlan: false,
     approveDialogOpen: false,
     dismissDialogOpen: false,
     pendingMode: "queue" as ApproveMode,
@@ -507,6 +519,35 @@ export default defineComponent({
         params: { slug: this.projectSlug },
         query: { fromBrief: this.brief.id },
       });
+    },
+
+    async onCreateFullCluster(): Promise<void> {
+      this.generatingPlan = true;
+      try {
+        const res = await api.post<{
+          ok: boolean;
+          data: { cluster: { id: string }; hub: unknown; spokes: unknown[] };
+        }>(
+          `/projects/${this.projectSlug}/clusters/full-plan`,
+          { triggerBriefId: this.brief.id },
+        );
+        const { cluster, spokes } = res.data.data;
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("clusters.fullCluster.planGenerated", {
+            count: (spokes as unknown[]).length,
+          }) as string,
+        });
+        void this.$router.push({
+          name: "cluster-plan-review",
+          params: { slug: this.projectSlug, id: cluster.id },
+        });
+      } catch (e) {
+        const msg = e instanceof HttpError ? e.userMessage : this.$t("clusters.fullCluster.planFailed") as string;
+        this.$q.notify({ type: "negative", message: msg });
+      } finally {
+        this.generatingPlan = false;
+      }
     },
 
     confirmApprove(mode: ApproveMode): void {

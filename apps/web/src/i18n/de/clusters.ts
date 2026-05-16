@@ -118,4 +118,45 @@ export default {
     successNow: "Cluster erstellt — Artikel-Generierung gestartet",
     errorCreate: "Fehler beim Erstellen des Clusters",
   },
+
+  fullCluster: {
+    createBtn: "Vollständigen Cluster generieren",
+    planGenerated: "Cluster-Plan generiert: 1 Hub + {count} Spokes",
+    planFailed: "Cluster-Plan konnte nicht generiert werden",
+
+    pageTitle: "Cluster-Plan prüfen",
+    back: "Zurück",
+    hub: "Hub-Artikel",
+    spokes: "Spoke-Artikel",
+    intentType: "Intent",
+    primaryKeyword: "Keyword",
+    estimatedWords: "~{n} Wörter",
+    rationale: "Begründung",
+
+    costTitle: "Kostenvorschau",
+    costArticleCount: "{n} Artikel (DE)",
+    costTotalArticles: "{n} Artikel gesamt (inkl. EN)",
+    costPlanLlm: "Cluster-Plan LLM",
+    costHub: "Hub-Generierung",
+    costSpokes: "Spoke-Generierung ({n}×)",
+    costTranslations: "Übersetzungen ({n}×)",
+    costTotal: "Gesamt (ca.)",
+    wallClock: "Dauer: ca. {min}–{max} min",
+
+    approveBtn: "Approven & generieren",
+    regenerateBtn: "Plan neu vorschlagen",
+    editViaApiHint: "Spokes editieren via API (UI in Phase D):",
+
+    regenerateDialogTitle: "Plan neu generieren",
+    regenerateHint: "Hinweis für die Neuvorschlag (optional)",
+    regenerateHintPlaceholder: 'z.B. "Mehr Pricing-Fokus, weniger Tutorial-Artikel"',
+    regenerateConfirm: "Neu generieren",
+    regenerateCancel: "Abbrechen",
+
+    approveSuccess: "Cluster-Generierung gestartet",
+    approveFailed: "Fehler beim Approven",
+    regenerateSuccess: "Plan wurde neu vorgeschlagen",
+    regenerateFailed: "Fehler beim Neu-Vorschlagen",
+    loadFailed: "Cluster-Plan konnte nicht geladen werden",
+  },
 };

@@ -117,4 +117,45 @@ export default {
     successNow: "Cluster created — article generation started",
     errorCreate: "Error creating cluster",
   },
+
+  fullCluster: {
+    createBtn: "Generate full cluster",
+    planGenerated: "Cluster plan generated: 1 Hub + {count} spokes",
+    planFailed: "Could not generate cluster plan",
+
+    pageTitle: "Review cluster plan",
+    back: "Back",
+    hub: "Hub article",
+    spokes: "Spoke articles",
+    intentType: "Intent",
+    primaryKeyword: "Keyword",
+    estimatedWords: "~{n} words",
+    rationale: "Rationale",
+
+    costTitle: "Cost preview",
+    costArticleCount: "{n} articles (DE)",
+    costTotalArticles: "{n} articles total (incl. EN)",
+    costPlanLlm: "Cluster plan LLM",
+    costHub: "Hub generation",
+    costSpokes: "Spoke generation ({n}×)",
+    costTranslations: "Translations ({n}×)",
+    costTotal: "Total (est.)",
+    wallClock: "Duration: approx. {min}–{max} min",
+
+    approveBtn: "Approve & generate",
+    regenerateBtn: "Regenerate plan",
+    editViaApiHint: "Edit spokes via API (UI in Phase D):",
+
+    regenerateDialogTitle: "Regenerate plan",
+    regenerateHint: "Refinement hint (optional)",
+    regenerateHintPlaceholder: "e.g. \"More pricing focus, fewer tutorial articles\"",
+    regenerateConfirm: "Regenerate",
+    regenerateCancel: "Cancel",
+
+    approveSuccess: "Cluster generation started",
+    approveFailed: "Error approving cluster",
+    regenerateSuccess: "Plan regenerated",
+    regenerateFailed: "Error regenerating plan",
+    loadFailed: "Could not load cluster plan",
+  },
 };
