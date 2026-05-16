@@ -3,6 +3,7 @@
     flat
     dense
     no-icon-animation
+    hide-dropdown-icon
     class="project-selector"
     :ripple="false"
     :content-class="'project-dropdown-menu'"
@@ -138,6 +139,11 @@ export default defineComponent({
   padding: 4px 8px;
   border-radius: var(--radius-md);
   transition: background var(--transition-fast, 120ms cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+/* Hide Quasar's internal dropdown arrow — we render our own SVG chevron */
+.project-selector :deep(.q-btn-dropdown__arrow) {
+  display: none;
 }
 
 .selector-label {
