@@ -20,9 +20,7 @@
       :class="{ 'detail-visible': detailPaneVisible }"
       :aria-hidden="!detailPaneVisible"
     >
-      <!-- Session 6: PipelineRunDetail component goes here -->
       <div v-if="selectedRunId" class="detail-content">
-        <p class="text-xs text-dim mono">{{ selectedRunId }}</p>
         <button
           v-if="isMobile"
           class="detail-back text-sm"
@@ -31,6 +29,7 @@
         >
           ← {{ $t('common.back') }}
         </button>
+        <PipelineRunDetail :run-id="selectedRunId" />
       </div>
 
       <div v-else class="detail-empty">
@@ -55,6 +54,7 @@ import DashboardStats from "./components/DashboardStats.vue";
 import DashboardLanes from "./components/DashboardLanes.vue";
 import DashboardClusters from "./components/DashboardClusters.vue";
 import EmptyState from "src/components/ui/EmptyState.vue";
+import PipelineRunDetail from "src/components/pipeline/PipelineRunDetail.vue";
 
 /**
  * Pipeline orchestration dashboard — root view of Spec 56.1.
@@ -75,6 +75,7 @@ export default defineComponent({
     DashboardLanes,
     DashboardClusters,
     EmptyState,
+    PipelineRunDetail,
   },
 
   setup() {

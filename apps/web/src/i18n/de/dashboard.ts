@@ -50,17 +50,20 @@ export default {
     empty: "Keine aktiven Cluster",
     emptyDesc: "Cluster mit laufender Generierung erscheinen hier.",
     progress: "{done}/{total} Artikel",
+    pillsLabel: "Artikel-Statuspillen",
   },
 
   detail: {
     noSelection: "Keinen Run ausgewählt",
     noSelectionDesc: "Klicke eine Karte um Details, Schritte und Kosten zu sehen.",
     steps: "Schritte",
+    noSteps: "Noch keine Schritte",
     cost: "Kosten",
     costSpent: "Ausgegeben",
     costEstimated: "Geschätzt",
     wordCount: "Wörter",
     author: "Autor",
+    loadError: "Konnte Run nicht laden.",
     actions: {
       open: "Öffnen",
       retry: "Wiederholen",

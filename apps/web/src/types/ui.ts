@@ -106,7 +106,7 @@ export interface CostSummary {
   window: "today" | "week" | "month";
 }
 
-/** Cluster card data */
+/** Cluster card data (simplified view for the dashboard card) */
 export interface ClusterCardData {
   id: string;
   name: string;
@@ -115,6 +115,75 @@ export interface ClusterCardData {
   articleStatuses: ArticleGenerationStatus[];
   progressPercent: number;
   costEur: number | null;
+}
+
+/** Article stub returned inside a cluster status response */
+export interface ClusterArticleStub {
+  id: string;
+  title: string | null;
+  status: string;
+  locale: string | null;
+  role: string | null;
+}
+
+/** Full response shape for GET /api/projects/:slug/clusters/:id/generation-status */
+export interface ClusterStatusResponse {
+  cluster: {
+    id: string;
+    name: string;
+    generationStatus: ClusterGenerationStatus;
+    proposedSpokes: unknown[] | null;
+  };
+  hubArticle: ClusterArticleStub | null;
+  spokeArticles: ClusterArticleStub[];
+  cost: { spentEur: number; estimatedEur: number };
+  progress: { completed: number; expected: number; percent: number };
+}
+
+/** One cost line in a pipeline run detail response */
+export interface RunCostEntry {
+  id: string;
+  operation: string;
+  service: string;
+  costEur: number;
+  createdAt: string;
+}
+
+/** Full response shape for GET /api/pipeline-runs/:id */
+export interface PipelineRunDetailResponse {
+  run: {
+    id: string;
+    pipelineName: string;
+    status: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    createdAt: string;
+    durationMs: number | null;
+    error: string | null;
+    retriedFromRunId: string | null;
+  };
+  steps: Array<{
+    id: string;
+    stepName: string;
+    status: string;
+    startedAt: string | null;
+    completedAt: string | null;
+    durationMs: number | null;
+    error: string | null;
+  }>;
+  costs: RunCostEntry[];
+  totalCostEur: number;
+  article: { id: string; title: string | null; slug: string; status: string; locale: string | null } | null;
+  brief: { id: string; source: string; topicTitle: string } | null;
+}
+
+/** Cluster list entry from GET /api/projects/:slug/clusters */
+export interface ClusterListEntry {
+  id: string;
+  name: string;
+  pillarName: string | null;
+  generationStatus: ClusterGenerationStatus | null;
+  articleCount: number;
 }
 
 /** Dashboard header stats */

@@ -2,7 +2,7 @@ import { type MaybeRef, unref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useProjectStore } from "src/stores/project";
 import { apiGet } from "src/lib/api";
-import type { ClusterCardData } from "src/types/ui";
+import type { ClusterStatusResponse } from "src/types/ui";
 
 /**
  * Polls the generation status of a single cluster.
@@ -20,7 +20,7 @@ export function useClusterStatus(clusterId: MaybeRef<string>) {
   return useQuery({
     queryKey: ["cluster-generation-status", clusterId],
     queryFn: () =>
-      apiGet<ClusterCardData>(
+      apiGet<ClusterStatusResponse>(
         `/projects/${projectStore.currentSlug}/clusters/${unref(clusterId)}/generation-status`,
       ),
     enabled: !!unref(clusterId),

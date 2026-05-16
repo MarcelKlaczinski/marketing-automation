@@ -470,6 +470,7 @@ clusterCreatorRoutes.get(
           primaryKeyword: clusters.primaryKeyword,
           cornerstoneKeywords: clusters.cornerstoneKeywords,
           pillarArticleId: clusters.pillarArticleId,
+          generationStatus: clusters.generationStatus,
           position: clusters.position,
           createdAt: clusters.createdAt,
           articleCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id})::int, 0)`,

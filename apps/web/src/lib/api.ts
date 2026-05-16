@@ -20,6 +20,25 @@ export async function apiGet<T>(path: string): Promise<T> {
   return body.data;
 }
 
+/** Typed PATCH helper. Throws on non-2xx. */
+export async function apiPatch<T>(path: string, payload?: unknown): Promise<T> {
+  const init: RequestInit = {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+  };
+  if (payload !== undefined) {
+    init.body = JSON.stringify(payload);
+  }
+  const res = await fetch(`${BASE}${path}`, init);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+  const body = (await res.json()) as { ok: boolean; data: T };
+  return body.data;
+}
+
 /** Typed POST helper. Throws on non-2xx. */
 export async function apiPost<T>(path: string, payload?: unknown): Promise<T> {
   // Build init conditionally — exactOptionalPropertyTypes forbids body: string | undefined
