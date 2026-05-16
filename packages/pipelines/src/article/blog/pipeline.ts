@@ -1,7 +1,9 @@
+import { articles, db, eq, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { enqueueSchemaExtension } from "../../schema-extension/trigger.ts";
+import { enqueueTranslationPipeline } from "../translation/trigger.ts";
 import { AuthorPickStep } from "../author-picker/step.ts";
 import { AssemblyStep } from "../steps/assembly.ts";
 import { DraftStep } from "../steps/draft.ts";
@@ -317,6 +319,37 @@ export class BlogPipeline extends Pipeline<
       });
     } catch (e) {
       log.warn({ err: e, articleId: pipelineInput.articleId }, "Schema extension enqueue failed after blog pipeline");
+    }
+
+    // Auto-trigger EN translation if project opts in and article is DE
+    try {
+      const [article] = await db
+        .select({ locale: articles.locale })
+        .from(articles)
+        .where(eq(articles.id, pipelineInput.articleId))
+        .limit(1);
+
+      if (article?.locale === "de") {
+        const [project] = await db
+          .select({ targetLocales: projects.targetLocales, translationAutoTrigger: projects.translationAutoTrigger })
+          .from(projects)
+          .where(eq(projects.id, pipelineInput.projectId))
+          .limit(1);
+
+        const wantsEn = project?.targetLocales?.includes("en-US") ?? false;
+        const autoTrigger = project?.translationAutoTrigger ?? true;
+
+        if (wantsEn && autoTrigger) {
+          await enqueueTranslationPipeline({
+            sourceArticleId: pipelineInput.articleId,
+            projectId:       pipelineInput.projectId,
+            mode:            "fresh_translation",
+          });
+          log.info({ articleId: pipelineInput.articleId }, "[blog] auto-triggered EN translation");
+        }
+      }
+    } catch (e) {
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] EN translation auto-trigger failed — skipped");
     }
   }
 }

@@ -21,6 +21,7 @@ import {
   RefreshPipeline,
   SchemaExtensionPipeline,
   SocialImagePipeline,
+  TranslationPipeline,
   VoiceRefinementQuestionsPipeline,
   VoiceSynthesisPipeline,
   closePipelineInfrastructure,
@@ -123,6 +124,7 @@ async function main() {
   pipelineRegistry.register(new CornerstoneListPipeline());
   pipelineRegistry.register(new GoLiveChecklistPipeline());
   pipelineRegistry.register(new SocialImagePipeline());
+  pipelineRegistry.register(new TranslationPipeline());
   // Spec 44: Astro repo import pipeline
   pipelineRegistry.register(new RepoImportPipeline());
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");

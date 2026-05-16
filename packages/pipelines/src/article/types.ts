@@ -106,7 +106,11 @@ export class ArticlePipelineError extends Error {
       | "review"
       | "image"
       | "assembly"
-      | "localize",
+      | "localize"
+      | "translation-setup"
+      | "translation-decision"
+      | "translation-body"
+      | "refresh-intake",
     public readonly originalCause?: unknown
   ) {
     super(message);
