@@ -25,6 +25,10 @@ const InputSchema = z.object({
   suggestedTitle: z.string().nullable().optional(),
   // Spec 50: frontmatter schema for this collection — injected into system prompt
   frontmatterSchema: z.array(z.unknown()).nullable().optional(),
+  // Spec 54.9: source-aware context injected into user message (not system prompt — preserves cache)
+  sourceContext: z.string().optional(),
+  // Spec 54.9: relevant tools context for the cluster (pre-generation phase)
+  toolsContext: z.string().optional(),
 });
 
 export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOutline> {
@@ -153,6 +157,10 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
         ? `**Suggested title** (editorially chosen — use it verbatim if it is already SERP-strong; ` +
           `only change it if you have a clear SEO reason): "${input.suggestedTitle}"`
         : "",
+      // Spec 54.9: source context (non-empty only for gap_analysis / trend_discovery briefs)
+      ...(input.sourceContext ? ["", input.sourceContext] : []),
+      // Spec 54.9: tools context (non-empty when cluster has tool articles)
+      ...(input.toolsContext ? ["", input.toolsContext] : []),
       "",
       "# SERP analysis",
       research.competitorSynthesis,

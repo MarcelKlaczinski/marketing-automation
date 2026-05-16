@@ -9,6 +9,7 @@ import {
 import {
   ArticleDraftPipeline,
   ArticleOutlinePipeline,
+  BlogPipeline,
   ClusterLinkRebuildPipeline,
   HeroImageGenerationPipeline,
   LocalizeArticlePipeline,
@@ -102,6 +103,7 @@ async function main() {
 
   pipelineRegistry.register(new ArticleOutlinePipeline());
   pipelineRegistry.register(new ArticleDraftPipeline());
+  pipelineRegistry.register(new BlogPipeline());
   pipelineRegistry.register(new HeroImageGenerationPipeline());
   pipelineRegistry.register(new LocalizeArticlePipeline());
   pipelineRegistry.register(new ArticleSyncPipeline());

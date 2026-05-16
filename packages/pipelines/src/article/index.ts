@@ -6,3 +6,5 @@ export * from "./localize/index.ts";
 export * from "./social-image/pipeline.ts";
 export * from "./social-image/trigger.ts";
 export * from "./discovery/index.ts";
+export * from "./blog/pipeline.ts";
+export * from "./blog/trigger.ts";

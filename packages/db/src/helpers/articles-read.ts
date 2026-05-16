@@ -146,3 +146,69 @@ export async function listToolsByPricing(
     )
     .orderBy(desc(articles.toolRating));
 }
+
+/**
+ * List tool articles that belong to a specific cluster (by cluster_id UUID).
+ * Ordered by tool rating descending so highest-rated tools appear first.
+ * Used by Tool-Linker pre-generation to resolve cluster-matched tools.
+ */
+export async function listToolsByClusterId(
+  projectId: string,
+  clusterId: string,
+  locale: Locale,
+): Promise<Article[]> {
+  return await db
+    .select()
+    .from(articles)
+    .where(
+      and(
+        eq(articles.projectId, projectId),
+        eq(articles.collection, "tools"),
+        eq(articles.clusterId, clusterId),
+        eq(articles.locale, locale),
+      ),
+    )
+    .orderBy(desc(articles.toolRating));
+}
+
+export interface AuthorProfileRow {
+  slug: string;
+  name: string;
+  expertise: string[];
+  expertiseEmbedding?: number[];
+}
+
+/**
+ * List author profiles for a project+locale, including cached expertise embeddings.
+ * Expertise and expertiseEmbedding are read from frontmatterExtras.
+ */
+export async function listAuthorsByLocale(
+  projectId: string,
+  locale: Locale,
+): Promise<AuthorProfileRow[]> {
+  const rows = await db
+    .select()
+    .from(articles)
+    .where(
+      and(
+        eq(articles.projectId, projectId),
+        eq(articles.collection, "authors"),
+        eq(articles.locale, locale),
+      ),
+    );
+
+  return rows.map((r) => {
+    const extras = (r.frontmatterExtras ?? {}) as Record<string, unknown>;
+    const base = {
+      slug: r.slug,
+      name: r.title ?? String(extras.name ?? r.slug),
+      expertise: Array.isArray(extras.expertise)
+        ? (extras.expertise as unknown[]).filter((h): h is string => typeof h === "string")
+        : [],
+    };
+    if (Array.isArray(extras.expertiseEmbedding)) {
+      return { ...base, expertiseEmbedding: extras.expertiseEmbedding as number[] };
+    }
+    return base;
+  });
+}

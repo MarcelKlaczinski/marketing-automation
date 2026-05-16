@@ -15,6 +15,10 @@ const InputSchema = z.object({
   locale: z.enum(["de", "en"]).optional(),
   // Spec 50: frontmatter schema — injected into prompt so LLM outputs FRONTMATTER_EXTRAS block
   frontmatterSchema: z.array(z.unknown()).nullable().optional(),
+  // Spec 54.9: source-aware context injected into user message (not system prompt — preserves cache)
+  sourceContext: z.string().optional(),
+  // Spec 54.9: relevant tools context for the cluster (pre-generation phase)
+  toolsContext: z.string().optional(),
 });
 
 const OutputSchema = z.object({
@@ -210,6 +214,10 @@ Output format:
     );
 
     const userMsg = [
+      // Spec 54.9: source context (non-empty for gap_analysis / trend_discovery)
+      ...(input.sourceContext ? [input.sourceContext, ""] : []),
+      // Spec 54.9: tools context (non-empty when cluster has tool articles)
+      ...(input.toolsContext ? [input.toolsContext, ""] : []),
       "# Outline to write",
       `**Title**: ${outline.title}`,
       `**Meta description**: ${outline.metaDescription}`,
