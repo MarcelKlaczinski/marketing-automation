@@ -356,6 +356,10 @@ const articlesListQuerySchema = paginationQuerySchema.extend({
 articleRoutes.get("/", zValidator("query", articlesListQuerySchema), async (c) => {
   const q = c.req.valid("query");
 
+  c.header("X-Deprecated", "true");
+  c.header("X-Replaced-By", `/api/projects/${q.projectSlug}/articles`);
+  c.header("X-Deprecation-Date", "2026-05-16");
+
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
@@ -465,6 +469,10 @@ articleRoutes.get("/imported/collections", async (c) => {
   const projectSlug = c.req.query("projectSlug");
   if (!projectSlug) return c.json({ ok: false, error: "projectSlug required" }, 400);
 
+  c.header("X-Deprecated", "true");
+  c.header("X-Replaced-By", `/api/projects/${projectSlug}/articles/imported/collections`);
+  c.header("X-Deprecation-Date", "2026-05-16");
+
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
@@ -502,6 +510,10 @@ const importedQuerySchema = paginationQuerySchema.extend({
 
 articleRoutes.get("/imported", zValidator("query", importedQuerySchema), async (c) => {
   const q = c.req.valid("query");
+
+  c.header("X-Deprecated", "true");
+  c.header("X-Replaced-By", `/api/projects/${q.projectSlug}/articles/imported`);
+  c.header("X-Deprecation-Date", "2026-05-16");
 
   const [project] = await db
     .select({ id: projects.id })

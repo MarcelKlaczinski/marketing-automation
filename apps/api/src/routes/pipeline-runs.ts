@@ -56,7 +56,7 @@ export interface ActivityEntry {
   createdAt: string;
 }
 
-function classifyPipelineName(name: string): ActivityType {
+export function classifyPipelineName(name: string): ActivityType {
   if (name.startsWith("cold-start:")) return "cold_start";
   if (name === "article:outline") return "article_outline";
   if (name === "article:draft") return "article_draft";
@@ -67,7 +67,7 @@ function classifyPipelineName(name: string): ActivityType {
   return "other";
 }
 
-function normalizeStatus(raw: string): NormalizedStatus {
+export function normalizeStatus(raw: string): NormalizedStatus {
   const map: Record<string, NormalizedStatus> = {
     queued: "queued",
     running: "running",
@@ -82,7 +82,7 @@ function normalizeStatus(raw: string): NormalizedStatus {
   return map[raw] ?? "failed";
 }
 
-function buildPipelineTitle(
+export function buildPipelineTitle(
   pipelineName: string,
   articleInfo: { title: string | null; cornerstoneKeyword: string | null } | null | undefined
 ): string {
@@ -93,7 +93,7 @@ function buildPipelineTitle(
   return pipelineName;
 }
 
-function buildPipelineSubtitle(
+export function buildPipelineSubtitle(
   pipelineName: string,
   articleInfo: { title: string | null; cornerstoneKeyword: string | null } | null | undefined,
   currentStep?: string
@@ -118,6 +118,12 @@ pipelineRunsRoutes.use(requireAuth);
 // ─── GET /api/pipeline-runs/active ──────────────────────────────────────────
 pipelineRunsRoutes.get("/active", async (c) => {
   const projectIdParam = c.req.query("projectId") ?? null;
+
+  if (projectIdParam) {
+    c.header("X-Deprecated", "true");
+    c.header("X-Replaced-By", `/api/projects/:slug/pipeline-runs/active`);
+    c.header("X-Deprecation-Date", "2026-05-16");
+  }
   const sinceParam = c.req.query("since");
   const since = sinceParam ? new Date(sinceParam) : new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -448,6 +454,10 @@ pipelineRunsRoutes.get(
   async (c) => {
     const projectId = c.req.param("projectId");
     const q = c.req.valid("query");
+
+    c.header("X-Deprecated", "true");
+    c.header("X-Replaced-By", `/api/projects/:slug/pipeline-runs`);
+    c.header("X-Deprecation-Date", "2026-05-16");
 
     const conditions = [eq(pipelineRuns.projectId, projectId)];
     if (q.pipelineNamePrefix) {

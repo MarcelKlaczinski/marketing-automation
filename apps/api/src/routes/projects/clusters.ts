@@ -31,6 +31,7 @@ import { voyage } from "@marketing-auto/adapter-voyage";
 import { createLogger } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
+import { paginated, paginationQuerySchema } from "../../lib/pagination.ts";
 import { requireAuth } from "../../middleware/auth.ts";
 import { triggerWithPreRunId } from "../_lib/trigger-helpers.ts";
 
@@ -437,3 +438,79 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
     },
   });
 });
+
+// ─── GET /:slug/clusters ──────────────────────────────────────────────────────
+
+const clustersListQuerySchema = paginationQuerySchema.extend({
+  pillarId: z.string().uuid().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
+clusterCreatorRoutes.get(
+  "/:slug/clusters",
+  zValidator("query", clustersListQuerySchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const q = c.req.valid("query");
+
+    const project = await resolveProject(slug);
+    if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const conditions = [eq(clusters.projectId, project.id)];
+    if (q.pillarId) conditions.push(eq(clusters.pillarId, q.pillarId));
+    const whereClause = and(...conditions);
+
+    const [rows, countRows] = await Promise.all([
+      db
+        .select({
+          id: clusters.id,
+          name: clusters.name,
+          pillarId: clusters.pillarId,
+          pillarName: contentPillars.name,
+          primaryKeyword: clusters.primaryKeyword,
+          cornerstoneKeywords: clusters.cornerstoneKeywords,
+          pillarArticleId: clusters.pillarArticleId,
+          position: clusters.position,
+          createdAt: clusters.createdAt,
+          articleCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id})::int, 0)`,
+          cornerstoneCount: sql<number>`coalesce((select count(*) from ${articles} where ${articles.clusterId} = ${clusters.id} and ${articles.cornerstoneSpecId} is not null)::int, 0)`,
+        })
+        .from(clusters)
+        .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
+        .where(whereClause)
+        .orderBy(asc(clusters.position), asc(clusters.createdAt))
+        .limit(q.limit)
+        .offset(q.offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(clusters)
+        .where(whereClause),
+    ]);
+
+    const pillarArticleIds = rows
+      .map((r) => r.pillarArticleId)
+      .filter((id): id is string => id !== null);
+
+    const titleMap = new Map<string, string | null>();
+    if (pillarArticleIds.length > 0) {
+      const titles = await db
+        .select({
+          id: articles.id,
+          title: articles.title,
+          cornerstoneKeyword: articles.cornerstoneKeyword,
+        })
+        .from(articles)
+        .where(inArray(articles.id, pillarArticleIds));
+      for (const t of titles) {
+        titleMap.set(t.id, t.title ?? t.cornerstoneKeyword ?? null);
+      }
+    }
+
+    const enriched = rows.map((r) => ({
+      ...r,
+      pillarArticleTitle: r.pillarArticleId ? (titleMap.get(r.pillarArticleId) ?? null) : null,
+    }));
+
+    return c.json({ ok: true, data: paginated(enriched, countRows, q) });
+  },
+);

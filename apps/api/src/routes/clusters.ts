@@ -19,6 +19,10 @@ const clustersListQuerySchema = paginationQuerySchema.extend({
 clusterRoutes.get("/", zValidator("query", clustersListQuerySchema), async (c) => {
   const q = c.req.valid("query");
 
+  c.header("X-Deprecated", "true");
+  c.header("X-Replaced-By", `/api/projects/${q.projectSlug}/clusters`);
+  c.header("X-Deprecation-Date", "2026-05-16");
+
   const [project] = await db
     .select({ id: projects.id })
     .from(projects)
