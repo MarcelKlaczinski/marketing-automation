@@ -32,20 +32,16 @@ import {
   registerDraftDiscoveryCallback,
   registerLocalizeChainCallbacks,
   registerSchemaChainCallbacks,
-  registerScheduledJob,
   startPipelineWorker,
   startScheduler,
 } from "@marketing-auto/pipelines";
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
-import { startSignalCollectorWorker, registerSignalCollectorCron } from "./signal-collector.ts";
-import { startTrendSynthesizerWorker, registerTrendSynthesizerCron } from "./trend-synthesizer.ts";
-import { createLogger, getEnv } from "@marketing-auto/shared";
-import { runAuthCleanup } from "../lib/cleanup.ts";
-import { runArticleSchedulerTick } from "./article-scheduler.ts";
+import { startSignalCollectorWorker } from "./signal-collector.ts";
+import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
+import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("worker");
-const env = getEnv();
 
 // ─── PID file ────────────────────────────────────────────────────────────────
 // Guarantees at most one worker process is active at any time.

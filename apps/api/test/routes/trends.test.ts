@@ -16,7 +16,6 @@ import {
   db,
   eq,
   externalSignals,
-  isNotNull,
   isNull,
   projects,
   rejectedTopicCandidates,
