@@ -1,4 +1,5 @@
 import activity from "./activity";
+import dashboard from "./dashboard";
 import admin from "./admin";
 import brand from "./brand";
 import cornerstones from "./cornerstones";
@@ -54,4 +55,5 @@ export default {
   brand,
   admin,
   trends,
+  dashboard,
 };
