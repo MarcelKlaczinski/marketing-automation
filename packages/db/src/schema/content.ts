@@ -458,7 +458,8 @@ export type ChainStep =
   | "schema-de"
   | "localize"
   | "schema-en"
-  | "astro-transfer";
+  | "astro-transfer"
+  | "blog";  // Spec 54.10: routes blog-eligible briefs through article:blog pipeline
 
 export const pipelineChains = pgTable(
   "pipeline_chains",

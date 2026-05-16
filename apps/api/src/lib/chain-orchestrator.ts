@@ -1,8 +1,9 @@
 /**
  * Chain-Orchestrator for Spec 49d (Per-Gap Automation Chain).
  *
- * Manages the 6-step automation chain:
- *   outline → draft → schema-de → localize → schema-en → [astro-transfer]
+ * Manages the automation chain:
+ *   Legacy:  outline → draft → schema-de → localize → schema-en → [astro-transfer]
+ *   Blog:    blog → localize → schema-en → [astro-transfer]  (Spec 54.10)
  *
  * State is persisted in pipeline_chains. Each pipeline's afterComplete hook
  * calls advanceChain() / failChain() when chainId is present in pipelineInput.
@@ -18,6 +19,7 @@ import {
   db,
   pipelineChains,
   projects,
+  topicBriefs,
 } from "@marketing-auto/db";
 import { enqueuePipeline, slugify } from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
@@ -25,12 +27,20 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("chain-orchestrator");
 
-// ─── Step Sequence ────────────────────────────────────────────────────────────
+// ─── Step Sequences ───────────────────────────────────────────────────────────
 
-const STEP_SEQUENCE: ChainStep[] = [
+const LEGACY_STEP_SEQUENCE: ChainStep[] = [
   "outline",
   "draft",
   "schema-de",
+  "localize",
+  "schema-en",
+  "astro-transfer",
+];
+
+// Blog chain skips outline/draft/schema-de — Blog Pipeline handles generation internally.
+const BLOG_STEP_SEQUENCE: ChainStep[] = [
+  "blog",
   "localize",
   "schema-en",
   "astro-transfer",
@@ -40,13 +50,38 @@ function nextStep(
   completedStep: ChainStep,
   autoPublish: boolean
 ): ChainStep | null {
-  const idx = STEP_SEQUENCE.indexOf(completedStep);
+  // Determine which sequence this step belongs to
+  const sequence = BLOG_STEP_SEQUENCE.includes(completedStep as ChainStep)
+    ? BLOG_STEP_SEQUENCE
+    : LEGACY_STEP_SEQUENCE;
+
+  const idx = sequence.indexOf(completedStep);
   if (idx === -1) return null;
-  const candidate = STEP_SEQUENCE[idx + 1];
+  const candidate = sequence[idx + 1];
   if (!candidate) return null;
   // astro-transfer only runs if autoPublish is enabled
   if (candidate === "astro-transfer" && !autoPublish) return null;
   return candidate;
+}
+
+/**
+ * Returns true when a brief should route through the Blog Pipeline (article:blog)
+ * instead of the legacy outline chain.
+ *
+ * Matches isBlogBrief() logic from the API layer — locale + clusterId present,
+ * and not a refresh or translation brief (those have their own routes).
+ */
+export function isBlogEligible(brief: {
+  locale: string | null;
+  clusterId: string | null;
+  source: string;
+}): boolean {
+  return (
+    brief.locale !== null &&
+    brief.clusterId !== null &&
+    brief.source !== "refresh_detection" &&
+    brief.source !== "translation_created"
+  );
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -55,6 +90,10 @@ export async function startChain(input: {
   projectId: string;
   gapId: string;
   articleId: string;
+  /** briefId required when useBlogPipeline=true so the Blog Pipeline can load the brief. */
+  briefId?: string;
+  /** When true, starts with the blog step (article:blog) instead of the legacy outline step. */
+  useBlogPipeline?: boolean;
 }): Promise<{ chainId: string; firstStep: ChainStep }> {
   const [project] = await db
     .select({ id: projects.id, autoPublish: projects.autoPublish })
@@ -62,6 +101,13 @@ export async function startChain(input: {
     .where(eq(projects.id, input.projectId))
     .limit(1);
   if (!project) throw new Error(`Project ${input.projectId} not found`);
+
+  const useBlog = input.useBlogPipeline === true;
+  const firstStep: ChainStep = useBlog ? "blog" : "outline";
+
+  if (useBlog && !input.briefId) {
+    throw new Error("startChain: briefId is required when useBlogPipeline=true");
+  }
 
   const [chain] = await db
     .insert(pipelineChains)
@@ -76,26 +122,45 @@ export async function startChain(input: {
 
   const chainId = chain!.id;
 
-  const { jobId } = await enqueuePipeline({
-    pipelineName: "article:outline",
-    projectId: input.projectId,
-    input: {
-      articleId:    input.articleId,
-      projectId:    input.projectId,
-      chainId,
-      chainStep:    "outline" satisfies ChainStep,
-      approvalMode: "manual", // chain controls sequencing, not approvalMode
-    },
-    jobOptions: { jobId: `chain-${chainId}-outline` },
-  });
+  let jobId: string;
+  if (useBlog) {
+    // Use enqueuePipeline directly — no preRunId in chain context (chain tracks state, not pipeline_runs).
+    const result = await enqueuePipeline({
+      pipelineName: "article:blog",
+      projectId: input.projectId,
+      input: {
+        articleId: input.articleId,
+        projectId: input.projectId,
+        briefId:   input.briefId!,
+        chainId,
+        chainStep: "blog" satisfies ChainStep,
+      },
+      jobOptions: { jobId: `chain-${chainId}-blog` },
+    });
+    jobId = result.jobId;
+  } else {
+    const result = await enqueuePipeline({
+      pipelineName: "article:outline",
+      projectId: input.projectId,
+      input: {
+        articleId:    input.articleId,
+        projectId:    input.projectId,
+        chainId,
+        chainStep:    "outline" satisfies ChainStep,
+        approvalMode: "manual",
+      },
+      jobOptions: { jobId: `chain-${chainId}-outline` },
+    });
+    jobId = result.jobId;
+  }
 
   await db
     .update(pipelineChains)
-    .set({ currentStep: "outline", updatedAt: new Date() })
+    .set({ currentStep: firstStep, updatedAt: new Date() })
     .where(eq(pipelineChains.id, chainId));
 
-  log.info({ chainId, articleId: input.articleId, jobId }, "[chain] Started — step outline enqueued");
-  return { chainId, firstStep: "outline" };
+  log.info({ chainId, articleId: input.articleId, jobId, firstStep }, `[chain] Started — step ${firstStep} enqueued`);
+  return { chainId, firstStep };
 }
 
 export async function advanceChain(
@@ -338,6 +403,31 @@ async function triggerStep(
         projectId,
         input: { articleId, projectId, chainId, chainStep: "outline" satisfies ChainStep, approvalMode: "manual" },
         jobOptions: { jobId: `chain-${chainId}-outline` },
+      });
+      jobId = result.jobId;
+      break;
+    }
+
+    case "blog": {
+      // Blog step in a chain context (e.g. resume): load briefId from the article's linked brief.
+      const [linkedBrief] = await db
+        .select({ id: topicBriefs.id })
+        .from(topicBriefs)
+        .where(eq(topicBriefs.routedArticleId, articleId))
+        .limit(1);
+      if (!linkedBrief) throw new Error(`No brief linked to article ${articleId} for blog chain step`);
+
+      const result = await enqueuePipeline({
+        pipelineName: "article:blog",
+        projectId,
+        input: {
+          articleId,
+          projectId,
+          briefId:   linkedBrief.id,
+          chainId,
+          chainStep: "blog" satisfies ChainStep,
+        },
+        jobOptions: { jobId: `chain-${chainId}-blog` },
       });
       jobId = result.jobId;
       break;

@@ -25,6 +25,7 @@ import {
   closePipelineInfrastructure,
   discoverArticleStep,
   pipelineRegistry,
+  registerBlogChainCallbacks,
   registerChainCallbacks,
   registerDraftDiscoveryCallback,
   registerLocalizeChainCallbacks,
@@ -158,6 +159,7 @@ async function main() {
   registerChainCallbacks(chainCallbacks);
   registerSchemaChainCallbacks(chainCallbacks);
   registerLocalizeChainCallbacks({ advanceChain: chainCallbacks.advanceChain });
+  registerBlogChainCallbacks({ advanceChain: chainCallbacks.advanceChain });
 
   // Spec 54c: sync discovery so suggestions are available when the pipeline run shows "completed"
   registerDraftDiscoveryCallback(async (articleId, projectId) => {

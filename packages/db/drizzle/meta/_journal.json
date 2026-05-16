@@ -309,6 +309,13 @@
       "when": 1782100000000,
       "tag": "0043_tool_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1782200000000,
+      "tag": "0044_translation_auto_trigger",
+      "breakpoints": true
     }
   ]
 }

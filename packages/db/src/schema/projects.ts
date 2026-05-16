@@ -68,6 +68,10 @@ export const projects = pgTable(
     // Default false (safe for new projects). Set true for toolwiki via migration 0024.
     autoPublish: boolean("auto_publish").notNull().default(false),
 
+    // Spec 54.10: if true, Blog Pipeline auto-triggers EN translation after DE article completes.
+    // Default true. Set false per project to opt out of auto-translation.
+    translationAutoTrigger: boolean("translation_auto_trigger").notNull().default(true),
+
     // Spec 51: Visual brand tokens for social-image generation (colors, typography, voice, social handles)
     brandTokens: jsonb("brand_tokens").$type<BrandTokens>().notNull().default({}),
 

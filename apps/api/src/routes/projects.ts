@@ -7,7 +7,7 @@ import { enqueueArticleOutlinePipeline, enqueueBlogGenerationPipeline, decideRou
 import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
-import { startChain, resumeChain, cancelChain } from "../lib/chain-orchestrator.ts";
+import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -1026,10 +1026,16 @@ projectRoutes.post("/:slug/content-gaps/:id/automate", async (c) => {
     return c.json({ ok: false, error: "Unexpected routing result for automate" }, 500);
   }
 
+  // Spec 54.10: route blog-eligible briefs through article:blog instead of legacy outline chain.
+  // Same eligibility check as isBlogBrief() used in /generate — locale + clusterId present,
+  // and not a refresh/translation brief.
+  const useBlogPipeline = routeResult.kind === "article_created" && isBlogEligible(brief);
+
   const { chainId } = await startChain({
     projectId: project.id,
     gapId,
     articleId: routeResult.articleId,
+    ...(useBlogPipeline && { briefId: routeResult.briefId, useBlogPipeline: true }),
   });
 
   await db

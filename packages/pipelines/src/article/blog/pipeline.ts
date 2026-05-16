@@ -18,6 +18,17 @@ import { PersistOutlineStep } from "../steps/persist-outline.ts";
 
 const log = createLogger("pipelines:blog");
 
+// ─── Chain callbacks (Spec 54.10) ─────────────────────────────────────────────
+
+let _advanceChain: ((chainId: string, step: string, runId: string) => Promise<void>) | null = null;
+
+/** Called once at worker startup to wire in chain advancement for blog chain steps. */
+export function registerBlogChainCallbacks(callbacks: {
+  advanceChain: (chainId: string, step: string, runId: string) => Promise<void>;
+}): void {
+  _advanceChain = callbacks.advanceChain;
+}
+
 // ─── Input / Output ───────────────────────────────────────────────────────────
 
 // Explicit type annotation needed because Zod .optional() + exactOptionalPropertyTypes
@@ -27,6 +38,9 @@ type BlogPipelineInput = {
   projectId: string;
   briefId: string;
   modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
+  // Spec 54.10: present when triggered by chain orchestrator (blog chain step)
+  chainId?: string;
+  chainStep?: string;
 };
 
 const BlogPipelineInputSchema = z.object({
@@ -34,6 +48,8 @@ const BlogPipelineInputSchema = z.object({
   projectId: z.string().uuid(),
   briefId: z.string().uuid(),
   modelOverride: z.enum(["claude-opus-4-7", "claude-sonnet-4-6"]).optional(),
+  chainId: z.string().uuid().optional(),
+  chainStep: z.string().optional(),
 }) as z.ZodType<BlogPipelineInput>;
 
 const BlogPipelineOutputSchema = z.object({
@@ -280,7 +296,20 @@ export class BlogPipeline extends Pipeline<
   override async afterComplete(
     _output: z.infer<typeof BlogPipelineOutputSchema>,
     pipelineInput: BlogPipelineInput,
+    runId: string,
   ): Promise<void> {
+    // Chain advancement: when triggered from the blog chain step, advance to 'localize'.
+    if (pipelineInput.chainId && _advanceChain) {
+      try {
+        await _advanceChain(pipelineInput.chainId, "blog", runId);
+      } catch (e) {
+        log.warn({ err: e, chainId: pipelineInput.chainId }, "[chain] advanceChain failed after blog pipeline");
+      }
+      // Schema extension is handled by the chain's schema-en step — skip standalone enqueue.
+      return;
+    }
+
+    // Non-chain run: enqueue schema extension directly.
     try {
       await enqueueSchemaExtension({
         articleId: pipelineInput.articleId,
