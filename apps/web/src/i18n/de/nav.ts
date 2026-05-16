@@ -8,6 +8,11 @@ export default {
   settings: "Einstellungen",
   templates: "Templates",
   trends: "Trends",
+  noProjects: "Keine Projekte",
+  search: "Suchen",
+  commandPalette: "Befehlspalette öffnen",
+  runningCount: "{n} laufend",
+  failedCount: "{n} fehlgeschlagen",
   // 56.1 dashboard sections
   dashboard: "Dashboard",
   failures: "Fehler",
@@ -15,4 +20,14 @@ export default {
   articles: "Artikel",
   briefs: "Briefs",
   products: "Produkte",
+  // sidebar section headings
+  orchestration: "Orchestration",
+  content: "Content",
+  platform: "Platform",
+  // status filter chips
+  filterAll: "Alle",
+  filterRunning: "Laufend",
+  filterQueued: "Wartend",
+  filterFailed: "Fehlerhaft",
+  filterCompleted: "Abgeschlossen",
 };
