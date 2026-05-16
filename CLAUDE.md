@@ -59,7 +59,7 @@ Designed to evolve into SaaS.
 - DO NOT name a constructor parameter property `cause` when subclassing `Error` — `Error.cause` is a reserved built-in in ESNext lib and TypeScript requires `override`. Rename to `originalCause` or similar instead
 - DO NOT use `RequestInfo` as a type in adapter code — it is not in scope under Bun's TypeScript config. Use `string | URL | Request` instead (the same union `RequestInfo` aliases in lib.dom.d.ts)
 - DO NOT hardcode `0.92` as a USD→EUR conversion constant in adapters — import `EUR_PER_USD` from `@marketing-auto/cost-tracker` so all FX conversions stay in sync
-- DO NOT reference a skill by name in `buildSystemPrompt()` without first verifying it exists in `packages/skills/skills/` — the loader silently falls back to an error log and empty string, so a typo produces a degraded prompt with no compile-time warning. Check the directory before writing step code
+- DO NOT reference a skill by name in `buildSystemPrompt()` without first verifying it exists in `packages/skills/skills/` — the loader silently falls back to an error log and empty string, so a typo produces a degraded prompt with no compile-time warning. Check the directory before writing step code. Known example: `"product-marketing-context"` does NOT exist; the correct name is `"product-marketing"`
 - DO NOT import a shared type from your local package when casting for a Drizzle `$type<T>` column — under `exactOptionalPropertyTypes`, Zod-inferred types with `field?: string | undefined` are structurally incompatible with DB-defined types that have `field?: string`. Always import the type from `@marketing-auto/db` for the cast (e.g. `SelfReviewIssue`, `ArticleOutline`)
 - DO NOT add `as T` casts to jsonb columns that already use `.$type<T>()` — Drizzle types them correctly; the cast is dead weight that masks future type errors
 - DO NOT pass an `as const` tuple to Drizzle's `inArray()` — it expects a mutable array. Use `Array<EnumValue>` with an explicit type annotation instead (e.g. `const statuses: Array<"a" | "b"> = ["a", "b"]`)
@@ -198,6 +198,7 @@ Implemented specs (do not re-implement):
 - /specs/54.7-cluster-creator.md (LLM cluster proposal via claude-opus-4-7; /projects/:slug/clusters/propose + /create-from-brief endpoints; atomic contentPillars+clusters+cornerstoneSpecs+brief-approve transaction; 3-step ClusterCreatorPage stepper; TrendBriefDetail create_new CTA wired; Phase C complete)
 - /specs/54.7.5-codebase-discovery.md (codebase reference pack generated at specs/_reference/codebase-reference.md; 14 tables, 10 JSONB schemas, routing decisions, env vars, COST_OPS, 15 patterns, tech debt snapshot)
 - /specs/54.8-astro-sync-field-mapping.md (date/updated/name mapped; intentType="review" default for tools; 6 tool columns promoted with partial indexes; articles-read.ts helpers in packages/db)
+- /specs/54.9-blog-generator.md (13-step article:blog pipeline; AuthorPickStep 3-strategy cascade; ToolLinkerStep linkification; 54.9.1 patch: dynamic author fallback + cost_logs.article_id + linkifyMarkdown re-link fix)
 
 ## Project Marketing Contexts
 

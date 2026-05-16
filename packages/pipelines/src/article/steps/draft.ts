@@ -199,7 +199,7 @@ Output format:
     });
 
     const promptBase = {
-      skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing-context"],
+      skills: ["copywriting", "copy-editing", "ai-seo", "product-marketing"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: draftInstructions,
       ...(input.frontmatterSchema?.length
@@ -249,6 +249,7 @@ Output format:
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
+      articleId: input.articleId,
       operation: COST_OPS.ARTICLE_DRAFT,
       model,
       systemPrefix: prompt.cacheablePrefix,

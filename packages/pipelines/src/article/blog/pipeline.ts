@@ -150,6 +150,7 @@ export class BlogPipeline extends Pipeline<
       const t = getStepOutput<TopicIntakeOutput>("topic-intake")!;
       const tr = getStepOutput<ToolRelevanceOutput>("tool-relevance")!;
       const base = {
+        articleId: pipelineInput.articleId,
         cornerstoneKeyword: t.cornerstoneKeyword,
         satelliteKeywords: t.satelliteKeywords,
         clusterName: t.clusterName,
@@ -226,6 +227,7 @@ export class BlogPipeline extends Pipeline<
       const t = getStepOutput<TopicIntakeOutput>("topic-intake")!;
       const d = getStepOutput<DraftStepOutput>("draft")!;
       return {
+        articleId: pipelineInput.articleId,
         bodyMd: linked.bodyMd,
         wordCount: d.wordCount,
         cornerstoneKeyword: t.cornerstoneKeyword,

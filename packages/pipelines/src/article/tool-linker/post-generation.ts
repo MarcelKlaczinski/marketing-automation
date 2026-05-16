@@ -83,6 +83,14 @@ function processSection(
   let result = section;
   const newLinks: string[] = [];
 
+  // Pre-populate with tools already linked in the original section text so we
+  // don't add a second link when the incoming body already contains [ToolName](…)
+  for (const tool of sortedTools) {
+    if (section.includes(`[${tool.name}](`)) {
+      linkedInSection.add(tool.slug);
+    }
+  }
+
   for (const tool of sortedTools) {
     if (linkedInSection.has(tool.slug)) continue;
 

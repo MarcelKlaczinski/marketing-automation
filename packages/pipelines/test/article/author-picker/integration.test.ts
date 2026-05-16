@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "bun:test";
-import { db, projects, articles, eq } from "@marketing-auto/db";
+import { db, projects, articles, contentPillars, clusters, eq } from "@marketing-auto/db";
 import { pickAuthor } from "../../../src/article/author-picker/index.ts";
 import type { TopicBrief } from "@marketing-auto/db";
 
@@ -57,7 +57,17 @@ describe.skipIf(!RUN_DB)("pickAuthor integration (DB)", () => {
       })
       .returning({ id: projects.id });
     projectId = proj!.id;
-    clusterId = crypto.randomUUID();
+
+    // Create pillar + cluster so the FK on articles.cluster_id is satisfied
+    const [pillar] = await db
+      .insert(contentPillars)
+      .values({ projectId, name: "Test Pillar" })
+      .returning({ id: contentPillars.id });
+    const [cluster] = await db
+      .insert(clusters)
+      .values({ projectId, pillarId: pillar!.id, name: "Test Cluster" })
+      .returning({ id: clusters.id });
+    clusterId = cluster!.id;
 
     // lukas has strong cluster+intent signal
     const seeds: Array<{ author: string; intentType: string; clId: string | null }> = [
@@ -110,8 +120,10 @@ describe.skipIf(!RUN_DB)("pickAuthor integration (DB)", () => {
     });
     const result = await pickAuthor(projectId, brief);
     // No historic match, no author expertise embeddings → default fallback
+    // Dynamic fallback picks author with most imported blog posts: lukas-hoffmann (2) > anna-weidner (1)
+    // anna-weidner has no authors collection entry so lukas-hoffmann wins.
     expect(result.matchStrategy).toBe("default_fallback");
-    expect(result.authorSlug).toBe("anna-weidner");
+    expect(result.authorSlug).toBe("lukas-hoffmann");
   });
 
   it("result always has non-null authorSlug", async () => {

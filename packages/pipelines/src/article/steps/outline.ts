@@ -29,6 +29,8 @@ const InputSchema = z.object({
   sourceContext: z.string().optional(),
   // Spec 54.9: relevant tools context for the cluster (pre-generation phase)
   toolsContext: z.string().optional(),
+  // Spec 54.9.1: linked article ID — passed through to cost_logs for per-article cost queries
+  articleId: z.string().uuid().optional(),
 });
 
 export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOutline> {
@@ -183,6 +185,7 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
+      ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
       operation: COST_OPS.ARTICLE_OUTLINE,
       model,
       systemPrefix: prompt.cacheablePrefix,

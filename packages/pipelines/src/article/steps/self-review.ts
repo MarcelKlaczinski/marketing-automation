@@ -63,6 +63,8 @@ const InputSchema = z.object({
   wordCount: z.number(),
   cornerstoneKeyword: z.string(),
   projectSlug: z.string(),
+  // Spec 54.9.1: linked article ID — passed through to cost_logs for per-article cost queries
+  articleId: z.string().uuid().optional(),
 });
 
 const OutputSchema = z.object({
@@ -91,7 +93,7 @@ export class SelfReviewStep extends BaseStep<
       fallback: SELF_REVIEW_STEP_DEFAULT_PROMPT,
     });
     const prompt = await buildSystemPrompt({
-      skills: ["copy-editing", "product-marketing-context"],
+      skills: ["copy-editing", "product-marketing"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions,
     });
@@ -115,6 +117,7 @@ export class SelfReviewStep extends BaseStep<
       const result = await anthropic.messages({
         projectId: ctx.projectId,
         pipelineRunId: ctx.pipelineRunId,
+        ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
         operation: COST_OPS.ARTICLE_SELF_REVIEW,
         model: "claude-haiku-4-5",
         systemPrefix: prompt.cacheablePrefix,

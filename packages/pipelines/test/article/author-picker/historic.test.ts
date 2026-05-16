@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from "bun:test";
-import { db, projects, articles, eq } from "@marketing-auto/db";
+import { db, projects, articles, contentPillars, clusters, eq } from "@marketing-auto/db";
 import { historicAuthorScore } from "../../../src/article/author-picker/historic.ts";
 
 const RUN_DB = process.env.RUN_DB_TESTS === "1";
@@ -19,7 +19,17 @@ describe.skipIf(!RUN_DB)("historicAuthorScore (DB)", () => {
       })
       .returning({ id: projects.id });
     projectId = proj!.id;
-    clusterId = crypto.randomUUID();
+
+    // Create pillar + cluster so the FK on articles.cluster_id is satisfied
+    const [pillar] = await db
+      .insert(contentPillars)
+      .values({ projectId, name: "Test Pillar" })
+      .returning({ id: contentPillars.id });
+    const [cluster] = await db
+      .insert(clusters)
+      .values({ projectId, pillarId: pillar!.id, name: "Test Cluster" })
+      .returning({ id: clusters.id });
+    clusterId = cluster!.id;
 
     // Seed historical blog articles for 4 authors
     const seeds: Array<{ author: string; clId: string | null; intentType: string }> = [
@@ -99,8 +109,10 @@ describe.skipIf(!RUN_DB)("historicAuthorScore (DB)", () => {
     expect(rows.some((r) => r.matchedOnIntent > 0)).toBe(true);
   });
 
-  it("ties broken by total post count (lukas > julia for tutorial intent)", async () => {
-    const rows = await historicAuthorScore(projectId, null, "tutorial", "de");
+  it("ties broken by total post count (lukas > julia when no cluster/intent signal)", async () => {
+    // With null clusterId and null intentType, score = totalPosts × 0.1 for all authors.
+    // lukas has 3 posts, julia has 1 → lukas ranks higher.
+    const rows = await historicAuthorScore(projectId, null, null, "de");
     const lukasIdx = rows.findIndex((r) => r.slug === "lukas");
     const juliaIdx = rows.findIndex((r) => r.slug === "julia");
     if (lukasIdx !== -1 && juliaIdx !== -1) {
