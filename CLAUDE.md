@@ -199,6 +199,7 @@ Implemented specs (do not re-implement):
 - /specs/54.7.5-codebase-discovery.md (codebase reference pack generated at specs/_reference/codebase-reference.md; 14 tables, 10 JSONB schemas, routing decisions, env vars, COST_OPS, 15 patterns, tech debt snapshot)
 - /specs/54.8-astro-sync-field-mapping.md (date/updated/name mapped; intentType="review" default for tools; 6 tool columns promoted with partial indexes; articles-read.ts helpers in packages/db)
 - /specs/54.9-blog-generator.md (13-step article:blog pipeline; AuthorPickStep 3-strategy cascade; ToolLinkerStep linkification; 54.9.1 patch: dynamic author fallback + cost_logs.article_id + linkifyMarkdown re-link fix)
+- /specs/54.10-refresh+translation-modes.md (blog ChainStep + chain routing; article:refresh pipeline with article_versions + voice continuity; article:translation pipeline with Haiku decision + literal/adaptive paths; translationAutoTrigger project toggle)
 
 ## Project Marketing Contexts
 

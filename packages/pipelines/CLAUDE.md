@@ -244,6 +244,38 @@ under token pressure. See `src/article/localize/pipeline.ts` for the canonical e
 This must be preserved when adding post-processing steps — do not strip or move the
 import. The component is required by the Astro blog layout for cluster navigation.
 
+## Refresh + Translation Pipelines (Spec 54.10)
+
+### article:refresh
+
+`article:refresh` re-generates an existing article in place, preserving the original body in `article_versions` before any LLM call. 8 steps: `RefreshIntakeStep` → `ToolRelevanceStep` → `OutlineStep` → `PersistOutlineStep` → `DraftStep` → `PersistBodyStep` → `ToolLinkerStep` → `SelfReviewStep`.
+
+Key invariants:
+- `RefreshIntakeStep` (step 1) persists `article_versions` **before** any LLM call (Decision 14: defensive ordering)
+- Outline + Draft receive `sourceContext` (refresh framing) + `voiceContext` (original body excerpt + peer refs) combined into a single `sourceContext` field via `[a, b].filter(Boolean).join("\n\n")`
+- Article status stays at `published` — `PersistArticleStep` is NOT used; the refresh updates `bodyMd`/`wordCount`/`outline` in place via `PersistBodyStep` + `ToolLinkerStep`
+- `afterComplete` enqueues schema extension, then propagates to EN sibling via `enqueueTranslationPipeline(mode: "refresh_propagation")` if one exists
+
+### article:translation
+
+`article:translation` generates an EN sibling from a DE article. Two modes:
+- `fresh_translation` — creates EN article stub, then generates body
+- `refresh_propagation` — re-translates existing EN sibling after DE refresh
+
+7 steps: `TranslationSetupStep` → `TranslationDecisionStep` → `TranslationBodyStep` → `PersistBodyStep` → `ToolLinkerStep` (locale=en) → `SelfReviewStep` → `PersistArticleStep`.
+
+`TranslationDecisionStep` (Haiku 4.5) classifies DE content as `"literal"` (universal) or `"adaptive"` (Germany-specific). `TranslationBodyStep` handles both paths internally: one Sonnet call for literal, Sonnet outline + Sonnet draft for adaptive.
+
+Auto-triggered from `BlogPipeline.afterComplete` when `project.targetLocales.includes("en-US")` AND `project.translationAutoTrigger === true` (default).
+
+### Voice Reference Loader
+
+`loadVoiceReferences({ projectId, clusterId, locale, excludeArticleId, limit })` in `src/article/voice-reference/loader.ts` returns top-N published articles (same cluster + locale, ranked by `selfReviewScore DESC, createdAt DESC`). Falls back to project-wide if cluster yields fewer than `limit` results. Used by both Refresh and Translation pipelines.
+
+### ChainStep routing (Spec 54.10 Section A)
+
+`ChainStep` is a **TypeScript-only union type** — no DB enum or CHECK constraint exists on `pipeline_chains`. Adding a new value requires only a Drizzle schema update (`packages/db/src/schema/content.ts`), no SQL DDL. The chain-orchestrator maintains two sequences: `LEGACY_STEP_SEQUENCE` (outline→draft→schema-de→localize→schema-en→astro-transfer) and `BLOG_STEP_SEQUENCE` (blog→localize→schema-en→astro-transfer). `isBlogEligible()` routes to the correct sequence at `startChain()` time.
+
 ## afterComplete Hook
 
 `Pipeline` has an optional `afterComplete?(output, input): Promise<void>` hook called by the runner after all steps succeed. Use it for post-pipeline side-effects that must happen outside the step chain (e.g., auto-enqueuing a follow-up pipeline). The runner wraps it in its own `try-catch` — failures log a `warn` but do NOT mark the pipeline as failed or trigger BullMQ retries. If `afterComplete` fails silently, manual recovery is needed (e.g., `article:continue`).
@@ -396,7 +428,7 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT assume `packages/pipelines/src/article/social-image/hookPrompt.ts` is dead code — it is an active, separate code path from `packages/core/src/social-hooks/hookPrompt.ts`. The pipelines version (`buildHookPrompt`) handles hook-only generation for the social-image pipeline's `GenerateHookStep`. The core version (`buildContentPrompt`) handles hook+caption+hashtags for the newer `generateContentWithGate` flow used by template definitions. Two different call sites, two different prompt shapes.
 - DO NOT extract a `*_DEFAULT_PROMPT` constant to module level when the prompt string uses runtime values (`input.*`, locale labels, author lists, etc.) — template literals with variable interpolation must be scoped inside `execute()` or a private method. Module-level constants only work for fully static prompts (no interpolation). Both placements are valid; the name is what matters for clarity. See `SelfReviewStep` (static = module-level) vs `OutlineStep` (dynamic = inside execute) for examples.
 - DO NOT import the named `embed` function from `@marketing-auto/adapter-voyage` — it's an ESM binding and cannot be replaced in tests. Always use `voyage.embed(...)` (the object property). See `src/topic-sources/trend-discovery/coverage.ts` for the canonical pattern.
-- DO NOT route a `refresh_detection` brief through the blog pipeline — `buildSourceContextFragment()` in `src/article/source-context/index.ts` throws on that source by design. Refresh is out of scope for Spec 54.9 and handled by Spec 54.10. The throw surfaces immediately at `ToolRelevanceStep` (step 2) so the pipeline run fails fast rather than producing a degraded article.
+- DO NOT route a `refresh_detection` brief through the **blog** pipeline — `ToolRelevanceStep` (step 2) calls `buildSourceContextFragment()` which is valid for `refresh_detection` but the blog pipeline expects a brief with `clusterId + locale` for author-picking and tool-relevance. Route refresh briefs to `article:refresh` instead via `enqueueRefreshPipeline()`.
 - DO NOT expect `ToolLinkerStep` to link every tool mention — it links only the **first** occurrence per H2 section (SEO best practice). A tool mentioned 4 times in a single section gets linked once. This is intentional; do not change the behaviour without updating the spec.
 - DO NOT pass an empty `briefId` in the `article:blog` pipeline input — `AuthorPickStep` and `ToolRelevanceStep` both query the brief by ID in their `execute()` methods. A missing brief causes the pipeline to fail at step 1 or 2. The `enqueueBlogGenerationPipeline` wrapper always receives `briefId` from `triggerWithPreRunId` via `extraInput`; verify it is present before adding new callers.
 - DO NOT assume author expertise embeddings are pre-populated — they are lazily computed on first `AuthorPickStep` run and cached in `articles.frontmatterExtras.expertiseEmbedding`. The first article generated for a new cluster/author combination pays the Voyage embedding cost (~€0.0001); subsequent calls hit the JSONB cache. If you wipe `frontmatterExtras`, re-importing the authors resets the cache.
@@ -404,6 +436,9 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT call `updateArticleAuthor()` with an author slug that hasn't been validated against the authors collection — `updateArticleAuthor()` in `blog/persist.ts` enforces this at the DB layer (throws `BlogPipelineError` if the slug is absent), but rely on the author-picker returning a valid slug in the first place. Defense-in-depth: two validation points, neither silently corrupts.
 - DO NOT call `linkifyMarkdown` on body text that may already contain `[ToolName](url)` links without pre-populating `linkedInSection` — the section processor now handles this automatically (Spec 54.9.1 fix), but any future refactor of `processSection` must preserve the pre-populate loop that marks already-linked tools as done before scanning for new link positions.
 - DO NOT seed test articles with a random `clusterId` UUID without first creating the matching `clusters` row — `articles.cluster_id` is a FK to `clusters.id`. Tests must create `contentPillars` + `clusters` rows in `beforeAll` if they need cluster-scoped article seeds. See `test/article/author-picker/historic.test.ts` for the canonical fixture pattern.
+- DO NOT do async context loading (DB queries, voice-reference loads) inside `Pipeline.bridge()` — bridge is synchronous. When a pipeline needs async context before the main LLM steps, use a dedicated **intake step** as step 1: load all context in `execute()`, return it in the output schema, and read it in subsequent bridge calls via `getStepOutput("intake-step-name")`. See `RefreshIntakeStep` in `src/article/refresh/intake-step.ts` for the canonical pattern.
+- DO NOT write a pipeline step that INSERTs a new DB row without first checking if the row already exists — if the pipeline is re-run after a downstream failure the step will be re-executed and the INSERT will hit a unique constraint. Always do a SELECT-or-INSERT pattern: query for an existing row, return its ID if found, INSERT only if not found. See `TranslationSetupStep` in `src/article/translation/setup-step.ts` for the canonical pattern (idempotent EN article creation via translationKey lookup).
+- DO NOT use `MessagesResult.text` — the field is `raw`. `anthropic.messages()` returns `{ raw: string, json: unknown | null, ... }`. Use `result.raw` for free-text responses and `result.json` for JSON-mode responses. `text` does not exist and TypeScript will catch it, but Bun silently returns `undefined` at runtime if strictness is loose.
 
 ## Trend Discovery Topic Source (Spec 54.5+)
 
@@ -492,7 +527,7 @@ These are formatted by `buildToolsContextFragment()` and injected into the Outli
 - `gap_analysis` → cluster name, gap type, existing sibling articles
 - `trend_discovery` → freshness window, trend score, signal count, related event
 - `manual` → `""` (no framing)
-- `refresh_detection` → **throws** (Spec 54.10 scope; pipeline fails fast at step 2)
+- `refresh_detection` → refresh framing paragraph with staleness + reason (Spec 54.10; used by `article:refresh` pipeline)
 - unknown sources → `""` (graceful fallback)
 
 ### Blog brief detection (API layer)
