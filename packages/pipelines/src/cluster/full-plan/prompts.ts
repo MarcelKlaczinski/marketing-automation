@@ -1,6 +1,9 @@
 import type { ClusterPlanInput } from "./types.ts";
 
-export function buildClusterPlanPrompt(input: ClusterPlanInput): {
+export function buildClusterPlanPrompt(
+  input: ClusterPlanInput,
+  opts?: { refinementHint?: string },
+): {
   systemPrompt: string;
   userMessage: string;
 } {
@@ -106,7 +109,11 @@ Constraints:
 - Each spoke must have a DISTINCT intentType from other spokes
 - h2Outline must have 4-10 items
 - rationale must be in English
-- All other text fields in German`;
+- All other text fields in German${
+    opts?.refinementHint
+      ? `\n\n## Refinement instructions\n${opts.refinementHint}`
+      : ""
+  }`;
 
   return { systemPrompt, userMessage };
 }

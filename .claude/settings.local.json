@@ -764,7 +764,26 @@
       "Bash(kill 77523)",
       "Bash(RUN_DB_TESTS=1 bun --filter \"@marketing-auto/pipelines\" test)",
       "Bash(RUN_DB_TESTS=1 bun test packages/pipelines/test/article/author-picker/historic.test.ts)",
-      "Bash(bun --env-file .env tsc --noEmit -p apps/api/tsconfig.json)"
+      "Bash(bun --env-file .env tsc --noEmit -p apps/api/tsconfig.json)",
+      "Bash(bun --filter @marketing-auto/db run typecheck)",
+      "Bash(bun --filter \"@marketing-auto/db\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/db\" migrate)",
+      "Bash(bun --filter \"@marketing-auto/core\" typecheck)",
+      "Bash(bun --filter \"@marketing-auto/pipelines\" test packages/pipelines/test/article/source-context/source-context.test.ts)",
+      "Bash(bun --filter @marketing-auto/pipelines test packages/pipelines/test/cluster/full-plan/llm-call.test.ts)",
+      "Bash(bun --filter \"@marketing-auto/pipelines\" test packages/pipelines/test/cluster/full-plan/llm-call.test.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/54.12-full-cluster.md packages/db/CLAUDE.md packages/pipelines/CLAUDE.md CLAUDE.md packages/pipelines/src/cluster/full-plan/types.ts packages/pipelines/test/cluster/full-plan/llm-call.test.ts)",
+      "Bash(redis-cli info *)",
+      "Bash(redis-cli zcard *)",
+      "Bash(curl -sv \"http://localhost:3000/api/projects/toolwiki/clusters/22340f04-8cfc-4937-91c4-62b5a3d8175a/plan\")",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\" \"http://localhost:3000/api/projects/toolwiki/clusters/22340f04-8cfc-4937-91c4-62b5a3d8175a/plan\")",
+      "Bash(curl -s -w \"\\\\nHTTP:%{http_code}\" \"http://localhost:3000/api/projects\")",
+      "Bash(curl -s \"http://localhost:4000/api/projects/toolwiki/clusters/22340f04-8cfc-4937-91c4-62b5a3d8175a/plan\")",
+      "Bash(redis-cli hget *)",
+      "Bash(xargs -I{} redis-cli hget {} \"processedOn\")",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c \"SELECT id, status, LEFT\\(title, 55\\) as title, updated_at FROM articles WHERE id IN \\('d4bdac6b-d46d-4ba8-b55a-0a9675e7681c', 'ddd27380-c96a-403a-896d-b3657e139db2'\\) ORDER BY id;\")",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c \"SELECT id, status, word_count, LEFT\\(title, 55\\) as title, updated_at FROM articles WHERE id IN \\('d4bdac6b-d46d-4ba8-b55a-0a9675e7681c', 'ddd27380-c96a-403a-896d-b3657e139db2'\\) ORDER BY id;\")",
+      "Bash(bun --cwd packages/pipelines run tsc --noEmit)"
     ]
   }
 }

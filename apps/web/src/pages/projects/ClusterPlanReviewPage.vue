@@ -270,7 +270,10 @@ export default defineComponent({
       try {
         const [planRes, costRes] = await Promise.all([
           api.get<{ ok: boolean; data: {
-            cluster: ClusterRow;
+            clusterId: string;
+            name: string;
+            primaryKeyword: string;
+            generationStatus: string;
             hub: ProposedHub;
             spokes: ProposedSpoke[];
           } }>(`/projects/${this.slug}/clusters/${this.id}/plan`),
@@ -278,9 +281,15 @@ export default defineComponent({
             `/projects/${this.slug}/clusters/${this.id}/plan/cost-estimate`,
           ),
         ]);
-        this.cluster = planRes.data.data.cluster;
-        this.proposedHub = planRes.data.data.hub;
-        this.proposedSpokes = planRes.data.data.spokes;
+        const d = planRes.data.data;
+        this.cluster = {
+          id: d.clusterId,
+          name: d.name,
+          primaryKeyword: d.primaryKeyword,
+          generationStatus: d.generationStatus,
+        };
+        this.proposedHub = d.hub;
+        this.proposedSpokes = d.spokes;
         this.costEstimate = costRes.data.data;
       } catch (e) {
         this.loadError = e instanceof HttpError

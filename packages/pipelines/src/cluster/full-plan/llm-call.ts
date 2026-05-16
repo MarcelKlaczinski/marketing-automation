@@ -8,9 +8,12 @@ const log = createLogger("pipelines:cluster-full-plan");
 
 export async function generateClusterPlan(
   input: ClusterPlanInput,
-  opts?: { pipelineRunId?: string },
+  opts?: { pipelineRunId?: string; refinementHint?: string },
 ): Promise<ClusterPlanOutput> {
-  const { systemPrompt, userMessage } = buildClusterPlanPrompt(input);
+  const { systemPrompt, userMessage } = buildClusterPlanPrompt(
+    input,
+    opts?.refinementHint !== undefined ? { refinementHint: opts.refinementHint } : undefined,
+  );
 
   log.info(
     {

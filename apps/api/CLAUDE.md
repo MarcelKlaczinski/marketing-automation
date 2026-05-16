@@ -248,6 +248,8 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT register a named sub-route (e.g. `/across-projects`) after a wildcard param route (e.g. `/:id`) in the same Hono router — Hono matches in registration order, so `/:id` silently captures the named route as `id="across-projects"`. Always register specific named paths before wildcard params. See the ordering in `src/routes/articles.ts` (line ~87 `across-projects` before line ~128 `/:id`).
 - DO NOT use `z.string().optional()` for query params that must match a known enum set — an invalid value passes validation and produces a silent empty result instead of a 400. Use `z.enum(VALID_VALUES).optional()` so the boundary rejects bad input. See the `lane` param in `articles.ts` for the canonical example.
 - DO NOT apply `isBlogBrief` detection to `translation_created` routing results — translation briefs have `locale !== null && clusterId !== null` and would incorrectly enter the blog pipeline. Gate the check on `routeResult.kind === "article_created"` only. Translation mode is Spec 54.10. See `src/routes/projects.ts` line ~852.
+- DO NOT build a raw `sql\`... ANY(ARRAY[${ids.join(",")}])\`` clause for a list of IDs — even with UUID strings that contain no special characters, this bypasses Drizzle's parameterised binding. Use `inArray(col, ids)` from `@marketing-auto/db` instead. Caught during Spec 54.12 Session 3 review in `retry-failed-spokes`.
+- DO NOT call `.set({ updatedAt: new Date() })` on the `clusters` table — it has no `updatedAt` column (check the schema before adding timestamps to any `.update().set()`). The `topicBriefs` and `articles` tables do have `updatedAt`.
 
 ## Gap Routes — TopicBrief as SSoT (Spec 54.3)
 

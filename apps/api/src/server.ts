@@ -24,6 +24,7 @@ import { brandAssetRoutes } from "./routes/brand-assets.ts";
 import { brandTokenRoutes } from "./routes/brand-tokens.ts";
 import { trendRoutes } from "./routes/trends.ts";
 import { clusterCreatorRoutes } from "./routes/projects/clusters.ts";
+import { clusterFullPlanRoutes } from "./routes/projects/cluster-full-plan.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -87,6 +88,7 @@ app.route("/api/projects", brandTokenRoutes);
 app.route("/api/projects", socialPostBatchRoutes);
 app.route("/api/projects", trendRoutes);
 app.route("/api/projects", clusterCreatorRoutes);
+app.route("/api/projects", clusterFullPlanRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

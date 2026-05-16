@@ -20,9 +20,11 @@
  *   6. SelfReviewStep         — quality classification (Haiku 4.5)
  *   7. PersistArticleStep     — final persist, status → final_review
  */
+import { articles, db, eq } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
+import { checkClusterCompletion } from "../../cluster/full-plan/check-completion.ts";
 import { enqueueSchemaExtension } from "../../schema-extension/trigger.ts";
 import { PersistBodyStep } from "../steps/persist-body.ts";
 import { PersistArticleStep } from "../steps/persist-article.ts";
@@ -50,10 +52,10 @@ const TranslationPipelineInputSchema = z.object({
   mode:            z.enum(["fresh_translation", "refresh_propagation"]),
 }) as z.ZodType<TranslationPipelineInput>;
 
+// Must match PersistArticleStep.outputSchema — the runner uses the last step's output
+// directly as the pipeline output (bridge is not called for the final step).
 const TranslationPipelineOutputSchema = z.object({
-  sourceArticleId: z.string().uuid(),
-  enArticleId:     z.string().uuid(),
-  decision:        z.enum(["literal", "adaptive"]),
+  articleId:       z.string().uuid(),
   wordCount:       z.number(),
   selfReviewScore: z.number(),
 });
@@ -182,21 +184,6 @@ export class TranslationPipeline extends Pipeline<
       };
     }
 
-    // persist-article produces final pipeline output
-    if (fromStep.name === "persist-article") {
-      const s = setup()!;
-      const d = getStepOutput<DecisionOutput>("translation-decision")!;
-      const body = getStepOutput<BodyOutput>("translation-body")!;
-      const sr = getStepOutput<SelfReviewOutput>("self-review")!;
-      return {
-        sourceArticleId: pipelineInput.sourceArticleId,
-        enArticleId:     s.enArticleId,
-        decision:        d.decision,
-        wordCount:       body.wordCount,
-        selfReviewScore: sr.score,
-      };
-    }
-
     return output;
   }
 
@@ -204,13 +191,33 @@ export class TranslationPipeline extends Pipeline<
     output: z.infer<typeof TranslationPipelineOutputSchema>,
     pipelineInput: TranslationPipelineInput,
   ): Promise<void> {
+    // output.articleId = EN article (from PersistArticleStep)
     try {
       await enqueueSchemaExtension({
-        articleId: output.enArticleId,
+        articleId: output.articleId,
         projectId: pipelineInput.projectId,
       });
     } catch (e) {
-      log.warn({ err: e, articleId: output.enArticleId }, "Schema extension enqueue failed after translation");
+      log.warn({ err: e, articleId: output.articleId }, "Schema extension enqueue failed after translation");
+    }
+
+    // Check cluster completion — needed because the cluster waits for both DE + EN articles.
+    // The blog pipeline fires this check after DE completes (count < expected at that point),
+    // so we must re-check after each EN translation completes.
+    try {
+      const [src] = await db
+        .select({ clusterGenerationId: articles.clusterGenerationId })
+        .from(articles)
+        .where(eq(articles.id, pipelineInput.sourceArticleId))
+        .limit(1);
+      if (src?.clusterGenerationId) {
+        await checkClusterCompletion({
+          clusterId: src.clusterGenerationId,
+          projectId: pipelineInput.projectId,
+        });
+      }
+    } catch (e) {
+      log.warn({ err: e, sourceArticleId: pipelineInput.sourceArticleId }, "[translation] checkClusterCompletion failed");
     }
   }
 }

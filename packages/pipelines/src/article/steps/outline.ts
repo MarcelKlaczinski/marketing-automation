@@ -1,7 +1,10 @@
-import { anthropic } from "@marketing-auto/adapter-anthropic";
+import { anthropic, JsonParseError } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
 import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
+
+const log = createLogger("pipelines:outline-step");
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
@@ -182,7 +185,7 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       "Now produce the outline.",
     ].join("\n");
 
-    const result = await anthropic.messages({
+    const callArgs = {
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
@@ -194,7 +197,17 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       maxTokens: 8000,
       jsonMode: true,
       estimatedCostEur: this.estimatedCostEur(),
-    });
+    };
+
+    // Retry once on non-JSON response — Sonnet occasionally returns malformed output
+    let result;
+    try {
+      result = await anthropic.messages(callArgs);
+    } catch (err) {
+      if (!(err instanceof JsonParseError)) throw err;
+      log.warn({ articleId: input.articleId }, "outline: non-JSON on first attempt — retrying once");
+      result = await anthropic.messages({ ...callArgs, forceRefresh: true });
+    }
 
     return ArticleOutlineSchema.parse(result.json);
   }

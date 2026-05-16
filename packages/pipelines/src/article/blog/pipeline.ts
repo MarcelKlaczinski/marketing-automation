@@ -4,6 +4,8 @@ import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { enqueueSchemaExtension } from "../../schema-extension/trigger.ts";
 import { enqueueTranslationPipeline } from "../translation/trigger.ts";
+import { enqueueClusterSpokes } from "../../cluster/full-plan/enqueue-spokes.ts";
+import { checkClusterCompletion } from "../../cluster/full-plan/check-completion.ts";
 import { AuthorPickStep } from "../author-picker/step.ts";
 import { AssemblyStep } from "../steps/assembly.ts";
 import { DraftStep } from "../steps/draft.ts";
@@ -321,15 +323,26 @@ export class BlogPipeline extends Pipeline<
       log.warn({ err: e, articleId: pipelineInput.articleId }, "Schema extension enqueue failed after blog pipeline");
     }
 
-    // Auto-trigger EN translation if project opts in and article is DE
+    // Load article for translation check + cluster generation tracking
+    let articleLocale: string | null = null;
+    let articleRole: "hub" | "spoke" | null = null;
+    let clusterGenerationId: string | null = null;
     try {
       const [article] = await db
-        .select({ locale: articles.locale })
+        .select({ locale: articles.locale, role: articles.role, clusterGenerationId: articles.clusterGenerationId })
         .from(articles)
         .where(eq(articles.id, pipelineInput.articleId))
         .limit(1);
+      articleLocale = article?.locale ?? null;
+      articleRole = (article?.role ?? null) as "hub" | "spoke" | null;
+      clusterGenerationId = article?.clusterGenerationId ?? null;
+    } catch (e) {
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] failed to load article for afterComplete hooks");
+    }
 
-      if (article?.locale === "de") {
+    // Auto-trigger EN translation if project opts in and article is DE
+    try {
+      if (articleLocale === "de") {
         const [project] = await db
           .select({ targetLocales: projects.targetLocales, translationAutoTrigger: projects.translationAutoTrigger })
           .from(projects)
@@ -350,6 +363,31 @@ export class BlogPipeline extends Pipeline<
       }
     } catch (e) {
       log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] EN translation auto-trigger failed — skipped");
+    }
+
+    // Spec 54.12: Hub completion → enqueue all pending spokes
+    if (articleRole === "hub" && clusterGenerationId) {
+      try {
+        await enqueueClusterSpokes({
+          clusterId: clusterGenerationId,
+          hubArticleId: pipelineInput.articleId,
+        });
+        log.info({ articleId: pipelineInput.articleId, clusterId: clusterGenerationId }, "[blog] cluster spokes enqueued after hub completion");
+      } catch (e) {
+        log.warn({ err: e, articleId: pipelineInput.articleId, clusterId: clusterGenerationId }, "[blog] enqueueClusterSpokes failed — spokes not started");
+      }
+    }
+
+    // Spec 54.12: After any cluster-generation article completes, check overall completion
+    if (clusterGenerationId) {
+      try {
+        await checkClusterCompletion({
+          clusterId: clusterGenerationId,
+          projectId: pipelineInput.projectId,
+        });
+      } catch (e) {
+        log.warn({ err: e, clusterId: clusterGenerationId }, "[blog] checkClusterCompletion failed — status not updated");
+      }
     }
   }
 }

@@ -526,12 +526,12 @@ export default defineComponent({
       try {
         const res = await api.post<{
           ok: boolean;
-          data: { cluster: { id: string }; hub: unknown; spokes: unknown[] };
+          data: { clusterId: string; hub: unknown; spokes: unknown[] };
         }>(
           `/projects/${this.projectSlug}/clusters/full-plan`,
           { triggerBriefId: this.brief.id },
         );
-        const { cluster, spokes } = res.data.data;
+        const { clusterId, spokes } = res.data.data;
         this.$q.notify({
           type: "positive",
           message: this.$t("clusters.fullCluster.planGenerated", {
@@ -540,7 +540,7 @@ export default defineComponent({
         });
         void this.$router.push({
           name: "cluster-plan-review",
-          params: { slug: this.projectSlug, id: cluster.id },
+          params: { slug: this.projectSlug, id: clusterId },
         });
       } catch (e) {
         const msg = e instanceof HttpError ? e.userMessage : this.$t("clusters.fullCluster.planFailed") as string;

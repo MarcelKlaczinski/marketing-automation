@@ -9,3 +9,5 @@ export {
   type ProposedHubParsed,
 } from "./types.ts";
 export { buildClusterPlanPrompt } from "./prompts.ts";
+export { enqueueClusterSpokes } from "./enqueue-spokes.ts";
+export { checkClusterCompletion } from "./check-completion.ts";

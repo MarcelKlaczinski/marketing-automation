@@ -25,4 +25,6 @@ export {
   type ClusterPlanOutput,
   type ProposedSpokeParsed,
   type ProposedHubParsed,
+  enqueueClusterSpokes,
+  checkClusterCompletion,
 } from "./cluster/full-plan/index.ts";
