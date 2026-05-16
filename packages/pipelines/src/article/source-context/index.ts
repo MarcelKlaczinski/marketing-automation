@@ -1,17 +1,17 @@
-import type { GapMetadata, TrendMetadata, TopicBrief } from "@marketing-auto/db";
+import type { GapMetadata, RefreshMetadata, TrendMetadata, TopicBrief } from "@marketing-auto/db";
 
 /**
  * Build a source-specific context fragment for outline and draft prompts.
  *
- * Injected into the user message so that it does NOT break the Anthropic
+ * Injected into the user message so it does NOT break the Anthropic
  * prompt-cache boundary (system prompt stays cacheable). Returns an empty
  * string for "manual" source or any unknown source — no special framing needed.
  *
  * Source mapping:
- *  - gap_analysis     → cluster context, gap type, existing sibling articles
- *  - trend_discovery  → freshness window, trend score, signal sources, related event
- *  - manual           → "" (use brief fields as-is)
- *  - refresh_detection → throws (not handled in 54.9; catch at blog pipeline entry)
+ *  - gap_analysis      → cluster context, gap type, existing sibling articles
+ *  - trend_discovery   → freshness window, trend score, signal sources, related event
+ *  - manual            → "" (use brief fields as-is)
+ *  - refresh_detection → refresh context with staleness + reason (Spec 54.10)
  */
 export function buildSourceContextFragment(brief: TopicBrief): string {
   switch (brief.source) {
@@ -22,9 +22,7 @@ export function buildSourceContextFragment(brief: TopicBrief): string {
     case "manual":
       return "";
     case "refresh_detection":
-      throw new Error(
-        "refresh_detection briefs are not handled by the blog generator (spec 54.9 scope). Route to spec 54.10 when implemented.",
-      );
+      return buildRefreshContextFragment(brief.refreshMetadata ?? null);
     default:
       return "";
   }
@@ -75,6 +73,26 @@ function buildTrendContextFragment(trend: TrendMetadata | null): string {
   }
 
   lines.push("Lead with the timely angle. Do not bury the news in evergreen framing.");
+
+  return lines.join("\n");
+}
+
+function buildRefreshContextFragment(meta: RefreshMetadata | null): string {
+  const daysSince = meta?.staleness.daysSinceLastUpdate ?? null;
+  const reason = meta?.reason ?? "general refresh";
+
+  const lines = [
+    "**Refresh Context:**",
+    `This is a refresh of an existing article${daysSince !== null ? ` (last updated ${daysSince} days ago)` : ""}.`,
+    `Refresh reason: ${reason}.`,
+    "",
+    "You are NOT writing a new article from scratch. The original article body is provided as a voice-style reference.",
+    "Goals:",
+    "1. Preserve the article's narrative arc and voice",
+    "2. Update outdated facts (pricing, tool versions, statistics)",
+    "3. Add relevant new information (tools or trends that emerged since the original)",
+    "4. Rewrite weak sections, keep strong ones",
+  ];
 
   return lines.join("\n");
 }

@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { COST_OPS, estimateCostEur } from "@marketing-auto/core";
+import { COST_OPS, estimateCostEur, isProjectPaused, getPauseInfo } from "@marketing-auto/core";
 import {
   type FrontmatterFieldDescriptor,
   articleVersions,
@@ -12,8 +12,10 @@ import {
   pipelineRuns,
   projects,
   schemaExtensionRuns,
+  topicBriefs,
 } from "@marketing-auto/db";
 import { suggestFrontmatterFields } from "../lib/frontmatter-service.ts";
+import { enqueueRefreshPipeline } from "@marketing-auto/pipelines";
 import {
   continueArticleGeneration,
   enqueueArticleDraftPipeline,
@@ -1145,6 +1147,104 @@ articleRoutes.get("/:id/versions/:version", async (c) => {
 });
 
 // ─── pipeline triggers (preRunId pattern) ─────────────────────────────────────
+
+// ─── POST /:id/refresh ────────────────────────────────────────────────────────
+// Spec 54.10 Section B: Manual refresh trigger — re-generates body_md of an existing article,
+// preserving the original in article_versions before regeneration.
+
+const RefreshBodySchema = z.object({
+  reason: z.string().min(3).max(500).default("manual refresh"),
+});
+
+articleRoutes.post("/:id/refresh", async (c) => {
+  const id = c.req.param("id");
+
+  const rawBody = await c.req.json().catch(() => ({}));
+  const { reason } = RefreshBodySchema.parse(rawBody);
+
+  const [article] = await db
+    .select({
+      id:                 articles.id,
+      projectId:          articles.projectId,
+      title:              articles.title,
+      slug:               articles.slug,
+      cornerstoneKeyword: articles.cornerstoneKeyword,
+      locale:             articles.locale,
+      intentType:         articles.intentType,
+      clusterId:          articles.clusterId,
+      metaDescription:    articles.metaDescription,
+      source:             articles.source,
+      status:             articles.status,
+      updatedAt:          articles.updatedAt,
+    })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+  if (article.source !== "generated") {
+    return c.json({ ok: false, error: "Only generated articles can be refreshed" }, 422);
+  }
+
+  // Check project pause before enqueuing
+  if (await isProjectPaused(article.projectId)) {
+    const info = await getPauseInfo(article.projectId);
+    return c.json({ ok: false, error: "project_paused", data: info }, 423);
+  }
+
+  // Build refresh brief and enqueue — cost estimate: outline + draft + review
+  const staleDays = article.updatedAt
+    ? Math.floor((Date.now() - new Date(article.updatedAt).getTime()) / 86_400_000)
+    : 0;
+
+  // Insert the refresh brief
+  const [brief] = await db
+    .insert(topicBriefs)
+    .values({
+      projectId:      article.projectId,
+      source:         "refresh_detection",
+      topicTitle:     article.title ?? "",
+      primaryKeyword: article.cornerstoneKeyword ?? "",
+      locale:         article.locale ?? "de",
+      intentType:     article.intentType,
+      clusterId:      article.clusterId,
+      clusterAction:  "refresh",
+      suggestedTitle: article.title,
+      suggestedSlug:  article.slug,
+      suggestedMeta:  article.metaDescription,
+      approvalStatus: "approved",
+      approvedBy:     "user",
+      refreshMetadata: {
+        targetArticleId: article.id,
+        reason,
+        staleness: {
+          daysSinceLastUpdate: staleDays,
+          rankingChange: null,
+          competitorRefreshed: false,
+        },
+      },
+    })
+    .returning();
+
+  if (!brief) return c.json({ ok: false, error: "Failed to create refresh brief" }, 500);
+
+  const refreshCostEur =
+    estimateCostEur("anthropic", COST_OPS.REFRESH_OUTLINE) +
+    estimateCostEur("anthropic", COST_OPS.REFRESH_DRAFT) +
+    estimateCostEur("anthropic", COST_OPS.ARTICLE_SELF_REVIEW);
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:refresh",
+    projectId:    article.projectId,
+    uniqueKey:    { field: "articleId", value: article.id },
+    costEstimate: { service: "anthropic", estimatedCostEur: refreshCostEur },
+    extraInput:   { articleId: article.id, briefId: brief.id },
+    enqueue:      enqueueRefreshPipeline,
+  });
+
+  log.info({ articleId: id, briefId: brief.id, reason, staleDays, ...result }, "Refresh pipeline triggered");
+  return triggerResultToResponse(c, result);
+});
 
 articleRoutes.post("/:id/generate-outline", async (c) => {
   const id = c.req.param("id");

@@ -642,6 +642,7 @@ export type TrendMetadata = z.infer<typeof TrendMetadataSchema>;
 
 export const RefreshMetadataSchema = z.object({
   targetArticleId: z.string().uuid(),
+  reason: z.string().optional(),  // user-provided refresh reason (Spec 54.10)
   staleness: z.object({
     daysSinceLastUpdate: z.number(),
     rankingChange: z.number().nullable(),

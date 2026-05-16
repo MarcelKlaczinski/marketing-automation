@@ -18,6 +18,7 @@ import {
   CompetitorQuestionsPipeline,
   CornerstoneListPipeline,
   GoLiveChecklistPipeline,
+  RefreshPipeline,
   SchemaExtensionPipeline,
   SocialImagePipeline,
   VoiceRefinementQuestionsPipeline,
@@ -105,6 +106,7 @@ async function main() {
   pipelineRegistry.register(new ArticleOutlinePipeline());
   pipelineRegistry.register(new ArticleDraftPipeline());
   pipelineRegistry.register(new BlogPipeline());
+  pipelineRegistry.register(new RefreshPipeline());
   pipelineRegistry.register(new HeroImageGenerationPipeline());
   pipelineRegistry.register(new LocalizeArticlePipeline());
   pipelineRegistry.register(new ArticleSyncPipeline());
