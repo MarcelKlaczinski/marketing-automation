@@ -763,7 +763,8 @@
       "Bash(kill 93590)",
       "Bash(kill 77523)",
       "Bash(RUN_DB_TESTS=1 bun --filter \"@marketing-auto/pipelines\" test)",
-      "Bash(RUN_DB_TESTS=1 bun test packages/pipelines/test/article/author-picker/historic.test.ts)"
+      "Bash(RUN_DB_TESTS=1 bun test packages/pipelines/test/article/author-picker/historic.test.ts)",
+      "Bash(bun --env-file .env tsc --noEmit -p apps/api/tsconfig.json)"
     ]
   }
 }
