@@ -849,7 +849,8 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
     routeResult.kind === "article_created" ||
     routeResult.kind === "translation_created"
   ) {
-    const isBlogBrief = brief.locale !== null && brief.clusterId !== null;
+    // Translation mode is Spec 54.10 — only fresh article_created routes to blog pipeline
+    const isBlogBrief = routeResult.kind === "article_created" && brief.locale !== null && brief.clusterId !== null;
     const triggerResult = await (isBlogBrief
       ? triggerWithPreRunId({
           pipelineName: "article:blog",
