@@ -1,5 +1,5 @@
 # Backlog
-
+Unbedingt bei brief => cluste rgenerieren => image prompot für hero Englisch!!!!
 Items that are intentionally NOT being worked on right now, but should not be forgotten. Each entry has:
 
 - **Status**: `parked` (decision made: not now), `under-review` (uncertain), `archived` (decided against)

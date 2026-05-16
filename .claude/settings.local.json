@@ -743,7 +743,27 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show --stat HEAD)",
       "Bash(grep -n 'toolRating\\\\|numeric.*string\\\\|numeric.*insert\\\\|$type.*string.*null\\\\|numeric.*returned' /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add CLAUDE.md specs/54.8-astro-sync-field-mapping.md)",
-      "Bash(bun --filter @marketing-auto/pipelines tsc)"
+      "Bash(bun --filter @marketing-auto/pipelines tsc)",
+      "Bash(pkill -f \"bun.*worker\")",
+      "Bash(export DATABASE_URL=\"postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto\")",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c '\\\\d pipeline_runs')",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c '\\\\d clusters')",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -c 'SELECT target_locales FROM projects WHERE slug='\\\\''toolwiki'\\\\'';')",
+      "Bash(pm2 list *)",
+      "Bash(redis-cli LLEN bull:article-pipeline:wait)",
+      "Bash(redis-cli LLEN bull:article-pipeline:active)",
+      "Bash(redis-cli LLEN bull:article-pipeline:failed)",
+      "Bash(redis-cli LLEN bull:pipelines:wait)",
+      "Bash(redis-cli LLEN bull:pipelines:active)",
+      "Bash(redis-cli LLEN bull:pipelines:failed)",
+      "Bash(redis-cli ZCARD bull:pipelines:delayed)",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -x -c ' *)",
+      "Bash(psql postgresql://marketing_auto:dev_password_change_me@localhost:5432/marketing_auto -t -c ' *)",
+      "Bash(awk '{print $2, $11, $12}')",
+      "Bash(kill 93590)",
+      "Bash(kill 77523)",
+      "Bash(RUN_DB_TESTS=1 bun --filter \"@marketing-auto/pipelines\" test)",
+      "Bash(RUN_DB_TESTS=1 bun test packages/pipelines/test/article/author-picker/historic.test.ts)"
     ]
   }
 }
