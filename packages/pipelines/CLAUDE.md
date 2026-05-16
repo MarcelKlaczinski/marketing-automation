@@ -268,6 +268,12 @@ Key invariants:
 
 Auto-triggered from `BlogPipeline.afterComplete` when `project.targetLocales.includes("en-US")` AND `project.translationAutoTrigger === true` (default).
 
+**`TranslationSetupStep` must carry all DE fields the EN article reuses:** hero image R2 key/URL/alt + `schemaJsonLd`. These are not re-generated for EN; the bridge copies them into the `persist-article` input. If omitted, EN articles get empty hero and `schemaJsonLd: [{}]`.
+
+**`TranslationPipeline.afterComplete` calls `checkClusterCompletion`**: clusters wait for both DE + EN articles before transitioning to `completed`. The blog pipeline fires the check after DE completes (count < expected at that point), so the translation pipeline must re-check after each EN article finishes. Without this call, clusters stay stuck at `running` indefinitely.
+
+**`TranslationPipelineOutputSchema` must exactly match `PersistArticleStep.outputSchema`**: the runner does NOT call `bridge()` for the final step — it passes `PersistArticleStep`'s Zod-validated output directly as the pipeline output. Any extra fields in `TranslationPipelineOutputSchema` that the step never emits will fail `invalid_type` validation at runtime for every translation job.
+
 ### Voice Reference Loader
 
 `loadVoiceReferences({ projectId, clusterId, locale, excludeArticleId, limit })` in `src/article/voice-reference/loader.ts` returns top-N published articles (same cluster + locale, ranked by `selfReviewScore DESC, createdAt DESC`). Falls back to project-wide if cluster yields fewer than `limit` results. Used by both Refresh and Translation pipelines.
@@ -442,6 +448,9 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT write a pipeline step that INSERTs a new DB row without first checking if the row already exists — if the pipeline is re-run after a downstream failure the step will be re-executed and the INSERT will hit a unique constraint. Always do a SELECT-or-INSERT pattern: query for an existing row, return its ID if found, INSERT only if not found. See `TranslationSetupStep` in `src/article/translation/setup-step.ts` for the canonical pattern (idempotent EN article creation via translationKey lookup).
 - DO NOT use `MessagesResult.text` — the field is `raw`. `anthropic.messages()` returns `{ raw: string, json: unknown | null, ... }`. Use `result.raw` for free-text responses and `result.json` for JSON-mode responses. `text` does not exist and TypeScript will catch it, but Bun silently returns `undefined` at runtime if strictness is loose.
 - DO NOT rely on TypeScript to infer the full return type of `execute()` when new fields are added to a step's `OutputSchema` — TypeScript sometimes fails to unify the inferred type and emits `TS2416 Property 'execute' in type '...' is not assignable to the same property in base type`. Fix: add an explicit return type annotation: `async execute(...): Promise<z.infer<typeof OutputSchema>> { ... }`. This also serves as documentation of the step's contract.
+- DO NOT define a `TranslationPipelineOutputSchema` with fields beyond what `PersistArticleStep.outputSchema` emits (`articleId`, `wordCount`, `selfReviewScore`) — the pipeline runner passes the last step's Zod-validated output directly as the pipeline result without calling `bridge()`. Extra fields cause `invalid_type` Zod errors at runtime for every translation job.
+- DO NOT omit `checkClusterCompletion` from `TranslationPipeline.afterComplete` — clusters have an expected total of `deArticleCount × 2` when `translationAutoTrigger` is on. `BlogPipeline.afterComplete` fires the check after DE completes (when count < expected), so the cluster never reaches `completed` unless the translation pipeline re-checks after each EN article finishes.
+- DO NOT add a new `@type` to `BuildJsonLdStep` without updating all four places: (1) `OutputSchema.addedTypes` z.enum, (2) the local `addedTypes` array type annotation, (3) the `existingMinusOurs` filter cast, (4) a `buildXxx()` helper function. Missing any one of them causes either a TypeScript error or a stale entry being left in `schemaJsonLd` on re-runs.
 
 ## Trend Discovery Topic Source (Spec 54.5+)
 
