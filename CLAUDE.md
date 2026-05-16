@@ -98,6 +98,7 @@ Designed to evolve into SaaS.
 - DO NOT implement custom ZIP builders — use `fflate` (`zipSync` for synchronous in-memory ZIP, `level: 0` for stored/uncompressed). The hand-rolled PKZIP implementation in `social-posts.ts` produced corrupted ZIPs that macOS and Windows refused to open; it was replaced in Spec 52a with `fflate` which is battle-tested and handles CRC, offsets, and end-of-central-directory records correctly
 - DO NOT import `drizzle-orm` operators (`and`, `eq`, `inArray`, `ne`, `gte`, `lte`, `gt`, `lt`, `isNull`, `isNotNull`, `sql`) directly from `drizzle-orm` in workspace packages other than `packages/db` — each package may have its own installed version of drizzle-orm, causing TypeScript type incompatibilities (`Type 'Column<...>' is not assignable to parameter`). Always import these operators from `@marketing-auto/db` instead: `import { and, eq, inArray } from "@marketing-auto/db"`. The re-export in `packages/db/src/index.ts` is the canonical source for the workspace-wide drizzle-orm version
 - DO NOT import from `packages/pipelines/src/_lib/` using relative paths in `apps/api` — cross-workspace imports must go through the `@marketing-auto/pipelines` workspace alias. If the symbol you need isn't exported from `packages/pipelines/src/index.ts`, add it there first, then add `"@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"]` to `apps/api/tsconfig.json` paths if missing. Relative cross-workspace paths like `../../../packages/...` produce `TS2307 Cannot find module` errors that TypeScript reports but Bun silently ignores at runtime
+- DO NOT pass a JS `number` to a Drizzle `numeric()` column on insert — `numeric()` columns are typed `string | null` in both directions. Pass `String(n)` when writing computed values (e.g. `String(parseFloat(raw))`), and call `parseFloat(row.col)` at read sites when arithmetic is needed. Passing a raw `number` produces a TypeScript error under strict mode
 - DO NOT pass `toolCategory: "AI tool"` or a similarly generic string to `generateContentWithGate()` when `primaryCategory` is not set — the LLM echoes the generic value and produces nonsensical hooks like "Welche KI macht die besten KI-Tools?". Omit `toolCategory` entirely when unknown (use the `...(toolCategory !== undefined && { toolCategory })` spread pattern), which makes `buildContentPrompt` send the sentinel `"(infer from tool names)"` that tells the LLM to derive the specific domain from the tool names (Cursor + Windsurf + Codeium → "KI-Code-Editor"). See `packages/core/src/social-hooks/hookPrompt.ts` INFERENCE RULE for the full mapping
 
 ## Local DB Setup
@@ -158,6 +159,8 @@ Regression test: `packages/core/test/sql-date-bind.test.ts`
 6. Run /update-docs if patterns changed
 
 ## Spec Files
+**When writing specs:** verify column names, file paths, FK relationships, and enum values against [`specs/_reference/codebase-reference.md`](specs/_reference/codebase-reference.md) first — this is the ground-truth source that prevents schema-vs-reality drift.
+
 All specs live in /specs/. Reference format: `/specs/<phase>-<feature>.md`
 Implemented specs (do not re-implement):
 - /specs/00-foundation.md
@@ -193,6 +196,8 @@ Implemented specs (do not re-implement):
 - /specs/54.5b-post-smoke-test-cleanup.md (loadActiveConfig JSONB parse through Zod schemas; ?? workarounds removed; score rebalanced buzz=15 growth=15 official=25 serp=20 diversity=25 coverage=40; source_diversity component added; MAJOR_VENDOR_DOMAINS expanded; COST_OPS registered for trend ops)
 - /specs/54.6-trend-discovery-ui.md (Voyage vault wiring; /projects/:slug/trends page; TrendBriefList, TrendBriefDetail, RejectedTopicsBrowser, SignalPoolInspector, SynthesisTriggerCard; 7 backend endpoints; manual_dismissal migration 0042; Phase B complete)
 - /specs/54.7-cluster-creator.md (LLM cluster proposal via claude-opus-4-7; /projects/:slug/clusters/propose + /create-from-brief endpoints; atomic contentPillars+clusters+cornerstoneSpecs+brief-approve transaction; 3-step ClusterCreatorPage stepper; TrendBriefDetail create_new CTA wired; Phase C complete)
+- /specs/54.7.5-codebase-discovery.md (codebase reference pack generated at specs/_reference/codebase-reference.md; 14 tables, 10 JSONB schemas, routing decisions, env vars, COST_OPS, 15 patterns, tech debt snapshot)
+- /specs/54.8-astro-sync-field-mapping.md (date/updated/name mapped; intentType="review" default for tools; 6 tool columns promoted with partial indexes; articles-read.ts helpers in packages/db)
 
 ## Project Marketing Contexts
 
