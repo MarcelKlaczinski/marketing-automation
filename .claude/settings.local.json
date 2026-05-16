@@ -725,7 +725,25 @@
       "Bash(bun -e \"const d = await new Response\\(process.stdin\\).json\\(\\); console.log\\(JSON.stringify\\({ total: d?.data?.total, itemCount: d?.data?.items?.length }\\)\\)\")",
       "Bash(kill -TERM 23829)",
       "Bash(redis-cli KEYS \"*repeat*\")",
-      "Bash(redis-cli KEYS \"*bull*\")"
+      "Bash(redis-cli KEYS \"*bull*\")",
+      "Bash(redis-cli ZRANGE bull:scheduled:repeat 0 -1 WITHSCORES)",
+      "Bash(redis-cli ZRANGE bull:signal-collector:repeat 0 -1 WITHSCORES)",
+      "Bash(redis-cli ZRANGE bull:trend-synthesizer:repeat 0 -1 WITHSCORES)",
+      "Bash(redis-cli HGETALL bull:scheduled:repeat:c4d96453a74b7bd6c210ed3ea5fc27e9)",
+      "Bash(redis-cli HGETALL bull:signal-collector:repeat:ec39a884bd97caf1e09e7b93d61a661c)",
+      "Bash(redis-cli HGETALL bull:trend-synthesizer:repeat:acbdb43c3757937b046134df6f9c106f)",
+      "Bash(redis-cli ZREM bull:scheduled:repeat c4d96453a74b7bd6c210ed3ea5fc27e9)",
+      "Bash(redis-cli ZREM bull:signal-collector:repeat ec39a884bd97caf1e09e7b93d61a661c)",
+      "Bash(redis-cli ZREM bull:trend-synthesizer:repeat acbdb43c3757937b046134df6f9c106f)",
+      "Bash(redis-cli DEL bull:scheduled:repeat:c4d96453a74b7bd6c210ed3ea5fc27e9)",
+      "Bash(redis-cli DEL bull:signal-collector:repeat:ec39a884bd97caf1e09e7b93d61a661c)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/adapters/astro-sync/src/import/parse-frontmatter.ts packages/adapters/astro-sync/src/import/steps/upsert-articles.ts packages/db/drizzle/0043_tool_columns.sql packages/db/drizzle/meta/_journal.json packages/db/src/schema/content.ts packages/db/src/helpers/articles-read.ts packages/db/src/index.ts)",
+      "Bash(kill -TERM 23960)",
+      "Bash(echo \"Worker started: $!\")",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show --stat HEAD)",
+      "Bash(grep -n 'toolRating\\\\|numeric.*string\\\\|numeric.*insert\\\\|$type.*string.*null\\\\|numeric.*returned' /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add CLAUDE.md specs/54.8-astro-sync-field-mapping.md)",
+      "Bash(bun --filter @marketing-auto/pipelines tsc)"
     ]
   }
 }
