@@ -123,13 +123,31 @@ describe("ClusterPlanOutputSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a hub with fewer than 3 h2Outline items", () => {
+  it("rejects a hub with fewer than 4 h2Outline items", () => {
     const plan = {
       ...VALID_PLAN,
-      hub: { ...VALID_HUB, h2Outline: ["One section", "Two sections"] },
+      hub: { ...VALID_HUB, h2Outline: ["One section", "Two sections", "Three sections"] },
     };
     const result = ClusterPlanOutputSchema.safeParse(plan);
     expect(result.success).toBe(false);
+  });
+
+  it("rejects spokes with duplicate intentType", () => {
+    const plan = {
+      ...VALID_PLAN,
+      spokes: [
+        VALID_SPOKE(0, "review"),
+        VALID_SPOKE(1, "review"), // duplicate!
+        VALID_SPOKE(2, "pricing"),
+        VALID_SPOKE(3, "tutorial"),
+      ],
+    };
+    const result = ClusterPlanOutputSchema.safeParse(plan);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues[0]?.message ?? "";
+      expect(msg).toMatch(/distinct intentType/i);
+    }
   });
 
   it("accepts pillarId as an existing UUID", () => {

@@ -200,6 +200,7 @@ Implemented specs (do not re-implement):
 - /specs/54.8-astro-sync-field-mapping.md (date/updated/name mapped; intentType="review" default for tools; 6 tool columns promoted with partial indexes; articles-read.ts helpers in packages/db)
 - /specs/54.9-blog-generator.md (13-step article:blog pipeline; AuthorPickStep 3-strategy cascade; ToolLinkerStep linkification; 54.9.1 patch: dynamic author fallback + cost_logs.article_id + linkifyMarkdown re-link fix)
 - /specs/54.10-refresh+translation-modes.md (blog ChainStep + chain routing; article:refresh pipeline with article_versions + voice continuity; article:translation pipeline with Haiku decision + literal/adaptive paths; translationAutoTrigger project toggle)
+- /specs/54.12-full-cluster.md (Sessions 1-2 done: migration 0045 — clusters generation_status/proposed_spokes/proposed_hub/plan_edits/trigger_brief_id/pending_spoke_brief_ids; articles cluster_generation_id/role; topic_briefs routed_cluster_id; generateClusterPlan() Sonnet 4.6 LLM call with Zod validation; CLUSTER_PLAN_GENERATION cost op; Sessions 3-6 pending)
 
 ## Project Marketing Contexts
 

@@ -28,7 +28,7 @@ export const ProposedHubSchema = z.object({
   primaryKeyword: z.string().min(3).max(100),
   intentType: z.enum(["overview", "general"]),
   estimatedWordCount: z.number().int().min(800).max(5000),
-  h2Outline: z.array(z.string().min(3).max(150)).min(3).max(12),
+  h2Outline: z.array(z.string().min(3).max(150)).min(4).max(10),
   metaDescription: z.string().max(160).optional(),
 });
 
@@ -53,7 +53,11 @@ export const ClusterPlanOutputSchema = z.object({
   spokes: z
     .array(ProposedSpokeSchema)
     .min(4, "LLM must propose at least 4 spokes")
-    .max(6, "LLM must propose at most 6 spokes"),
+    .max(6, "LLM must propose at most 6 spokes")
+    .refine(
+      (spokes) => new Set(spokes.map((s) => s.intentType)).size === spokes.length,
+      "Each spoke must have a distinct intentType",
+    ),
 });
 
 export type ClusterPlanOutput = z.infer<typeof ClusterPlanOutputSchema>;
