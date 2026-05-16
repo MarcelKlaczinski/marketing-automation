@@ -1,4 +1,4 @@
-import { type Ref } from "vue";
+import { type MaybeRef, unref } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useProjectStore } from "src/stores/project";
 import { apiGet } from "src/lib/api";
@@ -9,18 +9,21 @@ import type { ClusterCardData } from "src/types/ui";
  * Uses a 30 s refetch interval; SSE `cluster.status.changed` events
  * from `usePipelineEvents` invalidate the same cache key in real-time.
  *
- * @param clusterId - reactive ref to the cluster UUID
+ * Accepts a plain string or Ref<string> so Options API components can pass
+ * a value without needing to call ref() (which is Composition API).
+ *
+ * @param clusterId - cluster UUID or a Ref to one
  */
-export function useClusterStatus(clusterId: Ref<string>) {
+export function useClusterStatus(clusterId: MaybeRef<string>) {
   const projectStore = useProjectStore();
 
   return useQuery({
     queryKey: ["cluster-generation-status", clusterId],
     queryFn: () =>
       apiGet<ClusterCardData>(
-        `/projects/${projectStore.currentSlug}/clusters/${clusterId.value}/generation-status`,
+        `/projects/${projectStore.currentSlug}/clusters/${unref(clusterId)}/generation-status`,
       ),
-    enabled: !!clusterId.value,
+    enabled: !!unref(clusterId),
     refetchInterval: 30_000,
   });
 }

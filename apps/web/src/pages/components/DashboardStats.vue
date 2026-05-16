@@ -35,7 +35,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed } from "vue";
+import { defineComponent } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useActivityFeed } from "src/composables/useActivityFeed";
 import { useCostSummary } from "src/composables/useCostSummary";
@@ -48,6 +48,8 @@ interface ArticlesWeekResponse { count: number }
 /**
  * 4-column grid of KPI stat cards.
  * Each card independently fetches its data so failures are isolated.
+ * Uses setup() only to call composables — all reactive logic lives in
+ * Options API computed:{} and data:{}, keeping Composition API out of components.
  */
 export default defineComponent({
   name: "DashboardStats",
@@ -56,11 +58,10 @@ export default defineComponent({
 
   setup() {
     const projectStore = useProjectStore();
-    const window = ref<"today" | "week" | "month">("month");
 
     const { data: feedData, isLoading: isLoadingFeed } = useActivityFeed();
-
-    const { data: costData, isLoading: isLoadingCost } = useCostSummary(window);
+    // useCostSummary accepts MaybeRef — plain string avoids ref() in component
+    const { data: costData, isLoading: isLoadingCost } = useCostSummary("month");
 
     const { data: articlesData, isLoading: isLoadingArticles } = useQuery({
       queryKey: ["articles-week", projectStore.currentSlug],
@@ -71,19 +72,6 @@ export default defineComponent({
       staleTime: 60_000,
     });
 
-    const activeCount = computed<number>(() => {
-      const runs = feedData.value ?? [];
-      return runs.filter((r) => r.status === "running" || r.status === "queued").length;
-    });
-
-    const successRate = computed<number>(() => {
-      const runs = feedData.value ?? [];
-      const completed = runs.filter((r) => r.status === "completed").length;
-      const failed = runs.filter((r) => r.status === "failed").length;
-      const total = completed + failed;
-      return total > 0 ? Math.round((completed / total) * 100) : 100;
-    });
-
     return {
       feedData,
       costData,
@@ -91,12 +79,23 @@ export default defineComponent({
       isLoadingFeed,
       isLoadingCost,
       isLoadingArticles,
-      activeCount,
-      successRate,
     };
   },
 
   computed: {
+    activeCount(): number {
+      const runs = this.feedData ?? [];
+      return runs.filter((r) => r.status === "running" || r.status === "queued").length;
+    },
+
+    successRate(): number {
+      const runs = this.feedData ?? [];
+      const completed = runs.filter((r) => r.status === "completed").length;
+      const failed = runs.filter((r) => r.status === "failed").length;
+      const total = completed + failed;
+      return total > 0 ? Math.round((completed / total) * 100) : 100;
+    },
+
     activeCountTrend(): string {
       return "";
     },

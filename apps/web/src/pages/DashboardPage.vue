@@ -22,10 +22,7 @@
     >
       <!-- Session 6: PipelineRunDetail component goes here -->
       <div v-if="selectedRunId" class="detail-content">
-        <p class="text-xs text-dim mono">Run: {{ selectedRunId }}</p>
-        <p class="text-xs text-tertiary" style="margin-top: 8px;">
-          Vollständiges Detail-Panel in Session 6.
-        </p>
+        <p class="text-xs text-dim mono">{{ selectedRunId }}</p>
         <button
           v-if="isMobile"
           class="detail-back text-sm"

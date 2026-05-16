@@ -10,21 +10,23 @@ const MOBILE_BREAKPOINT = 1024; // matches sidebar collapse breakpoint in AppShe
  */
 export function useResponsiveLayout() {
   const isMobile = ref(
-    typeof window !== "undefined" ? window.innerWidth < MOBILE_BREAKPOINT : false,
+    typeof globalThis.innerWidth !== "undefined"
+      ? globalThis.innerWidth < MOBILE_BREAKPOINT
+      : false,
   );
 
   function handleResize(): void {
-    isMobile.value = window.innerWidth < MOBILE_BREAKPOINT;
+    isMobile.value = (globalThis.innerWidth ?? 0) < MOBILE_BREAKPOINT;
   }
 
   onMounted(() => {
     // Re-evaluate immediately in case SSR defaulted differently.
-    isMobile.value = window.innerWidth < MOBILE_BREAKPOINT;
-    window.addEventListener("resize", handleResize);
+    isMobile.value = (globalThis.innerWidth ?? 0) < MOBILE_BREAKPOINT;
+    globalThis.addEventListener("resize", handleResize);
   });
 
   onUnmounted(() => {
-    window.removeEventListener("resize", handleResize);
+    globalThis.removeEventListener("resize", handleResize);
   });
 
   return { isMobile };

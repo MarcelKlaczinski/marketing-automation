@@ -52,14 +52,14 @@
 import { defineComponent, type PropType } from "vue";
 import type { PipelineRunSummary } from "src/types/ui";
 
-/** Maps pipeline type strings → display label keys */
-const TYPE_LABELS: Record<string, string> = {
-  blog: "Blog",
-  translation: "TR",
-  refresh: "Refresh",
-  cluster: "Cluster",
-  "cluster-creator": "Cluster",
-  "cold-start": "Setup",
+/** Maps pipeline type strings → i18n key paths */
+const TYPE_I18N_KEYS: Record<string, string> = {
+  blog: "dashboard.pipeline.types.blog",
+  translation: "dashboard.pipeline.types.translation",
+  refresh: "dashboard.pipeline.types.refresh",
+  cluster: "dashboard.pipeline.types.cluster",
+  "cluster-creator": "dashboard.pipeline.types.cluster-creator",
+  "cold-start": "dashboard.pipeline.types.cold-start",
 };
 
 /** Maps pipeline type → CSS class suffix */
@@ -99,7 +99,8 @@ export default defineComponent({
     },
 
     typeLabel(): string {
-      return TYPE_LABELS[this.run.type] ?? this.run.type;
+      const key = TYPE_I18N_KEYS[this.run.type] ?? "dashboard.pipeline.types.default";
+      return this.$t(key) as string;
     },
 
     progressPercent(): number {
@@ -130,7 +131,7 @@ function formatElapsed(startedAt: string): string {
 function formatAgo(dateStr: string): string {
   const diffMs = Date.now() - new Date(dateStr).getTime();
   const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1) return "gerade eben";
+  if (diffMin < 1) return "< 1m";
   if (diffMin < 60) return `${diffMin}m`;
   const diffH = Math.floor(diffMin / 60);
   if (diffH < 24) return `${diffH}h`;

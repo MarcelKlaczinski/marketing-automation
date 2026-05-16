@@ -29,7 +29,7 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref } from "vue";
+import { defineComponent } from "vue";
 import { useProjectContext } from "src/composables/useProjectContext";
 import { useCostSummary } from "src/composables/useCostSummary";
 import LiveIndicator from "src/components/ui/LiveIndicator.vue";
@@ -49,16 +49,16 @@ export default defineComponent({
 
   setup() {
     const { runningCount, failedCount, isLoading } = useProjectContext();
-
-    // Separate computed for queued — project picker doesn't expose queued directly,
-    // so we derive it from the runs feed via store. For now expose 0 until Session 5
-    // wires useActivityFeed. Placeholder is acceptable at this stage.
-    const queuedCount = ref(0);
-
-    const todaySummary = useCostSummary(ref("today"));
-
-    return { runningCount, failedCount, queuedCount, isLoading, todaySummary };
+    // useCostSummary accepts a plain string (MaybeRef) — no ref() needed here
+    const todaySummary = useCostSummary("today");
+    return { runningCount, failedCount, isLoading, todaySummary };
   },
+
+  data: () => ({
+    // Queued count placeholder — project picker doesn't expose this directly.
+    // Will be wired to useActivityFeed data in a later session.
+    queuedCount: 0,
+  }),
 
   computed: {
     todayCostDisplay(): string {
