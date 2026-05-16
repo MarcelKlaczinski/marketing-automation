@@ -137,7 +137,7 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
     });
 
     const promptBase = {
-      skills: ["copywriting", "content-strategy", "ai-seo", "schema-markup"],
+      skills: ["copywriting", "content-strategy", "ai-seo", "schema"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: outlineInstructions,
       ...(input.frontmatterSchema?.length

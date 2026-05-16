@@ -26,7 +26,7 @@ export class DetectRichTypesStep extends BaseStep<
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {
     const prompt = await buildSystemPrompt({
-      skills: ["schema-markup", "ai-seo"],
+      skills: ["schema", "ai-seo"],
       projectIdOrSlug: input.projectSlug,
       stepInstructions: `
 You are analyzing an article to determine which Schema.org rich-result types it qualifies for.
