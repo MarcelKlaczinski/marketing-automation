@@ -57,6 +57,44 @@ export type SatelliteKeywordEntry = {
   keywords: Array<{ keyword: string; searchVolume?: number | null; difficulty?: number | null }>;
 };
 
+// Spec 54.12: Full Cluster Generation — types for proposed cluster plan JSONB columns.
+
+export type ClusterGenerationStatus =
+  | "manual"
+  | "plan_proposed"
+  | "plan_approved"
+  | "running"
+  | "completed"
+  | "partial"
+  | "failed";
+
+export type ProposedSpoke = {
+  proposedTitle: string;
+  primaryKeyword: string;
+  intentType: "review" | "comparison" | "pricing" | "tutorial" | "use-cases" | "features";
+  estimatedWordCount: number;
+  rationale: string;
+  position: number;
+};
+
+export type ProposedHub = {
+  title: string;
+  primaryKeyword: string;
+  intentType: "overview" | "general";
+  estimatedWordCount: number;
+  h2Outline: string[];
+  metaDescription?: string;
+};
+
+export type PlanEdit = {
+  timestamp: string;
+  action: "patch_spoke" | "delete_spoke" | "patch_hub" | "regenerate";
+  spokeIndex?: number;
+  before?: ProposedSpoke | ProposedHub;
+  after?: ProposedSpoke | ProposedHub;
+  hint?: string;
+};
+
 export const clusters = pgTable(
   "clusters",
   {
@@ -83,6 +121,17 @@ export const clusters = pgTable(
     position: integer("position").notNull().default(0),
     // Vector embedding for cluster matching in trend synthesis (Spec 54.5) — 1024-dim voyage-3
     embedding: vector("embedding", { dimensions: 1024 }),
+
+    // Spec 54.12: Full Cluster Generation columns
+    generationStatus: text("generation_status").notNull().default("manual")
+      .$type<ClusterGenerationStatus>(),
+    proposedSpokes: jsonb("proposed_spokes").$type<ProposedSpoke[] | null>(),
+    proposedHub: jsonb("proposed_hub").$type<ProposedHub | null>(),
+    planEdits: jsonb("plan_edits").$type<PlanEdit[]>().default([]),
+    // Soft FK to topic_briefs (no DB-level FK — avoids circular ordering between content.ts tables)
+    triggerBriefId: uuid("trigger_brief_id"),
+    pendingSpokeBriefIds: jsonb("pending_spoke_brief_ids").$type<string[]>().default([]),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -92,3 +141,6 @@ export const clusters = pgTable(
     embeddingIdx: index("clusters_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   })
 );
+
+export type Cluster    = typeof clusters.$inferSelect;
+export type NewCluster = typeof clusters.$inferInsert;

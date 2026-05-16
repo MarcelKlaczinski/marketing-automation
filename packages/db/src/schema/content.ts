@@ -195,6 +195,12 @@ export const articles = pgTable(
     clusterRole: text("cluster_role").$type<"hub" | "spoke" | null>(),
     intentType: text("intent_type"),
 
+    // Spec 54.12: cluster-generation tracking (set by enqueueBlogGeneration for hub/spoke roles)
+    // Distinct from cluster_id (membership) — tracks which generation run produced this article.
+    clusterGenerationId: uuid("cluster_generation_id"),
+    // 'hub' | 'spoke' | null — generation role; distinct from clusterRole (Astro frontmatter field)
+    role: text("role").$type<"hub" | "spoke" | null>(),
+
     // Spec 54.8: tool-specific columns (populated only when collection='tools')
     toolPricing: text("tool_pricing"),
     toolPriceFrom: numeric("tool_price_from", { precision: 10, scale: 2 }),
@@ -258,6 +264,8 @@ export const articles = pgTable(
     // Spec 49a: cluster key + role filtering
     clusterKeyIdx: index("articles_cluster_key_idx").on(t.projectId, t.clusterKey),
     clusterRoleIdx: index("articles_cluster_role_idx").on(t.projectId, t.clusterRole),
+    // Spec 54.12: cluster generation run filtering (completion detection + partial-retry)
+    clusterGenerationIdIdx: index("articles_cluster_generation_id_idx").on(t.clusterGenerationId),
   })
 );
 
@@ -705,6 +713,9 @@ export const topicBriefs = pgTable(
     // FKs declared via raw SQL migration (54.1 convention — avoids circular ordering within this file)
     routedArticleId:         uuid("routed_article_id"),
     routedCornerstoneSpecId: uuid("routed_cornerstone_spec_id"),
+
+    // Spec 54.12: soft back-link to the cluster created from this brief via Full Cluster flow
+    routedClusterId: uuid("routed_cluster_id"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

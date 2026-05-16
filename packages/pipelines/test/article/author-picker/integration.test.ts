@@ -36,6 +36,7 @@ function makeBrief(overrides: Partial<TopicBrief> = {}): TopicBrief {
     refreshMetadata: null,
     routedArticleId: null,
     routedCornerstoneSpecId: null,
+    routedClusterId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
