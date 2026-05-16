@@ -302,6 +302,13 @@
       "when": 1782000000000,
       "tag": "0042_rejected_topics_manual_dismissal",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1782100000000,
+      "tag": "0043_tool_columns",
+      "breakpoints": true
     }
   ]
 }

@@ -195,6 +195,14 @@ export const articles = pgTable(
     clusterRole: text("cluster_role").$type<"hub" | "spoke" | null>(),
     intentType: text("intent_type"),
 
+    // Spec 54.8: tool-specific columns (populated only when collection='tools')
+    toolPricing: text("tool_pricing"),
+    toolPriceFrom: numeric("tool_price_from", { precision: 10, scale: 2 }),
+    toolRating: numeric("tool_rating", { precision: 3, scale: 1 }),
+    toolVotes: integer("tool_votes"),
+    toolAffiliateSlug: text("tool_affiliate_slug"),
+    toolWebsite: text("tool_website"),
+
     // Spec 44: catch-all for collection-specific frontmatter fields
     frontmatterExtras: jsonb("frontmatter_extras")
       .$type<Record<string, unknown>>()

@@ -39,6 +39,25 @@ export class UpsertArticlesStep extends BaseStep<
       const slug = typed.slug as string;
       const locale = (typed.locale as string | null) ?? "de";
       const collection = (p.collection as string) ?? "unknown";
+      const extras = (p.extras as Record<string, unknown>) ?? {};
+
+      // Spec 54.8: fallback title to name (for authors collection)
+      const title = (typed.title as string | null) ?? (typed.name as string | null) ?? null;
+
+      // Spec 54.8: fallback publishedAt to date (for blog collection)
+      const publishedAt =
+        (typed.publishedAt as Date | null) ?? (typed.date as Date | null) ?? null;
+
+      // Spec 54.8: fallback frontmatterUpdatedAt to updated (for blog collection)
+      const frontmatterUpdatedAt =
+        (typed.updatedAt as Date | null) ?? (typed.updated as Date | null) ?? null;
+
+      // Spec 54.8: collection-aware intentType default
+      const intentType =
+        (typed.intentType as string | null) ?? (collection === "tools" ? "review" : null);
+
+      // Spec 54.8: tool-specific column promotion
+      const toolColumns = collection === "tools" ? buildToolColumns(extras) : {};
 
       try {
         const result = await db
@@ -50,13 +69,13 @@ export class UpsertArticlesStep extends BaseStep<
             locale,
             slug,
             cornerstoneKeyword: null,
-            title: (typed.title as string | null) ?? null,
+            title,
             metaDescription: (typed.description as string | null) ?? null,
             translationKey: (typed.translationKey as string | null) ?? null,
             filePath: p.filePath as string,
             gitSha: p.gitSha as string,
-            publishedAt: (typed.publishedAt as Date | null) ?? null,
-            frontmatterUpdatedAt: (typed.updatedAt as Date | null) ?? null,
+            publishedAt,
+            frontmatterUpdatedAt,
             author: (typed.author as string | null) ?? null,
             category: (typed.category as string | null) ?? null,
             subcategory: (typed.subcategory as string | null) ?? null,
@@ -65,13 +84,14 @@ export class UpsertArticlesStep extends BaseStep<
             // Spec 49a: cluster metadata
             clusterKey: (typed.clusterKey as string | null) ?? null,
             clusterRole: (typed.clusterRole as "hub" | "spoke" | null) ?? null,
-            intentType: (typed.intentType as string | null) ?? null,
+            intentType,
             bodyMd: p.body as string,
-            frontmatterExtras: p.extras as Record<string, unknown>,
+            frontmatterExtras: extras,
             importMetadata: p.metadata as Record<string, unknown>,
             importedAt: now,
             lastImportedAt: now,
             status: "published",
+            ...toolColumns,
           })
           .onConflictDoUpdate({
             target: [
@@ -82,13 +102,13 @@ export class UpsertArticlesStep extends BaseStep<
               articles.slug,
             ],
             set: {
-              title: (typed.title as string | null) ?? null,
+              title,
               metaDescription: (typed.description as string | null) ?? null,
               translationKey: (typed.translationKey as string | null) ?? null,
               filePath: p.filePath as string,
               gitSha: p.gitSha as string,
-              publishedAt: (typed.publishedAt as Date | null) ?? null,
-              frontmatterUpdatedAt: (typed.updatedAt as Date | null) ?? null,
+              publishedAt,
+              frontmatterUpdatedAt,
               author: (typed.author as string | null) ?? null,
               category: (typed.category as string | null) ?? null,
               subcategory: (typed.subcategory as string | null) ?? null,
@@ -97,12 +117,13 @@ export class UpsertArticlesStep extends BaseStep<
               // Spec 49a: cluster metadata
               clusterKey: (typed.clusterKey as string | null) ?? null,
               clusterRole: (typed.clusterRole as "hub" | "spoke" | null) ?? null,
-              intentType: (typed.intentType as string | null) ?? null,
+              intentType,
               bodyMd: p.body as string,
-              frontmatterExtras: p.extras as Record<string, unknown>,
+              frontmatterExtras: extras,
               importMetadata: p.metadata as Record<string, unknown>,
               lastImportedAt: now,
               updatedAt: now,
+              ...toolColumns,
             },
           })
           .returning({ id: articles.id, importedAt: articles.importedAt });
@@ -121,4 +142,34 @@ export class UpsertArticlesStep extends BaseStep<
 
     return { inserted, updated, failed };
   }
+}
+
+function buildToolColumns(extras: Record<string, unknown>): {
+  toolPricing: string | null;
+  toolPriceFrom: string | null;
+  toolRating: string | null;
+  toolVotes: number | null;
+  toolAffiliateSlug: string | null;
+  toolWebsite: string | null;
+} {
+  return {
+    toolPricing: typeof extras.pricing === "string" ? extras.pricing : null,
+    toolPriceFrom: coerceToNumericString(extras.priceFrom),
+    toolRating: coerceToNumericString(extras.rating),
+    toolVotes: coerceToInteger(extras.votes),
+    toolAffiliateSlug: typeof extras.affiliateSlug === "string" ? extras.affiliateSlug : null,
+    toolWebsite: typeof extras.website === "string" ? extras.website : null,
+  };
+}
+
+function coerceToNumericString(value: unknown): string | null {
+  if (value == null) return null;
+  const n = parseFloat(String(value));
+  return Number.isFinite(n) ? String(n) : null;
+}
+
+function coerceToInteger(value: unknown): number | null {
+  if (value == null) return null;
+  const n = parseInt(String(value), 10);
+  return Number.isFinite(n) ? n : null;
 }

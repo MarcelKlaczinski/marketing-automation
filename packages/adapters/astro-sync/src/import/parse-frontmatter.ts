@@ -19,6 +19,10 @@ const FrontmatterSchema = z
     clusterKey: z.string().optional(),
     clusterRole: z.enum(["hub", "spoke"]).optional(),
     intentType: z.string().optional(),
+    // Spec 54.8: additional mapped fields
+    date: z.coerce.date().optional(),
+    updated: z.coerce.date().optional(),
+    name: z.string().optional(),
   })
   .passthrough();
 
@@ -45,6 +49,10 @@ export type ParseResult = {
     clusterKey: string | null;
     clusterRole: "hub" | "spoke" | null;
     intentType: string | null;
+    // Spec 54.8: additional mapped fields
+    date: Date | null;
+    updated: Date | null;
+    name: string | null;
   };
   extras: Record<string, unknown>;
   metadata: {
@@ -74,6 +82,10 @@ const TYPED_FIELDS = new Set([
   "clusterKey",
   "clusterRole",
   "intentType",
+  // Spec 54.8: additional mapped fields
+  "date",
+  "updated",
+  "name",
 ]);
 
 export function parseMdxContent(filePath: string, raw: string): ParseResult {
@@ -92,6 +104,8 @@ export function parseMdxContent(filePath: string, raw: string): ParseResult {
 
   const publishedAt = fm.publishedAt ? toDate(fm.publishedAt) : null;
   const updatedAt = fm.updatedAt ? toDate(fm.updatedAt) : null;
+  const date = fm.date instanceof Date ? fm.date : null;
+  const updated = fm.updated instanceof Date ? fm.updated : null;
 
   const extras: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(parsed.data)) {
@@ -121,6 +135,10 @@ export function parseMdxContent(filePath: string, raw: string): ParseResult {
       clusterKey: fm.clusterKey ?? null,
       clusterRole: fm.clusterRole ?? null,
       intentType: fm.intentType ?? null,
+      // Spec 54.8: additional mapped fields
+      date,
+      updated,
+      name: fm.name ?? null,
     },
     extras,
     metadata,
