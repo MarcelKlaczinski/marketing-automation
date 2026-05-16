@@ -3,14 +3,18 @@ import {
   articles,
   astroSyncRuns,
   clusters,
+  costLogs,
   db,
   linkRebuildRuns,
   pagespeedRuns,
   pipelineRuns,
   projects,
   schemaExtensionRuns,
+  topicBriefs,
 } from "@marketing-auto/db";
-import { and, desc, eq, gte, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { getPauseInfo, isProjectPaused } from "@marketing-auto/core";
+import { enqueuePipeline } from "@marketing-auto/pipelines";
+import { and, asc, desc, eq, gte, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
@@ -469,6 +473,67 @@ pipelineRunsRoutes.get(
   }
 );
 
+// ─── POST /api/pipeline-runs/:id/retry ───────────────────────────────────────
+// One-shot pipelines (cluster:plan, cold-start:*) are NOT retryable via this endpoint.
+const NOT_RETRYABLE = ["cluster:plan"];
+
+pipelineRunsRoutes.post("/:id/retry", async (c) => {
+  const id = c.req.param("id");
+
+  const [run] = await db
+    .select()
+    .from(pipelineRuns)
+    .where(and(eq(pipelineRuns.id, id), isNull(pipelineRuns.stepName)))
+    .limit(1);
+
+  if (!run) return c.json({ ok: false, error: "not_found" }, 404);
+  if (run.status !== "failed") {
+    return c.json(
+      { ok: false, error: "not_failed", message: `Run is "${run.status}", only "failed" runs can be retried` },
+      422
+    );
+  }
+
+  const pipelineName = run.pipelineName;
+
+  if (NOT_RETRYABLE.includes(pipelineName) || pipelineName.startsWith("cold-start:")) {
+    return c.json(
+      { ok: false, error: "not_retryable", message: `Pipeline "${pipelineName}" is not retryable via this endpoint` },
+      422
+    );
+  }
+
+  if (await isProjectPaused(run.projectId)) {
+    const pauseInfo = await getPauseInfo(run.projectId);
+    return c.json({ ok: false, error: "project_paused", data: pauseInfo }, 423);
+  }
+
+  // Merge retriedFromRunId into input for audit trail
+  const retryInput: Record<string, unknown> = {
+    ...(run.input as Record<string, unknown>),
+    retriedFromRunId: id,
+  };
+
+  // Insert a new queued pipeline_runs row (preRunId pattern)
+  const [newRun] = await db
+    .insert(pipelineRuns)
+    .values({ projectId: run.projectId, pipelineName, status: "queued", input: retryInput })
+    .returning({ id: pipelineRuns.id });
+
+  if (!newRun) return c.json({ ok: false, error: "internal_error" }, 500);
+
+  const { jobId } = await enqueuePipeline({
+    pipelineName,
+    projectId: run.projectId,
+    input: retryInput,
+    preRunId: newRun.id,
+  });
+
+  await db.update(pipelineRuns).set({ jobId }).where(eq(pipelineRuns.id, newRun.id));
+
+  return c.json({ ok: true, data: { newRunId: newRun.id, retriedFromRunId: id, jobId } }, 202);
+});
+
 // ─── PATCH /api/pipeline-runs/:id/cancel ──────────────────────────────────────
 pipelineRunsRoutes.patch("/:id/cancel", async (c) => {
   const id = c.req.param("id");
@@ -493,25 +558,107 @@ pipelineRunsRoutes.patch("/:id/cancel", async (c) => {
   return c.json({ ok: true });
 });
 
+// ─── GET /api/pipeline-runs/:runId — enriched with steps + costs + article + brief ──
 pipelineRunsRoutes.get("/:runId", async (c) => {
   const runId = c.req.param("runId");
   const [run] = await db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).limit(1);
   if (!run) return c.json({ ok: false, error: "Run not found" }, 404);
 
+  const [stepRuns, allCosts] = await Promise.all([
+    db
+      .select()
+      .from(pipelineRuns)
+      .where(eq(pipelineRuns.parentRunId, runId))
+      .orderBy(asc(pipelineRuns.createdAt)),
+    db
+      .select()
+      .from(costLogs)
+      .where(inArray(costLogs.pipelineRunId, [runId]))
+      .orderBy(asc(costLogs.createdAt)),
+  ]);
+
+  // Fetch costs for child step runs too
+  const stepRunIds = stepRuns.map((s) => s.id);
+  const stepCosts =
+    stepRunIds.length > 0
+      ? await db
+          .select()
+          .from(costLogs)
+          .where(inArray(costLogs.pipelineRunId, stepRunIds))
+          .orderBy(asc(costLogs.createdAt))
+      : [];
+
+  const costs = [...allCosts, ...stepCosts];
+
+  const input = run.input as Record<string, unknown>;
+  const articleId = input?.articleId as string | undefined;
+  const briefId = input?.briefId as string | undefined;
+
+  const [articleRow, briefRow] = await Promise.all([
+    articleId
+      ? db
+          .select({ id: articles.id, title: articles.title, slug: articles.slug, status: articles.status, locale: articles.locale, clusterId: articles.clusterId })
+          .from(articles)
+          .where(eq(articles.id, articleId))
+          .limit(1)
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+    briefId
+      ? db
+          .select({ id: topicBriefs.id, source: topicBriefs.source, topicTitle: topicBriefs.topicTitle })
+          .from(topicBriefs)
+          .where(eq(topicBriefs.id, briefId))
+          .limit(1)
+          .then((r) => r[0] ?? null)
+      : Promise.resolve(null),
+  ]);
+
+  const durationMs =
+    run.completedAt && run.startedAt
+      ? new Date(run.completedAt).getTime() - new Date(run.startedAt).getTime()
+      : null;
+
   return c.json({
     ok: true,
     data: {
-      id: run.id,
-      pipelineName: run.pipelineName,
-      projectId: run.projectId,
-      status: run.status,
-      stepName: run.stepName,
-      input: run.input,
-      output: run.output,
-      error: run.errorMessage,
-      startedAt: run.startedAt,
-      completedAt: run.completedAt,
-      createdAt: run.createdAt,
+      run: {
+        id: run.id,
+        pipelineName: run.pipelineName,
+        projectId: run.projectId,
+        status: run.status,
+        startedAt: run.startedAt,
+        completedAt: run.completedAt,
+        createdAt: run.createdAt,
+        durationMs,
+        input: run.input,
+        output: run.output,
+        error: run.errorMessage,
+        retriedFromRunId: (input?.retriedFromRunId as string) ?? null,
+      },
+      steps: stepRuns.map((s) => ({
+        id: s.id,
+        stepName: s.stepName,
+        status: s.status,
+        startedAt: s.startedAt,
+        completedAt: s.completedAt,
+        durationMs:
+          s.completedAt && s.startedAt
+            ? new Date(s.completedAt).getTime() - new Date(s.startedAt).getTime()
+            : null,
+        output: s.output,
+        error: s.errorMessage,
+      })),
+      costs: costs.map((cost) => ({
+        id: cost.id,
+        operation: cost.operation,
+        service: cost.service,
+        costEur: Number(cost.costEur),
+        stepRunId: cost.pipelineRunId !== runId ? cost.pipelineRunId : null,
+        createdAt: cost.createdAt,
+      })),
+      totalCostEur: costs.reduce((sum, cost) => sum + Number(cost.costEur), 0),
+      article: articleRow,
+      brief: briefRow,
     },
   });
 });

@@ -1,6 +1,6 @@
 import { zValidator } from "@hono/zod-validator";
 import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, db, pipelineChains, projectConfigurations, projects, topicBriefs, and, desc, eq, inArray, sql, TopicScopeSchema } from "@marketing-auto/db";
+import { articles, astroImportRuns, clusters, contentGaps, costLogs, db, eq, and, desc, gte, inArray, pipelineChains, pipelineRuns, projectConfigurations, projects, sql, topicBriefs, TopicScopeSchema } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, enqueueBlogGenerationPipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
@@ -75,6 +75,70 @@ projectRoutes.get("/", async (c) => {
   );
 
   return c.json({ ok: true, data: enriched });
+});
+
+// ─── GET /picker — lightweight project list with activity indicators ──────────
+// Must be registered BEFORE /:slug to avoid Hono matching "picker" as a slug.
+projectRoutes.get("/picker", async (c) => {
+  const allProjects = await db
+    .select({ id: projects.id, slug: projects.slug, name: projects.name, industry: projects.industry })
+    .from(projects);
+
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+
+  const activeStatuses: Array<"running" | "queued"> = ["running", "queued"];
+
+  const [runningRows, failedRows, costRows, articleCountRows] = await Promise.all([
+    db
+      .select({ projectId: pipelineRuns.projectId, count: sql<number>`COUNT(*)::int` })
+      .from(pipelineRuns)
+      .where(inArray(pipelineRuns.status, activeStatuses))
+      .groupBy(pipelineRuns.projectId),
+
+    db
+      .select({ projectId: pipelineRuns.projectId, count: sql<number>`COUNT(*)::int` })
+      .from(pipelineRuns)
+      .where(and(eq(pipelineRuns.status, "failed"), gte(pipelineRuns.createdAt, dayAgo)))
+      .groupBy(pipelineRuns.projectId),
+
+    db
+      .select({ projectId: costLogs.projectId, total: sql<string>`COALESCE(SUM(${costLogs.costEur}), 0)` })
+      .from(costLogs)
+      .where(gte(costLogs.createdAt, monthStart))
+      .groupBy(costLogs.projectId),
+
+    db
+      .select({ projectId: articles.projectId, count: sql<number>`COUNT(*)::int` })
+      .from(articles)
+      .where(eq(articles.source, "generated"))
+      .groupBy(articles.projectId),
+  ]);
+
+  const runningMap = Object.fromEntries(runningRows.map((r) => [r.projectId, r.count]));
+  const failedMap = Object.fromEntries(failedRows.map((r) => [r.projectId, r.count]));
+  const costMap = Object.fromEntries(costRows.map((r) => [r.projectId, Number(r.total)]));
+  const articleMap = Object.fromEntries(articleCountRows.map((r) => [r.projectId, r.count]));
+
+  return c.json({
+    ok: true,
+    data: allProjects.map((p) => ({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      industry: p.industry,
+      activity: {
+        runningCount: runningMap[p.id] ?? 0,
+        failedLast24h: failedMap[p.id] ?? 0,
+      },
+      stats: {
+        articleCount: articleMap[p.id] ?? 0,
+        costThisMonthEur: costMap[p.id] ?? 0,
+      },
+    })),
+  });
 });
 
 projectRoutes.get("/:slug", async (c) => {

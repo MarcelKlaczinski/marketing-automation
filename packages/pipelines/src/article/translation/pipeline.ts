@@ -171,16 +171,28 @@ export class TranslationPipeline extends Pipeline<
       const linked = getStepOutput<ToolLinkerOutput>("tool-linker")!;
       const body = getStepOutput<BodyOutput>("translation-body")!;
       const sr = output as SelfReviewOutput;
+
+      // Extract EN title from the first # heading in the translated body
+      const titleMatch = linked.bodyMd.match(/^#\s+(.+)$/m);
+      const enTitle = titleMatch?.[1]?.trim();
+
+      // Find the Article entry from DE schema to update its headline for EN
+      const deArticleSchema = s.deSchemaJsonLd.find((e) => e["@type"] === "Article") ?? {};
+      const enArticleSchema = enTitle
+        ? { ...deArticleSchema, headline: enTitle }
+        : deArticleSchema;
+
       return {
-        articleId:         s.enArticleId,
-        bodyMd:            linked.bodyMd,
-        wordCount:         body.wordCount,
-        heroR2Key:         "",
-        heroPublicUrl:     "",
-        heroAltText:       "",
-        selfReviewScore:   sr.score,
-        selfReviewIssues:  sr.issues,
-        schemaJsonLd:      {},
+        articleId:        s.enArticleId,
+        bodyMd:           linked.bodyMd,
+        wordCount:        body.wordCount,
+        heroR2Key:        s.deHeroR2Key ?? "",
+        heroPublicUrl:    s.deHeroPublicUrl ?? "",
+        heroAltText:      s.deHeroAltText ?? "",
+        selfReviewScore:  sr.score,
+        selfReviewIssues: sr.issues,
+        schemaJsonLd:     enArticleSchema,
+        ...(enTitle ? { title: enTitle } : {}),
       };
     }
 

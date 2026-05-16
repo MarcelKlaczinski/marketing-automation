@@ -2,11 +2,18 @@ import { zValidator } from "@hono/zod-validator";
 import { COST_OPS } from "@marketing-auto/core";
 import {
   and,
+  articles,
+  asc,
   clusters,
   contentPillars,
   cornerstoneSpecs,
+  costLogs,
   db,
+  desc,
   eq,
+  inArray,
+  or,
+  pipelineRuns,
   projects,
   sql,
   topicBriefs,
@@ -332,3 +339,101 @@ clusterCreatorRoutes.post(
     );
   },
 );
+
+// ─── GET /:slug/clusters/:id/generation-status ────────────────────────────────
+clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
+  const { slug, id } = c.req.param();
+
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const [cluster] = await db
+    .select()
+    .from(clusters)
+    .where(and(eq(clusters.id, id), eq(clusters.projectId, project.id)))
+    .limit(1);
+
+  if (!cluster) return c.json({ ok: false, error: "cluster_not_found" }, 404);
+
+  // Load all articles tied to this cluster (by generation batch OR manually-added)
+  const clusterArticles = await db
+    .select({
+      id: articles.id,
+      title: articles.title,
+      status: articles.status,
+      locale: articles.locale,
+      role: articles.role,
+      createdAt: articles.createdAt,
+    })
+    .from(articles)
+    .where(or(eq(articles.clusterGenerationId, id), eq(articles.clusterId, id)))
+    .orderBy(asc(articles.createdAt));
+
+  // Load pipeline_runs tied to this cluster generation
+  const pipelineRunsForCluster = await db
+    .select({
+      id: pipelineRuns.id,
+      pipelineName: pipelineRuns.pipelineName,
+      status: pipelineRuns.status,
+      input: pipelineRuns.input,
+      createdAt: pipelineRuns.createdAt,
+    })
+    .from(pipelineRuns)
+    .where(sql`${pipelineRuns.input}->>'clusterGenerationId' = ${id}`)
+    .orderBy(desc(pipelineRuns.createdAt));
+
+  // Aggregate cost across all runs for this cluster generation
+  const runIds = pipelineRunsForCluster.map((r) => r.id);
+  const totalCostEur =
+    runIds.length > 0
+      ? await db
+          .select({ total: sql<string>`COALESCE(SUM(${costLogs.costEur}), 0)` })
+          .from(costLogs)
+          .where(inArray(costLogs.pipelineRunId, runIds))
+          .then((r) => Number(r[0]?.total ?? 0))
+      : 0;
+
+  const hubArticle = clusterArticles.find((a) => a.role === "hub") ?? null;
+  const spokeArticles = clusterArticles.filter((a) => a.role === "spoke");
+
+  // Progress: count articles at or past final_review
+  const completedCount = clusterArticles.filter(
+    (a) => a.status === "final_review" || a.status === "published",
+  ).length;
+  const expectedCount = 1 + (cluster.proposedSpokes?.length ?? 0);
+  const progressPercent =
+    expectedCount > 0 ? Math.round((completedCount / expectedCount) * 100) : 0;
+
+  return c.json({
+    ok: true,
+    data: {
+      cluster: {
+        id: cluster.id,
+        name: cluster.name,
+        generationStatus: cluster.generationStatus,
+        triggerBriefId: cluster.triggerBriefId,
+        proposedHub: cluster.proposedHub,
+        proposedSpokes: cluster.proposedSpokes,
+        pendingSpokeBriefIds: cluster.pendingSpokeBriefIds ?? [],
+      },
+      hubArticle,
+      spokeArticles,
+      pipelineRuns: pipelineRunsForCluster.map((r) => ({
+        id: r.id,
+        pipelineName: r.pipelineName,
+        status: r.status,
+        articleId: (r.input as Record<string, unknown>)?.articleId ?? null,
+        createdAt: r.createdAt,
+      })),
+      cost: {
+        spentEur: totalCostEur,
+        estimatedEur: 4.2,
+      },
+      progress: {
+        completed: completedCount,
+        expected: expectedCount,
+        percent: progressPercent,
+      },
+    },
+  });
+});
