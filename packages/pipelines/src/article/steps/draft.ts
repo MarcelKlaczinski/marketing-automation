@@ -333,14 +333,19 @@ Output format:
           : null
         : null;
 
-    // Persist extras and author in separate updates (avoids complex conditional typing)
-    if (frontmatterExtras) {
+    // Merge LLM extras with existing DB value — preserves authorPickStrategy set by AuthorPickStep
+    const mergedExtras = frontmatterExtras
+      ? { ...(article.frontmatterExtras as Record<string, unknown> ?? {}), ...frontmatterExtras }
+      : null;
+
+    if (mergedExtras) {
       await db
         .update(articles)
-        .set({ frontmatterExtras })
+        .set({ frontmatterExtras: mergedExtras })
         .where(eq(articles.id, input.articleId));
     }
-    if (chosenAuthor) {
+    // Only write author if AuthorPickStep hasn't already set one
+    if (chosenAuthor && !article.author) {
       await db
         .update(articles)
         .set({ author: chosenAuthor })

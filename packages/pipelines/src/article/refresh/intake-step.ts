@@ -37,6 +37,8 @@ export class RefreshIntakeStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = RefreshIntakeOutputSchema;
 
+  override estimatedCostEur(): number { return 0; }
+
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<RefreshIntakeOutput> {
     const [article] = await db.select().from(articles).where(eq(articles.id, input.articleId)).limit(1);
     if (!article) throw new Error(`Article ${input.articleId} not found`);

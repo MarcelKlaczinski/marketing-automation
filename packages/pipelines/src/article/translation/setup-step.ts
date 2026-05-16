@@ -76,25 +76,41 @@ export class TranslationSetupStep extends BaseStep<
     let enArticleId: string;
 
     if (input.mode === "fresh_translation") {
-      // Create EN article stub — slug is placeholder, will be updated after body generation
-      const enSlug = `${deArticle.slug}-en`;
-      const [enArticle] = await db.insert(articles).values({
-        projectId:          input.projectId,
-        clusterId:          deArticle.clusterId,
-        source:             "generated",
-        collection:         deArticle.collection,
-        locale:             "en",
-        translationKey,
-        slug:               enSlug,
-        cornerstoneKeyword: deArticle.cornerstoneKeyword ?? "",
-        intentType:         deArticle.intentType,
-        author:             deArticle.author,
-        status:             "proposed",
-        approvalMode:       deArticle.approvalMode,
-      }).returning({ id: articles.id });
-      if (!enArticle) throw new ArticlePipelineError("Failed to create EN article stub", "translation-setup");
-      enArticleId = enArticle.id;
-      ctx.log.info({ enArticleId, translationKey }, "[translation-setup] EN article stub created");
+      // Idempotent: if an EN sibling already exists (re-run after downstream failure), reuse it
+      const [existing] = await db
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(
+          eq(articles.projectId, input.projectId),
+          eq(articles.translationKey, translationKey),
+          eq(articles.locale, "en"),
+        ))
+        .limit(1);
+
+      if (existing) {
+        enArticleId = existing.id;
+        ctx.log.info({ enArticleId, translationKey }, "[translation-setup] reusing existing EN article (idempotent re-run)");
+      } else {
+        // Create EN article stub — slug is placeholder, will be updated after body generation
+        const enSlug = `${deArticle.slug}-en`;
+        const [enArticle] = await db.insert(articles).values({
+          projectId:          input.projectId,
+          clusterId:          deArticle.clusterId,
+          source:             "generated",
+          collection:         deArticle.collection,
+          locale:             "en",
+          translationKey,
+          slug:               enSlug,
+          cornerstoneKeyword: deArticle.cornerstoneKeyword ?? "",
+          intentType:         deArticle.intentType,
+          author:             deArticle.author,
+          status:             "proposed",
+          approvalMode:       deArticle.approvalMode,
+        }).returning({ id: articles.id });
+        if (!enArticle) throw new ArticlePipelineError("Failed to create EN article stub", "translation-setup");
+        enArticleId = enArticle.id;
+        ctx.log.info({ enArticleId, translationKey }, "[translation-setup] EN article stub created");
+      }
     } else {
       // refresh_propagation: EN article already exists
       if (!input.targetArticleId) throw new ArticlePipelineError("targetArticleId required for refresh_propagation", "translation-setup");
