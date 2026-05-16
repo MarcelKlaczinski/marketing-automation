@@ -20,6 +20,9 @@ const OutputSchema = z.object({
     schemaJsonLd: z.array(z.record(z.unknown())),
     heroImagePublicUrl: z.string().nullable(), // not validated as URL — localhost URLs are valid in dev
     heroImageR2Key: z.string().nullable(),
+    intentType: z.string().nullable(),
+    frontmatterExtras: z.record(z.unknown()).nullable(),
+    author: z.string().nullable(),
   }),
   project: z.object({
     slug: z.string(),
@@ -46,7 +49,7 @@ export class LoadArticleStep extends BaseStep<
     return 0;
   }
 
-  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
+  async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
     const [article] = await db
       .select()
       .from(articles)
@@ -90,6 +93,9 @@ export class LoadArticleStep extends BaseStep<
         schemaJsonLd: (article.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
         heroImagePublicUrl: article.heroImagePublicUrl || null, // || coerces empty string to null
         heroImageR2Key: article.heroImageR2Key || null,
+        intentType: article.intentType ?? null,
+        frontmatterExtras: (article.frontmatterExtras as Record<string, unknown> | null) ?? null,
+        author: article.author ?? null,
       },
       project: {
         slug: project.slug,

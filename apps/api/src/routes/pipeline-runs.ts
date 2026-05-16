@@ -590,9 +590,9 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
 
   const costs = [...allCosts, ...stepCosts];
 
-  const input = run.input as Record<string, unknown>;
-  const articleId = input?.articleId as string | undefined;
-  const briefId = input?.briefId as string | undefined;
+  const input = run.input ?? {};
+  const articleId = typeof input.articleId === "string" ? input.articleId : undefined;
+  const briefId = typeof input.briefId === "string" ? input.briefId : undefined;
 
   const [articleRow, briefRow] = await Promise.all([
     articleId
@@ -633,7 +633,7 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
         input: run.input,
         output: run.output,
         error: run.errorMessage,
-        retriedFromRunId: (input?.retriedFromRunId as string) ?? null,
+        retriedFromRunId: typeof input.retriedFromRunId === "string" ? input.retriedFromRunId : null,
       },
       steps: stepRuns.map((s) => ({
         id: s.id,

@@ -1,5 +1,5 @@
 import { articles, db, projects } from "@marketing-auto/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
@@ -48,6 +48,23 @@ export class AssemblyStep extends BaseStep<
     const localePath = article.locale ? `/${article.locale}` : "";
     const articleUrl = `https://${domain}${localePath}/blog/${outline.slug}`;
 
+    // Resolve author schema — prefer Person (named author) over Organization
+    let authorSchema: Record<string, unknown>;
+    if (article.author) {
+      const [authorArticle] = await db
+        .select({ title: articles.title })
+        .from(articles)
+        .where(and(
+          eq(articles.projectId, input.projectId),
+          eq(articles.collection, "authors"),
+          eq(articles.slug, article.author),
+        ))
+        .limit(1);
+      authorSchema = { "@type": "Person", name: authorArticle?.title ?? article.author };
+    } else {
+      authorSchema = { "@type": "Organization", name: project.name };
+    }
+
     // schema.org Article JSON-LD — Spec 21 (Astro adapter) injects this into <head>
     const schemaJsonLd: Record<string, unknown> = {
       "@context": "https://schema.org",
@@ -57,10 +74,7 @@ export class AssemblyStep extends BaseStep<
       image: article.heroImagePublicUrl ?? undefined,
       datePublished: now,
       dateModified: now,
-      author: {
-        "@type": "Organization",
-        name: project.name,
-      },
+      author: authorSchema,
       publisher: {
         "@type": "Organization",
         name: project.name,

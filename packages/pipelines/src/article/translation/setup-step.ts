@@ -21,17 +21,23 @@ const InputSchema = z.object({
 });
 
 const OutputSchema = z.object({
-  enArticleId:      z.string().uuid(),
-  deBodyMd:         z.string(),
-  deTitle:          z.string(),
-  deBodyExcerpt:    z.string(),  // first 2000 chars for decision step
-  primaryKeyword:   z.string(),
-  intentType:       z.string().nullable(),
-  briefSource:      z.string(),  // source from the DE article's brief
-  voiceReferences:  z.array(VoiceReferenceSchema),
-  projectSlug:      z.string(),
+  enArticleId:        z.string().uuid(),
+  deBodyMd:           z.string(),
+  deTitle:            z.string(),
+  deBodyExcerpt:      z.string(),  // first 2000 chars for decision step
+  primaryKeyword:     z.string(),
+  intentType:         z.string().nullable(),
+  briefSource:        z.string(),  // source from the DE article's brief
+  voiceReferences:    z.array(VoiceReferenceSchema),
+  projectSlug:        z.string(),
   cornerstoneKeyword: z.string(),
-  translationKey:   z.string(),
+  translationKey:     z.string(),
+  // Hero image fields copied from DE article — EN article shares the same hero
+  deHeroR2Key:        z.string().nullable(),
+  deHeroPublicUrl:    z.string().nullable(),
+  deHeroAltText:      z.string().nullable(),
+  // Base schema from DE article to carry forward into EN
+  deSchemaJsonLd:     z.array(z.record(z.unknown())),
 });
 
 export type TranslationSetupOutput = z.infer<typeof OutputSchema>;
@@ -152,15 +158,19 @@ export class TranslationSetupStep extends BaseStep<
     return {
       enArticleId,
       deBodyMd,
-      deTitle:           deArticle.title ?? "",
-      deBodyExcerpt:     deBodyMd.substring(0, 2000),
-      primaryKeyword:    deArticle.cornerstoneKeyword ?? "",
-      intentType:        deArticle.intentType,
+      deTitle:            deArticle.title ?? "",
+      deBodyExcerpt:      deBodyMd.substring(0, 2000),
+      primaryKeyword:     deArticle.cornerstoneKeyword ?? "",
+      intentType:         deArticle.intentType,
       briefSource,
-      voiceReferences:   voiceRefs as VoiceReference[],
+      voiceReferences:    voiceRefs as VoiceReference[],
       projectSlug,
       cornerstoneKeyword: deArticle.cornerstoneKeyword ?? "",
       translationKey,
+      deHeroR2Key:        deArticle.heroImageR2Key ?? null,
+      deHeroPublicUrl:    deArticle.heroImagePublicUrl ?? null,
+      deHeroAltText:      deArticle.heroImageAltText ?? null,
+      deSchemaJsonLd:     (deArticle.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
     };
   }
 }

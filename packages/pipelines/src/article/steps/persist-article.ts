@@ -13,6 +13,9 @@ const InputSchema = z.object({
   selfReviewScore: z.number(),
   selfReviewIssues: z.array(z.unknown()),
   schemaJsonLd: z.record(z.unknown()),
+  // Optional: set title/metaDescription when the pipeline generates them (e.g. translation)
+  title: z.string().optional(),
+  metaDescription: z.string().optional(),
 });
 
 const OutputSchema = z.object({
@@ -76,6 +79,9 @@ export class PersistArticleStep extends BaseStep<
           status: "final_review",
           draftPipelineRunId: ctx.pipelineRunId,
           updatedAt: new Date(),
+          // Optional fields — only set when the calling pipeline provides them
+          ...(input.title ? { title: input.title } : {}),
+          ...(input.metaDescription ? { metaDescription: input.metaDescription } : {}),
         })
         .where(eq(articles.id, input.articleId));
 

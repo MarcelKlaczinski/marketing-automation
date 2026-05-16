@@ -1,3 +1,4 @@
+import { articles, db, and, eq } from "@marketing-auto/db";
 import { hasVariants } from "@marketing-auto/shared/hero-variants";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -11,6 +12,11 @@ const InputSchema = z.object({
     schemaJsonLd: z.array(z.record(z.unknown())),
     heroImagePublicUrl: z.string().url().nullable(),
     heroImageR2Key: z.string().nullable(),
+    // Extra fields for Review schema and author Person type (Spec 54.12 fix)
+    projectId: z.string().uuid().optional(),
+    intentType: z.string().nullable().optional(),
+    frontmatterExtras: z.record(z.unknown()).nullable().optional(),
+    author: z.string().nullable().optional(),
   }),
   project: z.object({
     slug: z.string(),
@@ -35,7 +41,7 @@ const InputSchema = z.object({
 
 const OutputSchema = z.object({
   schemaJsonLd: z.array(z.record(z.unknown())),
-  addedTypes: z.array(z.enum(["BreadcrumbList", "FAQPage", "HowTo"])),
+  addedTypes: z.array(z.enum(["BreadcrumbList", "FAQPage", "HowTo", "Review"])),
 });
 
 export class BuildJsonLdStep extends BaseStep<
@@ -70,7 +76,7 @@ export class BuildJsonLdStep extends BaseStep<
     })();
 
     const additions: Array<Record<string, unknown>> = [];
-    const addedTypes: Array<"BreadcrumbList" | "FAQPage" | "HowTo"> = [];
+    const addedTypes: Array<"BreadcrumbList" | "FAQPage" | "HowTo" | "Review"> = [];
 
     // BreadcrumbList — always emitted
     additions.push(
@@ -107,10 +113,56 @@ export class BuildJsonLdStep extends BaseStep<
       addedTypes.push("HowTo");
     }
 
+    // Review — if intentType is "review" and a rating is present in frontmatterExtras
+    const extras = input.article.frontmatterExtras ?? {};
+    const rating = typeof extras["rating"] === "number" ? extras["rating"] : null;
+    if (input.article.intentType === "review" && rating !== null && input.article.projectId) {
+      const primaryTool = typeof extras["primaryTool"] === "string" ? extras["primaryTool"] : null;
+
+      // Look up tool display name from articles (collection="tools")
+      let toolName: string | null = null;
+      if (primaryTool) {
+        const [toolArticle] = await db
+          .select({ title: articles.title })
+          .from(articles)
+          .where(and(
+            eq(articles.projectId, input.article.projectId),
+            eq(articles.collection, "tools"),
+            eq(articles.slug, primaryTool),
+          ))
+          .limit(1);
+        toolName = toolArticle?.title ?? null;
+      }
+
+      // Look up author display name from articles (collection="authors")
+      let authorName: string | null = null;
+      if (input.article.author) {
+        const [authorArticle] = await db
+          .select({ title: articles.title })
+          .from(articles)
+          .where(and(
+            eq(articles.projectId, input.article.projectId),
+            eq(articles.collection, "authors"),
+            eq(articles.slug, input.article.author),
+          ))
+          .limit(1);
+        authorName = authorArticle?.title ?? null;
+      }
+
+      additions.push(
+        buildReview({
+          rating,
+          itemName: toolName ?? input.article.title,
+          authorName,
+        })
+      );
+      addedTypes.push("Review");
+    }
+
     // Replace any existing entries of the same @type (re-runs are idempotent)
     const existingMinusOurs = input.article.schemaJsonLd.filter((s) => {
       const t = (s["@type"] as string) ?? "";
-      return !addedTypes.includes(t as "BreadcrumbList" | "FAQPage" | "HowTo");
+      return !addedTypes.includes(t as "BreadcrumbList" | "FAQPage" | "HowTo" | "Review");
     });
 
     return {
@@ -193,6 +245,30 @@ function buildHowTo(input: {
     })),
   };
   if (input.totalTime) obj.totalTime = input.totalTime;
+  return obj;
+}
+
+function buildReview(input: {
+  rating: number;
+  itemName: string;
+  authorName: string | null;
+}): Record<string, unknown> {
+  const obj: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Review",
+    reviewRating: {
+      "@type": "Rating",
+      ratingValue: input.rating,
+      bestRating: 5,
+    },
+    itemReviewed: {
+      "@type": "SoftwareApplication",
+      name: input.itemName,
+    },
+  };
+  if (input.authorName) {
+    obj["author"] = { "@type": "Person", name: input.authorName };
+  }
   return obj;
 }
 
