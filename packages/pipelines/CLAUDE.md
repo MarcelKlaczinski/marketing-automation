@@ -396,6 +396,10 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT assume `packages/pipelines/src/article/social-image/hookPrompt.ts` is dead code — it is an active, separate code path from `packages/core/src/social-hooks/hookPrompt.ts`. The pipelines version (`buildHookPrompt`) handles hook-only generation for the social-image pipeline's `GenerateHookStep`. The core version (`buildContentPrompt`) handles hook+caption+hashtags for the newer `generateContentWithGate` flow used by template definitions. Two different call sites, two different prompt shapes.
 - DO NOT extract a `*_DEFAULT_PROMPT` constant to module level when the prompt string uses runtime values (`input.*`, locale labels, author lists, etc.) — template literals with variable interpolation must be scoped inside `execute()` or a private method. Module-level constants only work for fully static prompts (no interpolation). Both placements are valid; the name is what matters for clarity. See `SelfReviewStep` (static = module-level) vs `OutlineStep` (dynamic = inside execute) for examples.
 - DO NOT import the named `embed` function from `@marketing-auto/adapter-voyage` — it's an ESM binding and cannot be replaced in tests. Always use `voyage.embed(...)` (the object property). See `src/topic-sources/trend-discovery/coverage.ts` for the canonical pattern.
+- DO NOT route a `refresh_detection` brief through the blog pipeline — `buildSourceContextFragment()` in `src/article/source-context/index.ts` throws on that source by design. Refresh is out of scope for Spec 54.9 and handled by Spec 54.10. The throw surfaces immediately at `ToolRelevanceStep` (step 2) so the pipeline run fails fast rather than producing a degraded article.
+- DO NOT expect `ToolLinkerStep` to link every tool mention — it links only the **first** occurrence per H2 section (SEO best practice). A tool mentioned 4 times in a single section gets linked once. This is intentional; do not change the behaviour without updating the spec.
+- DO NOT pass an empty `briefId` in the `article:blog` pipeline input — `AuthorPickStep` and `ToolRelevanceStep` both query the brief by ID in their `execute()` methods. A missing brief causes the pipeline to fail at step 1 or 2. The `enqueueBlogGenerationPipeline` wrapper always receives `briefId` from `triggerWithPreRunId` via `extraInput`; verify it is present before adding new callers.
+- DO NOT assume author expertise embeddings are pre-populated — they are lazily computed on first `AuthorPickStep` run and cached in `articles.frontmatterExtras.expertiseEmbedding`. The first article generated for a new cluster/author combination pays the Voyage embedding cost (~€0.0001); subsequent calls hit the JSONB cache. If you wipe `frontmatterExtras`, re-importing the authors resets the cache.
 
 ## Trend Discovery Topic Source (Spec 54.5+)
 
@@ -424,3 +428,69 @@ buzz=15, growth=15, official=25, serp=20, diversity=25, coverage_penalty=40
 **Partial index on `rejected_topic_candidates`:** PostgreSQL does not allow non-immutable functions (`NOW()`, `CURRENT_TIMESTAMP`) in partial index `WHERE` clauses. The index on `(project_id, expires_at)` has no WHERE predicate — the query filter `expires_at > NOW()` is applied at query time only.
 
 **`scoreBreakdown` in `trendMetadata` uses camelCase, not snake_case:** `emit-brief.ts` remaps `ScoreBreakdown` (snake_case: `community_buzz`, `serp_volatility`, etc.) to camelCase (`communityBuzz`, `serpVolatility`, `sourceDiversity`) when building the `trendMetadata` JSON. It omits `total` from the stored object. Any Zod schema or TypeScript type that models `trendMetadata.scoreBreakdown` must match `emit-brief.ts` output (camelCase, 6 fields: `communityBuzz`, `searchVolumeGrowth`, `officialAnnouncement`, `serpVolatility`, `sourceDiversity`, `existingCoveragePenalty`), NOT the `ScoreBreakdown` type from `types.ts`.
+
+## Blog Generator Pipeline (Spec 54.9)
+
+`article:blog` is the 13-step pipeline that converts an approved `TopicBrief` into a drafted, author-assigned, tool-linked blog article. It is registered in `apps/api/src/workers/index.ts` and triggered via `enqueueBlogGenerationPipeline` (thin preRunId wrapper) or `enqueueBlogGeneration` (full trigger with brief validation).
+
+### Step order
+
+```
+1.  AuthorPickStep       — score-based SQL + Voyage embedding fallback + default
+2.  ToolRelevanceStep    — resolve sourceContext + toolsContext strings for prompts
+3.  TopicIntakeStep      — load article/cluster/project from DB
+4.  ResearchStep         — SERP research via DataForSEO
+5.  OutlineStep          — LLM outline (Sonnet 4.6, sourceContext + toolsContext injected)
+6.  PersistOutlineStep   — checkpoint: save outline, gate on approvalMode
+7.  DraftStep            — LLM draft (Sonnet 4.6, sourceContext + toolsContext injected)
+8.  PersistBodyStep      — checkpoint: save body immediately
+9.  ToolLinkerStep       — linkify first-occurrence tool mentions per H2 section
+10. SelfReviewStep       — quality classification (Haiku 4.5)
+11. HeroImageStep        — image generation (Replicate SDXL)
+12. AssemblyStep         — JSON-LD schema generation
+13. PersistArticleStep   — final persist with all fields
+```
+
+**`afterComplete`** triggers `enqueueSchemaExtension` (Spec 50). Errors are logged as warn and do not fail the pipeline.
+
+### Author-Picker module (`src/article/author-picker/`)
+
+Three-strategy cascade, no LLM call:
+
+1. **`historic_score`** — SQL `GROUP BY author` on imported blog articles, weighted score `(cluster_hits × 3) + (intent_hits × 2) + (total × 0.1)`. Wins if top result has `cluster_hits + intent_hits ≥ 1`.
+2. **`embedding_fallback`** — Voyage embedding of brief topic+keywords vs. author expertise strings. Wins if cosine similarity > 0.55. Expertise embeddings cached in `articles.frontmatterExtras.expertiseEmbedding` after first compute.
+3. **`default_fallback`** — returns `anna-weidner`. Logs a `warn` so Marcel can see when the author-picker had no signal.
+
+`matchStrategy`, `matchScore`, `briefSource`, and `briefIntentType` are all logged at INFO level by `AuthorPickStep`, enabling easy observability of which strategy fired and why.
+
+### Tool-Linker module (`src/article/tool-linker/`)
+
+Two-phase architecture:
+
+**Phase 1 — Pre-generation (`pre-generation.ts`)**
+`resolveRelevantTools(projectId, brief, locale)` returns:
+- `primary`: up to 6 tools where `articles.cluster_id = brief.clusterId`
+- `secondary`: top 3 tools by `tool_rating` in the inferred category, excluding primary
+
+These are formatted by `buildToolsContextFragment()` and injected into the Outline and Draft step user messages (NOT the system prompt — keeps the cache boundary clean).
+
+**Phase 2 — Post-draft linkification (`post-generation.ts`)**
+`linkifyMarkdown(bodyMd, projectId, locale)` queries ALL tools for the project+locale and replaces the **first occurrence of each tool name per H2 section** with a markdown link (`/de/tools/slug` or `/en/tools/slug`). Rules:
+- Case-sensitive match (no "claude" → link, only "Claude")
+- Word-boundary check (avoids partial-word matches like "OpenAI's Claude" matching "Claude" but not "OpenAI")
+- Longer names matched before shorter (GitHub Copilot wins over GitHub)
+- Skip inside code fences, inline code, and existing markdown links
+- Persisted back to `articles.bodyMd` by `ToolLinkerStep`
+
+### Source-context module (`src/article/source-context/index.ts`)
+
+`buildSourceContextFragment(brief)` returns a human-readable framing paragraph injected into the Outline and Draft user messages:
+- `gap_analysis` → cluster name, gap type, existing sibling articles
+- `trend_discovery` → freshness window, trend score, signal count, related event
+- `manual` → `""` (no framing)
+- `refresh_detection` → **throws** (Spec 54.10 scope; pipeline fails fast at step 2)
+- unknown sources → `""` (graceful fallback)
+
+### Blog brief detection (API layer)
+
+`isBlogBrief(brief)` = `brief.locale !== null && brief.clusterId !== null`. Both conditions must be true for the brief to route to `article:blog`; otherwise falls back to `article:outline`. Trend briefs always satisfy this (guarded at the approval endpoint).

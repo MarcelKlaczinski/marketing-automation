@@ -65,6 +65,8 @@ export class AuthorPickStep extends BaseStep<
         authorSlug: result.authorSlug,
         matchStrategy: result.matchStrategy,
         matchScore: result.matchScore,
+        briefSource: brief.source,
+        briefIntentType: brief.intentType,
       },
       "[author-pick] author assigned"
     );

@@ -266,12 +266,14 @@ Three routes under `/api/projects/:slug/content-gaps/:id/` consume `TopicBrief` 
 1. Load brief by `gapId` → 404 if no active brief
 2. `const decision = decideRoute(brief)` (pure, from `@marketing-auto/pipelines`)
 3. `const result = await db.transaction(async (tx) => executeDecision(decision, brief, tx))`
-4. For article/translation: trigger outline pipeline, update `contentGaps`, return with `briefId`
+4. For article/translation: **detect blog brief** (see below), trigger either blog or outline pipeline, update `contentGaps`, return with `briefId`
 5. For cornerstone_spec: update `contentGaps.filledBySpecId`, return with `briefId`
 6. For skip: return 422
 
+**Blog brief detection (Spec 54.9):** `isBlogBrief(brief)` = `brief.locale !== null && brief.clusterId !== null`. When true, enqueue `article:blog` via `enqueueBlogGenerationPipeline` (pass `briefId` in `extraInput`). When false, enqueue `article:outline` via `enqueueArticleOutlinePipeline` as before. The trend brief approval endpoint (`trends.ts`) always routes to `article:blog` because all trend briefs have locale + clusterId (the endpoint already guards `if (!brief.clusterId)` → 400 before reaching the enqueue call).
+
 ### `/automate` (chain pattern)
-Same brief load + `decideRoute` + `executeDecision` in transaction, then `startChain()` outside the transaction (BullMQ call must not be inside a DB transaction). Returns `{ chainId, articleId, briefId, deduped: false }`.
+Same brief load + `decideRoute` + `executeDecision` in transaction, then `startChain()` outside the transaction (BullMQ call must not be inside a DB transaction). Returns `{ chainId, articleId, briefId, deduped: false }`. Note: `/automate` still enqueues `article:outline` (the chain's first step) — blog pipeline integration via chain is deferred to Spec 54.10.
 
 **DO NOT** call `decideRoute` / `executeDecision` directly from routes without the brief — the brief is the SSoT. The gap metadata in `contentGaps` is secondary (backward compat only).
 
