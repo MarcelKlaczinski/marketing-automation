@@ -3,7 +3,7 @@ import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, re
 import { articles, astroImportRuns, clusters, contentGaps, db, pipelineChains, projectConfigurations, projects, topicBriefs, and, desc, eq, inArray, sql, TopicScopeSchema } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
-import { enqueueArticleOutlinePipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
+import { enqueueArticleOutlinePipeline, enqueueBlogGenerationPipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
 import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
@@ -849,14 +849,24 @@ projectRoutes.post("/:slug/content-gaps/:id/generate", async (c) => {
     routeResult.kind === "article_created" ||
     routeResult.kind === "translation_created"
   ) {
-    const triggerResult = await triggerWithPreRunId({
-      pipelineName: "article:outline",
-      projectId:    project.id,
-      uniqueKey:    { field: "articleId", value: routeResult.articleId },
-      costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-      extraInput:   { articleId: routeResult.articleId },
-      enqueue:      enqueueArticleOutlinePipeline,
-    });
+    const isBlogBrief = brief.locale !== null && brief.clusterId !== null;
+    const triggerResult = await (isBlogBrief
+      ? triggerWithPreRunId({
+          pipelineName: "article:blog",
+          projectId:    project.id,
+          uniqueKey:    { field: "articleId", value: routeResult.articleId },
+          costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+          extraInput:   { articleId: routeResult.articleId, briefId: brief.id },
+          enqueue:      enqueueBlogGenerationPipeline,
+        })
+      : triggerWithPreRunId({
+          pipelineName: "article:outline",
+          projectId:    project.id,
+          uniqueKey:    { field: "articleId", value: routeResult.articleId },
+          costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+          extraInput:   { articleId: routeResult.articleId },
+          enqueue:      enqueueArticleOutlinePipeline,
+        }));
 
     await db
       .update(contentGaps)

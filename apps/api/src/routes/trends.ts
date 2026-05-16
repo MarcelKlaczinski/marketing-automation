@@ -18,7 +18,7 @@ import {
   topicBriefs,
 } from "@marketing-auto/db";
 import {
-  enqueueArticleOutlinePipeline,
+  enqueueBlogGenerationPipeline,
   executeDecision,
   type GenerationMode,
   type RoutingDecision,
@@ -239,14 +239,14 @@ trendRoutes.post(
       return c.json({ ok: false, error: "Unexpected routing result" }, 500);
     }
 
-    // Enqueue outline pipeline (both modes enqueue outline; full chain support added in 54.7)
+    // Trend briefs always have locale + clusterId (guarded above) — route to blog pipeline
     const triggerResult = await triggerWithPreRunId({
-      pipelineName: "article:outline",
+      pipelineName: "article:blog",
       projectId:    proj.id,
       uniqueKey:    { field: "articleId", value: routeResult.articleId },
       costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-      extraInput:   { articleId: routeResult.articleId },
-      enqueue:      enqueueArticleOutlinePipeline,
+      extraInput:   { articleId: routeResult.articleId, briefId: brief.id },
+      enqueue:      enqueueBlogGenerationPipeline,
     });
 
     if ("error" in triggerResult) {
