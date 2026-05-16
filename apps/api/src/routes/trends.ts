@@ -210,16 +210,22 @@ trendRoutes.post(
 
     if (!brief) return c.json({ ok: false, error: "Trend brief not found or already processed" }, 404);
 
-    // create_new briefs require Cluster Creator (Spec 54.7) — disabled in 54.6
-    if (brief.clusterAction === "create_new") {
+    // create_new briefs must go through Cluster Creator (Spec 54.7) first
+    if (brief.clusterAction === "create_new" || !brief.clusterId) {
       return c.json(
-        { ok: false, error: "Cluster Creator (Spec 54.7) required for create_new briefs" },
-        400,
+        {
+          ok: false,
+          error: "cluster_assignment_required",
+          message:
+            "This trend brief requires a cluster before it can be approved. Use the Cluster Creator flow to propose or select a cluster.",
+          brief_id: brief.id,
+          next_action: {
+            type: "cluster_creator",
+            url: `/projects/${slug}/clusters/new?fromBrief=${brief.id}`,
+          },
+        },
+        409,
       );
-    }
-
-    if (!brief.clusterId) {
-      return c.json({ ok: false, error: "Brief has no cluster assigned" }, 400);
     }
 
     // Construct routing decision directly — decideRoute skips non-gap_analysis sources in 54.3

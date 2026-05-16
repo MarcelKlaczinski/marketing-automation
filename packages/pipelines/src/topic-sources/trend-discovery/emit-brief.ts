@@ -11,6 +11,7 @@ export function normalizeCandidateTitle(title: string): string {
 
 export type BuildBriefInput = {
   projectId: string;
+  locale: "de" | "en";
   candidate: SynthesisTopic;
   score: ScoreBreakdown;
   clusterMatch: ClusterMatchResult;
@@ -18,7 +19,7 @@ export type BuildBriefInput = {
 };
 
 export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInsert {
-  const { projectId, candidate, score, clusterMatch, signalPool } = input;
+  const { projectId, locale, candidate, score, clusterMatch, signalPool } = input;
 
   const candidateSignals = signalPool.filter((s) =>
     candidate.related_signal_ids.includes(s.id),
@@ -60,6 +61,7 @@ export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInser
     suggestedSlug: candidate.suggested_slug,
     suggestedMeta: candidate.suggested_meta,
     heroImagePrompt: candidate.hero_image_prompt,
+    locale,
     approvalRequired: true,
     approvalStatus: "pending",
     trendMetadata,

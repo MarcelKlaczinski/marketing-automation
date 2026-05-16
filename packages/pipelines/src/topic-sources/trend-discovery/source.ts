@@ -3,6 +3,7 @@ import { createLogger } from "@marketing-auto/shared";
 import {
   db,
   externalSignals,
+  projects,
   rejectedTopicCandidates,
   and,
   eq,
@@ -22,6 +23,20 @@ import { loadActiveConfig } from "../../config/load-active-config.ts";
 import type { SynthesisTopic } from "./types.ts";
 
 const log = createLogger("trend-discovery:source");
+
+// ─── Locale resolver ──────────────────────────────────────────────────────────
+
+async function getPrimaryLocale(projectId: string): Promise<"de" | "en"> {
+  const [row] = await db
+    .select({ targetLocales: projects.targetLocales })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const locales = (row?.targetLocales as string[] | null) ?? ["de-DE"];
+  const primary = locales[0] ?? "de-DE";
+  const code = primary.split("-")[0]?.toLowerCase() ?? "de";
+  return (code === "en" ? "en" : "de") as "de" | "en";
+}
 
 // ─── Input schema ─────────────────────────────────────────────────────────────
 
@@ -47,6 +62,9 @@ export class TrendDiscoveryTopicSource implements TopicSource<Input> {
       log.info({ projectId }, "no eligible signals — skipping synthesis");
       return [];
     }
+
+    // 1b. Resolve primary locale from project targetLocales (BCP-47 → short code)
+    const primaryLocale = await getPrimaryLocale(projectId);
 
     // 2. LLM synthesis: cluster signals into topic candidates
     const synthesis = await synthesizeTopics(projectId, signals, pipelineRunId);
@@ -121,6 +139,7 @@ export class TrendDiscoveryTopicSource implements TopicSource<Input> {
       // 3e. Build TopicBriefInsert (caller owns persistence)
       const brief = buildBriefFromCandidate({
         projectId,
+        locale: primaryLocale,
         candidate,
         score,
         clusterMatch,
