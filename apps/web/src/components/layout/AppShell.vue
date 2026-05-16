@@ -28,6 +28,9 @@
         </transition>
       </router-view>
     </main>
+
+    <!-- Command palette — global modal, triggered by ⌘K -->
+    <CommandPalette />
   </div>
 </template>
 
@@ -36,9 +39,11 @@ import { defineComponent } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { useUiStore } from "src/stores/ui";
 import { useProjectStore } from "src/stores/project";
+import { useKeyboardShortcuts } from "src/composables/useKeyboardShortcuts";
 import { apiGet } from "src/lib/api";
 import AppTopbar from "./AppTopbar.vue";
 import AppSidebar from "./AppSidebar.vue";
+import CommandPalette from "src/components/search/CommandPalette.vue";
 
 interface ActivitySummary {
   runningCount: number;
@@ -54,11 +59,15 @@ interface ActivitySummary {
 export default defineComponent({
   name: "AppShell",
 
-  components: { AppTopbar, AppSidebar },
+  components: { AppTopbar, AppSidebar, CommandPalette },
 
   setup() {
     const uiStore = useUiStore();
     const projectStore = useProjectStore();
+
+    // Global keyboard shortcuts: ⌘K (command palette) + Escape — wired here so they
+    // work on all child pages, not just DashboardPage.
+    useKeyboardShortcuts();
 
     const { data: activityData } = useQuery({
       queryKey: ["activity-summary", projectStore.currentSlug],
@@ -73,7 +82,7 @@ export default defineComponent({
   },
 
   data: () => ({
-    isMobile: window.innerWidth < 768,
+    isMobile: globalThis.innerWidth < 768,
     resizeHandler: null as (() => void) | null,
   }),
 
@@ -88,15 +97,15 @@ export default defineComponent({
 
   mounted(): void {
     this.resizeHandler = () => {
-      this.isMobile = window.innerWidth < 768;
+      this.isMobile = globalThis.innerWidth < 768;
       if (!this.isMobile) this.uiStore.closeSidebar();
     };
-    window.addEventListener("resize", this.resizeHandler);
+    globalThis.addEventListener("resize", this.resizeHandler);
   },
 
   unmounted(): void {
     if (this.resizeHandler) {
-      window.removeEventListener("resize", this.resizeHandler);
+      globalThis.removeEventListener("resize", this.resizeHandler);
     }
   },
 });

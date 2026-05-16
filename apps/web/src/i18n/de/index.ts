@@ -26,6 +26,7 @@ import projectPause from "./projectPause";
 import projects from "./projects";
 import settings from "./settings";
 import trends from "./trends";
+import search from "./search";
 
 export default {
   app,
@@ -56,4 +57,5 @@ export default {
   admin,
   trends,
   dashboard,
+  search,
 };

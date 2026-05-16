@@ -47,7 +47,6 @@
 import { defineComponent } from "vue";
 import { useUiStore } from "src/stores/ui";
 import { usePipelineEvents } from "src/composables/usePipelineEvents";
-import { useKeyboardShortcuts } from "src/composables/useKeyboardShortcuts";
 import { useResponsiveLayout } from "src/composables/useResponsiveLayout";
 import DashboardHeader from "./components/DashboardHeader.vue";
 import DashboardStats from "./components/DashboardStats.vue";
@@ -84,8 +83,6 @@ export default defineComponent({
 
     // Establish SSE connection for the duration of this page mount.
     usePipelineEvents();
-    // Register ⌘K + Escape shortcuts.
-    useKeyboardShortcuts();
 
     return { uiStore, isMobile };
   },

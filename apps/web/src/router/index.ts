@@ -80,9 +80,6 @@ export default route(function (/* { store, ssrContext } */) {
   router.beforeEach(async (to) => {
     if (to.meta.public) return true;
 
-    // Dev bypass: skip auth when API is unreachable (local preview without backend)
-    if (import.meta.env.DEV) return true;
-
     const authStore = useAuthStore();
     if (!authStore.isAuthenticated && !authStore.loading) {
       await authStore.fetchCurrent();

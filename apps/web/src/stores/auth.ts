@@ -48,7 +48,7 @@ export const useAuthStore = defineStore("auth", {
 
     /** Send a magic-link email to the given address. */
     async requestMagicLink(email: string): Promise<void> {
-      const res = await fetch(`${API_BASE}/auth/magic-link`, {
+      const res = await fetch(`${API_BASE}/auth/magic-link/request`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

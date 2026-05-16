@@ -44,8 +44,13 @@ export default defineComponent({
 
     try {
       const apiBase = import.meta.env.VITE_API_BASE_URL as string;
-      const res = await fetch(`${apiBase}/auth/verify?token=${encodeURIComponent(token)}`, {
+      // Use the JSON verify endpoint (POST), not the legacy redirect-based GET /verify.
+      // The POST endpoint sets the session cookie and returns JSON — no redirect complications.
+      const res = await fetch(`${apiBase}/auth/magic-link/verify`, {
+        method: "POST",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
       });
       if (!res.ok) {
         this.error = this.$t("auth.verify.invalid") as string;
