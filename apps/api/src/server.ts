@@ -27,6 +27,7 @@ import { clusterCreatorRoutes } from "./routes/projects/clusters.ts";
 import { clusterFullPlanRoutes } from "./routes/projects/cluster-full-plan.ts";
 import { projectSearchRoutes } from "./routes/projects/search.ts";
 import { projectCostSummaryRoutes } from "./routes/projects/cost-summary.ts";
+import { pipelineEventsRoutes } from "./routes/projects/pipeline-events.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -93,6 +94,7 @@ app.route("/api/projects", clusterCreatorRoutes);
 app.route("/api/projects", clusterFullPlanRoutes);
 app.route("/api/projects", projectSearchRoutes);
 app.route("/api/projects", projectCostSummaryRoutes);
+app.route("/api/projects", pipelineEventsRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

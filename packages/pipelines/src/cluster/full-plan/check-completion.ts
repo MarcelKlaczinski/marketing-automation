@@ -1,3 +1,4 @@
+import { publishPipelineEvent } from "@marketing-auto/core/events";
 import { articles, clusters, db, eq, and, isNotNull, pipelineRuns, projects, sql } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 
@@ -76,6 +77,13 @@ export async function checkClusterCompletion(input: {
       .set({ generationStatus: "completed", status: "active" })
       .where(and(eq(clusters.id, clusterId), eq(clusters.generationStatus, "running")));
     log.info({ clusterId }, "cluster generation completed");
+    void publishPipelineEvent(projectId, {
+      type: "cluster.status.changed",
+      clusterId,
+      oldStatus: "running",
+      newStatus: "completed",
+      timestamp: new Date().toISOString(),
+    });
   } else if (failedCount > 0 && generatedCount + failedCount >= expectedTotal) {
     // All runs have settled (some failed)
     await db
@@ -83,6 +91,13 @@ export async function checkClusterCompletion(input: {
       .set({ generationStatus: "partial" })
       .where(and(eq(clusters.id, clusterId), eq(clusters.generationStatus, "running")));
     log.info({ clusterId, failedCount }, "cluster generation partially completed");
+    void publishPipelineEvent(projectId, {
+      type: "cluster.status.changed",
+      clusterId,
+      oldStatus: "running",
+      newStatus: "partial",
+      timestamp: new Date().toISOString(),
+    });
   }
   // Else: still running — leave status unchanged
 }

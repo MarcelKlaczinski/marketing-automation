@@ -1,3 +1,4 @@
+import { publishPipelineEvent } from "@marketing-auto/core/events";
 import { db, pipelineRuns } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
@@ -67,6 +68,14 @@ export async function runPipeline<TInput, TOutput>(
   const pipelineLog = log.child({ runId, pipeline: pipeline.name, projectId: options.projectId });
   pipelineLog.info({ stepCount: pipeline.steps.length }, "Pipeline started");
 
+  const pipelineStartTime = Date.now();
+  void publishPipelineEvent(options.projectId, {
+    type: "pipeline.started",
+    runId,
+    pipelineName: pipeline.name,
+    timestamp: new Date().toISOString(),
+  });
+
   const stepOutputs: Record<string, unknown> = {};
   let currentInput: unknown = validatedInput;
   let lastStepName = "(none)";
@@ -120,6 +129,14 @@ export async function runPipeline<TInput, TOutput>(
       const stepStartTime = Date.now();
       let stepOutput: unknown;
 
+      void publishPipelineEvent(options.projectId, {
+        type: "pipeline.step.started",
+        runId,
+        stepRunId,
+        stepName: step.name,
+        timestamp: new Date().toISOString(),
+      });
+
       try {
         stepOutput = await step.execute(stepInput, ctx);
       } catch (err) {
@@ -142,7 +159,19 @@ export async function runPipeline<TInput, TOutput>(
         })
         .where(eq(pipelineRuns.id, stepRunId));
 
-      stepLog.info({ durationMs: Date.now() - stepStartTime }, "Step completed");
+      const stepDurationMs = Date.now() - stepStartTime;
+      stepLog.info({ durationMs: stepDurationMs }, "Step completed");
+
+      void publishPipelineEvent(options.projectId, {
+        type: "pipeline.step.completed",
+        runId,
+        stepRunId,
+        stepName: step.name,
+        durationMs: stepDurationMs,
+        costEur: 0, // cost_logs are written by adapters asynchronously; step-level cost not available here
+        timestamp: new Date().toISOString(),
+      });
+
       stepOutputs[step.name] = validatedOutput;
 
       if (i < pipeline.steps.length - 1) {
@@ -172,6 +201,15 @@ export async function runPipeline<TInput, TOutput>(
 
     await reportJobProgress?.(100);
 
+    void publishPipelineEvent(options.projectId, {
+      type: "pipeline.completed",
+      runId,
+      pipelineName: pipeline.name,
+      totalCostEur: 0, // aggregated cost_logs are queried separately by the detail endpoint
+      durationMs: Date.now() - pipelineStartTime,
+      timestamp: new Date().toISOString(),
+    });
+
     if (pipeline.afterComplete) {
       // Separate try-catch: afterComplete errors must not re-trigger BullMQ retries that
       // would re-run expensive LLM steps. A warning log leaves the pipeline as "completed"
@@ -192,6 +230,15 @@ export async function runPipeline<TInput, TOutput>(
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     pipelineLog.error({ err, failedAtStep: lastStepName }, "Pipeline failed");
+
+    void publishPipelineEvent(options.projectId, {
+      type: "pipeline.failed",
+      runId,
+      pipelineName: pipeline.name,
+      stepName: lastStepName,
+      error: errMsg.slice(0, 500),
+      timestamp: new Date().toISOString(),
+    });
 
     await db
       .update(pipelineRuns)

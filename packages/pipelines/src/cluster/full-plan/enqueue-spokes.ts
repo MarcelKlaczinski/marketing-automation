@@ -1,3 +1,4 @@
+import { publishPipelineEvent } from "@marketing-auto/core/events";
 import { articles, clusters, db, eq } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { enqueueBlogGeneration } from "../../article/blog/trigger.ts";
@@ -44,6 +45,14 @@ export async function enqueueClusterSpokes(input: {
     .where(eq(clusters.id, clusterId));
 
   log.info({ clusterId, hubArticleId, spokeCount: spokeBriefIds.length }, "enqueueing cluster spokes");
+
+  void publishPipelineEvent(cluster.projectId, {
+    type: "cluster.status.changed",
+    clusterId,
+    oldStatus: "running",
+    newStatus: "running", // still running, but hub is done — UI can update spoke list
+    timestamp: new Date().toISOString(),
+  });
 
   // Enqueue all spoke briefs in parallel
   await Promise.allSettled(

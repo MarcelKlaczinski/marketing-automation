@@ -231,6 +231,7 @@
         "@marketing-auto/shared": "workspace:*",
         "@types/web-push": "^3.6.4",
         "drizzle-orm": "^0.36.0",
+        "ioredis": "^5.10.1",
         "web-push": "^3.6.7",
       },
     },
