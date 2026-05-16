@@ -11,12 +11,13 @@ export default defineConfig((/* ctx */) => ({
 
   boot: ["i18n", "query", "auth"],
 
+  // Quasar resolves css[] paths from src/css/ — use ../styles/ to reach src/styles/
   css: [
-    "styles/tokens.css",
-    "styles/reset.css",
-    "styles/typography.css",
-    "styles/animations.css",
-    "styles/global.css",
+    "../styles/tokens.css",
+    "../styles/reset.css",
+    "../styles/typography.css",
+    "../styles/animations.css",
+    "../styles/global.css",
   ],
 
   extras: [],
