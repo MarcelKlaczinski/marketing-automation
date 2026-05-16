@@ -3,13 +3,14 @@
 </template>
 
 <script lang="ts">
-import { useThemeInit } from "src/composables/useTheme";
 import { defineComponent } from "vue";
 
+/**
+ * Root application component.
+ * Renders the current route via <router-view>.
+ * AppShell (layout) is mounted by the /projects/:slug routes.
+ */
 export default defineComponent({
   name: "App",
-  setup() {
-    useThemeInit();
-  },
 });
 </script>

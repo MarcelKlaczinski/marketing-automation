@@ -1,124 +1,263 @@
 <template>
-  <q-card class="q-pa-lg">
-    <q-card-section>
-      <div class="text-h5 q-mb-md">{{ $t('auth.login.title') }}</div>
-      <p class="text-body2 q-mb-md">
-        {{ $t('auth.login.subtitle') }}
-      </p>
-    </q-card-section>
+  <div class="login-page">
+    <!-- Gradient mesh background reuses global body::before/::after -->
+    <div class="login-card">
+      <div class="login-logo">
+        <span class="login-logo-text text-gradient-accent">MA</span>
+      </div>
 
-    <q-card-section v-if="!sent">
-      <q-form @submit.prevent="onSubmit">
-        <q-input
-          v-model="email"
-          type="email"
-          :label="$t('auth.login.emailLabel')"
-          :rules="emailRules"
-          autofocus
-          :disable="loading"
-          autocomplete="email"
-          inputmode="email"
-        />
+      <h1 class="login-title">{{ $t("auth.login.title") }}</h1>
+      <p class="login-subtitle text-secondary">{{ $t("auth.login.subtitle") }}</p>
 
-        <q-banner v-if="!smtpConfigured" class="q-mt-md bg-warning text-dark">
-          <template #avatar>
-            <q-icon name="warning" />
-          </template>
-          {{ $t('auth.login.smtpNotConfigured') }}
-        </q-banner>
+      <!-- Success state after magic link sent -->
+      <div v-if="sent" class="login-sent">
+        <div class="login-sent-icon">✉️</div>
+        <p class="login-sent-msg">{{ $t("auth.login.checkInbox") }}</p>
+        <p class="login-sent-email mono text-dim">{{ email }}</p>
+      </div>
 
-        <q-btn
+      <!-- Email input form -->
+      <form v-else class="login-form" @submit.prevent="submit">
+        <div class="field">
+          <label class="field-label label-caps" :for="inputId">
+            {{ $t("auth.login.emailLabel") }}
+          </label>
+          <input
+            :id="inputId"
+            v-model="email"
+            class="field-input mono"
+            type="email"
+            autocomplete="email"
+            :placeholder="$t('auth.login.emailPlaceholder') as string"
+            :disabled="loading"
+            required
+          />
+        </div>
+
+        <button
           type="submit"
-          :label="$t('auth.login.submitButton')"
-          color="primary"
-          class="full-width q-mt-md"
-          :loading="loading"
-        />
-      </q-form>
-    </q-card-section>
+          class="login-btn"
+          :class="{ 'login-btn--loading': loading }"
+          :disabled="loading || !email"
+        >
+          <span v-if="loading" class="btn-spinner" />
+          <span v-else>{{ $t("auth.login.sendLink") }}</span>
+        </button>
 
-    <q-card-section v-else>
-      <q-banner class="bg-positive text-white">
-        <template #avatar>
-          <q-icon name="mark_email_read" />
-        </template>
-        {{ $t('auth.login.successMessage') }}
-      </q-banner>
-
-      <q-banner v-if="!smtpConfigured" class="q-mt-md bg-info text-white">
-        <template #avatar>
-          <q-icon name="developer_mode" />
-        </template>
-        <div>{{ $t('auth.login.checkServerLog') }}</div>
-        <div class="text-caption q-mt-xs">{{ $t('auth.login.checkServerLogHint') }}</div>
-      </q-banner>
-
-      <q-btn
-        flat
-        :label="$t('auth.login.useDifferentEmail')"
-        class="q-mt-md"
-        @click="onReset"
-      />
-    </q-card-section>
-  </q-card>
+        <p v-if="errorMsg" class="login-error text-sm">{{ errorMsg }}</p>
+      </form>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
-import { useNotify } from "src/composables/useNotify";
-import { api } from "src/lib/api-client";
-import { HttpError } from "src/lib/http-error";
-import { useSystemStatusStore } from "src/stores/system-status";
 import { defineComponent } from "vue";
+import { useAuthStore } from "src/stores/auth";
 
+/**
+ * Magic-link login page.
+ * Two states: email form → "check your inbox" confirmation.
+ * Auth flow unchanged from Spec 31 (magic-link via /auth/magic-link).
+ */
 export default defineComponent({
   name: "LoginPage",
-
-  setup() {
-    return {
-      systemStatusStore: useSystemStatusStore(),
-      notify: useNotify(),
-    };
-  },
 
   data: () => ({
     email: "",
     loading: false,
     sent: false,
+    errorMsg: "" as string,
+    inputId: "login-email",
   }),
 
-  computed: {
-    smtpConfigured(): boolean {
-      return this.systemStatusStore.adapters.smtp.configured;
-    },
-
-    emailRules(): Array<(v: string) => true | string> {
-      return [
-        (v: string) => !!v || (this.$t("auth.login.emailRequired") as string),
-        (v: string) =>
-          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) || (this.$t("auth.login.emailInvalid") as string),
-      ];
-    },
-  },
-
   methods: {
-    async onSubmit(): Promise<void> {
+    async submit(): Promise<void> {
+      if (!this.email || this.loading) return;
       this.loading = true;
+      this.errorMsg = "";
       try {
-        await api.post("/auth/magic-link/request", { email: this.email });
+        const auth = useAuthStore();
+        await auth.requestMagicLink(this.email);
         this.sent = true;
-      } catch (e) {
-        if (e instanceof HttpError) {
-          this.notify.error(e.userMessage);
-        }
+      } catch (err) {
+        this.errorMsg = err instanceof Error ? err.message : (this.$t("auth.login.error") as string);
       } finally {
         this.loading = false;
       }
     },
-
-    onReset(): void {
-      this.sent = false;
-      this.email = "";
-    },
   },
 });
 </script>
+
+<style scoped>
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg-glass-strong);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xl);
+  padding: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  box-shadow: var(--shadow-elevated);
+  animation: fadeInUp 500ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+.login-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-tertiary) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-2);
+}
+
+.login-logo-text {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  /* override gradient-text for white on gradient bg */
+  background: none;
+  -webkit-text-fill-color: white;
+  color: white;
+}
+
+.login-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.login-subtitle {
+  font-size: 13px;
+  text-align: center;
+  margin-top: -var(--space-2);
+}
+
+/* Form */
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field-label {
+  color: var(--text-tertiary);
+}
+
+.field-input {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: border-color var(--transition-fast, 120ms cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.field-input:focus {
+  border-color: var(--accent-primary);
+  outline: none;
+}
+
+.field-input::placeholder {
+  color: var(--text-dim);
+}
+
+.login-btn {
+  width: 100%;
+  padding: 11px;
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-tertiary) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(124, 92, 255, 0.3);
+  transition: opacity var(--transition-fast, 120ms cubic-bezier(0.4, 0, 0.2, 1)),
+              transform var(--transition-fast, 120ms cubic-bezier(0.4, 0, 0.2, 1));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .login-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+}
+
+.login-btn:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 160ms;
+}
+
+.login-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.login-error {
+  color: var(--status-failed);
+  text-align: center;
+}
+
+/* Sent confirmation */
+.login-sent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  animation: fadeInUp 400ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+.login-sent-icon {
+  font-size: 32px;
+}
+
+.login-sent-msg {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.login-sent-email {
+  font-size: 12px;
+}
+</style>

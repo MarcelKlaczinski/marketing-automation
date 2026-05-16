@@ -1,0 +1,75 @@
+/* ==========================================================================
+   Shared Keyframes + Animation Utilities — Spec 56.1 Section B.3
+   ========================================================================== */
+
+/* --- Keyframes ----------------------------------------------------------- */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+@keyframes livePulse {
+  0%   { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes scanline {
+  0%   { background-position: -100% 0; }
+  100% { background-position: 100% 0; }
+}
+
+@keyframes meshShift {
+  0%, 100% { transform: translate(0, 0); }
+  33%       { transform: translate(-3%, 2%); }
+  66%       { transform: translate(2%, -3%); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pillFlow {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 12px var(--accent-secondary-glow); }
+  50%       { box-shadow: 0 0 20px var(--accent-secondary-glow); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes shimmerPass {
+  0%   { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+/* --- Utility classes ----------------------------------------------------- */
+
+/* Entry animation — add class to stagger items */
+.fade-in {
+  animation: fadeInUp 600ms cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+/* Stagger helpers — use animation-delay inline style for fine control */
+.stagger-1  { animation-delay: 45ms; }
+.stagger-2  { animation-delay: 90ms; }
+.stagger-3  { animation-delay: 135ms; }
+.stagger-4  { animation-delay: 180ms; }
+.stagger-5  { animation-delay: 215ms; }
+.stagger-6  { animation-delay: 245ms; }
+
+/* Respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

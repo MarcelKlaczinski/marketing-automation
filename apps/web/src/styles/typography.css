@@ -1,0 +1,66 @@
+/* ==========================================================================
+   Typography — Spec 56.1 Section B.2
+   Inter for body, JetBrains Mono for code/IDs/timestamps.
+   ========================================================================== */
+
+/* Preload hint is in index.html; @import here for Vite bundling */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+html, body {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  letter-spacing: -0.01em;
+}
+
+/* Monospace — semantic wrapper, used on IDs, timestamps, cost values */
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "calt", "zero";
+}
+
+/* Heading scale */
+h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1.2; }
+h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.3; }
+h3 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.4; }
+h4 { font-size: 12px; font-weight: 600; letter-spacing: 0; line-height: 1.4; }
+
+/* Utility size classes */
+.text-xs   { font-size: 10px; }
+.text-sm   { font-size: 11px; }
+.text-base { font-size: 13px; }
+.text-lg   { font-size: 14px; }
+.text-xl   { font-size: 18px; }
+
+/* Color utility classes */
+.text-primary   { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary  { color: var(--text-tertiary); }
+.text-dim       { color: var(--text-dim); }
+
+/* Uppercase label style — used in stat cards, section headers */
+.label-caps {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/* Gradient text — used for dashboard title */
+.text-gradient {
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-accent {
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-tertiary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

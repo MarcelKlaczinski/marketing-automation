@@ -9,11 +9,17 @@ export default defineConfig((/* ctx */) => ({
 
   preFetch: false,
 
-  boot: ["i18n", "axios", "pinia"],
+  boot: ["i18n", "query", "auth"],
 
-  css: ["app.scss"],
+  css: [
+    "styles/tokens.css",
+    "styles/reset.css",
+    "styles/typography.css",
+    "styles/animations.css",
+    "styles/global.css",
+  ],
 
-  extras: ["material-icons", "roboto-font"],
+  extras: [],
 
   build: {
     target: {

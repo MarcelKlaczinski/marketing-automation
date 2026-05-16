@@ -1,27 +1,101 @@
+import { route } from "quasar/wrappers";
 import {
-  createMemoryHistory,
   createRouter,
-  createWebHashHistory,
+  createMemoryHistory,
   createWebHistory,
+  createWebHashHistory,
 } from "vue-router";
-import { defineRouter } from "#q-app/wrappers";
-import { registerGuards } from "./guards";
-import routes from "./routes";
+import { useAuthStore } from "src/stores/auth";
+import { useProjectStore } from "src/stores/project";
 
-export default defineRouter(() => {
+/**
+ * Route definitions for Spec 56.1.
+ * Only /login and /projects/:slug/dashboard are wired in this session.
+ * Other views land in 56.2–56.4.
+ */
+const routes = [
+  // Root → redirect to default project dashboard
+  {
+    path: "/",
+    redirect: () => {
+      const projectStore = useProjectStore();
+      return `/projects/${projectStore.currentSlug}/dashboard`;
+    },
+  },
+
+  // Login — public
+  {
+    path: "/login",
+    name: "login",
+    component: () => import("src/pages/LoginPage.vue"),
+    meta: { public: true },
+  },
+
+  // Magic link verify — public
+  {
+    path: "/auth/verify",
+    name: "auth-verify",
+    component: () => import("src/pages/AuthVerifyPage.vue"),
+    meta: { public: true },
+  },
+
+  // Project shell — all project-scoped pages live here
+  {
+    path: "/projects/:slug",
+    component: () => import("src/components/layout/AppShell.vue"),
+    children: [
+      {
+        path: "dashboard",
+        name: "dashboard",
+        component: () => import("src/pages/DashboardPage.vue"),
+      },
+      // 56.2: articles, briefs, clusters
+      // 56.3: settings, costs, products
+      // 56.4: cold-start
+    ],
+  },
+
+  // 404
+  {
+    path: "/:pathMatch(.*)*",
+    name: "not-found",
+    component: () => import("src/pages/NotFoundPage.vue"),
+  },
+];
+
+export default route(function (/* { store, ssrContext } */) {
   const createHistory = process.env.SERVER
     ? createMemoryHistory
     : process.env.VUE_ROUTER_MODE === "history"
       ? createWebHistory
       : createWebHashHistory;
 
-  const Router = createRouter({
+  const router = createRouter({
     scrollBehavior: () => ({ left: 0, top: 0 }),
     routes,
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
-  registerGuards(Router);
+  // Global navigation guard — redirect to /login if unauthenticated
+  router.beforeEach(async (to) => {
+    if (to.meta.public) return true;
 
-  return Router;
+    const authStore = useAuthStore();
+    if (!authStore.isAuthenticated && !authStore.loading) {
+      await authStore.fetchCurrent();
+    }
+    if (!authStore.isAuthenticated) {
+      return { name: "login" };
+    }
+
+    // Sync URL slug into project store
+    if (typeof to.params.slug === "string") {
+      const projectStore = useProjectStore();
+      projectStore.setCurrentSlug(to.params.slug);
+    }
+
+    return true;
+  });
+
+  return router;
 });

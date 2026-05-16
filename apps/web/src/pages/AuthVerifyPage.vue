@@ -1,88 +1,110 @@
 <template>
-  <q-card class="q-pa-lg">
-    <q-card-section class="text-center">
-      <q-spinner-dots v-if="state === 'loading'" size="3em" color="primary" class="q-mb-md" />
-      <q-icon
-        v-else-if="state === 'success'"
-        name="check_circle"
-        size="3em"
-        color="positive"
-        class="q-mb-md"
-      />
-      <q-icon v-else name="error" size="3em" color="negative" class="q-mb-md" />
-
-      <div class="text-h6">
-        <span v-if="state === 'loading'">{{ $t('auth.verify.loading') }}</span>
-        <span v-else-if="state === 'success'">{{ $t('auth.verify.success') }}</span>
-        <span v-else>{{ $t('auth.verify.failure') }}</span>
+  <div class="verify-page">
+    <div class="verify-card">
+      <div v-if="verifying" class="verify-state">
+        <div class="verify-spinner" />
+        <p class="text-secondary">{{ $t("auth.verify.verifying") }}</p>
       </div>
-
-      <div v-if="state === 'failure'" class="text-body2 q-mt-md text-grey-7">
-        {{ failureReason }}
+      <div v-else-if="error" class="verify-state">
+        <p class="verify-error">{{ error }}</p>
+        <router-link class="verify-link" to="/login">
+          {{ $t("auth.verify.backToLogin") }}
+        </router-link>
       </div>
-
-      <q-btn
-        v-if="state === 'failure'"
-        :label="$t('auth.verify.tryAgain')"
-        color="primary"
-        class="q-mt-md"
-        :to="{ name: 'login' }"
-      />
-    </q-card-section>
-  </q-card>
+    </div>
+  </div>
 </template>
 
 <script lang="ts">
-import { api } from "src/lib/api-client";
-import { HttpError } from "src/lib/http-error";
-import { useAuthStore } from "src/stores/auth";
 import { defineComponent } from "vue";
+import { useAuthStore } from "src/stores/auth";
+import { useProjectStore } from "src/stores/project";
 
-type VerifyState = "loading" | "success" | "failure";
-
+/**
+ * Magic-link verification page.
+ * Reads `?token=` from URL query, hits /auth/verify, then redirects to dashboard.
+ */
 export default defineComponent({
   name: "AuthVerifyPage",
 
-  setup() {
-    return {
-      authStore: useAuthStore(),
-    };
-  },
-
   data: () => ({
-    state: "loading" as VerifyState,
-    failureReason: "",
+    verifying: true,
+    error: "" as string,
   }),
 
-  async mounted() {
-    const rawToken = this.$route.query.token;
-    const token = Array.isArray(rawToken) ? (rawToken[0] ?? "") : (rawToken ?? "");
+  async mounted(): Promise<void> {
+    const raw = this.$route.query["token"];
+    const token = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
+
     if (!token) {
-      this.state = "failure";
-      this.failureReason = this.$t("auth.verify.failure") as string;
+      this.error = this.$t("auth.verify.noToken") as string;
+      this.verifying = false;
       return;
     }
 
     try {
-      const res = await api.post<{ ok: boolean; data: { user: { id: string; email: string } } }>(
-        "/auth/magic-link/verify",
-        { token }
-      );
-
-      this.authStore.user = res.data.data.user;
-      this.state = "success";
-
-      setTimeout(() => {
-        void this.$router.push({ name: "inbox" });
-      }, 800);
-    } catch (e) {
-      this.state = "failure";
-      if (e instanceof HttpError) {
-        this.failureReason = e.userMessage;
-      } else {
-        this.failureReason = this.$t("auth.verify.failure") as string;
+      const apiBase = import.meta.env.VITE_API_BASE_URL as string;
+      const res = await fetch(`${apiBase}/auth/verify?token=${encodeURIComponent(token)}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        this.error = this.$t("auth.verify.invalid") as string;
+        this.verifying = false;
+        return;
       }
+      // Refresh auth state then redirect
+      await useAuthStore().fetchCurrent();
+      const slug = useProjectStore().currentSlug;
+      await this.$router.replace(`/projects/${slug}/dashboard`);
+    } catch {
+      this.error = this.$t("auth.verify.error") as string;
+      this.verifying = false;
     }
   },
 });
 </script>
+
+<style scoped>
+.verify-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.verify-card {
+  background: var(--bg-glass-strong);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-xl);
+  padding: var(--space-10);
+}
+
+.verify-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.verify-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border-medium);
+  border-top-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.verify-error {
+  color: var(--status-failed);
+  font-size: 13px;
+}
+
+.verify-link {
+  color: var(--accent-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+</style>
