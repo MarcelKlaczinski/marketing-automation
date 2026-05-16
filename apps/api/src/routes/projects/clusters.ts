@@ -14,6 +14,7 @@ import {
 import {
   ClusterProposalSchema,
   enqueueArticleOutlinePipeline,
+  enqueueBlogGenerationPipeline,
   executeDecision,
   loadActiveConfig,
   proposeCluster,
@@ -133,6 +134,8 @@ clusterCreatorRoutes.post(
       cornerstoneSpecId: string;
       routingResult: Awaited<ReturnType<typeof executeDecision>>;
       articleId: string | null;
+      briefId: string;
+      briefLocale: string | null;
     };
 
     let txResult: TxResult;
@@ -207,12 +210,13 @@ clusterCreatorRoutes.post(
           .returning({ id: cornerstoneSpecs.id });
         if (!newSpec) throw new Error("Failed to insert cornerstone spec");
 
-        // 6. Update brief: approve + link cluster + set intent type
+        // 6. Update brief: approve + link cluster + set intent type + fix clusterAction
         await tx
           .update(topicBriefs)
           .set({
             approvalStatus: "approved",
             clusterId: newCluster.id,
+            clusterAction: "append_to_existing",
             intentType: body.proposal.spoke_intent_for_originating_brief,
             approvedAt: new Date(),
             updatedAt: new Date(),
@@ -245,6 +249,8 @@ clusterCreatorRoutes.post(
           cornerstoneSpecId: newSpec.id,
           routingResult,
           articleId,
+          briefId: brief.id,
+          briefLocale: brief.locale,
         };
       });
     } catch (err) {
@@ -257,15 +263,27 @@ clusterCreatorRoutes.post(
       return c.json({ ok: false, error: "Failed to create spoke article" }, 500);
     }
 
-    // 8. Enqueue the article outline pipeline
-    const triggerResult = await triggerWithPreRunId({
-      pipelineName: "article:outline",
-      projectId: proj.id,
-      uniqueKey: { field: "articleId", value: txResult.articleId },
-      costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-      extraInput: { articleId: txResult.articleId },
-      enqueue: enqueueArticleOutlinePipeline,
-    });
+    // 8. Enqueue pipeline — blog for trend briefs (locale set), outline for gap/manual briefs
+    const isBlogBrief = txResult.briefLocale !== null;
+    const triggerResult = await triggerWithPreRunId(
+      isBlogBrief
+        ? {
+            pipelineName: "article:blog",
+            projectId: proj.id,
+            uniqueKey: { field: "articleId", value: txResult.articleId },
+            costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+            extraInput: { articleId: txResult.articleId, briefId: txResult.briefId },
+            enqueue: enqueueBlogGenerationPipeline,
+          }
+        : {
+            pipelineName: "article:outline",
+            projectId: proj.id,
+            uniqueKey: { field: "articleId", value: txResult.articleId },
+            costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+            extraInput: { articleId: txResult.articleId },
+            enqueue: enqueueArticleOutlinePipeline,
+          },
+    );
 
     if ("error" in triggerResult) {
       log.warn({ err: triggerResult.error, projectId: proj.id }, "pipeline trigger failed after cluster creation");
