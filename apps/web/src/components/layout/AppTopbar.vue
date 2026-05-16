@@ -214,6 +214,14 @@ export default defineComponent({
   transition-duration: 160ms;
 }
 
+/* Mobile: expand touch targets to ≥ 44px */
+@media (max-width: 767px) {
+  .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+}
+
 /* Command palette button */
 .cmd-btn {
   display: flex;

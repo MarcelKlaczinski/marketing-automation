@@ -90,6 +90,15 @@ export default defineComponent({
   gap: var(--space-3);
 }
 
+/* Mobile: snap each lane into view */
+@media (max-width: 767px) {
+  .pipeline-lane {
+    min-width: calc(100vw - 48px);
+    flex-shrink: 0;
+    scroll-snap-align: start;
+  }
+}
+
 /* === Header === */
 .lane-header {
   display: flex;

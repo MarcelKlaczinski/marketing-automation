@@ -137,6 +137,14 @@ export default defineComponent({
   transition-duration: 160ms;
 }
 
+/* Mobile: expand touch target to ≥ 44px */
+@media (max-width: 767px) {
+  .nav-item {
+    min-height: 44px;
+    padding: 12px var(--space-3);
+  }
+}
+
 /* === Active state === */
 .nav-item--active {
   background: var(--bg-glass-strong);
