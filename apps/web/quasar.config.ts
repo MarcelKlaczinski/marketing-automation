@@ -20,7 +20,7 @@ export default defineConfig((/* ctx */) => ({
     "styles/global.css",
   ],
 
-  extras: [],
+  extras: ["material-icons"],
 
   build: {
     target: {
