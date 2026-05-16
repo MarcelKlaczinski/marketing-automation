@@ -252,6 +252,7 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT call `.set({ updatedAt: new Date() })` on the `clusters` table — it has no `updatedAt` column (check the schema before adding timestamps to any `.update().set()`). The `topicBriefs` and `articles` tables do have `updatedAt`.
 - DO NOT cast `run.input as Record<string, unknown>` to read JSONB fields when the column can be SQL NULL — `null as Record<string, unknown>` produces `null` at runtime and any property access on it throws. Always guard first: `const input = run.input ?? {}; const articleId = typeof input.articleId === "string" ? input.articleId : undefined;`
 - DO NOT call a pipeline-specific enqueue wrapper (e.g. `enqueueBlogGeneration`, `enqueueRefreshPipeline`) from the retry endpoint — those wrappers create new articles / validate briefs, which is wrong for retry (article and brief already exist). Use `enqueuePipeline` directly with `{ ...originalInput, retriedFromRunId: failedRunId }`. Block `cluster:plan` and `cold-start:*` with 422 (not retryable via this path).
+- DO NOT omit `stream.onAbort` cleanup in SSE endpoints that open a Redis subscriber — each SSE client gets its own `IORedis` subscriber connection; without `onAbort(() => { subscriber.unsubscribe(channel); subscriber.quit(); })`, abandoned connections accumulate and exhaust the Redis connection pool. See `src/routes/projects/pipeline-events.ts` for the canonical pattern.
 
 ## Gap Routes — TopicBrief as SSoT (Spec 54.3)
 
