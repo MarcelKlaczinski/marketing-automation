@@ -43,7 +43,7 @@ pipelineEventsRoutes.get("/:slug/pipeline-events", async (c) => {
     subscriber.on("message", (_ch: string, message: string) => {
       if (!isOpen) return;
       try {
-        const event = JSON.parse(message) as PipelineEvent;
+        const event = JSON.parse(message) as PipelineEvent; // trusted: published by our own publishPipelineEvent
         void stream.writeSSE({ event: event.type, data: message });
       } catch (err) {
         log.error({ err }, "Failed to parse pipeline event from Redis");
