@@ -857,7 +857,11 @@
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:packages/db/src/schema/refresh.ts)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:apps/api/src/workers/cron-orchestrator.ts)",
       "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:packages/db/drizzle/0046_discovery_config.sql)",
-      "Bash(grep -E \"\\\\.\\(tsx|ts|vue\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx|ts|vue\\)$\")",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(psql -U postgres marketing_automation -c \"SELECT content->'hashtags' as hashtags, platform, created_at FROM social_posts ORDER BY created_at DESC LIMIT 5;\")",
+      "Bash(bun --env-file .env -e \"const {db} = await import\\('./packages/db/src/index.ts'\\); const {socialPosts} = await import\\('./packages/db/src/schema.ts'\\); const rows = await db.select\\({content: socialPosts.content, platform: socialPosts.platform}\\).from\\(socialPosts\\).limit\\(5\\); console.log\\(JSON.stringify\\(rows, null, 2\\)\\);\")",
+      "Bash(psql marketing_automation -c \"SELECT \\(content->>'hashtags'\\)::text as hashtags, platform, created_at FROM social_posts ORDER BY created_at DESC LIMIT 5;\")"
     ]
   }
 }
