@@ -78,6 +78,30 @@
       <div v-if="!isLoading && (projects ?? []).length === 0" class="dropdown-empty text-dim text-sm">
         {{ $t("nav.noProjects") }}
       </div>
+
+      <div
+        class="add-project-row"
+        role="menuitem"
+        tabindex="0"
+        @click="$router.push('/cold-start/new')"
+        @keydown.enter="$router.push('/cold-start/new')"
+        @keydown.space.prevent="$router.push('/cold-start/new')"
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <line x1="7" y1="2" x2="7" y2="12" />
+          <line x1="2" y1="7" x2="12" y2="7" />
+        </svg>
+        <span>{{ $t("coldStart.addProject") as string }}</span>
+      </div>
     </div>
   </q-btn-dropdown>
 </template>
@@ -306,5 +330,41 @@ export default defineComponent({
 .dropdown-empty {
   padding: 12px 10px;
   text-align: center;
+}
+
+/* Add project entry */
+.add-project-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast, 120ms cubic-bezier(0.4, 0, 0.2, 1)),
+              color var(--transition-fast, 120ms cubic-bezier(0.4, 0, 0.2, 1));
+  outline: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .add-project-row:hover {
+    background: var(--bg-glass-strong);
+    color: var(--text-primary);
+  }
+}
+
+.add-project-row:focus-visible {
+  background: var(--bg-glass-strong);
+  color: var(--text-primary);
+}
+
+@media (max-width: 767px) {
+  .add-project-row {
+    min-height: 44px;
+  }
 }
 </style>

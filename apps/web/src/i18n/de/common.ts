@@ -31,4 +31,9 @@ export default {
   approve: "Genehmigen",
   dismiss: "Ablehnen",
   toggle: "Umschalten",
+  continue: "Weiter",
+  other: "Sonstiges",
+  notSet: "Nicht angegeben",
+  remove: "Entfernen",
+  addKeyword: "Keyword hinzufügen",
 };

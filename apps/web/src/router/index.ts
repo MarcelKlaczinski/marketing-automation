@@ -139,7 +139,55 @@ const routes = [
         component: () => import("src/pages/article-tools/ArticleToolsPage.vue"),
       },
 
-      // 56.4: cold-start
+    ],
+  },
+
+  // 56.4: Cold-Start wizard — full-page, outside AppShell (no sidebar/topbar)
+  {
+    path: "/cold-start",
+    redirect: "/cold-start/new",
+  },
+  {
+    path: "/cold-start/new",
+    name: "cold-start-new",
+    component: () => import("src/pages/cold-start/ColdStartNewPage.vue"),
+  },
+  {
+    path: "/cold-start/:draftId",
+    component: () => import("src/pages/cold-start/ColdStartLayout.vue"),
+    children: [
+      {
+        path: "",
+        redirect: { name: "cold-start-phase-1" },
+      },
+      {
+        path: "phase-1",
+        name: "cold-start-phase-1",
+        component: () => import("src/pages/cold-start/ColdStartPhase1Basics.vue"),
+      },
+      {
+        path: "phase-2",
+        name: "cold-start-phase-2",
+        component: () => import("src/pages/cold-start/ColdStartPhase2Brand.vue"),
+      },
+      {
+        path: "phase-3",
+        name: "cold-start-phase-3",
+        component: () =>
+          import("src/pages/cold-start/ColdStartPhase3Seed.vue"),
+      },
+      {
+        path: "phase-4",
+        name: "cold-start-phase-4",
+        component: () =>
+          import("src/pages/cold-start/ColdStartPhase4Astro.vue"),
+      },
+      {
+        path: "phase-5",
+        name: "cold-start-phase-5",
+        component: () =>
+          import("src/pages/cold-start/ColdStartPhase5Confirm.vue"),
+      },
     ],
   },
 

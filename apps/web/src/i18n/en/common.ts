@@ -31,4 +31,9 @@ export default {
   approve: "Approve",
   dismiss: "Dismiss",
   toggle: "Toggle",
+  continue: "Continue",
+  other: "Other",
+  notSet: "Not set",
+  remove: "Remove",
+  addKeyword: "Add keyword",
 };
