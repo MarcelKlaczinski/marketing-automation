@@ -7,11 +7,11 @@
     <div class="item-content">
       <p class="item-title">{{ article.title ?? article.slug }}</p>
       <div class="item-meta mono">
-        <span>{{ article.collection }}</span>
+        <span>{{ $t(`articles.filters.collections.${article.collection}`, article.collection) as string }}</span>
         <span class="sep">·</span>
-        <span>{{ article.locale }}</span>
+        <span>{{ $t(`articles.filters.locales.${article.locale}`, article.locale) as string }}</span>
         <span class="sep">·</span>
-        <span>{{ article.status }}</span>
+        <span>{{ $t(`articles.status.${article.status}`, article.status) as string }}</span>
       </div>
     </div>
   </button>

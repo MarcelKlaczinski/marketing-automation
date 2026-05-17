@@ -32,19 +32,17 @@
       <div class="form-row">
         <FormField :label="$t('articleTools.generate.fields.collection') as string">
           <FormSelect v-model="form.collection">
-            <option value="blog">Blog</option>
-            <option value="tools">Tools</option>
-            <option value="comparisons">Comparisons</option>
-            <option value="ki-wissen">KI-Wissen</option>
-            <option value="usecases">Use Cases</option>
-            <option value="tool-categories">Tool Categories</option>
+            <option v-for="col in collectionOptions" :key="col" :value="col">
+              {{ $t(`articles.filters.collections.${col}`) as string }}
+            </option>
           </FormSelect>
         </FormField>
 
         <FormField :label="$t('articleTools.generate.fields.locale') as string">
           <FormSelect v-model="form.locale">
-            <option value="de">DE</option>
-            <option value="en">EN</option>
+            <option v-for="loc in localeOptions" :key="loc" :value="loc">
+              {{ $t(`articles.filters.locales.${loc}`) as string }}
+            </option>
           </FormSelect>
         </FormField>
 
@@ -143,6 +141,14 @@ export default defineComponent({
   }),
 
   computed: {
+    collectionOptions(): string[] {
+      return ["blog", "tools", "comparisons", "ki-wissen", "usecases", "tool-categories"];
+    },
+
+    localeOptions(): string[] {
+      return ["de", "en"];
+    },
+
     intentOptions(): string[] {
       return ["overview", "general", "review", "comparison", "pricing", "tutorial", "use-cases", "features"];
     },
