@@ -29,6 +29,7 @@ import { projectSearchRoutes } from "./routes/projects/search.ts";
 import { projectCostSummaryRoutes } from "./routes/projects/cost-summary.ts";
 import { pipelineEventsRoutes } from "./routes/projects/pipeline-events.ts";
 import { scopedArticleRoutes } from "./routes/projects/articles.ts";
+import { scopedBriefRoutes } from "./routes/projects/briefs.ts";
 import { scopedPillarRoutes } from "./routes/projects/pillars.ts";
 import { scopedPipelineRunsRoutes } from "./routes/projects/pipeline-runs.ts";
 
@@ -99,6 +100,7 @@ app.route("/api/projects", projectSearchRoutes);
 app.route("/api/projects", projectCostSummaryRoutes);
 app.route("/api/projects", pipelineEventsRoutes);
 app.route("/api/projects", scopedArticleRoutes);
+app.route("/api/projects", scopedBriefRoutes);
 app.route("/api/projects", scopedPillarRoutes);
 app.route("/api/projects", scopedPipelineRunsRoutes);
 

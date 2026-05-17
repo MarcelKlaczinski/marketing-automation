@@ -8,11 +8,6 @@ import {
 import { useAuthStore } from "src/stores/auth";
 import { useProjectStore } from "src/stores/project";
 
-/**
- * Route definitions for Spec 56.1.
- * Only /login and /projects/:slug/dashboard are wired in this session.
- * Other views land in 56.2–56.4.
- */
 const routes = [
   // Root → redirect to default project dashboard
   {
@@ -49,7 +44,53 @@ const routes = [
         name: "dashboard",
         component: () => import("src/pages/DashboardPage.vue"),
       },
-      // 56.2: articles, briefs, clusters
+
+      // 56.2: Articles — master-detail list
+      {
+        path: "articles",
+        name: "articles",
+        component: () => import("src/pages/articles/ArticlesListPage.vue"),
+        children: [
+          {
+            path: ":articleId",
+            name: "article-detail",
+            component: () =>
+              import("src/pages/articles/ArticleDetailPage.vue"),
+          },
+        ],
+      },
+
+      // 56.2: Briefs — 3-section backlog
+      {
+        path: "briefs",
+        name: "briefs",
+        component: () => import("src/pages/briefs/BriefsPage.vue"),
+        children: [
+          {
+            path: ":briefId",
+            name: "brief-detail",
+            component: () =>
+              import("src/pages/briefs/BriefDetailPage.vue"),
+          },
+        ],
+      },
+
+      // 56.2: Clusters list
+      {
+        path: "clusters",
+        name: "clusters",
+        component: () =>
+          import("src/pages/clusters/ClustersListPage.vue"),
+      },
+
+      // 56.2: Cluster detail — full page (not nested in list per spec F.1)
+      {
+        path: "clusters/:clusterId",
+        name: "cluster-detail",
+        component: () =>
+          import("src/pages/clusters/ClusterDetailPage.vue"),
+      },
+
       // 56.3: settings, costs, products
       // 56.4: cold-start
     ],

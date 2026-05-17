@@ -4,6 +4,7 @@ import {
   and,
   articles,
   asc,
+  type ClusterGenerationStatus,
   clusters,
   contentPillars,
   cornerstoneSpecs,
@@ -11,7 +12,9 @@ import {
   db,
   desc,
   eq,
+  ilike,
   inArray,
+  lt,
   or,
   pipelineRuns,
   projects,
@@ -411,6 +414,8 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
       cluster: {
         id: cluster.id,
         name: cluster.name,
+        pillarName: cluster.pillar ?? null,
+        primaryKeyword: cluster.primaryKeyword ?? null,
         generationStatus: cluster.generationStatus,
         triggerBriefId: cluster.triggerBriefId,
         proposedHub: cluster.proposedHub,
@@ -441,9 +446,17 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
 
 // ─── GET /:slug/clusters ──────────────────────────────────────────────────────
 
+const VALID_GENERATION_STATUSES = [
+  "proposed", "plan_proposed", "running", "completed", "partial", "failed", "manual",
+] as const;
+
 const clustersListQuerySchema = paginationQuerySchema.extend({
   pillarId: z.string().uuid().optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(100),
+  generationStatus: z.enum(VALID_GENERATION_STATUSES).optional(),
+  search: z.string().min(2).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  // 56.2: cursor-based pagination for Load More UX
+  cursor: z.string().datetime().optional(),
 });
 
 clusterCreatorRoutes.get(
@@ -458,8 +471,17 @@ clusterCreatorRoutes.get(
 
     const conditions = [eq(clusters.projectId, project.id)];
     if (q.pillarId) conditions.push(eq(clusters.pillarId, q.pillarId));
+    if (q.generationStatus) conditions.push(eq(clusters.generationStatus, q.generationStatus as ClusterGenerationStatus));
+    if (q.search) {
+      const pattern = `%${q.search}%`;
+      conditions.push(ilike(clusters.name, pattern));
+    }
+    if (q.cursor) {
+      conditions.push(lt(clusters.createdAt, new Date(q.cursor)));
+    }
     const whereClause = and(...conditions);
 
+    const limit = q.limit;
     const [rows, countRows] = await Promise.all([
       db
         .select({
@@ -480,8 +502,8 @@ clusterCreatorRoutes.get(
         .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
         .where(whereClause)
         .orderBy(asc(clusters.position), asc(clusters.createdAt))
-        .limit(q.limit)
-        .offset(q.offset),
+        .limit(limit + (q.cursor ? 1 : 0))
+        .offset(q.cursor ? 0 : q.offset),
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(clusters)
@@ -507,9 +529,55 @@ clusterCreatorRoutes.get(
       }
     }
 
+    if (q.cursor) {
+      // Cursor mode: hasMore determined by the extra row fetched
+      const hasMore = rows.length > limit;
+      const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+      const pillarArticleIds = pageRows
+        .map((r) => r.pillarArticleId)
+        .filter((id): id is string => id !== null);
+      const titleMap = new Map<string, string | null>();
+      if (pillarArticleIds.length > 0) {
+        const titles = await db
+          .select({ id: articles.id, title: articles.title, cornerstoneKeyword: articles.cornerstoneKeyword })
+          .from(articles)
+          .where(inArray(articles.id, pillarArticleIds));
+        for (const t of titles) titleMap.set(t.id, t.title ?? t.cornerstoneKeyword ?? null);
+      }
+
+      const items = pageRows.map((r) => ({
+        ...r,
+        pillarArticleTitle: r.pillarArticleId ? (titleMap.get(r.pillarArticleId) ?? null) : null,
+      }));
+      const nextCursor = hasMore ? items[items.length - 1]!.createdAt.toISOString() : null; // safe: items is non-empty when hasMore=true (fetched limit+1)
+
+      return c.json({ ok: true, data: { items, nextCursor, hasMore, limit } });
+    }
+
+    // Offset mode (legacy): enrich and paginate
+    const offsetPillarArticleIds = rows
+      .map((r) => r.pillarArticleId)
+      .filter((id): id is string => id !== null);
+
+    const offsetTitleMap = new Map<string, string | null>();
+    if (offsetPillarArticleIds.length > 0) {
+      const titles = await db
+        .select({
+          id: articles.id,
+          title: articles.title,
+          cornerstoneKeyword: articles.cornerstoneKeyword,
+        })
+        .from(articles)
+        .where(inArray(articles.id, offsetPillarArticleIds));
+      for (const t of titles) {
+        offsetTitleMap.set(t.id, t.title ?? t.cornerstoneKeyword ?? null);
+      }
+    }
+
     const enriched = rows.map((r) => ({
       ...r,
-      pillarArticleTitle: r.pillarArticleId ? (titleMap.get(r.pillarArticleId) ?? null) : null,
+      pillarArticleTitle: r.pillarArticleId ? (offsetTitleMap.get(r.pillarArticleId) ?? null) : null,
     }));
 
     return c.json({ ok: true, data: paginated(enriched, countRows, q) });

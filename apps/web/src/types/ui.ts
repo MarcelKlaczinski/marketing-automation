@@ -120,10 +120,20 @@ export interface ClusterCardData {
 /** Article stub returned inside a cluster status response */
 export interface ClusterArticleStub {
   id: string;
+  slug: string;
   title: string | null;
   status: string;
   locale: string | null;
   role: string | null;
+}
+
+/** Pipeline run entry inside cluster status response */
+export interface ClusterPipelineRun {
+  id: string;
+  pipelineName: string;
+  status: string;
+  articleId: string | null;
+  createdAt: string;
 }
 
 /** Full response shape for GET /api/projects/:slug/clusters/:id/generation-status */
@@ -131,11 +141,15 @@ export interface ClusterStatusResponse {
   cluster: {
     id: string;
     name: string;
+    pillarName: string | null;
+    primaryKeyword: string | null;
     generationStatus: ClusterGenerationStatus;
     proposedSpokes: unknown[] | null;
+    pendingSpokeBriefIds: string[];
   };
   hubArticle: ClusterArticleStub | null;
   spokeArticles: ClusterArticleStub[];
+  pipelineRuns: ClusterPipelineRun[];
   cost: { spentEur: number; estimatedEur: number };
   progress: { completed: number; expected: number; percent: number };
 }
@@ -191,4 +205,82 @@ export interface DashboardHeaderStats {
   runningCount: number;
   queuedCount: number;
   todayCostEur: number;
+}
+
+// ─── Article types (Spec 56.2) ────────────────────────────────────────────────
+
+/** Article list item from GET /api/projects/:slug/articles (cursor mode) */
+export interface ArticleListItem {
+  id: string;
+  slug: string;
+  title: string | null;
+  cornerstoneKeyword: string | null;
+  collection: string | null;
+  locale: string | null;
+  status: string;
+  wordCount: number | null;
+  updatedAt: string;
+}
+
+/** Paginated articles response */
+export interface ArticlesListResponse {
+  items: ArticleListItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  limit: number;
+}
+
+/** Article detail from GET /api/articles/:id */
+export interface ArticleDetail {
+  id: string;
+  slug: string;
+  title: string | null;
+  cornerstoneKeyword: string | null;
+  collection: string | null;
+  locale: string | null;
+  status: string;
+  wordCount: number | null;
+  bodyMd: string | null;
+  outlineMd: string | null;
+  frontmatterExtras: Record<string, unknown> | null;
+  updatedAt: string;
+  createdAt: string;
+}
+
+/** Article versions list entry */
+export interface ArticleVersionEntry {
+  id: string;
+  versionNumber: number;
+  changeReason: string | null;
+  wordCount: number | null;
+  createdAt: string;
+}
+
+// ─── Brief types (Spec 56.2) ──────────────────────────────────────────────────
+
+/** Brief list item from GET /api/projects/:slug/briefs */
+export interface BriefListItem {
+  id: string;
+  topicTitle: string;
+  primaryKeyword: string | null;
+  source: string;
+  approvalStatus: string;
+  clusterAction: string | null;
+  clusterId: string | null;
+  trendMetadata: {
+    /** Legacy field used by BriefCard */
+    trendScore?: number;
+    scoreBreakdown?: { total?: number; [key: string]: unknown };
+    signals?: string[];
+    [key: string]: unknown;
+  } | null;
+  createdAt: string;
+}
+
+/** Paginated briefs response */
+export interface BriefsListResponse {
+  section: string;
+  items: BriefListItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
 }

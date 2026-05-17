@@ -26,6 +26,7 @@ import projectPause from "./projectPause";
 import projects from "./projects";
 import settings from "./settings";
 import trends from "./trends";
+import briefs from "./briefs";
 import search from "./search";
 
 export default {
@@ -56,6 +57,7 @@ export default {
   brand,
   admin,
   trends,
+  briefs,
   dashboard,
   search,
 };

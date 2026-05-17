@@ -21,4 +21,14 @@ export default {
   all: "All",
   saved: "Saved",
   selected: "selected",
+  // 56.2 additions
+  search: "Search...",
+  searchPlaceholder: "Search...",
+  clearFilters: "Clear filters",
+  loaded: "loaded",
+  noResults: "No results",
+  retry: "Retry",
+  approve: "Approve",
+  dismiss: "Dismiss",
+  toggle: "Toggle",
 };

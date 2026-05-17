@@ -54,6 +54,70 @@ export default {
   empty: "Noch keine Artikel.",
   emptyHint: "Artikel werden über den Cold-Start (Phase 4) oder per CLI erstellt.",
 
+  // 56.2: Articles view (list + detail)
+  list: {
+    title: "Artikel",
+    empty: "Keine Artikel gefunden",
+    emptyDescription: "Passe die Filter an oder starte den Cold-Start.",
+    detailEmpty: "Artikel auswählen",
+    detailEmptyDescription: "Klicke links auf einen Artikel um Details zu sehen.",
+  },
+
+  filters: {
+    status: "Status",
+    collection: "Collection",
+    locale: "Sprache",
+    collections: {
+      blog: "Blog",
+      tools: "Tools",
+      comparisons: "Vergleiche",
+      "ki-wissen": "KI-Wissen",
+      usecases: "Use-Cases",
+      "tool-categories": "Tool-Kategorien",
+    },
+    locales: {
+      de: "DE",
+      en: "EN",
+    },
+  },
+
+  detailTabs: {
+    body: "Inhalt",
+    frontmatter: "Frontmatter",
+    versions: "Versionen",
+    runs: "Runs",
+    cost: "Kosten",
+  },
+
+  detailActions: {
+    preview: "Vorschau",
+    refresh: "Refresh",
+    sync: "Sync",
+  },
+
+  bodyEditor: {
+    words: "Wörter",
+    chars: "Zeichen",
+    save: "Speichern",
+    cancel: "Abbrechen",
+    saveSuccess: "Inhalt gespeichert",
+  },
+
+  versionsTab: {
+    noVersions: "Noch keine Versionen",
+    version: "Version {n}",
+    noReason: "(kein Änderungsgrund)",
+  },
+
+  runsTab: {
+    noRuns: "Noch keine Runs für diesen Artikel",
+  },
+
+  costTab: {
+    noData: "Noch keine Kostendaten",
+    totalCost: "Gesamtkosten",
+  },
+
   toolbar: {
     byPillar: "Nach Pillar",
     byCluster: "Nach Cluster",

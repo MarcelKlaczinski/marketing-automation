@@ -158,4 +158,54 @@ export default {
     regenerateFailed: "Error regenerating plan",
     loadFailed: "Could not load cluster plan",
   },
+
+  // 56.2: Clusters list + detail view
+  list: {
+    title: "Clusters",
+    empty: "No clusters found",
+    emptyDescription: "Run Cold-Start to create clusters.",
+    filters: {
+      status: "Status",
+      pillar: "Pillar",
+    },
+  },
+
+  detail: {
+    hub: "Hub Article",
+    spokes: "Spoke Articles",
+    plan: "Cluster Plan",
+    cost: "Cost",
+    runs: "Pipeline Runs",
+    spokePending: "Pending…",
+    retrySpoke: "Retry",
+    noHub: "No hub article yet",
+    noSpokes: "No spokes yet",
+    running: "Running…",
+    spent: "Spent",
+    estimated: "Estimated",
+    noRuns: "No pipeline runs yet",
+    runFailed: "Failed",
+    retryRun: "Retry",
+  },
+
+  detailActions: {
+    retryFailed: "Retry failed spokes",
+    approvePlan: "Approve plan",
+    edit: "Edit",
+    retryConfirmTitle: "Retry failed spokes",
+    retryConfirmDescription: "{count} failed run(s) will be re-queued.",
+    retrySuccess: "Runs re-queued",
+    retryFailed2: "Error retrying runs",
+  },
+
+  generationStatus: {
+    proposed: "Proposed",
+    plan_proposed: "Plan proposed",
+    running: "Running",
+    completed: "Completed",
+    partial: "Partial",
+    failed: "Failed",
+    manual: "Manual",
+    idle: "Idle",
+  },
 };

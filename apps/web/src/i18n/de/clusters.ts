@@ -159,4 +159,54 @@ export default {
     regenerateFailed: "Fehler beim Neu-Vorschlagen",
     loadFailed: "Cluster-Plan konnte nicht geladen werden",
   },
+
+  // 56.2: Clusters list + detail view
+  list: {
+    title: "Cluster",
+    empty: "Keine Cluster gefunden",
+    emptyDescription: "Starte einen Cold-Start um Cluster zu erstellen.",
+    filters: {
+      status: "Status",
+      pillar: "Pillar",
+    },
+  },
+
+  detail: {
+    hub: "Hub-Artikel",
+    spokes: "Spoke-Artikel",
+    plan: "Cluster-Plan",
+    cost: "Kosten",
+    runs: "Pipeline-Runs",
+    spokePending: "Wartend…",
+    retrySpoke: "Wiederholen",
+    noHub: "Noch kein Hub-Artikel",
+    noSpokes: "Noch keine Spokes",
+    running: "Läuft…",
+    spent: "Ausgegeben",
+    estimated: "Geschätzt",
+    noRuns: "Noch keine Pipeline-Runs",
+    runFailed: "Fehlgeschlagen",
+    retryRun: "Wiederholen",
+  },
+
+  detailActions: {
+    retryFailed: "Fehlgeschlagene wiederholen",
+    approvePlan: "Plan genehmigen",
+    edit: "Bearbeiten",
+    retryConfirmTitle: "Fehlgeschlagene Spokes wiederholen",
+    retryConfirmDescription: "{count} fehlgeschlagene Run(s) werden neu gestartet.",
+    retrySuccess: "Runs wurden neu gestartet",
+    retryFailed2: "Fehler beim Wiederholen",
+  },
+
+  generationStatus: {
+    proposed: "Vorgeschlagen",
+    plan_proposed: "Plan vorgeschlagen",
+    running: "Läuft",
+    completed: "Abgeschlossen",
+    partial: "Teilweise",
+    failed: "Fehlgeschlagen",
+    manual: "Manuell",
+    idle: "Bereit",
+  },
 };

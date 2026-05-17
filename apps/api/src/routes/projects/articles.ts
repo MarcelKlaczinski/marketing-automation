@@ -7,7 +7,10 @@ import {
   db,
   desc,
   eq,
+  ilike,
   inArray,
+  lt,
+  or,
   projects,
   sql,
 } from "@marketing-auto/db";
@@ -28,7 +31,16 @@ const VALID_ARTICLE_STATUSES = [
 // ─── GET /api/projects/:slug/articles ─────────────────────────────────────────
 
 const articlesListQuerySchema = paginationQuerySchema.extend({
+  // Legacy: lane filter used by dashboard lanes
   lane: z.enum(VALID_ARTICLE_STATUSES).optional(),
+  // 56.2: extended filters for articles view
+  status: z.enum(VALID_ARTICLE_STATUSES).optional(),
+  collection: z.string().optional(),
+  locale: z.enum(["de", "en"]).optional(),
+  search: z.string().min(2).optional(),
+  // 56.2: cursor-based pagination (preferred over offset for Load More UX)
+  cursor: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuerySchema), async (c) => {
@@ -43,15 +55,74 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
   if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
 
   const conditions = [eq(articles.projectId, project.id)];
-  if (q.lane) conditions.push(eq(articles.status, q.lane));
+  // status or lane (lane kept for dashboard backward compat)
+  const statusFilter = q.status ?? q.lane;
+  if (statusFilter) conditions.push(eq(articles.status, statusFilter));
+  if (q.collection) conditions.push(eq(articles.collection, q.collection));
+  if (q.locale) conditions.push(eq(articles.locale, q.locale));
+  if (q.search) {
+    const pattern = `%${q.search}%`;
+    conditions.push(
+      or(
+        ilike(articles.title, pattern),
+        ilike(articles.slug, pattern),
+        ilike(articles.cornerstoneKeyword, pattern),
+      )!,
+    );
+  }
+  if (q.cursor) {
+    conditions.push(lt(articles.updatedAt, new Date(q.cursor)));
+  }
+
   const whereClause = and(...conditions);
 
+  if (q.cursor) {
+    // Cursor mode: fetch limit+1 to determine hasMore; no count query needed
+    const limit = q.limit;
+    const rows = await db
+      .select({
+        id: articles.id,
+        slug: articles.slug,
+        title: articles.title,
+        collection: articles.collection,
+        cornerstoneKeyword: articles.cornerstoneKeyword,
+        status: articles.status,
+        cornerstoneSpecId: articles.cornerstoneSpecId,
+        clusterId: articles.clusterId,
+        clusterName: clusters.name,
+        pillarId: clusters.pillarId,
+        pillarName: contentPillars.name,
+        pillarPosition: contentPillars.position,
+        wordCount: articles.wordCount,
+        publishedAt: articles.publishedAt,
+        astroSyncedAt: articles.astroSyncedAt,
+        createdAt: articles.createdAt,
+        updatedAt: articles.updatedAt,
+        locale: articles.locale,
+        source: articles.source,
+      })
+      .from(articles)
+      .leftJoin(clusters, eq(articles.clusterId, clusters.id))
+      .leftJoin(contentPillars, eq(clusters.pillarId, contentPillars.id))
+      .where(whereClause)
+      .orderBy(desc(articles.updatedAt))
+      .limit(limit + 1);
+
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? items[items.length - 1]!.updatedAt.toISOString() : null; // safe: items is non-empty when hasMore=true (fetched limit+1)
+
+    return c.json({ ok: true, data: { items, nextCursor, hasMore, limit } });
+  }
+
+  // Offset mode (legacy dashboard): return paginated envelope with total count
   const [rows, countRows] = await Promise.all([
     db
       .select({
         id: articles.id,
         slug: articles.slug,
         title: articles.title,
+        collection: articles.collection,
         cornerstoneKeyword: articles.cornerstoneKeyword,
         status: articles.status,
         cornerstoneSpecId: articles.cornerstoneSpecId,

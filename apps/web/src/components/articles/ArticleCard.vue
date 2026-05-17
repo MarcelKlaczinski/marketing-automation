@@ -1,0 +1,180 @@
+<template>
+  <GlassCard
+    class="article-card"
+    :class="{ 'card-selected': selected }"
+    hoverable
+    :selected="selected"
+    tag="button"
+    @click="$emit('select')"
+  >
+    <div class="card-inner">
+      <div class="card-row">
+        <span class="card-tag mono">{{ article.collection ?? "—" }}</span>
+        <span class="card-locale mono">{{ article.locale ?? "—" }}</span>
+        <span :class="['card-status', `status-${statusVariant}`]">{{ statusLabel }}</span>
+      </div>
+
+      <h3 class="card-title">{{ article.title ?? article.cornerstoneKeyword ?? article.slug }}</h3>
+
+      <div class="card-meta mono">
+        <span v-if="article.wordCount">{{ article.wordCount }}w</span>
+        <span v-if="article.wordCount" class="sep">·</span>
+        <span class="card-time">{{ relativeTime }}</span>
+      </div>
+    </div>
+  </GlassCard>
+</template>
+
+<script lang="ts">
+import { defineComponent, type PropType } from "vue";
+import GlassCard from "src/components/ui/GlassCard.vue";
+
+interface ArticleStub {
+  id: string;
+  slug: string;
+  title: string | null;
+  cornerstoneKeyword: string | null;
+  collection: string | null;
+  locale: string | null;
+  status: string;
+  wordCount: number | null;
+  updatedAt: string | Date;
+}
+
+const STATUS_VARIANT_MAP: Record<string, string> = {
+  proposed: "idle",
+  approved: "queued",
+  generating: "running",
+  outline_review: "queued",
+  drafting: "running",
+  final_review: "queued",
+  published: "completed",
+  failed: "failed",
+};
+
+const STATUS_LABEL_MAP: Record<string, string> = {
+  proposed: "Proposed",
+  approved: "Approved",
+  generating: "Generating",
+  outline_review: "Outline",
+  drafting: "Drafting",
+  final_review: "Review",
+  schema_extending: "Schema",
+  ready_to_publish: "Ready",
+  validating: "Validating",
+  published: "Published",
+  blocked_by_pagespeed: "Blocked",
+  failed: "Failed",
+  rejected: "Rejected",
+};
+
+function formatRelative(date: string | Date): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const diffMs = Date.now() - d.getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
+
+export default defineComponent({
+  name: "ArticleCard",
+
+  components: { GlassCard },
+
+  emits: ["select"],
+
+  props: {
+    article: { type: Object as PropType<ArticleStub>, required: true },
+    selected: { type: Boolean, default: false },
+  },
+
+  computed: {
+    statusVariant(): string {
+      return STATUS_VARIANT_MAP[this.article.status] ?? "idle";
+    },
+    statusLabel(): string {
+      return STATUS_LABEL_MAP[this.article.status] ?? this.article.status;
+    },
+    relativeTime(): string {
+      return formatRelative(this.article.updatedAt);
+    },
+  },
+});
+</script>
+
+<style scoped>
+.article-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+.card-selected {
+  border-color: var(--accent-primary);
+}
+
+.card-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-tag,
+.card-locale {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.card-status {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.status-running { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.status-queued  { background: rgba(234, 179, 8, 0.15); color: #fbbf24; }
+.status-completed { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+.status-failed  { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+.status-idle    { background: rgba(255, 255, 255, 0.06); color: var(--text-tertiary); }
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  margin: 0;
+}
+
+.card-meta {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sep {
+  color: var(--border-medium);
+}
+</style>

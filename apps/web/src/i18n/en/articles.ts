@@ -333,4 +333,68 @@ export default {
       },
     },
   },
+
+  // 56.2: Articles view (list + detail)
+  list: {
+    title: "Articles",
+    empty: "No articles found",
+    emptyDescription: "Adjust your filters or run Cold-Start.",
+    detailEmpty: "Select an article",
+    detailEmptyDescription: "Click an article on the left to see details.",
+  },
+
+  filters: {
+    status: "Status",
+    collection: "Collection",
+    locale: "Locale",
+    collections: {
+      blog: "Blog",
+      tools: "Tools",
+      comparisons: "Comparisons",
+      "ki-wissen": "KI-Wissen",
+      usecases: "Use Cases",
+      "tool-categories": "Tool Categories",
+    },
+    locales: {
+      de: "DE",
+      en: "EN",
+    },
+  },
+
+  detailTabs: {
+    body: "Body",
+    frontmatter: "Frontmatter",
+    versions: "Versions",
+    runs: "Runs",
+    cost: "Cost",
+  },
+
+  detailActions: {
+    preview: "Preview",
+    refresh: "Refresh",
+    sync: "Sync",
+  },
+
+  bodyEditor: {
+    words: "words",
+    chars: "chars",
+    save: "Save",
+    cancel: "Cancel",
+    saveSuccess: "Content saved",
+  },
+
+  versionsTab: {
+    noVersions: "No versions yet",
+    version: "Version {n}",
+    noReason: "(no reason given)",
+  },
+
+  runsTab: {
+    noRuns: "No runs for this article yet",
+  },
+
+  costTab: {
+    noData: "No cost data yet",
+    totalCost: "Total cost",
+  },
 };
