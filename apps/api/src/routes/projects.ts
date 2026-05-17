@@ -162,6 +162,8 @@ projectRoutes.get("/:slug", async (c) => {
       pagespeedThresholds: proj.pagespeedThresholds,
       linkRebuildBudgetMonthly: proj.linkRebuildBudgetMonthly,
       costLimits: proj.costLimits,
+      translationAutoTrigger: proj.translationAutoTrigger,
+      autoPublish: proj.autoPublish,
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),
@@ -285,6 +287,7 @@ const updateProjectSchema = z.object({
     .string()
     .regex(/^\d+(\.\d{1,2})?$/)
     .optional(),
+  translationAutoTrigger: z.boolean().optional(),
 });
 
 projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c) => {
@@ -313,6 +316,8 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     setFields.pagespeedThresholds = input.pagespeedThresholds;
   if (input.linkRebuildBudgetMonthly !== undefined)
     setFields.linkRebuildBudgetMonthly = input.linkRebuildBudgetMonthly;
+  if (input.translationAutoTrigger !== undefined)
+    setFields.translationAutoTrigger = input.translationAutoTrigger;
 
   await db
     .update(projects)

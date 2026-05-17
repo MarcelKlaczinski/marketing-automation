@@ -10,6 +10,50 @@ export default {
 
   project: {
     title: "Project Settings",
+    basics: {
+      title: "Basics",
+      description: "Project name, domain, and industry.",
+    },
+    marketing: {
+      title: "Marketing Context",
+      description: "Target audience, tone of voice, and core messages for the AI pipeline.",
+    },
+    costLimits: {
+      title: "Cost Limits",
+      description: "Monthly budget and alert thresholds for API costs.",
+    },
+    astro: {
+      title: "Astro Repository",
+      description: "Connection to the Astro repo for publishing articles and local preview.",
+      notConfigured: "No Astro repository configured.",
+    },
+    pagespeed: {
+      title: "PageSpeed Thresholds",
+      description: "Minimum Lighthouse score requirements for validation.",
+    },
+    translation: {
+      title: "Translation Automation",
+      description: "Automatically generate an EN version when a DE article completes.",
+    },
+    fields: {
+      name: "Project name",
+      domain: "Domain",
+      domainHelper: "Public domain without protocol, e.g. example.com",
+      industry: "Industry",
+      marketingContextMd: "Marketing context (Markdown)",
+      marketingContextMdHelper: "Target audience, tone, and core messages. Loaded into every pipeline.",
+      monthlyBudget: "Monthly Anthropic budget (€)",
+      monthlyBudgetHelper: "Maximum monthly spend on Anthropic API calls.",
+      alertThreshold: "Alert threshold (%)",
+      alertThresholdHelper: "Percentage of budget at which a warning alert fires (e.g. 80).",
+      astroDefaultBranch: "Default branch",
+      astroLocalPath: "Local path",
+      astroLocalPathHelper: "Absolute path to the locally checked-out Astro repo for preview.",
+      minPerformance: "Minimum performance score (0–100)",
+      minSeo: "Minimum SEO score (0–100)",
+      translationAutoTrigger: "Auto-generate EN version",
+      translationAutoTriggerHelper: "Starts the translation pipeline automatically after a DE article completes.",
+    },
   },
 
   brandTokens: {

@@ -10,6 +10,50 @@ export default {
 
   project: {
     title: "Projekteinstellungen",
+    basics: {
+      title: "Grundlagen",
+      description: "Name, Domain und Branche des Projekts.",
+    },
+    marketing: {
+      title: "Marketing-Kontext",
+      description: "Beschreibung der Zielgruppe, Tonalität und Kernbotschaften für die KI-Pipeline.",
+    },
+    costLimits: {
+      title: "Kostenlimits",
+      description: "Monatliches Budget und Alarmgrenzen für API-Kosten.",
+    },
+    astro: {
+      title: "Astro-Repository",
+      description: "Verbindung zum Astro-Repo für Artikelveröffentlichung und lokale Vorschau.",
+      notConfigured: "Kein Astro-Repository konfiguriert.",
+    },
+    pagespeed: {
+      title: "PageSpeed-Schwellenwerte",
+      description: "Mindestanforderungen für Lighthouse-Scores bei der Validierung.",
+    },
+    translation: {
+      title: "Übersetzungs-Automatisierung",
+      description: "Automatisch EN-Version generieren wenn ein DE-Artikel fertiggestellt wird.",
+    },
+    fields: {
+      name: "Projektname",
+      domain: "Domain",
+      domainHelper: "Öffentliche Domain ohne Protokoll, z.B. ki-wissensraum.de",
+      industry: "Branche",
+      marketingContextMd: "Marketing-Kontext (Markdown)",
+      marketingContextMdHelper: "Beschreibung der Zielgruppe, Tonalität und Kernbotschaften. Wird in jede Pipeline geladen.",
+      monthlyBudget: "Monatliches Anthropic-Budget (€)",
+      monthlyBudgetHelper: "Maximale monatliche Ausgaben für Anthropic API-Aufrufe.",
+      alertThreshold: "Alarm-Schwellenwert (%)",
+      alertThresholdHelper: "Bei welchem Prozent des Budgets eine Warnung ausgelöst wird (z.B. 80).",
+      astroDefaultBranch: "Standard-Branch",
+      astroLocalPath: "Lokaler Pfad",
+      astroLocalPathHelper: "Absoluter Pfad zum lokal ausgecheckten Astro-Repo für die Vorschau.",
+      minPerformance: "Mindest-Performance-Score (0–100)",
+      minSeo: "Mindest-SEO-Score (0–100)",
+      translationAutoTrigger: "EN-Version automatisch generieren",
+      translationAutoTriggerHelper: "Startet die Übersetzungs-Pipeline automatisch nach Abschluss eines DE-Artikels.",
+    },
   },
 
   brandTokens: {
