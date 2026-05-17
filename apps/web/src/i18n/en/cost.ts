@@ -49,8 +49,43 @@ export default {
     noResults: "No results for these filters",
   },
 
+  windows: {
+    today: "Today",
+    week: "Week",
+    month: "Month",
+    year: "Year",
+  },
+
+  stats: {
+    total: "Total cost",
+    articles: "Articles generated",
+    articlesUnit: "articles",
+    avgPerArticle: "Avg per article",
+    alerts: "Active alerts",
+  },
+
+  byService: {
+    title: "Cost by service",
+  },
+
+  byOperation: {
+    title: "Cost by operation",
+  },
+
+  trend: {
+    title: "Cost trend",
+  },
+
   alerts: {
     title: "{count} active cost alerts",
+    sectionTitle: "Cost alerts",
+    acknowledge: "Acknowledge",
+    ackedAt: "Acknowledged {time}",
+    showAcked: "Show acknowledged",
+    empty: {
+      title: "No alerts",
+      description: "No cost alerts were triggered for the selected period.",
+    },
   },
 
   errors: {

@@ -49,8 +49,43 @@ export default {
     noResults: "Keine Treffer für diese Filter",
   },
 
+  windows: {
+    today: "Heute",
+    week: "Woche",
+    month: "Monat",
+    year: "Jahr",
+  },
+
+  stats: {
+    total: "Gesamtkosten",
+    articles: "Artikel generiert",
+    articlesUnit: "Artikel",
+    avgPerArticle: "Ø pro Artikel",
+    alerts: "Aktive Warnungen",
+  },
+
+  byService: {
+    title: "Kosten nach Service",
+  },
+
+  byOperation: {
+    title: "Kosten nach Operation",
+  },
+
+  trend: {
+    title: "Kostenverlauf",
+  },
+
   alerts: {
     title: "{count} aktive Kostenwarnungen",
+    sectionTitle: "Kostenwarnungen",
+    acknowledge: "Bestätigen",
+    ackedAt: "Bestätigt {time}",
+    showAcked: "Bestätigte anzeigen",
+    empty: {
+      title: "Keine Warnungen",
+      description: "Für den gewählten Zeitraum wurden keine Kostenwarnungen ausgelöst.",
+    },
   },
 
   errors: {

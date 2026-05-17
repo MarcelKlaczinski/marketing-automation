@@ -96,7 +96,21 @@ export default {
 
   brandAssets: {
     title: "Brand-Assets",
-    slots: {},
+    uploadLabel: "Datei hochladen",
+    uploadDrag: "Datei hierher ziehen oder klicken",
+    deleteLabel: "Löschen",
+    noAsset: "Kein Asset hochgeladen",
+    uploadError: "Upload fehlgeschlagen",
+    slots: {
+      logo: {
+        title: "Logo",
+        description: "Primäres Brand-Logo (SVG oder PNG empfohlen, min. 200×60 px)",
+      },
+      tool_icon: {
+        title: "Tool-Icon",
+        description: "Standardicon für Tools ohne eigenes Logo (quadratisch, min. 128×128 px)",
+      },
+    },
   },
 
   credentials: {
