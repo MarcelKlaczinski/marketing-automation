@@ -1,5 +1,5 @@
 <template>
-  <section class="dashboard-lanes" :aria-label="$t('nav.dashboard') as string">
+  <section class="dashboard-lanes" :aria-label="$t('nav.dashboard') as string" :style="{ gridTemplateColumns: `repeat(${laneOrder.length}, 1fr)` }">
     <!-- Loading skeletons -->
     <template v-if="isLoading">
       <div v-for="i in 4" :key="i" class="lane-skeleton">
@@ -54,6 +54,10 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    statusFilter: {
+      type: String as PropType<"all" | "running" | "queued" | "failed" | "completed">,
+      default: "all",
+    },
   },
 
   setup() {
@@ -63,7 +67,9 @@ export default defineComponent({
 
   computed: {
     laneOrder(): PipelineStatus[] {
-      return LANE_ORDER;
+      if (this.statusFilter === "all") return LANE_ORDER;
+      const f = this.statusFilter as PipelineStatus;
+      return LANE_ORDER.includes(f) ? [f] : LANE_ORDER;
     },
 
     filteredRuns(): PipelineRunSummary[] {

@@ -209,7 +209,10 @@ export default defineComponent({
 
     const { data: tokens } = useQuery({
       queryKey: ["brand-tokens", slug],
-      queryFn: () => apiGet<BrandTokensResponse>(`/projects/${slug}/brand-tokens`),
+      queryFn: () =>
+        apiGet<{ tokens: BrandTokensResponse; defaults: BrandTokensResponse }>(
+          `/projects/${slug}/brand-tokens`,
+        ).then((d) => d.tokens),
     });
 
     const colorsForm = useSectionForm({

@@ -187,6 +187,7 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 20px;
 }
 
 .credential-header {

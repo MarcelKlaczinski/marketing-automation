@@ -40,7 +40,7 @@
 
     <!-- Breakdown charts -->
     <div class="costs-breakdown">
-      <GlassCard variant="strong">
+      <GlassCard variant="strong" class="chart-card">
         <h2 class="card-title">{{ $t("cost.byService.title") as string }}</h2>
         <CostBreakdownChart
           :data="costData ? costData.byService : null"
@@ -48,7 +48,7 @@
         />
       </GlassCard>
 
-      <GlassCard variant="strong">
+      <GlassCard variant="strong" class="chart-card">
         <h2 class="card-title">{{ $t("cost.byOperation.title") as string }}</h2>
         <CostBreakdownChart
           :data="costData ? costData.byOperation : null"
@@ -270,6 +270,14 @@ export default defineComponent({
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.chart-card {
+  padding: 20px;
+}
+
+.costs-trend {
+  padding: 20px;
 }
 
 .card-title {

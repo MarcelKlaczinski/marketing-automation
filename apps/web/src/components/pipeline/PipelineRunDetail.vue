@@ -1,7 +1,12 @@
 <template>
   <div class="run-detail">
+    <!-- Non-pipeline_runs entries: no detail endpoint available -->
+    <div v-if="source !== 'pipeline_runs'" class="detail-unsupported text-sm text-tertiary">
+      {{ $t('dashboard.detail.noDetailAvailable') }}
+    </div>
+
     <!-- Loading state -->
-    <template v-if="isLoading">
+    <template v-else-if="isLoading">
       <LoadingShimmer variant="line" height="12px" width="80px" />
       <LoadingShimmer variant="line" height="20px" width="100%" style="margin-top: 8px;" />
       <LoadingShimmer variant="card" height="180px" style="margin-top: 16px;" />
@@ -116,7 +121,7 @@ import { apiGet, apiPost, apiPatch } from "src/lib/api";
 import StatusBadge from "src/components/ui/StatusBadge.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
 import PipelineStepTimeline from "./PipelineStepTimeline.vue";
-import type { PipelineRunDetailResponse } from "src/types/ui";
+import type { PipelineRunDetailResponse, ActivitySource } from "src/types/ui";
 
 /** Format ISO timestamp as locale-aware short time */
 function formatTime(iso: string): string {
@@ -149,6 +154,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    source: {
+      type: String as () => ActivitySource,
+      default: "pipeline_runs",
+    },
   },
 
   setup(props) {
@@ -160,7 +169,7 @@ export default defineComponent({
       queryFn: () => apiGet<PipelineRunDetailResponse>(`/pipeline-runs/${props.runId}`),
       refetchInterval: 5_000,
       staleTime: 2_000,
-      enabled: !!props.runId,
+      enabled: !!props.runId && props.source === "pipeline_runs",
     });
 
     return { detail, isLoading, isError, projectStore, queryClient };
@@ -262,7 +271,8 @@ export default defineComponent({
   line-height: 1.5;
 }
 
-.detail-error {
+.detail-error,
+.detail-unsupported {
   padding: var(--space-4) 0;
   text-align: center;
 }

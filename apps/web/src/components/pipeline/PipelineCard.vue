@@ -6,9 +6,9 @@
     tabindex="0"
     :aria-label="run.title"
     :aria-pressed="selected"
-    @click="$emit('select', run.id)"
-    @keydown.enter="$emit('select', run.id)"
-    @keydown.space.prevent="$emit('select', run.id)"
+    @click="$emit('select', { id: run.id, source: run.source })"
+    @keydown.enter="$emit('select', { id: run.id, source: run.source })"
+    @keydown.space.prevent="$emit('select', { id: run.id, source: run.source })"
   >
     <!-- Running scanline animation -->
     <div v-if="run.status === 'running'" class="card-scanline" aria-hidden="true" />

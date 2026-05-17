@@ -2,6 +2,7 @@ import { watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
 import { apiGet, apiPatch } from "src/lib/api";
 import { useSectionForm } from "./useSectionForm";
+import { useDiscoverySettings } from "./useDiscoverySettings";
 
 interface AstroRepoConfig {
   owner: string;
@@ -40,6 +41,10 @@ interface ProjectSettingsData {
   pagespeedThresholds: PagespeedThresholds | null;
   costLimits: CostLimits;
   translationAutoTrigger: boolean;
+  trendsCronEnabled: boolean;
+  refreshCronEnabled: boolean;
+  autoApproveGaps: boolean;
+  refreshStalenessThresholdDays: number;
 }
 
 export function useSettingsProjectPage(slug: string) {
@@ -145,6 +150,8 @@ export function useSettingsProjectPage(slug: string) {
     invalidateKeys: [["project-settings", slug]],
   });
 
+  const { discoveryForm, cronStatus, triggerCron } = useDiscoverySettings(slug, project);
+
   watch(project, () => {
     basicsForm.resetFromUpstream();
     marketingForm.resetFromUpstream();
@@ -152,6 +159,7 @@ export function useSettingsProjectPage(slug: string) {
     astroForm.resetFromUpstream();
     pagespeedForm.resetFromUpstream();
     translationForm.resetFromUpstream();
+    discoveryForm.resetFromUpstream();
   });
 
   return {
@@ -163,5 +171,8 @@ export function useSettingsProjectPage(slug: string) {
     astroForm,
     pagespeedForm,
     translationForm,
+    discoveryForm,
+    cronStatus,
+    triggerCron,
   };
 }

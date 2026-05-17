@@ -222,6 +222,7 @@ export default defineComponent({
   flex-direction: column;
   gap: 20px;
   max-width: 640px;
+  padding: 20px;
 }
 
 .form-header {

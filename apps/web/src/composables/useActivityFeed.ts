@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/vue-query";
 import { useProjectStore } from "src/stores/project";
 import { apiGet } from "src/lib/api";
-import type { PipelineRunSummary, PipelineStatus } from "src/types/ui";
+import type { ActivitySource, PipelineRunSummary, PipelineStatus } from "src/types/ui";
 
 interface ActivityEntry {
   id: string;
+  source: string;
   type: string;
   status: string;
   title: string;
@@ -15,6 +16,11 @@ interface ActivityEntry {
   finishedAt: string | null;
   createdAt: string;
 }
+
+const VALID_SOURCES = new Set<ActivitySource>([
+  "pipeline_runs", "astro_sync_runs", "pagespeed_runs",
+  "schema_extension_runs", "link_rebuild_runs",
+]);
 
 const VALID_STATUSES = new Set(["queued", "running", "completed", "failed", "cancelled"]);
 
@@ -35,6 +41,7 @@ export function useActivityFeed() {
       );
       return result.entries.map((e): PipelineRunSummary => ({
         id: e.id,
+        source: (VALID_SOURCES.has(e.source as ActivitySource) ? e.source : "pipeline_runs") as ActivitySource,
         type: e.type,
         status: (VALID_STATUSES.has(e.status) ? e.status : "failed") as PipelineStatus,
         title: e.title,

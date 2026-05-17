@@ -33,12 +33,7 @@
           />
         </div>
 
-        <LoadMoreButton
-          :has-more="hasMore"
-          :loading="isFetchingMore"
-          :total-loaded="clusters.length"
-          @load-more="loadMore"
-        />
+        <div ref="loadMoreSentinel" class="load-more-sentinel" />
       </div>
     </aside>
 
@@ -57,7 +52,6 @@ import { defineComponent } from "vue";
 import { useClustersList } from "src/composables/useClustersList";
 import type { ClustersListFilters } from "src/composables/useClustersList";
 import FilterBar from "src/components/ui/FilterBar.vue";
-import LoadMoreButton from "src/components/ui/LoadMoreButton.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
 import EmptyState from "src/components/ui/EmptyState.vue";
 import ClusterCard from "src/components/cluster/ClusterCard.vue";
@@ -67,7 +61,6 @@ export default defineComponent({
 
   components: {
     FilterBar,
-    LoadMoreButton,
     LoadingShimmer,
     EmptyState,
     ClusterCard,
@@ -88,6 +81,7 @@ export default defineComponent({
   data: () => ({
     activeFilters: {} as Record<string, string>,
     searchQuery: "",
+    _observer: null as IntersectionObserver | null,
   }),
 
   computed: {
@@ -110,6 +104,24 @@ export default defineComponent({
         },
       ];
     },
+  },
+
+  mounted(): void {
+    const sentinel = this.$refs.loadMoreSentinel as Element | undefined;
+    if (!sentinel) return;
+    this._observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && this.hasMore && !this.isFetchingMore) {
+          this.loadMore();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    this._observer.observe(sentinel);
+  },
+
+  beforeUnmount(): void {
+    this._observer?.disconnect();
   },
 
   methods: {
@@ -178,6 +190,10 @@ export default defineComponent({
 .cluster-selected {
   outline: 2px solid var(--accent-primary);
   outline-offset: 2px;
+}
+
+.load-more-sentinel {
+  height: 1px;
 }
 
 @media (max-width: 767px) {

@@ -86,6 +86,7 @@ export default defineComponent({
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  padding: 16px;
 }
 
 .alert-body {

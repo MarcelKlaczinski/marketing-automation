@@ -20,6 +20,7 @@
     <StatCard
       :label="$t('dashboard.stats.articlesWeek') as string"
       :value="articlesWeekDisplay"
+      :subtitle="articlesWeekSubtitle"
       :sparkline-data="[]"
       sparkline-color="#4ade80"
       :loading="isLoadingArticles"
@@ -43,7 +44,7 @@ import { useProjectStore } from "src/stores/project";
 import { apiGet } from "src/lib/api";
 import StatCard from "src/components/stats/StatCard.vue";
 
-interface ArticlesWeekResponse { count: number }
+interface ArticlesWeekResponse { count: number; de: number; en: number }
 
 /**
  * 4-column grid of KPI stat cards.
@@ -135,6 +136,15 @@ export default defineComponent({
 
     articlesWeekDisplay(): string | number {
       return this.articlesData?.count ?? "—";
+    },
+
+    articlesWeekSubtitle(): string {
+      const d = this.articlesData;
+      if (!d || (d.de === 0 && d.en === 0)) return "";
+      const parts: string[] = [];
+      if (d.de > 0) parts.push(`DE ${d.de}`);
+      if (d.en > 0) parts.push(`EN ${d.en}`);
+      return parts.join(" · ");
     },
 
     successRateDisplay(): string {

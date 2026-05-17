@@ -11,7 +11,10 @@
       <span v-if="loading" class="stat-loading">
         <LoadingShimmer variant="line" height="32px" width="80px" />
       </span>
-      <span v-else class="stat-value mono">{{ displayValue }}</span>
+      <template v-else>
+        <span v-if="subtitle" class="stat-subtitle">{{ subtitle }}</span>
+        <span class="stat-value mono">{{ displayValue }}</span>
+      </template>
     </div>
 
     <div class="stat-sparkline">
@@ -57,6 +60,8 @@ export default defineComponent({
     sparklineColor: { type: String, default: "#7c5cff" },
     /** Shows shimmer skeleton instead of value */
     loading: { type: Boolean, default: false },
+    /** Optional small subtitle rendered below the value */
+    subtitle: { type: String, default: "" },
   },
 
   computed: {
@@ -120,7 +125,9 @@ export default defineComponent({
 .stat-value-row {
   flex: 1;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
 }
 
 .stat-value {
@@ -132,6 +139,14 @@ export default defineComponent({
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.stat-subtitle {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  margin-bottom: 4px;
 }
 
 /* Sparkline pinned to bottom-right */

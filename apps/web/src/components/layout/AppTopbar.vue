@@ -40,20 +40,67 @@
         <kbd class="cmd-kbd mono">⌘K</kbd>
       </button>
 
-      <!-- Notifications bell -->
-      <button
-        class="icon-btn notif-btn"
-        :aria-label="$t('notifications.title') as string"
-        @click="notificationsOpen = !notificationsOpen"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <path d="M8 1.5a5 5 0 0 1 5 5v2.5l1 2H1l1-2V6.5a5 5 0 0 1 5-5z" />
-          <path d="M6 13.5a2 2 0 0 0 4 0" />
-        </svg>
-        <span v-if="unreadCount > 0" class="notif-badge" :aria-label="`${unreadCount}`">
-          {{ unreadCount > 9 ? "9+" : unreadCount }}
-        </span>
-      </button>
+      <!-- Notifications bell + dropdown -->
+      <div class="notif-wrapper">
+        <button
+          class="icon-btn notif-btn"
+          :aria-label="$t('notifications.title') as string"
+          @click="toggleNotifications"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M8 1.5a5 5 0 0 1 5 5v2.5l1 2H1l1-2V6.5a5 5 0 0 1 5-5z" />
+            <path d="M6 13.5a2 2 0 0 0 4 0" />
+          </svg>
+          <span v-if="unreadCount > 0" class="notif-badge" :aria-label="`${unreadCount}`">
+            {{ unreadCount > 9 ? "9+" : unreadCount }}
+          </span>
+        </button>
+
+        <!-- Backdrop (closes dropdown on outside click) -->
+        <div
+          v-if="notificationsOpen"
+          class="notif-backdrop"
+          @click="notificationsOpen = false"
+        />
+
+        <!-- Dropdown panel -->
+        <div v-if="notificationsOpen" class="notif-dropdown" role="dialog" :aria-label="$t('notifications.title') as string">
+          <div class="notif-header">
+            <span class="notif-title text-sm">{{ $t('notifications.title') }}</span>
+            <button
+              v-if="unreadCount > 0"
+              class="notif-mark-read text-sm"
+              @click="markAllRead"
+            >
+              {{ $t('notifications.markAllRead') }}
+            </button>
+          </div>
+
+          <div v-if="isLoadingNotifications" class="notif-loading">
+            <div v-for="i in 3" :key="i" class="notif-skeleton" />
+          </div>
+
+          <div v-else-if="notificationItems.length === 0" class="notif-empty text-sm">
+            {{ $t('notifications.empty') }}
+          </div>
+
+          <ul v-else class="notif-list">
+            <li
+              v-for="notif in notificationItems"
+              :key="notif.id"
+              class="notif-item"
+              :class="{ 'notif-item--unread': !notif.readAt }"
+            >
+              <div class="notif-item-dot" :class="`dot--${notif.severity}`" />
+              <div class="notif-item-body">
+                <p class="notif-item-title text-sm">{{ notif.title }}</p>
+                <p class="notif-item-msg text-xs text-tertiary">{{ notif.message }}</p>
+                <p class="notif-item-time text-xs text-dim">{{ relativeTime(notif.createdAt) }}</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
 
       <!-- User avatar -->
       <button
@@ -69,11 +116,21 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { useQuery } from "@tanstack/vue-query";
+import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { useUiStore } from "src/stores/ui";
 import { useAuthStore } from "src/stores/auth";
-import { apiGet } from "src/lib/api";
+import { apiGet, apiPost } from "src/lib/api";
 import ProjectSelector from "./ProjectSelector.vue";
+
+interface NotificationItem {
+  id: string;
+  type: string;
+  severity: string;
+  title: string;
+  message: string;
+  readAt: string | null;
+  createdAt: string;
+}
 
 /**
  * Application topbar — 56px height.
@@ -94,6 +151,7 @@ export default defineComponent({
   setup() {
     const uiStore = useUiStore();
     const authStore = useAuthStore();
+    const queryClient = useQueryClient();
 
     const { data: unreadData } = useQuery({
       queryKey: ["notifications", "unread-count"],
@@ -101,12 +159,20 @@ export default defineComponent({
       refetchInterval: 60_000,
     });
 
-    return { uiStore, authStore, unreadData };
+    return { uiStore, authStore, unreadData, queryClient };
   },
 
   data: () => ({
     notificationsOpen: false,
+    notificationItems: [] as NotificationItem[],
+    isLoadingNotifications: false,
   }),
+
+  watch: {
+    notificationsOpen(val: boolean): void {
+      if (val) void this.fetchNotifications();
+    },
+  },
 
   computed: {
     unreadCount(): number {
@@ -122,6 +188,41 @@ export default defineComponent({
         return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase();
       }
       return (parts[0]?.slice(0, 2) ?? "?").toUpperCase();
+    },
+  },
+
+  methods: {
+    toggleNotifications(): void {
+      this.notificationsOpen = !this.notificationsOpen;
+    },
+
+    async fetchNotifications(): Promise<void> {
+      this.isLoadingNotifications = true;
+      try {
+        const data = await apiGet<{ notifications: NotificationItem[] }>("/notifications?limit=10");
+        this.notificationItems = data.notifications;
+      } finally {
+        this.isLoadingNotifications = false;
+      }
+    },
+
+    async markAllRead(): Promise<void> {
+      await apiPost("/notifications/mark-all-read", {});
+      this.notificationItems = this.notificationItems.map((n) => ({
+        ...n,
+        readAt: n.readAt ?? new Date().toISOString(),
+      }));
+      void this.queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    },
+
+    relativeTime(isoStr: string): string {
+      const diff = Date.now() - new Date(isoStr).getTime();
+      const mins = Math.floor(diff / 60_000);
+      if (mins < 1) return this.$t("notifications.relative.justNow") as string;
+      if (mins < 60) return this.$t("notifications.relative.minutesAgo", { n: mins }) as string;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return this.$t("notifications.relative.hoursAgo", { n: hours }) as string;
+      return this.$t("notifications.relative.daysAgo", { n: Math.floor(hours / 24) }) as string;
     },
   },
 });
@@ -293,6 +394,161 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   line-height: 1;
+}
+
+/* Notification wrapper + dropdown */
+.notif-wrapper {
+  position: relative;
+}
+
+.notif-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-sticky) + 1);
+}
+
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--bg-elevated, #1a1a2e);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg, 10px);
+  box-shadow: var(--shadow-elevated);
+  z-index: calc(var(--z-sticky) + 2);
+  display: flex;
+  flex-direction: column;
+}
+
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.notif-title {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.notif-mark-read {
+  background: none;
+  border: none;
+  color: var(--accent-primary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  padding: 0;
+  font-size: 11px;
+}
+
+.notif-loading {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notif-skeleton {
+  height: 48px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass-strong);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.notif-empty {
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notif-item {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item--unread {
+  background: color-mix(in oklch, var(--accent-primary) 5%, transparent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .notif-item:hover {
+    background: var(--bg-glass-strong);
+  }
+}
+
+.notif-item-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+
+.dot--info { background: var(--accent-primary); }
+.dot--warning { background: var(--status-warning, #f59e0b); }
+.dot--critical { background: var(--status-failed); }
+
+.notif-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notif-item-title {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-item-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notif-item-time {
+  margin-top: 2px;
+}
+
+/* Mobile: full-width dropdown */
+@media (max-width: 767px) {
+  .notif-dropdown {
+    position: fixed;
+    top: var(--topbar-height);
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-height: 60vh;
+    border-radius: 0 0 var(--radius-lg, 10px) var(--radius-lg, 10px);
+  }
 }
 
 /* User avatar */

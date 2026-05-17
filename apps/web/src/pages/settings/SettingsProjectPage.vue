@@ -114,6 +114,17 @@
         @save="astroForm.save()"
         @cancel="astroForm.cancel()"
       >
+        <template #header-actions>
+          <GlassButton
+            v-if="project?.astroRepo"
+            variant="ghost"
+            size="sm"
+            :loading="importInFlight"
+            @click="onTriggerImport"
+          >
+            {{ $t('settings.project.astro.triggerImport') as string }}
+          </GlassButton>
+        </template>
         <div v-if="project?.astroRepo" class="repo-info mono">
           {{ project.astroRepo.owner }}/{{ project.astroRepo.name }}
         </div>
@@ -194,6 +205,90 @@
           </label>
         </FormField>
       </FormSection>
+
+      <!-- Section 7: Discovery automation -->
+      <FormSection
+        :title="$t('settings.discovery.title')"
+        :description="$t('settings.discovery.description')"
+        :dirty="discoveryForm.dirty.value"
+        :saving="discoveryForm.saving.value"
+        :last-saved-at="discoveryForm.lastSavedAt.value ?? ''"
+        @save="discoveryForm.save()"
+        @cancel="discoveryForm.cancel()"
+      >
+        <!-- Trends cron -->
+        <div class="discovery-row">
+          <div class="discovery-row-info">
+            <h4 class="discovery-row-title">{{ $t("settings.discovery.trends.title") }}</h4>
+            <p class="discovery-row-desc">{{ $t("settings.discovery.trends.description") }}</p>
+            <CronStatusDisplay
+              v-if="cronStatus"
+              :status="cronStatus.trendsSynthesizer"
+              :triggering="trendsTriggeringInFlight"
+              @trigger="onTriggerCron('trends_synthesizer')"
+            />
+          </div>
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              v-model="discoveryForm.formData.value.trendsCronEnabled"
+            />
+            <span class="toggle-slider" />
+          </label>
+        </div>
+
+        <!-- Refresh cron -->
+        <div class="discovery-row">
+          <div class="discovery-row-info">
+            <h4 class="discovery-row-title">{{ $t("settings.discovery.refresh.title") }}</h4>
+            <p class="discovery-row-desc">{{ $t("settings.discovery.refresh.description") }}</p>
+            <CronStatusDisplay
+              v-if="cronStatus"
+              :status="cronStatus.refreshDetector"
+              :triggering="refreshTriggeringInFlight"
+              @trigger="onTriggerCron('refresh_detector')"
+            />
+          </div>
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              v-model="discoveryForm.formData.value.refreshCronEnabled"
+            />
+            <span class="toggle-slider" />
+          </label>
+        </div>
+
+        <!-- Staleness threshold -->
+        <FormField
+          :label="$t('settings.discovery.refresh.thresholdLabel')"
+          :helper="$t('settings.discovery.refresh.thresholdHelper')"
+        >
+          <FormInput
+            v-model="discoveryForm.formData.value.refreshStalenessThresholdDays"
+            type="number"
+            inputmode="numeric"
+            min="7"
+            max="365"
+            autocomplete="off"
+          />
+        </FormField>
+
+        <!-- Auto-approve gaps -->
+        <div class="discovery-row">
+          <div class="discovery-row-info">
+            <h4 class="discovery-row-title">{{ $t("settings.discovery.autoApproveGaps.title") }}</h4>
+            <p class="discovery-row-desc">{{ $t("settings.discovery.autoApproveGaps.description") }}</p>
+            <p class="discovery-warning">{{ $t("settings.discovery.autoApproveGaps.warning") }}</p>
+          </div>
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              v-model="discoveryForm.formData.value.autoApproveGaps"
+            />
+            <span class="toggle-slider" />
+          </label>
+        </div>
+      </FormSection>
     </template>
   </div>
 </template>
@@ -206,7 +301,10 @@ import FormField from "src/components/forms/FormField.vue";
 import FormInput from "src/components/forms/FormInput.vue";
 import FormSelect from "src/components/forms/FormSelect.vue";
 import FormTextarea from "src/components/forms/FormTextarea.vue";
+import GlassButton from "src/components/ui/GlassButton.vue";
+import CronStatusDisplay from "src/components/settings/CronStatusDisplay.vue";
 import { useSettingsProjectPage } from "src/composables/useSettingsProjectPage";
+import { apiPost } from "src/lib/api";
 
 export default defineComponent({
   name: "SettingsProjectPage",
@@ -217,12 +315,47 @@ export default defineComponent({
     FormInput,
     FormSelect,
     FormTextarea,
+    GlassButton,
+    CronStatusDisplay,
   },
 
   setup() {
     const route = useRoute();
     const slug = route.params.slug as string;
     return useSettingsProjectPage(slug);
+  },
+
+  data: () => ({
+    trendsTriggeringInFlight: false,
+    refreshTriggeringInFlight: false,
+    importInFlight: false,
+  }),
+
+  methods: {
+    async onTriggerImport(): Promise<void> {
+      const slug = (this.$route.params.slug as string);
+      this.importInFlight = true;
+      try {
+        await apiPost(`/projects/${slug}/astro-import`);
+        this.$q.notify({ type: "positive", message: this.$t("settings.project.astro.importStarted") as string });
+      } catch {
+        this.$q.notify({ type: "negative", message: this.$t("settings.project.astro.importError") as string });
+      } finally {
+        this.importInFlight = false;
+      }
+    },
+
+    async onTriggerCron(jobType: "trends_synthesizer" | "refresh_detector"): Promise<void> {
+      const isTrends = jobType === "trends_synthesizer";
+      if (isTrends) this.trendsTriggeringInFlight = true;
+      else this.refreshTriggeringInFlight = true;
+      try {
+        await this.triggerCron(jobType);
+      } finally {
+        if (isTrends) this.trendsTriggeringInFlight = false;
+        else this.refreshTriggeringInFlight = false;
+      }
+    },
   },
 });
 </script>
@@ -276,5 +409,110 @@ export default defineComponent({
   height: 16px;
   cursor: pointer;
   accent-color: var(--accent-primary);
+}
+
+/* Discovery section */
+.discovery-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.discovery-row:last-of-type {
+  border-bottom: none;
+}
+
+.discovery-row-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.discovery-row-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px;
+}
+
+.discovery-row-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+}
+
+.discovery-warning {
+  font-size: 12px;
+  color: var(--color-warning, #f59e0b);
+  margin: 4px 0 0;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+  border-radius: 11px;
+  transition: background 0.2s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  left: 2px;
+  top: 2px;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+  transition: transform 0.2s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              background 0.2s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: color-mix(in oklch, var(--accent-primary) 20%, transparent);
+  border-color: var(--accent-primary);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(18px);
+  background: var(--accent-primary);
+}
+
+@media (max-width: 767px) {
+  .toggle-switch {
+    width: 48px;
+    height: 28px;
+    border-radius: 14px;
+  }
+
+  .toggle-slider::before {
+    width: 20px;
+    height: 20px;
+  }
+
+  .toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+  }
 }
 </style>

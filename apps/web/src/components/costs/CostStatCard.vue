@@ -42,6 +42,7 @@ export default defineComponent({
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+  padding: 16px;
 }
 
 .stat-label {

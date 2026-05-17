@@ -70,6 +70,7 @@ export default {
     wordCount: "Words",
     author: "Author",
     loadError: "Could not load run.",
+    noDetailAvailable: "No detail view available for this run type.",
     actions: {
       open: "Open",
       retry: "Retry",

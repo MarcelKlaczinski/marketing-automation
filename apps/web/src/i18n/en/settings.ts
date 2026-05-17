@@ -26,6 +26,9 @@ export default {
       title: "Astro Repository",
       description: "Connection to the Astro repo for publishing articles and local preview.",
       notConfigured: "No Astro repository configured.",
+      triggerImport: "Start import",
+      importStarted: "Import started",
+      importError: "Could not start import",
     },
     pagespeed: {
       title: "PageSpeed Thresholds",
@@ -53,6 +56,34 @@ export default {
       minSeo: "Minimum SEO score (0–100)",
       translationAutoTrigger: "Auto-generate EN version",
       translationAutoTriggerHelper: "Starts the translation pipeline automatically after a DE article completes.",
+    },
+  },
+
+  discovery: {
+    title: "Content Discovery",
+    description: "Automation for trends, content gaps, and stale articles.",
+    active: "Active",
+    inactive: "Inactive",
+    lastRun: "Last run",
+    nextRun: "Next run",
+    runNow: "Run now",
+    running: "Running…",
+    inMinutes: "in {n} min",
+    inHours: "in {n} h",
+    trends: {
+      title: "Trend detection",
+      description: "Daily synthesis of external signals into topic briefs (01:30 UTC).",
+    },
+    refresh: {
+      title: "Refresh detection",
+      description: "Detects stale articles based on the staleness threshold (02:00 UTC).",
+      thresholdLabel: "Staleness threshold (days)",
+      thresholdHelper: "Articles not updated for more than N days will appear in the refresh queue.",
+    },
+    autoApproveGaps: {
+      title: "Auto-approve content gaps",
+      description: "Triggers article generation immediately after the suggest step, without manual approval.",
+      warning: "Warning: Articles will be generated and cost will accrue without confirmation.",
     },
   },
 

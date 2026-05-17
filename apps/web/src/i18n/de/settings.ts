@@ -26,6 +26,9 @@ export default {
       title: "Astro-Repository",
       description: "Verbindung zum Astro-Repo für Artikelveröffentlichung und lokale Vorschau.",
       notConfigured: "Kein Astro-Repository konfiguriert.",
+      triggerImport: "Import starten",
+      importStarted: "Import gestartet",
+      importError: "Import konnte nicht gestartet werden",
     },
     pagespeed: {
       title: "PageSpeed-Schwellenwerte",
@@ -53,6 +56,34 @@ export default {
       minSeo: "Mindest-SEO-Score (0–100)",
       translationAutoTrigger: "EN-Version automatisch generieren",
       translationAutoTriggerHelper: "Startet die Übersetzungs-Pipeline automatisch nach Abschluss eines DE-Artikels.",
+    },
+  },
+
+  discovery: {
+    title: "Content-Discovery",
+    description: "Automatisierung für Trends, Content-Gaps und veraltete Artikel.",
+    active: "Aktiv",
+    inactive: "Inaktiv",
+    lastRun: "Letzter Lauf",
+    nextRun: "Nächster Lauf",
+    runNow: "Jetzt ausführen",
+    running: "Läuft…",
+    inMinutes: "in {n} Min.",
+    inHours: "in {n} Std.",
+    trends: {
+      title: "Trend-Erkennung",
+      description: "Tägliche Synthese externer Signale zu Themenbriefs (01:30 UTC).",
+    },
+    refresh: {
+      title: "Refresh-Erkennung",
+      description: "Erkennt veraltete Artikel anhand des Staleness-Schwellenwerts (02:00 UTC).",
+      thresholdLabel: "Staleness-Schwellenwert (Tage)",
+      thresholdHelper: "Artikel, die länger als N Tage nicht aktualisiert wurden, erscheinen in der Refresh-Queue.",
+    },
+    autoApproveGaps: {
+      title: "Content-Gaps automatisch genehmigen",
+      description: "Startet die Artikel-Generierung direkt nach dem Suggest-Schritt, ohne manuelle Freigabe.",
+      warning: "Achtung: Es werden Artikel ohne Bestätigung generiert. Kosten entstehen automatisch.",
     },
   },
 

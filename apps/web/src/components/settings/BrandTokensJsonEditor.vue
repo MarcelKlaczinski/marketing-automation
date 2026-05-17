@@ -82,10 +82,10 @@ export default defineComponent({
 
   methods: {
     async loadAndInit(): Promise<void> {
-      const tokens = await apiGet<Record<string, unknown>>(
+      const resp = await apiGet<{ tokens: Record<string, unknown>; defaults: Record<string, unknown> }>(
         `/projects/${this.slug}/brand-tokens`,
       );
-      const doc = JSON.stringify(tokens, null, 2);
+      const doc = JSON.stringify(resp.tokens, null, 2);
       this.originalValue = doc;
       this.currentValue = doc;
       this.initEditor(doc);

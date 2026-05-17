@@ -27,6 +27,7 @@
       <DashboardLanes
         :selected-run-id="selectedRunId"
         :type-filter="activeTypeFilter"
+        :status-filter="uiStore.statusFilter"
         @select="onSelectRun"
       />
       <DashboardClusters />
@@ -47,7 +48,11 @@
         >
           ← {{ $t('common.back') }}
         </button>
-        <PipelineRunDetail :run-id="selectedRunId" />
+        <PipelineRunDetail
+          :key="selectedRunId ?? ''"
+          :run-id="selectedRunId"
+          :source="uiStore.selectedRunSource ?? 'pipeline_runs'"
+        />
       </div>
 
       <div v-else class="detail-empty">
@@ -136,8 +141,12 @@ export default defineComponent({
   },
 
   methods: {
-    onSelectRun(runId: string | null): void {
-      this.uiStore.selectPipelineRun(runId);
+    onSelectRun(payload: { id: string; source: string } | null): void {
+      if (!payload) {
+        this.uiStore.selectPipelineRun(null, null);
+      } else {
+        this.uiStore.selectPipelineRun(payload.id, payload.source as import("src/types/ui").ActivitySource);
+      }
     },
 
     onFilterLast24h(): void {

@@ -48,8 +48,8 @@ export default defineComponent({
   methods: {
     async fetchClusters(): Promise<void> {
       try {
-        const data = await apiGet<ClusterOption[]>(`/projects/${this.slug}/clusters`);
-        this.clusters = data;
+        const data = await apiGet<{ items: ClusterOption[] }>(`/projects/${this.slug}/clusters`);
+        this.clusters = data.items;
       } catch {
         // clusters list is optional — leave empty on error
       }
