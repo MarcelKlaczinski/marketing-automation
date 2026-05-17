@@ -31,6 +31,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { useProjectContext } from "src/composables/useProjectContext";
+import { useActivityFeed } from "src/composables/useActivityFeed";
 import { useCostSummary } from "src/composables/useCostSummary";
 import LiveIndicator from "src/components/ui/LiveIndicator.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
@@ -49,18 +50,18 @@ export default defineComponent({
 
   setup() {
     const { runningCount, failedCount, isLoading } = useProjectContext();
+    const { data: activityFeed } = useActivityFeed();
     // useCostSummary accepts a plain string (MaybeRef) — no ref() needed here
     const todaySummary = useCostSummary("today");
-    return { runningCount, failedCount, isLoading, todaySummary };
+    return { runningCount, failedCount, isLoading, todaySummary, activityFeed };
   },
 
-  data: () => ({
-    // Queued count placeholder — project picker doesn't expose this directly.
-    // Will be wired to useActivityFeed data in a later session.
-    queuedCount: 0,
-  }),
+  data: () => ({}),
 
   computed: {
+    queuedCount(): number {
+      return (this.activityFeed ?? []).filter((r) => r.status === "queued").length;
+    },
     todayCostDisplay(): string {
       const cost = this.todaySummary.data?.value?.totalEur ?? 0;
       return cost.toFixed(2);

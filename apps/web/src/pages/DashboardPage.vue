@@ -111,7 +111,7 @@ export default defineComponent({
     },
 
     onOpenFilter(): void {
-      // Filter panel — wired in a later session
+      // no-op — filter panel deferred to Phase E
     },
   },
 });
