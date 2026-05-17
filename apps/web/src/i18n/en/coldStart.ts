@@ -71,6 +71,7 @@ export default {
         voice: "Brand voice",
       },
       placeholders: {
+        domain: "example.com",
         voice: "Describe your brand tone: professional, approachable, direct …",
       },
     },
@@ -111,6 +112,10 @@ export default {
         repoPathHelper: "Absolute path on your machine, e.g. /Users/me/my-blog",
         deployTarget: "Deploy target",
         contentPath: "Content directory",
+      },
+      placeholders: {
+        repoPath: "/Users/me/my-astro-blog",
+        contentPath: "src/content",
       },
       deployTargets: {
         vercel: "Vercel",

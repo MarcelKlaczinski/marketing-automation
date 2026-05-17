@@ -153,6 +153,10 @@ const routes = [
     component: () => import("src/pages/cold-start/ColdStartNewPage.vue"),
   },
   {
+    path: "/cold-start/drafts",
+    redirect: "/cold-start/new",
+  },
+  {
     path: "/cold-start/:draftId",
     component: () => import("src/pages/cold-start/ColdStartLayout.vue"),
     children: [

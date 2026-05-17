@@ -21,7 +21,7 @@
     >
       <FormInput
         v-model="form.repoPath"
-        placeholder="/Users/me/my-astro-blog"
+        :placeholder="$t('coldStart.phases.astro.placeholders.repoPath') as string"
       />
     </FormField>
 
@@ -39,7 +39,7 @@
     <FormField :label="$t('coldStart.phases.astro.fields.contentPath') as string">
       <FormInput
         v-model="form.contentPath"
-        placeholder="src/content"
+        :placeholder="$t('coldStart.phases.astro.placeholders.contentPath') as string"
       />
     </FormField>
   </PhaseShell>

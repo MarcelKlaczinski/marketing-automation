@@ -23,7 +23,7 @@
         <FormField :label="$t('coldStart.phases.brand.fields.domain') as string">
           <FormInput
             v-model="discoveryDomain"
-            placeholder="example.com"
+            :placeholder="$t('coldStart.phases.brand.placeholders.domain') as string"
             inputmode="url"
           />
         </FormField>
