@@ -40,9 +40,11 @@ export default {
       wordCount: "Target word count",
       approvalMode: "Approval mode",
     },
+    noCluster: "No cluster (standalone)",
     placeholders: {
       topic: "e.g. The best AI code editors 2025",
       primaryKeyword: "e.g. ai-code-editor",
+      authorSlug: "Author slug (empty = automatic)",
     },
   },
 
@@ -50,6 +52,8 @@ export default {
     searchPlaceholder: "Search articles…",
     emptyTitle: "No article selected",
     emptyDescription: "Search for an article and select it.",
+    noResults: "No articles found",
+    noResultsDescription: "Try adjusting your search.",
 
     groups: {
       pipeline: "Pipeline steps",

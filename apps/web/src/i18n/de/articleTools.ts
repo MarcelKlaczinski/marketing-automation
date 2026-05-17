@@ -40,9 +40,11 @@ export default {
       wordCount: "Zielwortanzahl",
       approvalMode: "Freigabe-Modus",
     },
+    noCluster: "Kein Cluster (eigenständig)",
     placeholders: {
       topic: "z.B. Die besten KI-Code-Editoren 2025",
       primaryKeyword: "z.B. ki-code-editor",
+      authorSlug: "Autor-Slug (leer = automatisch)",
     },
   },
 
@@ -50,6 +52,8 @@ export default {
     searchPlaceholder: "Artikel suchen…",
     emptyTitle: "Kein Artikel ausgewählt",
     emptyDescription: "Suche nach einem Artikel und wähle ihn aus.",
+    noResults: "Keine Artikel gefunden",
+    noResultsDescription: "Passe die Suchanfrage an.",
 
     groups: {
       pipeline: "Pipeline-Schritte",
