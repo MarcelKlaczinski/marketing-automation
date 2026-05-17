@@ -23,6 +23,7 @@
 
     <!-- Title -->
     <p class="card-title text-sm">{{ run.title }}</p>
+    <p v-if="run.subtitle" class="card-subtitle mono">{{ run.subtitle }}</p>
 
     <!-- Progress bar (running only) -->
     <template v-if="run.status === 'running' && run.stepCount > 0">
@@ -35,7 +36,7 @@
     </template>
 
     <!-- Cost -->
-    <div v-if="run.costEur !== null" class="card-footer">
+    <div v-if="run.costEur != null" class="card-footer">
       <span class="cost-label mono text-xs text-dim">
         €{{ run.costEur.toFixed(3) }}
       </span>
@@ -52,14 +53,24 @@
 import { defineComponent, type PropType } from "vue";
 import type { PipelineRunSummary } from "src/types/ui";
 
-/** Maps pipeline type strings → i18n key paths */
+/** Maps pipeline type strings → i18n key paths (covers both legacy and ActivityType values) */
 const TYPE_I18N_KEYS: Record<string, string> = {
+  // Legacy (kept for backward compat)
   blog: "dashboard.pipeline.types.blog",
   translation: "dashboard.pipeline.types.translation",
   refresh: "dashboard.pipeline.types.refresh",
   cluster: "dashboard.pipeline.types.cluster",
   "cluster-creator": "dashboard.pipeline.types.cluster-creator",
   "cold-start": "dashboard.pipeline.types.cold-start",
+  // ActivityType values from /active endpoint
+  article_outline: "dashboard.pipeline.types.article_outline",
+  article_draft: "dashboard.pipeline.types.article_draft",
+  astro_sync: "dashboard.pipeline.types.astro_sync",
+  pagespeed: "dashboard.pipeline.types.pagespeed",
+  schema_extension: "dashboard.pipeline.types.schema_extension",
+  link_rebuild: "dashboard.pipeline.types.link_rebuild",
+  cold_start: "dashboard.pipeline.types.cold-start",
+  other: "dashboard.pipeline.types.default",
 };
 
 /** Maps pipeline type → CSS class suffix */
@@ -70,6 +81,13 @@ const TYPE_CSS: Record<string, string> = {
   cluster: "cluster",
   "cluster-creator": "cluster",
   "cold-start": "setup",
+  article_outline: "blog",
+  article_draft: "blog",
+  astro_sync: "cluster",
+  pagespeed: "cluster",
+  schema_extension: "cluster",
+  link_rebuild: "cluster",
+  cold_start: "setup",
 };
 
 /**
@@ -227,6 +245,15 @@ function formatAgo(dateStr: string): string {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   line-height: 1.4;
+}
+
+.card-subtitle {
+  margin: -2px 0 0;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* === Progress bar === */

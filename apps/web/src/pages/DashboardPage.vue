@@ -7,8 +7,26 @@
         @open-filter="onOpenFilter"
       />
       <DashboardStats />
+
+      <!-- Inline type-filter chip bar -->
+      <div v-if="showFilter" class="filter-bar">
+        <button
+          v-for="chip in filterChips"
+          :key="chip.type"
+          class="filter-chip"
+          :class="{ 'chip-active': activeTypeFilter.includes(chip.type) }"
+          @click="toggleTypeFilter(chip.type)"
+        >
+          {{ chip.label }}
+        </button>
+        <button class="filter-chip chip-clear" @click="clearTypeFilter">
+          {{ $t('common.clearFilters') as string }}
+        </button>
+      </div>
+
       <DashboardLanes
         :selected-run-id="selectedRunId"
+        :type-filter="activeTypeFilter"
         @select="onSelectRun"
       />
       <DashboardClusters />
@@ -87,9 +105,25 @@ export default defineComponent({
     return { uiStore, isMobile };
   },
 
+  data: () => ({
+    showFilter: false,
+    activeTypeFilter: [] as string[],
+  }),
+
   computed: {
     selectedRunId(): string | null {
       return this.uiStore.selectedPipelineRunId;
+    },
+    filterChips(): Array<{ type: string; label: string }> {
+      return [
+        { type: "article_draft", label: this.$t("dashboard.pipeline.types.article_draft") as string },
+        { type: "article_outline", label: this.$t("dashboard.pipeline.types.article_outline") as string },
+        { type: "astro_sync", label: this.$t("dashboard.pipeline.types.astro_sync") as string },
+        { type: "schema_extension", label: this.$t("dashboard.pipeline.types.schema_extension") as string },
+        { type: "pagespeed", label: this.$t("dashboard.pipeline.types.pagespeed") as string },
+        { type: "link_rebuild", label: this.$t("dashboard.pipeline.types.link_rebuild") as string },
+        { type: "cold_start", label: this.$t("dashboard.pipeline.types.cold-start") as string },
+      ];
     },
 
     detailPaneVisible(): boolean {
@@ -111,7 +145,22 @@ export default defineComponent({
     },
 
     onOpenFilter(): void {
-      // no-op — filter panel deferred to Phase E
+      this.showFilter = !this.showFilter;
+      if (!this.showFilter) this.activeTypeFilter = [];
+    },
+
+    toggleTypeFilter(type: string): void {
+      const idx = this.activeTypeFilter.indexOf(type);
+      if (idx === -1) {
+        this.activeTypeFilter = [...this.activeTypeFilter, type];
+      } else {
+        this.activeTypeFilter = this.activeTypeFilter.filter((t) => t !== type);
+      }
+    },
+
+    clearTypeFilter(): void {
+      this.activeTypeFilter = [];
+      this.showFilter = false;
     },
   },
 });
@@ -153,6 +202,52 @@ export default defineComponent({
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Filter chip bar */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              border-color 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              color 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.filter-chip.chip-active {
+  background: color-mix(in oklch, var(--accent-primary) 15%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.filter-chip.chip-clear {
+  border-style: dashed;
+  color: var(--text-tertiary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .filter-chip:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+  }
+
+  .filter-chip.chip-active:hover {
+    background: color-mix(in oklch, var(--accent-primary) 25%, transparent);
+  }
 }
 
 /* Back button (mobile only) */

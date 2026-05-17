@@ -7,6 +7,7 @@ import {
   astroSyncRuns,
   clusters,
   contentPillars,
+  costLogs,
   db,
   pagespeedRuns,
   pipelineRuns,
@@ -710,6 +711,7 @@ articleRoutes.get("/:id/frontmatter", async (c) => {
     ok: true,
     data: {
       yaml,
+      fields: fm,
       slug: article.slug,
       extras: resolvedExtras,
       schema: collectionSchema ?? null,
@@ -1139,6 +1141,76 @@ articleRoutes.get("/:id/versions", async (c) => {
     .orderBy(desc(articleVersions.version));
 
   return c.json({ ok: true, data: versions });
+});
+
+// ─── runs list ────────────────────────────────────────────────────────────────
+
+articleRoutes.get("/:id/runs", async (c) => {
+  const id = c.req.param("id");
+
+  const [exists] = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+  if (!exists) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  const rows = await db
+    .select({
+      id: pipelineRuns.id,
+      pipelineName: pipelineRuns.pipelineName,
+      status: pipelineRuns.status,
+      startedAt: pipelineRuns.startedAt,
+      completedAt: pipelineRuns.completedAt,
+      createdAt: pipelineRuns.createdAt,
+    })
+    .from(pipelineRuns)
+    .where(sql`${pipelineRuns.input}->>'articleId' = ${id}`)
+    .orderBy(desc(pipelineRuns.createdAt))
+    .limit(50);
+
+  const runs = rows.map((r) => ({
+    id: r.id,
+    pipelineName: r.pipelineName,
+    status: r.status,
+    createdAt: r.createdAt,
+    durationMs:
+      r.startedAt && r.completedAt
+        ? new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime()
+        : null,
+    costEur: null as number | null,
+  }));
+
+  return c.json({ ok: true, data: { runs } });
+});
+
+// ─── per-article cost logs ─────────────────────────────────────────────────────
+
+articleRoutes.get("/:id/costs", async (c) => {
+  const id = c.req.param("id");
+
+  const [exists] = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+  if (!exists) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  const costs = await db
+    .select({
+      id: costLogs.id,
+      operation: costLogs.operation,
+      service: costLogs.service,
+      costEur: costLogs.costEur,
+      createdAt: costLogs.createdAt,
+    })
+    .from(costLogs)
+    .where(eq(costLogs.articleId, id))
+    .orderBy(desc(costLogs.createdAt));
+
+  const totalCostEur = costs.reduce((sum, c) => sum + parseFloat(c.costEur), 0);
+
+  return c.json({ ok: true, data: { costs, totalCostEur } });
 });
 
 // ─── version body ─────────────────────────────────────────────────────────────

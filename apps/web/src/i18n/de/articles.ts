@@ -250,6 +250,7 @@ export default {
     localizeTriggered: "{locale}-Version wird erstellt",
     siblingGenerating: "{locale}-Version wird gerade generiert…",
     localeLabel: { en: "English", de: "Deutsch" },
+    viewSiblingLocale: "{locale}-Version ansehen",
   },
 
   runs: {

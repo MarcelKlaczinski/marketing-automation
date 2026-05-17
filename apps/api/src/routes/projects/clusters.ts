@@ -363,10 +363,12 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
   const clusterArticles = await db
     .select({
       id: articles.id,
+      slug: articles.slug,
       title: articles.title,
       status: articles.status,
       locale: articles.locale,
       role: articles.role,
+      heroImagePublicUrl: articles.heroImagePublicUrl,
       createdAt: articles.createdAt,
     })
     .from(articles)

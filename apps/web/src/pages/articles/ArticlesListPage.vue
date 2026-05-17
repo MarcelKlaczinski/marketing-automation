@@ -18,11 +18,12 @@
         />
         <template v-else>
           <ArticleCard
-            v-for="article in articles"
-            :key="article.id"
-            :article="article"
-            :selected="article.id === selectedArticleId"
-            @select="onSelectArticle(article.id)"
+            v-for="group in articleGroups"
+            :key="group.primary.id"
+            :article="group.primary"
+            :sibling="group.sibling"
+            :selected="group.primary.id === selectedArticleId || group.sibling?.id === selectedArticleId"
+            @select="onSelectArticle($event)"
           />
         </template>
 
@@ -49,6 +50,7 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { useArticlesList, type ArticlesListFilters } from "src/composables/useArticlesList";
+import type { ArticleListItem } from "src/types/ui";
 import FilterBar from "src/components/ui/FilterBar.vue";
 import LoadMoreButton from "src/components/ui/LoadMoreButton.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
@@ -88,6 +90,43 @@ export default defineComponent({
     selectedArticleId(): string | null {
       const id = this.$route.params.articleId;
       return typeof id === "string" ? id : null;
+    },
+    articleGroups(): Array<{ primary: ArticleListItem; sibling: { id: string; locale: string | null; status: string } | null }> {
+      const seen = new Set<string>();
+      const groups: Array<{ primary: ArticleListItem; sibling: { id: string; locale: string | null; status: string } | null }> = [];
+      const byKey = new Map<string, ArticleListItem[]>();
+
+      for (const a of (this.articles as ArticleListItem[])) {
+        if (a.translationKey) {
+          const bucket = byKey.get(a.translationKey) ?? [];
+          bucket.push(a);
+          byKey.set(a.translationKey, bucket);
+        }
+      }
+
+      for (const a of (this.articles as ArticleListItem[])) {
+        if (seen.has(a.id)) continue;
+        seen.add(a.id);
+
+        if (!a.translationKey) {
+          groups.push({ primary: a, sibling: null });
+          continue;
+        }
+
+        const bucket = byKey.get(a.translationKey) ?? [];
+        const other = bucket.find((b) => b.id !== a.id);
+        if (other) seen.add(other.id);
+
+        // Prefer DE as primary
+        const primary = a.locale === "de" ? a : (other?.locale === "de" ? other : a);
+        const sibling = primary.id === a.id ? (other ?? null) : a;
+        groups.push({
+          primary,
+          sibling: sibling ? { id: sibling.id, locale: sibling.locale, status: sibling.status } : null,
+        });
+      }
+
+      return groups;
     },
     availableFilters() {
       return [

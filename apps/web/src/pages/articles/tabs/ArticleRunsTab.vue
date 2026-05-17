@@ -18,7 +18,7 @@
           <span class="status-label">{{ run.status }}</span>
         </div>
         <div class="run-meta mono">
-          <span v-if="run.costEur != null">€{{ run.costEur.toFixed(3) }}</span>
+          <span v-if="run.costEur != null">€{{ parseFloat(run.costEur).toFixed(3) }}</span>
           <span v-if="run.durationMs != null">{{ Math.round(run.durationMs / 1000) }}s</span>
         </div>
       </div>
@@ -39,7 +39,7 @@ interface RunItem {
   pipelineName: string;
   status: string;
   durationMs: number | null;
-  costEur: number | null;
+  costEur: string | null;
   createdAt: string;
 }
 

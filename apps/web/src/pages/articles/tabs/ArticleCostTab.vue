@@ -18,7 +18,7 @@
         >
           <div class="cost-op mono">{{ entry.operation }}</div>
           <div class="cost-service mono">{{ entry.service }}</div>
-          <div class="cost-amount mono">€{{ entry.costEur.toFixed(4) }}</div>
+          <div class="cost-amount mono">€{{ parseFloat(entry.costEur ?? "0").toFixed(4) }}</div>
         </div>
       </div>
     </template>
@@ -58,7 +58,8 @@ export default defineComponent({
       return (this.data as { costs: RunCostEntry[] } | undefined)?.costs ?? [];
     },
     totalCost(): number {
-      return (this.data as { totalCostEur: number } | undefined)?.totalCostEur ?? 0;
+      const raw = (this.data as { totalCostEur: string | number | null } | undefined)?.totalCostEur;
+      return parseFloat(String(raw ?? "0")) || 0;
     },
   },
 });

@@ -101,6 +101,8 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
         updatedAt: articles.updatedAt,
         locale: articles.locale,
         source: articles.source,
+        translationKey: articles.translationKey,
+        heroImagePublicUrl: articles.heroImagePublicUrl,
       })
       .from(articles)
       .leftJoin(clusters, eq(articles.clusterId, clusters.id))
@@ -139,6 +141,8 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
         updatedAt: articles.updatedAt,
         locale: articles.locale,
         source: articles.source,
+        translationKey: articles.translationKey,
+        heroImagePublicUrl: articles.heroImagePublicUrl,
       })
       .from(articles)
       .leftJoin(clusters, eq(articles.clusterId, clusters.id))

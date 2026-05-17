@@ -39,18 +39,16 @@
       </div>
 
       <!-- Article link -->
-      <a
+      <button
         v-if="detail.article"
         class="detail-article-link text-sm"
-        :href="`/articles/${detail.article.id}`"
-        target="_blank"
-        rel="noopener"
+        @click="goToArticle"
       >
         {{ detail.article.title ?? detail.article.slug }}
         <span v-if="detail.article.locale" class="article-locale text-xs text-dim">
           ({{ detail.article.locale }})
         </span>
-      </a>
+      </button>
 
       <!-- Divider -->
       <div class="detail-divider" />
@@ -98,15 +96,13 @@
           {{ $t('dashboard.detail.actions.cancel') }}
         </button>
 
-        <a
+        <button
           v-if="detail.article"
           class="action-btn action-open text-sm"
-          :href="`/articles/${detail.article.id}`"
-          target="_blank"
-          rel="noopener"
+          @click="goToArticle"
         >
           {{ $t('dashboard.detail.actions.open') }}
-        </a>
+        </button>
       </div>
     </template>
   </div>
@@ -205,6 +201,13 @@ export default defineComponent({
       }
     },
 
+    goToArticle(): void {
+      const article = this.detail?.article;
+      if (!article) return;
+      const slug = this.projectStore.currentSlug;
+      void this.$router.push(`/projects/${slug}/articles/${article.id}`);
+    },
+
     async onCancel(): Promise<void> {
       if (this.actionPending || !this.detail) return;
       this.actionPending = true;
@@ -275,10 +278,19 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: inherit;
+  cursor: pointer;
+  text-align: left;
 }
 
-.detail-article-link:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .detail-article-link:hover {
+    text-decoration: underline;
+  }
 }
 
 /* Divider */

@@ -50,6 +50,10 @@ export default defineComponent({
       type: String as PropType<string | null>,
       default: null,
     },
+    typeFilter: {
+      type: Array as PropType<string[]>,
+      default: () => [],
+    },
   },
 
   setup() {
@@ -62,8 +66,13 @@ export default defineComponent({
       return LANE_ORDER;
     },
 
+    filteredRuns(): PipelineRunSummary[] {
+      const runs = (this.feedData ?? []) as PipelineRunSummary[];
+      if (!this.typeFilter.length) return runs;
+      return runs.filter((r) => this.typeFilter.includes(r.type));
+    },
     runsByLane(): Record<PipelineStatus, PipelineRunSummary[]> {
-      const runs = this.feedData ?? [];
+      const runs = this.filteredRuns;
       return {
         running: runs.filter((r) => r.status === "running"),
         queued: runs.filter((r) => r.status === "queued"),

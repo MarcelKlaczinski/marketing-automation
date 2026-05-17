@@ -5,21 +5,40 @@
     hoverable
     :selected="selected"
     tag="button"
-    @click="$emit('select')"
+    @click="$emit('select', article.id)"
   >
     <div class="card-inner">
       <div class="card-row">
         <span class="card-tag mono">{{ article.collection ?? "—" }}</span>
-        <span class="card-locale mono">{{ article.locale ?? "—" }}</span>
         <span :class="['card-status', `status-${statusVariant}`]">{{ statusLabel }}</span>
       </div>
 
       <h3 class="card-title">{{ article.title ?? article.cornerstoneKeyword ?? article.slug }}</h3>
 
-      <div class="card-meta mono">
-        <span v-if="article.wordCount">{{ article.wordCount }}w</span>
-        <span v-if="article.wordCount" class="sep">·</span>
-        <span class="card-time">{{ relativeTime }}</span>
+      <div class="card-bottom">
+        <div class="card-meta mono">
+          <span v-if="article.wordCount">{{ article.wordCount }}w</span>
+          <span v-if="article.wordCount" class="sep">·</span>
+          <span class="card-time">{{ relativeTime }}</span>
+        </div>
+
+        <div class="locale-chips">
+          <button
+            class="locale-chip locale-chip-current"
+            :title="article.locale?.toUpperCase() ?? '?'"
+            @click.stop="$emit('select', article.id)"
+          >
+            {{ article.locale?.toUpperCase() ?? "—" }}
+          </button>
+          <button
+            v-if="sibling"
+            class="locale-chip locale-chip-sibling"
+            :title="sibling.locale?.toUpperCase() ?? '?'"
+            @click.stop="$emit('select', sibling.id)"
+          >
+            {{ sibling.locale?.toUpperCase() ?? "—" }}
+          </button>
+        </div>
       </div>
     </div>
   </GlassCard>
@@ -39,6 +58,12 @@ interface ArticleStub {
   status: string;
   wordCount: number | null;
   updatedAt: string | Date;
+}
+
+interface ArticleSibling {
+  id: string;
+  locale: string | null;
+  status: string;
 }
 
 const STATUS_VARIANT_MAP: Record<string, string> = {
@@ -84,10 +109,13 @@ export default defineComponent({
 
   components: { GlassCard },
 
-  emits: ["select"],
+  emits: {
+    select: (_id: string) => true,
+  },
 
   props: {
     article: { type: Object as PropType<ArticleStub>, required: true },
+    sibling: { type: Object as PropType<ArticleSibling | null>, default: null },
     selected: { type: Boolean, default: false },
   },
 
@@ -166,6 +194,13 @@ export default defineComponent({
   margin: 0;
 }
 
+.card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .card-meta {
   font-size: 10px;
   color: var(--text-tertiary);
@@ -176,5 +211,40 @@ export default defineComponent({
 
 .sep {
   color: var(--border-medium);
+}
+
+.locale-chips {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.locale-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              color 120ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.locale-chip-current {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .locale-chip:hover {
+    background: var(--accent-primary);
+    color: #fff;
+    border-color: var(--accent-primary);
+  }
 }
 </style>

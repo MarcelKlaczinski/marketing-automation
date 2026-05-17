@@ -21,6 +21,10 @@
       </div>
     </header>
 
+    <div v-if="$slots.subheader" class="detail-subheader">
+      <slot name="subheader" />
+    </div>
+
     <nav v-if="tabs.length > 0" class="detail-tabs" role="tablist">
       <button
         v-for="tab in tabs"
@@ -137,6 +141,10 @@ export default defineComponent({
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.detail-subheader {
+  flex-shrink: 0;
 }
 
 .detail-tabs {

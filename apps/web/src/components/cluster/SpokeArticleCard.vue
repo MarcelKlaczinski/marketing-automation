@@ -7,32 +7,41 @@
     @click="$emit('click')"
     @keydown.enter="$emit('click')"
   >
-    <div class="spoke-head">
-      <span class="spoke-role mono">{{ article.role ?? article.locale ?? "—" }}</span>
-      <span :class="['spoke-badge', `badge-${article.status}`]">
-        {{ statusLabel }}
-      </span>
-    </div>
+    <img
+      v-if="article.heroImagePublicUrl"
+      class="spoke-thumb"
+      :src="article.heroImagePublicUrl"
+      :alt="article.title ?? ''"
+    />
 
-    <p class="spoke-title">{{ article.title ?? "—" }}</p>
+    <div class="spoke-body">
+      <div class="spoke-head">
+        <span class="spoke-role mono">{{ article.role ?? article.locale ?? "—" }}</span>
+        <span :class="['spoke-badge', `badge-${article.status}`]">
+          {{ statusLabel }}
+        </span>
+      </div>
 
-    <div class="spoke-foot">
-      <span class="spoke-locale mono">{{ article.locale }}</span>
+      <p class="spoke-title">{{ article.title ?? "—" }}</p>
 
-      <!-- Running indicator -->
-      <span v-if="isRunning" class="spoke-running mono">
-        {{ $t("clusters.detail.running") as string }}
-      </span>
+      <div class="spoke-foot">
+        <span class="spoke-locale mono">{{ article.locale }}</span>
 
-      <!-- Per-spoke retry button for failed runs -->
-      <button
-        v-if="isFailed && failedRunId"
-        class="retry-btn"
-        :aria-label="$t('clusters.detail.retrySpoke') as string"
-        @click.stop="$emit('retry', failedRunId)"
-      >
-        {{ $t("clusters.detail.retrySpoke") as string }}
-      </button>
+        <!-- Running indicator -->
+        <span v-if="isRunning" class="spoke-running mono">
+          {{ $t("clusters.detail.running") as string }}
+        </span>
+
+        <!-- Per-spoke retry button for failed runs -->
+        <button
+          v-if="isFailed && failedRunId"
+          class="retry-btn"
+          :aria-label="$t('clusters.detail.retrySpoke') as string"
+          @click.stop="$emit('retry', failedRunId)"
+        >
+          {{ $t("clusters.detail.retrySpoke") as string }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -100,14 +109,31 @@ export default defineComponent({
 <style scoped>
 .spoke-article-card {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  flex-direction: row;
+  gap: 10px;
   padding: 10px 12px;
   background: var(--bg-glass);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: border-color 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+.spoke-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.spoke-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
 }
 
 @media (hover: hover) and (pointer: fine) {

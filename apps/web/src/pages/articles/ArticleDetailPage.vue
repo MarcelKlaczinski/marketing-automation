@@ -17,12 +17,30 @@
     </template>
 
     <template #actions>
+      <button
+        v-if="article?.translationSibling"
+        class="locale-chip"
+        :title="$t('articles.locale.viewSiblingLocale', { locale: article.translationSibling.locale?.toUpperCase() }) as string"
+        @click="goToSibling"
+      >
+        {{ article.translationSibling.locale?.toUpperCase() ?? '?' }}
+      </button>
       <GlassButton variant="secondary" size="sm" @click="onRefresh">
         {{ $t("articles.detailActions.refresh") as string }}
       </GlassButton>
       <GlassButton variant="primary" size="sm" @click="onSync">
         {{ $t("articles.detailActions.sync") as string }}
       </GlassButton>
+    </template>
+
+    <template v-if="article?.heroImagePublicUrl" #subheader>
+      <div class="hero-banner">
+        <img
+          class="hero-img"
+          :src="article.heroImagePublicUrl"
+          :alt="article.heroImageAltText ?? (article.title ?? '')"
+        />
+      </div>
     </template>
 
     <div v-if="isPending" class="detail-loading">
@@ -43,7 +61,6 @@
       <ArticleFrontmatterTab
         v-else-if="activeTab === 'frontmatter'"
         :article-id="articleId"
-        :frontmatter-extras="article.frontmatterExtras"
       />
       <ArticleVersionsTab
         v-else-if="activeTab === 'versions'"
@@ -150,6 +167,12 @@ export default defineComponent({
   },
 
   methods: {
+    goToSibling(): void {
+      const sibling = this.article?.translationSibling;
+      if (!sibling) return;
+      const slug = this.$route.params.slug as string;
+      void this.$router.push(`/projects/${slug}/articles/${sibling.id}`);
+    },
     onBodySaved(): void {
       void this.queryClient.invalidateQueries({
         queryKey: ["article", this.articleId],
@@ -180,6 +203,53 @@ export default defineComponent({
 .detail-loading,
 .detail-error {
   padding: 24px;
+}
+
+.locale-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              color 150ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .locale-chip:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-primary);
+  }
+}
+
+.hero-banner {
+  width: 100%;
+  height: 96px;
+  overflow: hidden;
+  background: var(--bg-glass);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: height 280ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  cursor: zoom-in;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hero-banner:hover {
+    height: 300px;
+    cursor: zoom-out;
+  }
+}
+
+.hero-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .status-chip {

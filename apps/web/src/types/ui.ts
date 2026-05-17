@@ -39,12 +39,13 @@ export interface PipelineEvent {
   payload: Record<string, unknown>;
 }
 
-/** Pipeline run summary (used in kanban lanes) */
+/** Pipeline run summary (used in kanban lanes) — shape mirrors ActivityEntry from /pipeline-runs/active */
 export interface PipelineRunSummary {
   id: string;
   type: string;
   status: PipelineStatus;
   title: string;
+  subtitle: string | null;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;
@@ -53,6 +54,7 @@ export interface PipelineRunSummary {
   completedSteps: number;
   costEur: number | null;
   errorMessage: string | null;
+  articleSlug: string | null;
 }
 
 /** Single pipeline step (used in detail pane timeline) */
@@ -125,6 +127,7 @@ export interface ClusterArticleStub {
   status: string;
   locale: string | null;
   role: string | null;
+  heroImagePublicUrl: string | null;
 }
 
 /** Pipeline run entry inside cluster status response */
@@ -159,7 +162,7 @@ export interface RunCostEntry {
   id: string;
   operation: string;
   service: string;
-  costEur: number;
+  costEur: string | null;
   createdAt: string;
 }
 
@@ -220,6 +223,8 @@ export interface ArticleListItem {
   status: string;
   wordCount: number | null;
   updatedAt: string;
+  translationKey: string | null;
+  heroImagePublicUrl: string | null;
 }
 
 /** Paginated articles response */
@@ -245,6 +250,9 @@ export interface ArticleDetail {
   frontmatterExtras: Record<string, unknown> | null;
   updatedAt: string;
   createdAt: string;
+  heroImagePublicUrl: string | null;
+  heroImageAltText: string | null;
+  translationSibling: { id: string; locale: string; status: string } | null;
 }
 
 /** Article versions list entry */
