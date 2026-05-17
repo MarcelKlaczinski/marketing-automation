@@ -111,7 +111,7 @@ import PillarCard from "src/components/cold-start/PillarCard.vue";
 import AuthorPersonaCard from "src/components/cold-start/AuthorPersonaCard.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
-import type { ColdStartPillar, ColdStartAuthor } from "src/types/cold-start";
+import type { ColdStartDraft, ColdStartPillar, ColdStartAuthor } from "src/types/cold-start";
 
 export default defineComponent({
   name: "ColdStartPhase3Seed",
@@ -144,13 +144,13 @@ export default defineComponent({
   watch: {
     draft: {
       immediate: true,
-      handler(newDraft: import("src/types/cold-start").ColdStartDraft | undefined) {
+      handler(newDraft: ColdStartDraft | undefined) {
         if (!newDraft) return;
         if (newDraft.pillars?.length) {
-          this.form.pillars = newDraft.pillars.map((p: import("src/types/cold-start").ColdStartPillar) => ({ ...p }));
+          this.form.pillars = newDraft.pillars.map((p: ColdStartPillar) => ({ ...p }));
         }
         if (newDraft.authors?.length) {
-          this.form.authors = newDraft.authors.map((a: import("src/types/cold-start").ColdStartAuthor) => ({ ...a }));
+          this.form.authors = newDraft.authors.map((a: ColdStartAuthor) => ({ ...a }));
         }
       },
     },

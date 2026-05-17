@@ -67,7 +67,7 @@
             :value="form.colors.primary"
             class="color-picker"
             :aria-label="$t('coldStart.phases.brand.fields.primary') as string"
-            @input="form.colors.primary = ($event.target as HTMLInputElement).value"
+            @input="form.colors.primary = ($event.target as HTMLInputElement).value /* EventTarget → HTMLInputElement: guaranteed by <input type=color> */"
           />
           <FormInput v-model="form.colors.primary" />
         </div>
@@ -80,7 +80,7 @@
             :value="form.colors.secondary"
             class="color-picker"
             :aria-label="$t('coldStart.phases.brand.fields.secondary') as string"
-            @input="form.colors.secondary = ($event.target as HTMLInputElement).value"
+            @input="form.colors.secondary = ($event.target as HTMLInputElement).value /* EventTarget → HTMLInputElement: guaranteed by <input type=color> */"
           />
           <FormInput v-model="form.colors.secondary" />
         </div>
