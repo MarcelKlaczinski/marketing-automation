@@ -78,10 +78,9 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   pagespeed: {
     [COST_OPS.PAGESPEED_PSI_API]: 0,
 
-    // Spec 51: Social image generation
+    // Spec 51: Social image generation (Spec 57.4: caption+hashtags merged into single Sonnet call)
     [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005,
-    [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.015,
-    [COST_OPS.SOCIAL_IMAGE_HASHTAGS]: 0.005,
+    [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.028,
   },
 };
 

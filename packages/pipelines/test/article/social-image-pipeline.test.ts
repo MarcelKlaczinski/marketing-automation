@@ -87,6 +87,7 @@ import { eq } from "drizzle-orm";
 import type { StepContext } from "../../src/engine/step.ts";
 import {
   ExtractToolsStep,
+  GenerateCaptionStep,
   LoadArticleStep,
   PersistSocialPostStep,
   ResolveAssetsStep,
@@ -118,6 +119,7 @@ const makeBaseInput = (overrides: Partial<{
   variant: "editorial" as const,
   articleTitle: overrides.articleTitle ?? "Die 5 besten KI-Tools",
   articleSlug: "ki-tools-test",
+  intentType: null as string | null,
   bodyMd: "# Test\n\nArticle body with AI tools.",
   articleUrl: "https://example.com/ki-tools",
   brandTokens: {},
@@ -370,6 +372,7 @@ describe("ResolveAssetsStep", () => {
       variant: "editorial" as const,
       articleTitle: "Die 5 besten KI-Tools",
       articleSlug: "ki-tools-social-test",
+      intentType: null as string | null,
       bodyMd: "# Test",
       articleUrl: "https://example.com/ki-tools",
       brandTokens: {},
@@ -458,6 +461,149 @@ describe("ResolveAssetsStep", () => {
   });
 });
 
+// ─── GenerateCaptionStep — unit tests (mocked LLM) ───────────────────────────
+
+describe("GenerateCaptionStep", () => {
+  /** Minimal input satisfying UploadSlidesOutputSchema */
+  function makeCaptionInput(overrides: { intentType?: string | null } = {}) {
+    return {
+      articleId: sharedArticleId,
+      projectId: sharedProjectId,
+      projectSlug: sharedProjectSlug,
+      theme: "dark" as const,
+      variant: "editorial" as const,
+      articleTitle: "Die 5 besten KI-Code-Editoren",
+      articleSlug: "ki-code-editoren",
+      intentType: overrides.intentType ?? null,
+      bodyMd: "# Test",
+      articleUrl: "https://toolwiki.ai/de/ki-code-editoren",
+      brandTokens: {},
+      extractedTools: [],
+      coverEyebrow: "KI-CODE-EDITOREN",
+      coverHeadlineLead: "Die 5 besten",
+      coverHeadlineHighlight: "KI-Code-Editoren",
+      endHeadline: "Mehr Reviews,",
+      endHeadlineHighlight: "ehrlich getestet.",
+      resolvedTools: [
+        {
+          slug: "cursor",
+          rank: 1,
+          name: "Cursor",
+          domain: "cursor.sh",
+          eyebrow: "01 · CURSOR",
+          tagline: "KI-first Code-Editor.",
+          strengths: ["Autocomplete", "Chat"],
+          pricing: { tier: "freemium" as const, label: "ab 0$/Monat" },
+        },
+      ],
+      slideBuffers: [],
+      totalSlides: 3,
+      slideUrls: ["https://pub.example.com/slide-0.png"],
+    };
+  }
+
+  it("happy path: returns caption + hashtags from LLM JSON response", async () => {
+    mockMessages.mockImplementationOnce(async () => ({
+      raw: JSON.stringify({
+        caption: "Cursor ist der schnellste KI-Code-Editor. 🚀 Link in Bio → https://toolwiki.ai/de/ki-code-editoren",
+        hashtags: ["#KITools", "#AITools", "#KIFürBusiness", "#AIForBusiness", "#CodingTools", "#DevTools", "#Cursor"],
+      }),
+      cost: { totalEur: 0.028 },
+    }));
+
+    const step = new GenerateCaptionStep();
+    const out = await step.execute(makeCaptionInput(), mockCtx(sharedProjectId));
+
+    expect(out.caption).toContain("Cursor");
+    expect(out.hashtags).toBeArray();
+    expect(out.hashtags.length).toBeGreaterThanOrEqual(5);
+    expect(out.hashtags.length).toBeLessThanOrEqual(10);
+    expect(out.warnings).toBeUndefined();
+  });
+
+  it("adapts anchor tags to comparison contentType via deriveContentType", async () => {
+    mockMessages.mockImplementationOnce(async () => ({
+      raw: JSON.stringify({
+        caption: "Cursor vs. Windsurf im Vergleich. 🔥 Link in Bio → https://toolwiki.ai",
+        hashtags: ["#KITools", "#AITools", "#KIVergleich", "#AIComparison", "#KIFürBusiness", "#AIForBusiness", "#Cursor"],
+      }),
+      cost: { totalEur: 0.028 },
+    }));
+
+    const step = new GenerateCaptionStep();
+    // intentType "comparison" → contentType "comparison" → anchor tags include #KIVergleich
+    const out = await step.execute(makeCaptionInput({ intentType: "comparison" }), mockCtx(sharedProjectId));
+
+    expect(out.caption).toBeString();
+    expect(out.hashtags).toBeArray();
+  });
+
+  it("falls back to safe defaults when LLM returns malformed JSON twice", async () => {
+    // Both calls return non-JSON
+    mockMessages.mockImplementation(async () => ({
+      raw: "NOT JSON AT ALL",
+      cost: { totalEur: 0.028 },
+    }));
+
+    const step = new GenerateCaptionStep();
+    const out = await step.execute(makeCaptionInput(), mockCtx(sharedProjectId));
+
+    // Caption must be a non-empty string
+    expect(out.caption).toBeString();
+    expect(out.caption.length).toBeGreaterThan(0);
+    // Hashtags must be a non-empty array
+    expect(out.hashtags).toBeArray();
+    expect(out.hashtags.length).toBeGreaterThan(0);
+    // Fallback must set the warnings flag
+    expect(out.warnings).toContain("hashtag_generation_fallback");
+
+    // Restore default mock for subsequent tests
+    mockMessages.mockImplementation(async () => ({
+      raw: JSON.stringify({
+        coverEyebrow: "KI-TOOLS 2026",
+        coverHeadlineLead: "Die 5 besten",
+        coverHeadlineHighlight: "KI-Bild-Generatoren",
+        coverHeadlineTrail: "im Vergleich",
+        endHeadline: "Mehr Reviews,",
+        endHeadlineHighlight: "ehrlich getestet.",
+        tools: [],
+      }),
+      cost: { totalEur: 0.001 },
+    }));
+  });
+
+  it("rejects hashtags with hyphens (schema validation fails → fallback)", async () => {
+    // LLM returns a hyphenated hashtag that fails the /^#\w+$/ regex
+    mockMessages.mockImplementation(async () => ({
+      raw: JSON.stringify({
+        caption: "Valid caption text here.",
+        hashtags: ["#KI-Tools", "#AITools", "#Produktivität", "#DigitalTools", "#TechReview"],
+      }),
+      cost: { totalEur: 0.028 },
+    }));
+
+    const step = new GenerateCaptionStep();
+    const out = await step.execute(makeCaptionInput(), mockCtx(sharedProjectId));
+
+    // Schema rejects #KI-Tools, both retries fail, fallback fires
+    expect(out.warnings).toContain("hashtag_generation_fallback");
+
+    // Restore default mock
+    mockMessages.mockImplementation(async () => ({
+      raw: JSON.stringify({
+        coverEyebrow: "KI-TOOLS 2026",
+        coverHeadlineLead: "Die 5 besten",
+        coverHeadlineHighlight: "KI-Bild-Generatoren",
+        coverHeadlineTrail: "im Vergleich",
+        endHeadline: "Mehr Reviews,",
+        endHeadlineHighlight: "ehrlich getestet.",
+        tools: [],
+      }),
+      cost: { totalEur: 0.001 },
+    }));
+  });
+});
+
 // ─── PersistSocialPostStep — DB test ─────────────────────────────────────────
 
 describe("PersistSocialPostStep", () => {
@@ -479,6 +625,7 @@ describe("PersistSocialPostStep", () => {
       variant: "editorial" as const,
       articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
       articleSlug: "ki-tools-social-test",
+      intentType: null as string | null,
       bodyMd: "# Test",
       articleUrl: "https://example.com/ki-tools",
       brandTokens: {},
@@ -574,6 +721,7 @@ describe.skipIf(!LIVE)("ExtractToolsStep (live LLM)", () => {
       variant: "editorial" as const,
       articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
       articleSlug: "ki-tools-social-test",
+      intentType: null as string | null,
       bodyMd: `# Die 5 besten KI-Bildgeneratoren 2026
 
 Midjourney, DALL-E 3, Stable Diffusion, Adobe Firefly und Ideogram im Vergleich.

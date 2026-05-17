@@ -3,10 +3,12 @@
 Domain logic that's not specific to API/worker/UI layers.
 
 ## Modules
-- `credentials/`     Encrypted vault for tenant API credentials (Spec 02)
-- `cost-tracker/`    Cost logging + hard limits (Spec 03)
-- `cost/`            Cost enforcement: pre-flight budget checks, queue pause/resume, alert logging (Spec 41)
-- `events/`          Redis pub/sub publisher for pipeline SSE events (Spec 55.1 Section B)
+- `credentials/`       Encrypted vault for tenant API credentials (Spec 02)
+- `cost-tracker/`      Cost logging + hard limits (Spec 03)
+- `cost/`              Cost enforcement: pre-flight budget checks, queue pause/resume, alert logging (Spec 41)
+- `events/`            Redis pub/sub publisher for pipeline SSE events (Spec 55.1 Section B)
+- `social-hashtags/`   Shared LLM prompt utilities for Instagram hashtag generation (Spec 57.4)
+- `social-hooks/`      Hook + caption prompt builders for discovery worker and templates
 
 ## Cost Enforcement Module (`src/cost/`)
 
@@ -44,3 +46,4 @@ Domain logic that's not specific to API/worker/UI layers.
 - DO NOT use `string | undefined` when writing to nullable Drizzle columns in `onConflictDoUpdate.set` — `exactOptionalPropertyTypes` requires `null` for absent nullable fields. Build the set object conditionally (see `pauseProjectQueues` in `src/cost/pause.ts`)
 - DO NOT `await publishPipelineEvent(...)` from pipeline runner or cluster helpers — it adds Redis round-trip latency to every step. Always use `void publishPipelineEvent(...)` (fire-and-forget). The function catches errors internally.
 - DO NOT publish `cluster.status.changed` when `oldStatus === newStatus` — this creates misleading events. Only publish when `generationStatus` actually transitions (e.g. `running` → `completed` or `running` → `partial`). `enqueueClusterSpokes` does NOT change `generationStatus`, so no event should be published there.
+- DO NOT add a new shared prompt-utility function alongside existing pipeline step code — put it in `packages/core/src/social-hashtags/` (or a peer `src/<domain>-<purpose>/` directory) and export from `packages/core/src/index.ts`. This keeps pure prompt-building functions testable in isolation and reusable across the pipeline and discovery worker without circular imports

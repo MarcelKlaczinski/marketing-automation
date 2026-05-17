@@ -1,4 +1,5 @@
 import type { HookPattern } from "./hookEngine.ts";
+import { buildHashtagInstructions, type ContentType } from "../social-hashtags/buildHashtagInstructions.ts";
 
 interface HookPromptContext {
   articleTitle: string;
@@ -134,19 +135,25 @@ CONSTRAINTS:
 RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 };
 
+function mapContentType(ct: ContentPromptContext["contentType"]): ContentType {
+  if (ct === "comparison" || ct === "use-case") return "comparison";
+  if (ct === "tool-spotlight") return "review";
+  return "general";
+}
+
 function buildCaptionSection(ctx: ContentPromptContext): string {
-  const isComparison = ctx.contentType === "comparison" || ctx.contentType === "use-case";
   const domain = ctx.domain ?? "toolwiki.ai";
+  const isComparison = ctx.contentType === "comparison" || ctx.contentType === "use-case";
+  const locale = ctx.locale === "de" ? "de-DE" : "en-US";
+
+  const hashtagSection = buildHashtagInstructions({
+    locale,
+    contentType: mapContentType(ctx.contentType),
+    toolNames: ctx.toolNames,
+    ...(ctx.toolCategory !== undefined && { toolCategory: ctx.toolCategory }),
+  });
 
   if (ctx.locale === "de") {
-    const hashtagRule = isComparison
-      ? `- German: #KITools, #KIVergleich, #KIFürBusiness + 1 niche German tag (e.g. #SoftwareTest)
-- English: #AITools, #AIComparison, #AIForBusiness + 1 niche English tag (e.g. #SoftwareReview)
-- Total: exactly 7 tags`
-      : `- German: #KITools, #KIFürBusiness, #Produktivität + 1 niche German tag based on tool category
-- English: #AITools, #AIForBusiness, #DigitalTools + 1 niche English tag based on tool category
-- Total: exactly 7 tags`;
-
     return `
 CAPTION (German output, du-form):
 - Line 1: strongest insight from the article — keyword-rich (Instagram indexes this line for search)
@@ -156,16 +163,8 @@ ${isComparison ? "- Name a clear use-case winner — not just 'it depends'" : "-
 - Last line: → ${domain}/${ctx.articleSlug}
 - Max 280 chars per paragraph, 4 paragraphs max
 
-HASHTAGS (7 tags, bilingual for dual search intent on Instagram):
-${hashtagRule}
-- NO self-promotional tags like #Toolwiki`;
+${hashtagSection}`;
   }
-
-  const hashtagRule = isComparison
-    ? `- #AITools, #AIComparison, #AIForBusiness + 3-4 niche tags based on tool category
-- Total: exactly 7 tags`
-    : `- #AITools, #AIForBusiness, #Productivity + 3-4 niche tags based on tool category
-- Total: exactly 7 tags`;
 
   return `
 CAPTION (English output):
@@ -176,9 +175,7 @@ ${isComparison ? "- Name a clear use-case winner — not just 'it depends'" : "-
 - Last line: → ${domain}/${ctx.articleSlug}
 - Max 280 chars per paragraph, 4 paragraphs max
 
-HASHTAGS (7 tags):
-${hashtagRule}
-- NO self-promotional tags like #Toolwiki`;
+${hashtagSection}`;
 }
 
 export function buildHookPrompt(

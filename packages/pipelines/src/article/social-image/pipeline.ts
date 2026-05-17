@@ -8,7 +8,6 @@ import {
   PersistSocialPostStep,
   RenderSlidesStep,
   ResolveAssetsStep,
-  ResearchHashtagsStep,
   UploadSlidesStep,
 } from "./steps.ts";
 
@@ -58,7 +57,6 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
     new RenderSlidesStep(),
     new UploadSlidesStep(),
     new GenerateCaptionStep(),
-    new ResearchHashtagsStep(),
     new PersistSocialPostStep(),
   ];
 

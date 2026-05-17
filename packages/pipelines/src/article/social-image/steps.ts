@@ -1,6 +1,6 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { r2 } from "@marketing-auto/adapter-storage";
-import { COST_OPS } from "@marketing-auto/core";
+import { COST_OPS, buildHashtagInstructions, deriveContentType } from "@marketing-auto/core";
 import {
   articles,
   db,
@@ -72,6 +72,7 @@ const LoadArticleOutputSchema = z.object({
   variant: z.enum(["editorial", "stunning"]),
   articleTitle: z.string(),
   articleSlug: z.string(),
+  intentType: z.string().nullable(),
   bodyMd: z.string(),
   articleUrl: z.string(),
   brandTokens: z.record(z.unknown()),
@@ -121,6 +122,7 @@ export class LoadArticleStep extends BaseStep<
       variant: input.variant,
       articleTitle: article.title ?? article.slug,
       articleSlug: article.slug,
+      intentType: article.intentType ?? null,
       bodyMd: article.bodyMd ?? "",
       articleUrl,
       brandTokens: (project.brandTokens as Record<string, unknown>) ?? {},
@@ -572,7 +574,22 @@ export class UploadSlidesStep extends BaseStep<
 const GenerateCaptionInputSchema = UploadSlidesOutputSchema;
 const GenerateCaptionOutputSchema = GenerateCaptionInputSchema.extend({
   caption: z.string(),
+  hashtags: z.array(z.string()),
+  warnings: z.array(z.string()).optional(),
 });
+
+const captionJsonSchema = z.object({
+  caption: z.string().min(20).max(2200),
+  hashtags: z.array(
+    // Unicode-aware: allows ä/ö/ü/etc. but blocks hyphens and spaces
+    z.string().regex(/^#[^\s\-#]+$/u, "Hashtag must start with # with no hyphens or spaces"),
+  ).min(5).max(10),
+});
+
+const HASHTAG_FALLBACK = [
+  "#KITools", "#AITools", "#Produktivität",
+  "#DigitalTools", "#KünstlicheIntelligenz", "#TechReview", "#SoftwareTest",
+];
 
 export class GenerateCaptionStep extends BaseStep<
   z.infer<typeof GenerateCaptionInputSchema>,
@@ -582,88 +599,82 @@ export class GenerateCaptionStep extends BaseStep<
   readonly inputSchema = GenerateCaptionInputSchema;
   readonly outputSchema = GenerateCaptionOutputSchema;
 
-  override estimatedCostEur(): number { return 0.015; }
+  override estimatedCostEur(): number { return 0.028; }
 
-  async execute(input: z.infer<typeof GenerateCaptionInputSchema>, ctx: StepContext) {
+  async execute(input: z.infer<typeof GenerateCaptionInputSchema>, ctx: StepContext): Promise<z.infer<typeof GenerateCaptionOutputSchema>> {
     const brandVoice = (input.brandTokens as { voice?: { signaturePhrases?: string[]; addressForm?: string } })?.voice;
     const signaturePhrases = brandVoice?.signaturePhrases?.join(", ") ?? "redaktionell verifiziert, ehrlich";
     const addressForm = brandVoice?.addressForm ?? "du";
+    const locale = "de-DE"; // carousel pipeline currently produces DE-first content
+    const contentType = deriveContentType(input.intentType);
+    const toolNames = input.resolvedTools.map((t) => t.name);
 
-    const captionPrompt = `Write an Instagram caption in GERMAN for a carousel post about: "${input.articleTitle}"
+    const hashtagSection = buildHashtagInstructions({ locale, contentType, toolNames });
+
+    const buildPrompt = () => `Write an Instagram post in GERMAN for a carousel about: "${input.articleTitle}"
 
 The post shows ${input.resolvedTools.length} AI tools in a visual list-carousel format.
-Brand voice: ${signaturePhrases}. Use "${addressForm}" form. Max 300 characters. Use 1-2 fitting emojis.
-End with: Link in Bio → ${input.articleUrl}
+Brand voice: ${signaturePhrases}. Use "${addressForm}" form. Max 300 characters in caption. Use 1-2 fitting emojis.
+End caption with: Link in Bio → ${input.articleUrl}
 
-Return ONLY the caption text, no JSON.`;
+${hashtagSection}
 
-    const response = await anthropic.messages({
-      projectId: ctx.projectId,
-      pipelineRunId: ctx.pipelineRunId,
-      operation: COST_OPS.SOCIAL_IMAGE_CAPTION,
-      model: "claude-sonnet-4-6",
-      systemPrefix: "",
-      systemSuffix: "You are an Instagram content writer. Return only the caption text.",
-      userMessage: captionPrompt,
-      maxTokens: 800,
-      estimatedCostEur: 0.015,
-    });
+Return JSON object:
+{
+  "caption": "<the caption text>",
+  "hashtags": ["#Tag1", "#Tag2", ...]
+}`;
 
-    const caption = response.raw.trim() || `${input.articleTitle} — ${input.articleUrl}`;
+    const tryGenerate = async () => {
+      const response = await anthropic.messages({
+        projectId: ctx.projectId,
+        pipelineRunId: ctx.pipelineRunId,
+        operation: COST_OPS.SOCIAL_IMAGE_CAPTION,
+        model: "claude-sonnet-4-6",
+        systemPrefix: "",
+        systemSuffix: "Return only valid JSON matching the requested shape.",
+        userMessage: buildPrompt(),
+        maxTokens: 600,
+        estimatedCostEur: 0.028,
+        jsonMode: true,
+      });
 
-    return { ...input, caption };
-  }
-}
+      const raw = response.raw;
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      const clean = start >= 0 && end > start ? raw.slice(start, end + 1) : raw;
+      return captionJsonSchema.parse(JSON.parse(clean));
+    };
 
-// ─── Step 7: ResearchHashtagsStep ────────────────────────────────────────────
-
-const ResearchHashtagsInputSchema = GenerateCaptionOutputSchema;
-const ResearchHashtagsOutputSchema = ResearchHashtagsInputSchema.extend({
-  hashtags: z.array(z.string()),
-});
-
-export class ResearchHashtagsStep extends BaseStep<
-  z.infer<typeof ResearchHashtagsInputSchema>,
-  z.infer<typeof ResearchHashtagsOutputSchema>
-> {
-  readonly name = "research-hashtags";
-  readonly inputSchema = ResearchHashtagsInputSchema;
-  readonly outputSchema = ResearchHashtagsOutputSchema;
-
-  override estimatedCostEur(): number { return 0.005; }
-
-  async execute(input: z.infer<typeof ResearchHashtagsInputSchema>, ctx: StepContext) {
-    const toolNames = input.resolvedTools.map((t) => t.name).join(", ");
-
-    const response = await anthropic.messages({
-      projectId: ctx.projectId,
-      pipelineRunId: ctx.pipelineRunId,
-      operation: COST_OPS.SOCIAL_IMAGE_HASHTAGS,
-      model: "claude-haiku-4-5",
-      systemPrefix: "",
-      systemSuffix: "Return only a JSON array of hashtag strings.",
-      userMessage: `Generate 15-20 Instagram hashtags in German and English for a carousel about: "${input.articleTitle}".\nTools featured: ${toolNames}.\nReturn ONLY a JSON array of strings, e.g. ["#KITools","#ArtificialIntelligence"]`,
-      maxTokens: 300,
-      estimatedCostEur: 0.005,
-      jsonMode: true,
-    });
-
-    const rawText = response.raw;
-    let hashtags: string[] = [];
+    // Retry once on parse/validation failure; fall back to safe defaults on second failure.
+    let parsed: z.infer<typeof captionJsonSchema> | null = null;
     try {
-      const match = rawText.match(/\[[\s\S]*\]/);
-      hashtags = match ? JSON.parse(match[0]) : [];
+      parsed = await tryGenerate();
     } catch {
-      hashtags = ["#KITools", "#ArtificialIntelligence", "#Technologie"];
+      ctx.log.warn("GenerateCaptionStep: first attempt failed, retrying");
+      try {
+        parsed = await tryGenerate();
+      } catch {
+        ctx.log.error("GenerateCaptionStep: second attempt failed, using fallback");
+      }
     }
 
-    return { ...input, hashtags: hashtags.slice(0, 20) };
+    if (parsed) {
+      return { ...input, caption: parsed.caption, hashtags: parsed.hashtags };
+    }
+
+    return {
+      ...input,
+      caption: `${input.articleTitle} → ${input.articleUrl}`,
+      hashtags: HASHTAG_FALLBACK,
+      warnings: ["hashtag_generation_fallback"],
+    };
   }
 }
 
-// ─── Step 8: PersistSocialPostStep ───────────────────────────────────────────
+// ─── Step 7: PersistSocialPostStep ───────────────────────────────────────────
 
-const PersistInputSchema = ResearchHashtagsOutputSchema;
+const PersistInputSchema = GenerateCaptionOutputSchema;
 const PersistOutputSchema = z.object({
   socialPostId: z.string().uuid(),
   slideUrls: z.array(z.string()),
