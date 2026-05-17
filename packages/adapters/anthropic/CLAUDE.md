@@ -16,8 +16,7 @@ cached client singleton to pick them up.
 - The `systemPrefix` is what gets cached (1h TTL by default). Put stable content there:
   skill content, project marketing context, format examples
 - The `systemSuffix` is NOT cached. Put per-call instructions there
-- `jsonMode: true` is the standard way to request structured output. Don't ask for JSON
-  in the user message and parse manually — use the flag
+- `jsonMode: true` is the standard way to request structured output — **except for `claude-sonnet-4-6`**, which rejects assistant prefill (see JSON Mode Resilience). For Sonnet: omit `jsonMode`, prompt explicitly, extract JSON from `response.raw` manually
 
 ## Model Routing Guidance
 
