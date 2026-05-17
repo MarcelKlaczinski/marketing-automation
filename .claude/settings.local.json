@@ -835,7 +835,29 @@
       "Bash(awk '{print $2, $8, substr\\($0, index\\($0,$11\\)\\)}')",
       "Bash(awk '{print \"Running PID:\", $2}')",
       "Bash(kill 35058)",
-      "Bash(awk '{print \"Running:\", $2}')"
+      "Bash(awk '{print \"Running:\", $2}')",
+      "Bash(grep -n \"sql\\\\`\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/routes/projects/cron.ts /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/routes/projects/refresh.ts /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/workers/refresh-detector.ts)",
+      "Bash(bun --env-file .env ./packages/pipelines/src/article/translation/trigger.ts)",
+      "Bash(grep -n \"DO NOT use \\\\`isNull\\(subquery\\\\\\)\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/CLAUDE.md)",
+      "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
+      "Bash(sed -n '40,50p' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/costs/CostStatCard.vue)",
+      "Bash(sed -n '83,95p' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/costs/CostAlertCard.vue)",
+      "Bash(sed -n '61,66p' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/costs/CostBreakdownChart.vue)",
+      "Bash(sed -n '118,124p' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/costs/CostTrendChart.vue)",
+      "Bash(sed -n '190,200p' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/article-tools/ArticleTriggersPanel.vue)",
+      "Bash(sed -n '46,65p' /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/web/src/components/article-tools/ArticleListItem.vue)",
+      "Bash(psql -U postgres marketing_automation -c \"SELECT id, title, slug, status, created_at, updated_at, published_at, locale, collection FROM articles WHERE id IN \\('7c64bb11-6260-4cd1-9194-1d5ecef3cab8', 'd37ec166-7758-49b9-a9a9-c51c8e9e3de4'\\);\")",
+      "Bash(sed -n '210,250p' apps/web/src/i18n/de/clusters.ts)",
+      "Bash(sed -n '210,250p' apps/web/src/i18n/en/clusters.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation diff HEAD~1 HEAD -- apps/web/src/pages/trends/TrendDetailPage.vue)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD --name-only)",
+      "Bash(grep -E \"\\\\.vue$|\\\\.ts$\")",
+      "Bash(xargs -I{} git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:{})",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:packages/db/src/schema/cron.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:packages/db/src/schema/refresh.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:apps/api/src/workers/cron-orchestrator.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation show HEAD:packages/db/drizzle/0046_discovery_config.sql)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|vue\\)$\")"
     ]
   }
 }
