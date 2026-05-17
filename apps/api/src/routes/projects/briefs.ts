@@ -105,6 +105,26 @@ scopedBriefRoutes.get(
   },
 );
 
+// ─── GET /:slug/briefs/:briefId ──────────────────────────────────────────────
+
+scopedBriefRoutes.get("/:slug/briefs/:briefId", async (c) => {
+  const slug = c.req.param("slug");
+  const briefId = c.req.param("briefId");
+
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const [brief] = await db
+    .select()
+    .from(topicBriefs)
+    .where(and(eq(topicBriefs.id, briefId), eq(topicBriefs.projectId, project.id)))
+    .limit(1);
+
+  if (!brief) return c.json({ ok: false, error: "brief_not_found" }, 404);
+
+  return c.json({ ok: true, data: { brief } });
+});
+
 // ─── POST /:slug/briefs/bulk-approve ─────────────────────────────────────────
 
 const bulkApproveSchema = z.object({

@@ -7,6 +7,7 @@ import {
   db,
   desc,
   eq,
+  gte,
   ilike,
   inArray,
   lt,
@@ -150,6 +151,34 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
   ]);
 
   return c.json({ ok: true, data: paginated(rows, countRows, q) });
+});
+
+// ─── GET /api/projects/:slug/articles/count ───────────────────────────────────
+
+const articlesCountQuerySchema = z.object({
+  window: z.enum(["day", "week", "month"]).default("week"),
+});
+
+scopedArticleRoutes.get("/:slug/articles/count", zValidator("query", articlesCountQuerySchema), async (c) => {
+  const { slug } = c.req.param();
+  const q = c.req.valid("query");
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const windowMs = q.window === "day" ? 86_400_000 : q.window === "week" ? 7 * 86_400_000 : 30 * 86_400_000;
+  const since = new Date(Date.now() - windowMs);
+
+  const result = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(articles)
+    .where(and(eq(articles.projectId, project.id), gte(articles.createdAt, since)));
+
+  return c.json({ ok: true, data: { count: result[0]?.count ?? 0, window: q.window } });
 });
 
 // ─── GET /api/projects/:slug/articles/imported/collections ────────────────────

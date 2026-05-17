@@ -203,7 +203,7 @@ export default defineComponent({
       try {
         const slug = this.$route.params.slug as string;
         await apiPost(
-          `/projects/${slug}/clusters/${this.clusterId}/retry-failed`,
+          `/projects/${slug}/clusters/${this.clusterId}/retry-failed-spokes`,
         );
         this.$q.notify({
           type: "positive",
@@ -223,7 +223,7 @@ export default defineComponent({
       try {
         const slug = this.$route.params.slug as string;
         await apiPost(
-          `/projects/${slug}/clusters/${this.clusterId}/approve`,
+          `/projects/${slug}/clusters/${this.clusterId}/plan/approve`,
         );
         this.$q.notify({
           type: "positive",

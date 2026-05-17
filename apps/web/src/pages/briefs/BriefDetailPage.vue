@@ -79,13 +79,14 @@ export default defineComponent({
     const route = useRoute();
     const queryClient = useQueryClient();
     const briefId = route.params.briefId as string;
+    const slug = route.params.slug as string;
 
     const { data, isPending } = useQuery({
       queryKey: ["brief", briefId],
-      queryFn: () => apiGet<{ brief: BriefListItem }>(`/briefs/${briefId}`),
+      queryFn: () => apiGet<{ brief: BriefListItem }>(`/projects/${slug}/briefs/${briefId}`),
     });
 
-    return { briefId, data, isPending, queryClient };
+    return { briefId, slug, data, isPending, queryClient };
   },
 
   computed: {
@@ -125,7 +126,7 @@ export default defineComponent({
       if (!this.brief) return;
       try {
         const slug = this.$route.params.slug as string;
-        await apiPost(`/projects/${slug}/trends/${this.briefId}/approve`, {
+        await apiPost(`/projects/${slug}/trends/briefs/${this.briefId}/approve`, {
           mode: "assist",
         });
         void this.queryClient.invalidateQueries({ queryKey: ["brief", this.briefId] });
@@ -138,7 +139,7 @@ export default defineComponent({
       if (!this.brief) return;
       try {
         const slug = this.$route.params.slug as string;
-        await apiPost(`/projects/${slug}/trends/${this.briefId}/dismiss`);
+        await apiPost(`/projects/${slug}/trends/briefs/${this.briefId}/dismiss`);
         void this.queryClient.invalidateQueries({ queryKey: ["brief", this.briefId] });
         this.$q.notify({ type: "info", message: this.$t("briefs.actions.dismissSuccess") as string });
         void this.$router.push(this.backRoute);

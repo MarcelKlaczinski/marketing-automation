@@ -381,3 +381,50 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
 
   return c.json({ ok: true, data: { entries, since: since.toISOString(), activeCount } });
 });
+
+// ─── GET /api/projects/:slug/activity-summary ─────────────────────────────────
+
+scopedPipelineRunsRoutes.get("/:slug/activity-summary", async (c) => {
+  const { slug } = c.req.param();
+
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [runningResult, failedResult] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pipelineRuns)
+      .where(
+        and(
+          eq(pipelineRuns.projectId, project.id),
+          isNull(pipelineRuns.stepName),
+          inArray(pipelineRuns.status, ["running", "queued"] as Array<"running" | "queued">),
+        ),
+      ),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(pipelineRuns)
+      .where(
+        and(
+          eq(pipelineRuns.projectId, project.id),
+          isNull(pipelineRuns.stepName),
+          inArray(pipelineRuns.status, ["failed"] as Array<"failed">),
+          gte(pipelineRuns.createdAt, oneDayAgo),
+        ),
+      ),
+  ]);
+
+  return c.json({
+    ok: true,
+    data: {
+      runningCount: runningResult[0]?.count ?? 0,
+      failedLast24h: failedResult[0]?.count ?? 0,
+    },
+  });
+});
