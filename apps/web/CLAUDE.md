@@ -62,7 +62,7 @@ Routes defined in `src/router/routes.ts`:
 2. `/inbox`          — Approval queue (Spec 33)
 3. `/projects`       — Project list (Spec 34)
 4. `/projects/:slug` — Project detail (Spec 34)
-5. `/projects/:slug/cold-start` — Cold start wizard (Spec 35)
+5. `/projects/:slug/cold-start` — Cold start pipeline UI (Spec 35 — existing pipeline execution view)
 6. `/projects/:slug/articles`   — Articles list (Spec 36)
 7. `/articles/:id`   — Article detail/review (Spec 36)
 8. `/cost`           — Cost dashboard (Spec 37)
@@ -75,6 +75,39 @@ Routes defined in `src/router/routes.ts`:
 15. `/projects/:slug/brand/colors`     — Color token editor (Spec 52b)
 16. `/projects/:slug/brand/typography` — Typography token editor (Spec 52b)
 17. `/projects/:slug/social/admin`     — Social posts admin + batch re-render (Spec 52b)
+18. `/cold-start/new`                  — New project onboarding entry (Spec 56.4)
+19. `/cold-start/:draftId/phase-[1-5]` — 5-phase onboarding wizard (Spec 56.4, outside AppShell)
+
+## Cold-Start Wizard (Spec 56.4)
+
+Full-page 5-phase onboarding wizard for creating new projects. Lives **outside AppShell** — no sidebar, no topbar. Uses `ColdStartLayout.vue` as a nested route parent.
+
+### Architecture
+- **`ColdStartLayout.vue`** — full-page wrapper (header, `PhaseProgressBar`, `<router-view>` with `phase-fade` transitions)
+- **`ColdStartNewPage.vue`** — entry page at `/cold-start/new`; calls `POST /cold-start/initialize` → navigates to `phase-1`
+- **`PhaseProgressBar.vue`** — 5-dot indicator; current dot pulses; completed dots show SVG check
+- **`PhaseShell.vue`** — generic card wrapper; Back / Skip / Advance footer; stacks vertically on mobile
+- **Phase pages** (`ColdStartPhase1Basics.vue` … `ColdStartPhase5Confirm.vue`) — one per route child
+
+### `useColdStartDraft` composable
+All phase components call `useColdStartDraft()` in `setup()` and return its result. It provides:
+- `draftId` — from `route.params.draftId`
+- `draft` — `ColdStartDraft | undefined` (TanStack Query, auto-refetches)
+- `state` — `ColdStartState | undefined` (polls at 2 s when `brandDiscoveryStatus === "running"`)
+- `updateDraft(patch)` — PATCH the draft
+- `advance()` / `back()` — POST phase transitions, navigate via router on success
+- `finalize()` / `finalizing` — POST finalize, navigates to `/projects/:slug/dashboard`
+
+**Important**: `apiGet` already unwraps the `{ ok, data }` envelope — `draft = query.state.data` is the `ColdStartDraft` directly, not `query.state.data?.data`.
+
+### Brand discovery polling
+`useColdStartDraft` sets `refetchInterval` on the state query: returns `2000` when `state.brandDiscoveryStatus === "running"`, `false` otherwise. Phase 2 shows shimmer cards during this state.
+
+### Phase 4 (Astro) is optional
+Has `can-skip` on PhaseShell — `onSkip` calls `this.advance()` without saving form. `onAdvance` calls `POST /cold-start/:draftId/connect-astro` only if `form.repoPath` is non-empty.
+
+### i18n namespace
+All wizard keys live under `coldStart.phases.*` (separate from the existing pipeline-execution keys lower in the file). Phase-specific label keys: `coldStart.phases.basics.label`, `.brand.label`, `.seed.label`, `.astro.label`, `.confirm.label` — used by `PhaseProgressBar` for accessibility.
 
 ## Brand UI (Spec 52b)
 

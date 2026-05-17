@@ -201,6 +201,7 @@ Implemented specs (do not re-implement):
 - /specs/54.9-blog-generator.md (13-step article:blog pipeline; AuthorPickStep 3-strategy cascade; ToolLinkerStep linkification; 54.9.1 patch: dynamic author fallback + cost_logs.article_id + linkifyMarkdown re-link fix)
 - /specs/54.10-refresh+translation-modes.md (blog ChainStep + chain routing; article:refresh pipeline with article_versions + voice continuity; article:translation pipeline with Haiku decision + literal/adaptive paths; translationAutoTrigger project toggle)
 - /specs/54.12-full-cluster.md (all 6 sessions done: migration 0045; generateClusterPlan() LLM; 9 API endpoints for plan CRUD + approve + retry; Hub-first sequencing via BlogPipeline.afterComplete; enqueueClusterSpokes + checkClusterCompletion; Vue plan review page + "Vollständigen Cluster generieren" button)
+- /specs/56.4-cold-start-polish.md (Theme 56 FINAL: full-page glassmorphism onboarding wizard; 5 phases Basics→Brand→Seed→Astro→Confirm; useColdStartDraft composable with TanStack Query; PhaseProgressBar, PhaseShell, PillarCard, AuthorPersonaCard; brand discovery polling; /cold-start/* routes outside AppShell; ProjectSelector "+ Add project" entry)
 
 ## Project Marketing Contexts
 
