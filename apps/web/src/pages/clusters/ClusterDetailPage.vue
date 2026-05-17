@@ -76,6 +76,11 @@
         </div>
       </section>
 
+      <!-- Content Gaps section (Spec 56.6 Section D) -->
+      <section class="detail-section">
+        <ClusterGapsSection :cluster-id="clusterId" :auto-approve-gaps="false" />
+      </section>
+
       <!-- Cost + Runs panels -->
       <section class="detail-section detail-meta-grid">
         <ClusterCostPanel :cost="cost" />
@@ -97,6 +102,7 @@ import SpokeArticleCard from "src/components/cluster/SpokeArticleCard.vue";
 import PendingSpokeCard from "src/components/cluster/PendingSpokeCard.vue";
 import ClusterCostPanel from "src/components/cluster/ClusterCostPanel.vue";
 import ClusterRunsPanel from "src/components/cluster/ClusterRunsPanel.vue";
+import ClusterGapsSection from "src/components/gaps/ClusterGapsSection.vue";
 import type { ClusterStatusResponse, ClusterPipelineRun } from "src/types/ui";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -121,6 +127,7 @@ export default defineComponent({
     PendingSpokeCard,
     ClusterCostPanel,
     ClusterRunsPanel,
+    ClusterGapsSection,
   },
 
   setup() {

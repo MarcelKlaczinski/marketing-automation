@@ -1,10 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
 import { checkCostBudget, DEFAULT_COST_LIMITS, getPauseInfo, isProjectPaused, resumeProjectQueues, COST_OPS } from "@marketing-auto/core";
-import { articles, astroImportRuns, clusters, contentGaps, costLogs, db, eq, and, desc, gte, inArray, pipelineChains, pipelineRuns, projectConfigurations, projects, sql, topicBriefs, TopicScopeSchema } from "@marketing-auto/db";
+import { articles, astroImportRuns, clusters, contentGaps, costLogs, cronState, db, eq, and, desc, gte, inArray, pipelineChains, pipelineRuns, projectConfigurations, projects, sql, topicBriefs, TopicScopeSchema } from "@marketing-auto/db";
 import { DetectContentGapsStep, enqueueRepoImport } from "@marketing-auto/adapter-astro-sync/import";
 import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, enqueueBlogGenerationPipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
 import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
+import { syncCronJobs } from "../workers/cron-orchestrator.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -288,6 +289,11 @@ const updateProjectSchema = z.object({
     .regex(/^\d+(\.\d{1,2})?$/)
     .optional(),
   translationAutoTrigger: z.boolean().optional(),
+  // Discovery automation (Spec 56.6)
+  trendsCronEnabled: z.boolean().optional(),
+  refreshCronEnabled: z.boolean().optional(),
+  autoApproveGaps: z.boolean().optional(),
+  refreshStalenessThresholdDays: z.number().int().min(7).max(365).optional(),
 });
 
 projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c) => {
@@ -318,12 +324,46 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     setFields.linkRebuildBudgetMonthly = input.linkRebuildBudgetMonthly;
   if (input.translationAutoTrigger !== undefined)
     setFields.translationAutoTrigger = input.translationAutoTrigger;
+  if (input.trendsCronEnabled !== undefined) setFields.trendsCronEnabled = input.trendsCronEnabled;
+  if (input.refreshCronEnabled !== undefined) setFields.refreshCronEnabled = input.refreshCronEnabled;
+  if (input.autoApproveGaps !== undefined) setFields.autoApproveGaps = input.autoApproveGaps;
+  if (input.refreshStalenessThresholdDays !== undefined)
+    setFields.refreshStalenessThresholdDays = input.refreshStalenessThresholdDays;
 
   await db
     .update(projects)
     // biome-ignore lint/suspicious/noExplicitAny: Record<string,unknown> is structurally incompatible with Drizzle's strict partial column type; conditional build ensures only valid keys are present
     .set(setFields as any)
     .where(eq(projects.id, existing.id));
+
+  // Sync cron_state rows when cron flags change so orchestrator picks up changes within seconds
+  const cronChanges: Array<{ jobType: "trends_synthesizer" | "refresh_detector"; isActive: boolean }> = [];
+  if (input.trendsCronEnabled !== undefined)
+    cronChanges.push({ jobType: "trends_synthesizer", isActive: input.trendsCronEnabled });
+  if (input.refreshCronEnabled !== undefined)
+    cronChanges.push({ jobType: "refresh_detector", isActive: input.refreshCronEnabled });
+
+  if (cronChanges.length > 0) {
+    const defaultPatterns: Record<string, string> = {
+      trends_synthesizer: "30 1 * * *",
+      refresh_detector: "0 2 * * *",
+    };
+    for (const { jobType, isActive } of cronChanges) {
+      await db
+        .insert(cronState)
+        .values({
+          projectId: existing.id,
+          jobType,
+          isActive,
+          cronPattern: defaultPatterns[jobType]!,
+        })
+        .onConflictDoUpdate({
+          target: [cronState.projectId, cronState.jobType],
+          set: { isActive, updatedAt: new Date() },
+        });
+    }
+    void syncCronJobs();
+  }
 
   const [updated] = await db.select().from(projects).where(eq(projects.id, existing.id)).limit(1);
 
@@ -538,12 +578,13 @@ projectRoutes.post("/:slug/detect-gaps", async (c) => {
 
 // GET /:slug/content-gaps — list open/in_progress gaps with optional filters
 const gapsQuerySchema = paginationQuerySchema.extend({
-  limit:    z.coerce.number().int().min(1).max(200).default(50),
-  status:   z.enum(["open", "in_progress", "resolved", "dismissed"]).optional(),
-  gapType:  z
+  limit:     z.coerce.number().int().min(1).max(200).default(50),
+  status:    z.enum(["open", "in_progress", "resolved", "dismissed"]).optional(),
+  gapType:   z
     .enum(["missing_hub", "missing_translation", "missing_spoke_type", "cluster_too_small"])
     .optional(),
-  priority: z.coerce.number().int().min(1).max(3).optional(),
+  priority:  z.coerce.number().int().min(1).max(3).optional(),
+  clusterId: z.string().uuid().optional(),
 });
 
 projectRoutes.get(
@@ -561,9 +602,10 @@ projectRoutes.get(
     if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
 
     const conditions = [eq(contentGaps.projectId, project.id)];
-    if (q.status)   conditions.push(eq(contentGaps.status, q.status));
-    if (q.gapType)  conditions.push(eq(contentGaps.gapType, q.gapType));
-    if (q.priority) conditions.push(eq(contentGaps.priority, q.priority));
+    if (q.status)    conditions.push(eq(contentGaps.status, q.status));
+    if (q.gapType)   conditions.push(eq(contentGaps.gapType, q.gapType));
+    if (q.priority)  conditions.push(eq(contentGaps.priority, q.priority));
+    if (q.clusterId) conditions.push(eq(contentGaps.clusterId, q.clusterId));
 
     // Default: open + in_progress
     if (!q.status) {
@@ -764,7 +806,7 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
   const gapId = c.req.param("id");
 
   const [project] = await db
-    .select({ id: projects.id })
+    .select({ id: projects.id, autoApproveGaps: projects.autoApproveGaps })
     .from(projects)
     .where(eq(projects.slug, slug))
     .limit(1);
@@ -853,6 +895,115 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
     })
     .where(eq(contentGaps.id, gapId));
 
+  // Auto-approval: inline-trigger generation when project flag is set
+  if (project.autoApproveGaps) {
+    try {
+      const updatedBrief = {
+        ...brief,
+        primaryKeyword:    suggestion.cornerstoneKeyword,
+        secondaryKeywords,
+        suggestedTitle:    suggestion.title,
+        suggestedSlug:     suggestion.slug,
+        suggestedMeta:     suggestion.metaDescription,
+        heroImagePrompt:   suggestion.heroImagePrompt,
+      };
+      const decision = decideRoute(updatedBrief);
+      const routeResult = await db.transaction(async (tx) =>
+        executeDecision(decision, updatedBrief, tx),
+      );
+
+      if (routeResult.kind === "skipped") {
+        log.warn({ gapId, reason: routeResult.reason }, "Auto-approval skipped by routing policy");
+      } else if (
+        routeResult.kind === "article_created" ||
+        routeResult.kind === "translation_created"
+      ) {
+        const isBlogBrief =
+          routeResult.kind === "article_created" &&
+          updatedBrief.locale !== null &&
+          updatedBrief.clusterId !== null;
+        const triggerResult = await (isBlogBrief
+          ? triggerWithPreRunId({
+              pipelineName: "article:blog",
+              projectId:    project.id,
+              uniqueKey:    { field: "articleId", value: routeResult.articleId },
+              costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+              extraInput:   { articleId: routeResult.articleId, briefId: updatedBrief.id },
+              enqueue:      enqueueBlogGenerationPipeline,
+            })
+          : triggerWithPreRunId({
+              pipelineName: "article:outline",
+              projectId:    project.id,
+              uniqueKey:    { field: "articleId", value: routeResult.articleId },
+              costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+              extraInput:   { articleId: routeResult.articleId },
+              enqueue:      enqueueArticleOutlinePipeline,
+            }));
+
+        await db
+          .update(contentGaps)
+          .set({
+            filledByArticleId:     routeResult.articleId,
+            generationTriggeredAt: new Date(),
+            status:                "in_progress",
+            updatedAt:             new Date(),
+          })
+          .where(eq(contentGaps.id, gapId));
+
+        if (!("error" in triggerResult)) {
+          log.info({ gapId, articleId: routeResult.articleId }, "Gap auto-approved after suggest");
+          return c.json({
+            ok:   true,
+            data: {
+              suggestedTitle:    suggestion.title,
+              suggestedSlug:     suggestion.slug,
+              suggestedMeta:     suggestion.metaDescription,
+              primaryKeyword:    suggestion.cornerstoneKeyword,
+              secondaryKeywords,
+              briefId:           brief.id,
+              clusterUpdated:    false,
+              cached:            false,
+              autoTriggered:     true,
+              articleId:         routeResult.articleId,
+              runId:             triggerResult.runId,
+              jobId:             triggerResult.jobId,
+            },
+          });
+        }
+        log.warn({ gapId, error: triggerResult.error }, "Auto-approval trigger blocked — returning plain suggestion");
+      } else if (routeResult.kind === "cornerstone_spec_created") {
+        await db
+          .update(contentGaps)
+          .set({
+            filledBySpecId:        routeResult.cornerstoneSpecId,
+            generationTriggeredAt: new Date(),
+            status:                "in_progress",
+            updatedAt:             new Date(),
+          })
+          .where(eq(contentGaps.id, gapId));
+
+        log.info({ gapId, specId: routeResult.cornerstoneSpecId }, "Gap auto-approved to cornerstone spec after suggest");
+        return c.json({
+          ok:   true,
+          data: {
+            suggestedTitle:    suggestion.title,
+            suggestedSlug:     suggestion.slug,
+            suggestedMeta:     suggestion.metaDescription,
+            primaryKeyword:    suggestion.cornerstoneKeyword,
+            secondaryKeywords,
+            briefId:           brief.id,
+            clusterUpdated:    false,
+            cached:            false,
+            autoTriggered:     true,
+            cornerstoneSpecId: routeResult.cornerstoneSpecId,
+          },
+        });
+      }
+    } catch (err) {
+      log.error({ err, gapId }, "Auto-approval failed after suggest — returning plain suggestion");
+    }
+  }
+
   return c.json({
     ok: true,
     data: {
@@ -864,6 +1015,7 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
       briefId:           brief.id,
       clusterUpdated:    false,
       cached:            false,
+      autoTriggered:     false,
     },
   });
 });

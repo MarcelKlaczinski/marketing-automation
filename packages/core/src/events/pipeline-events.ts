@@ -6,4 +6,8 @@ export type PipelineEvent =
   | { type: "pipeline.failed"; runId: string; pipelineName: string; stepName: string; error: string; timestamp: string }
   | { type: "pipeline.cancelled"; runId: string; pipelineName: string; timestamp: string }
   | { type: "cluster.status.changed"; clusterId: string; oldStatus: string; newStatus: string; timestamp: string }
-  | { type: "heartbeat"; timestamp: string };
+  | { type: "heartbeat"; timestamp: string }
+  // Spec 56.6: Discovery events
+  | { type: "trends.discovered"; projectId: string; newBriefIds: string[]; topScore: number; timestamp: string }
+  | { type: "gaps.detected"; projectId: string; clusterId: string; gapIds: string[]; timestamp: string }
+  | { type: "refresh.detected"; projectId: string; candidateCount: number; autoApprovedCount: number; timestamp: string };

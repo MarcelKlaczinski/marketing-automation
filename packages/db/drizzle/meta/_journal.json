@@ -323,6 +323,13 @@
       "when": 1782300000000,
       "tag": "0045_full_cluster_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1782400000000,
+      "tag": "0046_discovery_config",
+      "breakpoints": true
     }
   ]
 }

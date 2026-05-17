@@ -66,6 +66,26 @@ export function usePipelineEvents() {
     }
   }
 
+  function handleDiscoveryEvent(e: MessageEvent): void {
+    const event = JSON.parse(e.data as string) as PipelineEvent;
+    eventsStore.addEvent(event);
+
+    const slug = projectStore.currentSlug;
+
+    // Always refresh sidebar badge counts.
+    void queryClient.invalidateQueries({ queryKey: ["discovery-counts", slug] });
+
+    // Invalidate the relevant view's data query too.
+    if (event.type === "trends.discovered") {
+      void queryClient.invalidateQueries({ queryKey: ["trends-pending", slug] });
+    } else if (event.type === "gaps.detected") {
+      // Invalidate all content-gap queries for this project (all clusters).
+      void queryClient.invalidateQueries({ queryKey: ["content-gaps", slug] });
+    } else if (event.type === "refresh.detected") {
+      void queryClient.invalidateQueries({ queryKey: ["refresh-candidates", slug] });
+    }
+  }
+
   function connect(): void {
     cleanup();
 
@@ -94,6 +114,16 @@ export function usePipelineEvents() {
       eventSource.addEventListener(name, handlePipelineEvent);
     }
     eventSource.addEventListener("cluster.status.changed", handleClusterEvent);
+
+    const discoveryEvents = [
+      "trends.discovered",
+      "gaps.detected",
+      "refresh.detected",
+    ] as const;
+
+    for (const name of discoveryEvents) {
+      eventSource.addEventListener(name, handleDiscoveryEvent);
+    }
 
     eventSource.onerror = () => {
       eventsStore.setConnectionStatus("error");

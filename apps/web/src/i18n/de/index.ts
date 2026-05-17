@@ -30,6 +30,7 @@ import briefs from "./briefs";
 import search from "./search";
 import forms from "./forms";
 import articleTools from "./articleTools";
+import refresh from "./refresh";
 
 export default {
   app,
@@ -64,4 +65,5 @@ export default {
   search,
   forms,
   articleTools,
+  refresh,
 };

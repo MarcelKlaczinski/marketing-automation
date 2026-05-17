@@ -21,7 +21,10 @@ export default {
   // sidebar section headings
   orchestration: "Orchestration",
   content: "Content",
+  discovery: "Discovery",
   platform: "Platform",
+  // discovery nav items
+  refreshQueue: "Refresh-Warteschlange",
   // status filter chips
   filterAll: "Alle",
   filterRunning: "Laufend",

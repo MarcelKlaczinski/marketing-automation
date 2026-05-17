@@ -359,7 +359,9 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
 
   if (!cluster) return c.json({ ok: false, error: "cluster_not_found" }, 404);
 
-  // Load all articles tied to this cluster (by generation batch OR manually-added)
+  // Load all articles tied to this cluster (by generation batch OR manually-added).
+  // `role` is set for pipeline-generated articles; `clusterRole` is set for Astro-imported
+  // articles. COALESCE merges both so hub/spoke display works for both origins.
   const clusterArticles = await db
     .select({
       id: articles.id,
@@ -367,7 +369,7 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
       title: articles.title,
       status: articles.status,
       locale: articles.locale,
-      role: articles.role,
+      role: sql<"hub" | "spoke" | null>`COALESCE(${articles.role}, ${articles.clusterRole})`,
       heroImagePublicUrl: articles.heroImagePublicUrl,
       createdAt: articles.createdAt,
     })
@@ -399,14 +401,16 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
           .then((r) => Number(r[0]?.total ?? 0))
       : 0;
 
-  const hubArticle = clusterArticles.find((a) => a.role === "hub") ?? null;
-  const spokeArticles = clusterArticles.filter((a) => a.role === "spoke");
+  const resolvedHub = clusterArticles.find((a) => a.role === "hub") ?? null;
+  const resolvedSpokes = clusterArticles.filter((a) => a.role === "spoke");
 
   // Progress: count articles at or past final_review
   const completedCount = clusterArticles.filter(
     (a) => a.status === "final_review" || a.status === "published",
   ).length;
-  const expectedCount = 1 + (cluster.proposedSpokes?.length ?? 0);
+  const expectedCount = cluster.proposedSpokes?.length
+    ? 1 + cluster.proposedSpokes.length
+    : clusterArticles.length || 1;
   const progressPercent =
     expectedCount > 0 ? Math.round((completedCount / expectedCount) * 100) : 0;
 
@@ -424,8 +428,8 @@ clusterCreatorRoutes.get("/:slug/clusters/:id/generation-status", async (c) => {
         proposedSpokes: cluster.proposedSpokes,
         pendingSpokeBriefIds: cluster.pendingSpokeBriefIds ?? [],
       },
-      hubArticle,
-      spokeArticles,
+      hubArticle: resolvedHub,
+      spokeArticles: resolvedSpokes,
       pipelineRuns: pipelineRunsForCluster.map((r) => ({
         id: r.id,
         pipelineName: r.pipelineName,

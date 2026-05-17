@@ -27,7 +27,11 @@ export type PipelineEventType =
   | "pipeline.completed"
   | "pipeline.failed"
   | "pipeline.cancelled"
-  | "cluster.status.changed";
+  | "cluster.status.changed"
+  // Spec 56.6: Discovery events
+  | "trends.discovered"
+  | "gaps.detected"
+  | "refresh.detected";
 
 /** A single SSE pipeline event */
 export interface PipelineEvent {
@@ -39,10 +43,19 @@ export interface PipelineEvent {
   payload: Record<string, unknown>;
 }
 
+/** Which DB table this activity entry originates from — determines which detail endpoint to call */
+export type ActivitySource =
+  | "pipeline_runs"
+  | "astro_sync_runs"
+  | "pagespeed_runs"
+  | "schema_extension_runs"
+  | "link_rebuild_runs";
+
 /** Pipeline run summary (used in kanban lanes) — shape mirrors ActivityEntry from /pipeline-runs/active */
 export interface PipelineRunSummary {
   id: string;
   type: string;
+  source: ActivitySource;
   status: PipelineStatus;
   title: string;
   subtitle: string | null;

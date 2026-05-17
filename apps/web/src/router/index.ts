@@ -139,6 +139,27 @@ const routes = [
         component: () => import("src/pages/article-tools/ArticleToolsPage.vue"),
       },
 
+      // 56.6: Trends view — master-detail
+      {
+        path: "trends",
+        name: "trends",
+        component: () => import("src/pages/trends/TrendsListPage.vue"),
+        children: [
+          {
+            path: ":trendId",
+            name: "trend-detail",
+            component: () => import("src/pages/trends/TrendDetailPage.vue"),
+          },
+        ],
+      },
+
+      // 56.6: Refresh Queue — flat list (no master-detail, action is in-place)
+      {
+        path: "refresh-queue",
+        name: "refresh-queue",
+        component: () => import("src/pages/refresh/RefreshQueuePage.vue"),
+      },
+
     ],
   },
 

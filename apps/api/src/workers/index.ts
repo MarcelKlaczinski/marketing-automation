@@ -39,6 +39,9 @@ import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
+import { startCronOrchestratorWorker, registerCronOrchestrator } from "./cron-orchestrator.ts";
+import { startRefreshDetectorWorker } from "./refresh-detector.ts";
+import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("worker");
@@ -172,6 +175,11 @@ async function main() {
   // await registerSignalCollectorCron(); // temporarily disabled
   const trendSynthesizerWorker = startTrendSynthesizerWorker();
   // await registerTrendSynthesizerCron(); // temporarily disabled
+  const refreshDetectorWorker = startRefreshDetectorWorker();
+  const cronOrchestratorWorker = startCronOrchestratorWorker();
+  await registerCronOrchestrator();
+  const gapAutoApproverWorker = startGapAutoApproverWorker();
+  // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
   log.info("Workers running");
@@ -182,6 +190,9 @@ async function main() {
     await discoveryWorker.close();
     await signalCollectorWorker.close();
     await trendSynthesizerWorker.close();
+    await refreshDetectorWorker.close();
+    await cronOrchestratorWorker.close();
+    await gapAutoApproverWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

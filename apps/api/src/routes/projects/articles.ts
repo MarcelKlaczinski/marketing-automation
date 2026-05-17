@@ -49,7 +49,7 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
   const q = c.req.valid("query");
 
   const [project] = await db
-    .select({ id: projects.id })
+    .select({ id: projects.id, refreshStalenessThresholdDays: projects.refreshStalenessThresholdDays })
     .from(projects)
     .where(eq(projects.slug, slug))
     .limit(1);
@@ -103,6 +103,13 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
         source: articles.source,
         translationKey: articles.translationKey,
         heroImagePublicUrl: articles.heroImagePublicUrl,
+        daysSinceLastUpdate: sql<number>`
+          EXTRACT(DAY FROM NOW() - COALESCE(${articles.publishedAt}, ${articles.updatedAt}))::int
+        `,
+        needsRefresh: sql<boolean>`
+          ${articles.status} = 'published'
+          AND COALESCE(${articles.publishedAt}, ${articles.updatedAt}) < NOW() - INTERVAL '${sql.raw(String(project.refreshStalenessThresholdDays))} days'
+        `,
       })
       .from(articles)
       .leftJoin(clusters, eq(articles.clusterId, clusters.id))
@@ -143,6 +150,13 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
         source: articles.source,
         translationKey: articles.translationKey,
         heroImagePublicUrl: articles.heroImagePublicUrl,
+        daysSinceLastUpdate: sql<number>`
+          EXTRACT(DAY FROM NOW() - COALESCE(${articles.publishedAt}, ${articles.updatedAt}))::int
+        `,
+        needsRefresh: sql<boolean>`
+          ${articles.status} = 'published'
+          AND COALESCE(${articles.publishedAt}, ${articles.updatedAt}) < NOW() - INTERVAL '${sql.raw(String(project.refreshStalenessThresholdDays))} days'
+        `,
       })
       .from(articles)
       .leftJoin(clusters, eq(articles.clusterId, clusters.id))
@@ -177,12 +191,32 @@ scopedArticleRoutes.get("/:slug/articles/count", zValidator("query", articlesCou
   const windowMs = q.window === "day" ? 86_400_000 : q.window === "week" ? 7 * 86_400_000 : 30 * 86_400_000;
   const since = new Date(Date.now() - windowMs);
 
-  const result = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(articles)
-    .where(and(eq(articles.projectId, project.id), gte(articles.createdAt, since)));
+  const [uniqueRow, localeRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(distinct coalesce(translation_key, id::text))::int` })
+      .from(articles)
+      .where(and(eq(articles.projectId, project.id), gte(articles.createdAt, since))),
+    db
+      .select({ locale: articles.locale, count: sql<number>`count(*)::int` })
+      .from(articles)
+      .where(and(eq(articles.projectId, project.id), gte(articles.createdAt, since)))
+      .groupBy(articles.locale),
+  ]);
 
-  return c.json({ ok: true, data: { count: result[0]?.count ?? 0, window: q.window } });
+  const localeCounts: Record<string, number> = {};
+  for (const row of localeRows) {
+    localeCounts[row.locale ?? "unknown"] = row.count;
+  }
+
+  return c.json({
+    ok: true,
+    data: {
+      count: uniqueRow[0]?.count ?? 0,
+      de: localeCounts["de"] ?? 0,
+      en: localeCounts["en"] ?? 0,
+      window: q.window,
+    },
+  });
 });
 
 // ─── GET /api/projects/:slug/articles/imported/collections ────────────────────

@@ -12,6 +12,9 @@ export default {
   rejected: "entries",
   signals: "signals",
 
+  emptyTitle: "No Pending Trends",
+  emptyDescription: "Run synthesis to generate new trend briefs.",
+
   score: "Score",
   similarity: "Similarity",
   expiresIn: "Expires in",
@@ -44,6 +47,9 @@ export default {
   },
 
   detail: {
+    emptyTitle: "Select a Trend",
+    emptyDescription: "Pick a trend brief from the list to see details.",
+
     scoreBreakdown: "Score Breakdown",
     communityBuzz: "Community Buzz",
     searchVolumeGrowth: "Search Volume Growth",
@@ -67,9 +73,12 @@ export default {
     heroPrompt: "Hero Image Prompt (read-only)",
 
     routingPreview: "Routing Preview",
-    routingAppend: "Will append to cluster \"{cluster}\" (intent: {intent})",
+    routingAppend: "Will append to cluster \"{cluster}\"",
     routingCreateNew: "Create new cluster — use \"Create cluster & generate\" below.",
     noCluster: "No cluster assigned",
+    assignCluster: "Assign cluster manually",
+    assignClusterSave: "Assign",
+    relatedEvent: "Related Event",
 
     editMode: "Edit Fields",
     saveEdits: "Save Changes",

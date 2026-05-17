@@ -62,6 +62,16 @@
         <path d="M2 12.5h4l6.5-6.5-4-4L2 8.5z" />
         <line x1="10" y1="4" x2="12" y2="6" />
       </svg>
+      <!-- Trends (rising arrow + wave) -->
+      <svg v-else-if="icon === 'trends'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1,11 5,7 8,9 12,4" />
+        <polyline points="9,4 12,4 12,7" />
+      </svg>
+      <!-- Refresh Queue (circular arrows) -->
+      <svg v-else-if="icon === 'refreshQueue'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3" />
+        <polyline points="11,2 13.5,4.7 11,7" />
+      </svg>
       <!-- Fallback generic dot -->
       <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="3" fill="currentColor" opacity="0.5" />

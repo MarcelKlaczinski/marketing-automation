@@ -35,6 +35,24 @@
         />
       </div>
 
+      <!-- === Discovery section === -->
+      <div class="nav-section">
+        <p class="nav-section-label label-caps">{{ $t("nav.discovery") as string }}</p>
+
+        <NavItem
+          :to="`/projects/${slug}/trends`"
+          icon="trends"
+          :label="$t('nav.trends') as string"
+          v-bind="trendsPending > 0 ? { badge: trendsPending, badgeVariant: 'default' } : {}"
+        />
+        <NavItem
+          :to="`/projects/${slug}/refresh-queue`"
+          icon="refreshQueue"
+          :label="$t('nav.refreshQueue') as string"
+          v-bind="refreshCandidates > 0 ? { badge: refreshCandidates, badgeVariant: 'default' } : {}"
+        />
+      </div>
+
       <!-- === Platform section === -->
       <div class="nav-section">
         <p class="nav-section-label label-caps">{{ $t("nav.platform") }}</p>
@@ -56,8 +74,8 @@
         />
       </div>
 
-      <!-- === Status filter chips (bottom) === -->
-      <div class="filter-section">
+      <!-- === Status filter chips (bottom, only on dashboard) === -->
+      <div v-if="isDashboard" class="filter-section">
         <p class="nav-section-label label-caps">{{ $t("nav.filterAll") }}</p>
         <div class="filter-chips">
           <button
@@ -79,6 +97,7 @@
 import { defineComponent } from "vue";
 import { useUiStore } from "src/stores/ui";
 import { useProjectStore } from "src/stores/project";
+import { useDiscoveryCounts } from "src/composables/useDiscoveryCounts";
 import NavItem from "./NavItem.vue";
 
 type StatusFilter = "all" | "running" | "queued" | "failed" | "completed";
@@ -117,12 +136,16 @@ export default defineComponent({
   setup() {
     const uiStore = useUiStore();
     const projectStore = useProjectStore();
-    return { uiStore, projectStore };
+    const { trendsPending, refreshCandidates } = useDiscoveryCounts();
+    return { uiStore, projectStore, trendsPending, refreshCandidates };
   },
 
   computed: {
     slug(): string {
       return this.projectStore.currentSlug;
+    },
+    isDashboard(): boolean {
+      return this.$route.name === "dashboard";
     },
     activeFilter(): StatusFilter {
       return this.uiStore.statusFilter;

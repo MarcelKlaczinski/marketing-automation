@@ -2,6 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import { COST_OPS } from "@marketing-auto/core";
 import {
   and,
+  clusters,
   db,
   desc,
   eq,
@@ -59,9 +60,13 @@ trendRoutes.get("/:slug/trends/pending-briefs", async (c) => {
   const proj = await resolveProject(slug);
   if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
 
-  const briefs = await db
-    .select()
+  const rows = await db
+    .select({
+      brief: topicBriefs,
+      clusterName: clusters.name,
+    })
     .from(topicBriefs)
+    .leftJoin(clusters, eq(clusters.id, topicBriefs.clusterId))
     .where(
       and(
         eq(topicBriefs.projectId, proj.id),
@@ -70,6 +75,8 @@ trendRoutes.get("/:slug/trends/pending-briefs", async (c) => {
       ),
     )
     .orderBy(desc(sql`(${topicBriefs.trendMetadata}->>'trendScore')::int`));
+
+  const briefs = rows.map((r) => ({ ...r.brief, clusterName: r.clusterName ?? null }));
 
   return c.json({ ok: true, data: { briefs } });
 });
@@ -349,6 +356,7 @@ const editBodySchema = z.object({
   suggestedTitle: z.string().min(10).max(200).optional(),
   suggestedMeta:  z.string().min(50).max(160).optional(),
   suggestedSlug:  z.string().regex(/^[a-z0-9-]+$/).max(100).optional(),
+  clusterId:      z.string().uuid().optional(),
 });
 
 trendRoutes.post(
@@ -367,7 +375,7 @@ trendRoutes.post(
     }
     const body = parsed.data;
 
-    if (!body.suggestedTitle && !body.suggestedMeta && !body.suggestedSlug) {
+    if (!body.suggestedTitle && !body.suggestedMeta && !body.suggestedSlug && !body.clusterId) {
       return c.json({ ok: false, error: "No fields to update" }, 400);
     }
 
@@ -386,11 +394,21 @@ trendRoutes.post(
 
     if (!brief) return c.json({ ok: false, error: "Trend brief not found or already processed" }, 404);
 
+    if (body.clusterId) {
+      const [cluster] = await db
+        .select({ id: clusters.id })
+        .from(clusters)
+        .where(and(eq(clusters.id, body.clusterId), eq(clusters.projectId, proj.id)))
+        .limit(1);
+      if (!cluster) return c.json({ ok: false, error: "cluster_not_found" }, 404);
+    }
+
     const setValues = {
       updatedAt: new Date(),
       ...(body.suggestedTitle !== undefined ? { suggestedTitle: body.suggestedTitle } : {}),
       ...(body.suggestedMeta  !== undefined ? { suggestedMeta:  body.suggestedMeta  } : {}),
       ...(body.suggestedSlug  !== undefined ? { suggestedSlug:  body.suggestedSlug  } : {}),
+      ...(body.clusterId      !== undefined ? { clusterId: body.clusterId, clusterAction: "append_to_existing" as const } : {}),
     };
 
     await db.update(topicBriefs).set(setValues).where(eq(topicBriefs.id, briefId));

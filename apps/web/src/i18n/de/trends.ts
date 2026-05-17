@@ -12,6 +12,9 @@ export default {
   rejected: "Einträge",
   signals: "Signale",
 
+  emptyTitle: "Keine ausstehenden Trends",
+  emptyDescription: "Synthese ausführen, um neue Trend-Briefs zu generieren.",
+
   score: "Score",
   similarity: "Ähnlichkeit",
   expiresIn: "Läuft ab in",
@@ -44,6 +47,9 @@ export default {
   },
 
   detail: {
+    emptyTitle: "Trend auswählen",
+    emptyDescription: "Wähle einen Trend aus der Liste, um Details anzuzeigen.",
+
     scoreBreakdown: "Score-Aufschlüsselung",
     communityBuzz: "Community Buzz",
     searchVolumeGrowth: "Suchvolumen-Wachstum",
@@ -67,9 +73,12 @@ export default {
     heroPrompt: "Hero-Image-Prompt (read-only)",
 
     routingPreview: "Routing-Vorschau",
-    routingAppend: "Wird Cluster \"{cluster}\" hinzugefügt (Intent: {intent})",
-    routingCreateNew: "Neuen Cluster erstellen — über \"Cluster erstellen & generieren\" starten.",
+    routingAppend: 'Wird Cluster "{cluster}" hinzugefügt',
+    routingCreateNew: 'Neuen Cluster erstellen — über "Cluster erstellen & generieren" starten.',
     noCluster: "Kein Cluster zugewiesen",
+    assignCluster: "Cluster manuell zuweisen",
+    assignClusterSave: "Zuweisen",
+    relatedEvent: "Verwandtes Ereignis",
 
     editMode: "Felder bearbeiten",
     saveEdits: "Änderungen speichern",

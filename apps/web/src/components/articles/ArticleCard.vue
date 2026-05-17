@@ -10,6 +10,10 @@
     <div class="card-inner">
       <div class="card-row">
         <span class="card-tag mono">{{ article.collection ?? "—" }}</span>
+        <StalenessBadge
+          v-if="article.needsRefresh && article.daysSinceLastUpdate != null"
+          :days="article.daysSinceLastUpdate"
+        />
         <span :class="['card-status', `status-${statusVariant}`]">{{ statusLabel }}</span>
       </div>
 
@@ -47,6 +51,7 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
 import GlassCard from "src/components/ui/GlassCard.vue";
+import StalenessBadge from "src/components/refresh/StalenessBadge.vue";
 
 interface ArticleStub {
   id: string;
@@ -58,6 +63,8 @@ interface ArticleStub {
   status: string;
   wordCount: number | null;
   updatedAt: string | Date;
+  needsRefresh?: boolean;
+  daysSinceLastUpdate?: number | null;
 }
 
 interface ArticleSibling {
@@ -107,7 +114,7 @@ function formatRelative(date: string | Date): string {
 export default defineComponent({
   name: "ArticleCard",
 
-  components: { GlassCard },
+  components: { GlassCard, StalenessBadge },
 
   emits: {
     select: (_id: string) => true,

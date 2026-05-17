@@ -208,4 +208,27 @@ export default {
     manual: "Manual",
     idle: "Idle",
   },
+
+  // 56.6 Section D: Content Gaps
+  gaps: {
+    title: "Content Gaps",
+    description: "Missing content in the cluster that can be generated.",
+    detect: "Detect gaps",
+    redetect: "Re-detect",
+    suggest: "Suggest",
+    generate: "Generate",
+    dismiss: "Dismiss",
+    autoApproved: "Auto-approved",
+    empty: {
+      title: "No gaps detected",
+      description: "Click \"Detect gaps\" to analyse content gaps.",
+    },
+  },
+
+  gapType: {
+    missing_hub: "Hub missing",
+    missing_spoke_type: "Spoke type missing",
+    missing_translation: "Translation missing",
+    cluster_too_small: "Cluster too small",
+  },
 };

@@ -1,4 +1,4 @@
-import { boolean, index, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import {
   credentialServiceEnum,
   industryEnum,
@@ -74,6 +74,12 @@ export const projects = pgTable(
 
     // Spec 51: Visual brand tokens for social-image generation (colors, typography, voice, social handles)
     brandTokens: jsonb("brand_tokens").$type<BrandTokens>().notNull().default({}),
+
+    // Spec 56.6: Discovery automation config
+    trendsCronEnabled: boolean("trends_cron_enabled").notNull().default(false),
+    refreshCronEnabled: boolean("refresh_cron_enabled").notNull().default(false),
+    autoApproveGaps: boolean("auto_approve_gaps").notNull().default(false),
+    refreshStalenessThresholdDays: integer("refresh_staleness_threshold_days").notNull().default(90),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

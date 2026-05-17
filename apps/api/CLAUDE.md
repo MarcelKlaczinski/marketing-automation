@@ -175,6 +175,19 @@ Enqueues a `synthesize-project` job with a unique jobId. Useful during dev witho
 ## Scheduler Pattern
 Scheduled jobs live as `registerScheduledJob()` calls in `src/workers/index.ts`, not as standalone processes. The handler function can be extracted to its own file (see `src/workers/article-scheduler.ts`) that exports a single tick function for testability. Gate optional schedulers behind an env flag checked at registration time so they never fire in envs where the flag is absent.
 
+## Runtime Cron Toggle Pattern (Spec 56.6)
+
+Per-project cron schedules are driven by the `cron_state` DB table rather than hardcoded BullMQ repeating jobs. `src/workers/cron-orchestrator.ts` runs every minute, reads active rows from `cron_state`, and syncs BullMQ repeating jobs to match.
+
+When a Settings PATCH changes `trendsCronEnabled` or `refreshCronEnabled`:
+1. Upsert the `cron_state` row (in the route handler)
+2. Mirror the flag to `projects` table (for fast reads in list endpoints)
+3. Call `syncCronJobs()` in the background (fire-and-forget) so the change takes effect within seconds without waiting for the next orchestrator tick
+
+Manual "Run Now" buttons POST to `/:slug/cron-status/run` with `{ jobType }`. This enqueues a one-off job directly — separate from the repeating schedule.
+
+The main project PATCH (`PATCH /api/projects/:slug`) also handles `trendsCronEnabled` / `refreshCronEnabled` fields and upserts `cron_state` inline. This is intentional: the frontend Settings page saves all discovery config in one request to the project PATCH rather than requiring a separate cron-status call. Both code paths (project PATCH and cron-status PATCH) end up calling `syncCronJobs()` fire-and-forget.
+
 ## Optional-Body POST Endpoints
 When a POST endpoint has all-optional body fields, `zValidator("json", ...)` will hard-fail (400 with raw parse error) if the client sends no body or no `Content-Type: application/json`. Instead, parse manually:
 ```typescript
@@ -255,6 +268,10 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT omit `stream.onAbort` cleanup in SSE endpoints that open a Redis subscriber — each SSE client gets its own `IORedis` subscriber connection; without `onAbort(() => { subscriber.unsubscribe(channel); subscriber.quit(); })`, abandoned connections accumulate and exhaust the Redis connection pool. See `src/routes/projects/pipeline-events.ts` for the canonical pattern.
 - DO NOT use `like` from `@marketing-auto/db` — it is not re-exported from the workspace DB package. Use `ilike` instead (case-insensitive LIKE; acceptable for all current use-cases since pipeline names and slugs are already lowercase). If case-sensitive matching is ever needed, add `like` to `packages/db/src/index.ts`.
 - DO NOT define helper functions in a route file without `export` if a scoped sibling under `routes/projects/` needs to share them — `import { fn } from "../pipeline-runs.ts"` only works when the function is exported. When creating a scoped sub-route that mirrors an existing route's logic, export the shared helpers rather than copy-pasting them.
+- DO NOT pass `isNull(subquery)` to exclude rows — it compiles but produces wrong SQL. The correct pattern for "exclude rows present in another table" is LEFT JOIN + `isNull(joinedTable.id)`: `.leftJoin(otherTable, and(eq(...), eq(...))).where(isNull(otherTable.id))`. See `refresh-detector.ts` and `refresh.ts` for the canonical example.
+- DO NOT add a second network round-trip when `autoApproveGaps = true` in the `/suggest` handler — auto-generation fires inline after the dual-write (brief + gap metadata), using `decideRoute` + `executeDecision` + `triggerWithPreRunId` with the in-memory `updatedBrief` object. The response is enriched with `{ autoTriggered: true, articleId, runId, jobId }` so the frontend knows immediately. Errors during auto-trigger (cost limit, routing skip, exception) fall through to return the plain suggestion with `autoTriggered: false` — the suggestion itself never fails due to auto-approval.
+
+- DO NOT interpolate a numeric variable directly into an `INTERVAL` sql template — Drizzle binds it as a parameter and PostgreSQL rejects `INTERVAL $1 days`. Use `sql.raw(String(n))` for the number: `` sql`COALESCE(...) < NOW() - INTERVAL '${sql.raw(String(days))} days'` ``. Only safe for integers derived from DB config (not user input). Caught in Spec 56.6 `needsRefresh` and `discovery-counts` expressions.
 
 ## Gap Routes — TopicBrief as SSoT (Spec 54.3)
 
