@@ -91,11 +91,13 @@ When `jsonMode: true`, the adapter uses two hardening techniques:
 
 The `raw` field in `MessagesResult` always has `{` prepended when `jsonMode: true`.
 
+**`jsonMode: true` requires assistant prefill support.** `claude-sonnet-4-6` returns HTTP 400 `"This model does not support assistant message prefill"` when `jsonMode: true` is passed. For steps using this model that need JSON output, omit `jsonMode` and extract JSON manually from `response.raw` (use `raw.indexOf("{")` / `raw.lastIndexOf("}")`). Instruct the model via `systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation."` and include an inline JSON skeleton in the user message.
+
 ## Common Mistakes
 
 - DO NOT pass system as a string — must be the array of TextBlockParam (the adapter handles this; if you ever shortcut around the adapter, remember this)
 - DO NOT skip cost-tracker — even "small" calls add up
 - DO NOT exceed model `max_tokens` (adapter clamps automatically; don't fight it)
 - DO NOT request `temperature: 1.5` or wild values — Anthropic has a 0-1 range
-- DO NOT instruct the user message "respond with JSON" — use `jsonMode: true`
+- DO NOT use `jsonMode: true` with `claude-sonnet-4-6` — the model rejects assistant prefill with HTTP 400. Extract JSON manually from `response.raw` instead (see JSON Mode Resilience note above)
 - DO NOT enable `ANTHROPIC_CACHE_MODE=record` or `=auto` in production — default is `off`

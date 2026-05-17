@@ -410,6 +410,8 @@ This works whenever the hook's side-effect (DB insert, queue enqueue) precedes a
 
 4. **Pipelines with `afterComplete` auto-triggers break status assertions in integration tests.** If `afterComplete` transitions the article (e.g., `final_review` → `schema_extending`), a test that asserts `status === "final_review"` immediately after `runPipeline` will fail. Assert both statuses: `expect(["final_review", "schema_extending"]).toContain(saved!.status)` with a comment explaining why.
 
+5. **Live tests that call `anthropic.messages()` require a real `projectId` from the DB.** The cost tracker inserts into `cost_logs` which has a FK on `projects.id`. A random `crypto.randomUUID()` projectId causes a FK violation that the step catches as a step failure, firing the fallback. In live-gated test files, resolve the real project ID in `beforeAll` with a DB query and pass it through `mockCtx()`. See `packages/pipelines/test/article/social-image-caption-live.test.ts` for the pattern.
+
 ## Cost Enforcement Integration (Spec 41)
 
 `getPipelineQueue()` registers the BullMQ pause/resume callbacks with `registerQueuePauser` from `@marketing-auto/core/cost`. This must fire before any cost limit can be hit, so:
