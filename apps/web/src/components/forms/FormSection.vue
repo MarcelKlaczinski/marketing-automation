@@ -52,17 +52,6 @@
 import { defineComponent } from "vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 
-function formatRelative(isoString: string): string {
-  const d = new Date(isoString);
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "gerade eben";
-  if (mins < 60) return `vor ${mins} Min.`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `vor ${hrs} Std.`;
-  return `vor ${Math.floor(hrs / 24)} Tagen`;
-}
-
 export default defineComponent({
   name: "FormSection",
 
@@ -81,7 +70,13 @@ export default defineComponent({
   computed: {
     relativeSavedAt(): string {
       if (!this.lastSavedAt) return "";
-      return formatRelative(this.lastSavedAt);
+      const diffMs = Date.now() - new Date(this.lastSavedAt).getTime();
+      const mins = Math.floor(diffMs / 60_000);
+      if (mins < 1) return this.$t("forms.justNow") as string;
+      if (mins < 60) return this.$t("forms.minutesAgo", { n: mins }) as string;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return this.$t("forms.hoursAgo", { n: hrs }) as string;
+      return this.$t("forms.daysAgo", { n: Math.floor(hrs / 24) }) as string;
     },
   },
 });
