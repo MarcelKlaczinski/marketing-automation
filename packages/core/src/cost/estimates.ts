@@ -50,6 +50,10 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
 
     // Spec 54.12: cluster plan generation
     [COST_OPS.CLUSTER_PLAN_GENERATION]: 0.40, // Sonnet 4.6, ~4k input + 3k output (hub + 4-6 spokes)
+
+    // Spec 51/57.4: Social image pipeline (Anthropic calls)
+    [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005, // Haiku: extract tool list from article body
+    [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.028, // Sonnet: caption + hashtags (merged, Spec 57.4)
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,
@@ -77,10 +81,6 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   // PSI API is free (25k requests/day with key, 400/day without)
   pagespeed: {
     [COST_OPS.PAGESPEED_PSI_API]: 0,
-
-    // Spec 51: Social image generation (Spec 57.4: caption+hashtags merged into single Sonnet call)
-    [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005,
-    [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.028,
   },
 };
 

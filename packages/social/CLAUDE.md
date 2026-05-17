@@ -6,6 +6,21 @@ Renders Instagram carousel slides as PNG via Remotion 4 (headless Chrome).
 Entry: `render-server.ts` → `renderListCarousel()` returns `Buffer[]` (one per slide).
 Compositions live in `src/compositions/<template-name>/`, shared primitives in `src/shared/`.
 
+## Caption + Hashtag Generation (Spec 57.4)
+
+Caption and hashtags are **NOT** generated in this package. They are produced by `GenerateCaptionStep` in `packages/pipelines/src/article/social-image/steps.ts` — a single Sonnet 4.6 JSON call that returns `{ caption: string, hashtags: string[] }`.
+
+The hashtag prompt rules live in `packages/core/src/social-hashtags/buildHashtagInstructions.ts` — edit there, not in pipeline step code. The function is shared with the discovery worker (`hookPrompt.ts`).
+
+Key rules enforced by the Zod schema and prompt:
+- Exactly 7 tags (schema accepts 5-10 to accommodate LLM variance)
+- No hyphens (`#KITools` not `#KI-Tools`) — enforced by `/^#[^\s\-#]+$/u` regex
+- No year tags (`#KI2026`) — prompt-only rule
+- Bilingual DE+EN mix regardless of article locale
+- Anchor tags adapt to content type: comparison articles get `#KIVergleich`/`#AIComparison`, others get `#KIFürBusiness`/`#AIForBusiness`
+
+If the LLM fails twice (malformed JSON or schema validation), the step falls back to 7 generic hardcoded tags and sets `social_posts.content.warnings = ['hashtag_generation_fallback']`.
+
 ## Gotchas
 
 - **Font loading must be at module level** — call `loadFont()` from `@remotion/google-fonts/<Font>` at the top of the composition file (outside the component function). Remotion pre-loads fonts before headless Chrome renders; calling inside the component body is too late and produces blank/default font.

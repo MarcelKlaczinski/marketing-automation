@@ -700,6 +700,9 @@ describe("PersistSocialPostStep", () => {
 });
 
 // ─── Live-gated integration tests ────────────────────────────────────────────
+// Caption/hashtag live tests live in social-image-caption-live.test.ts (separate
+// file without module mocks — Bun's cache prevents mock.restore() from un-binding
+// @marketing-auto/adapter-anthropic once imported transitively).
 
 const LIVE = process.env.RUN_LIVE_ARTICLE_PIPELINE === "1";
 

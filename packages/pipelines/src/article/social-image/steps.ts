@@ -619,24 +619,22 @@ End caption with: Link in Bio → ${input.articleUrl}
 
 ${hashtagSection}
 
-Return JSON object:
-{
-  "caption": "<the caption text>",
-  "hashtags": ["#Tag1", "#Tag2", ...]
-}`;
+Respond with ONLY a valid JSON object — no markdown, no explanation:
+{"caption":"<the caption text>","hashtags":["#Tag1","#Tag2",...]}`;
 
     const tryGenerate = async () => {
+      // jsonMode not used: claude-sonnet-4-6 rejects assistant prefill (400).
+      // JSON extraction is done manually below from raw response text.
       const response = await anthropic.messages({
         projectId: ctx.projectId,
         pipelineRunId: ctx.pipelineRunId,
         operation: COST_OPS.SOCIAL_IMAGE_CAPTION,
         model: "claude-sonnet-4-6",
         systemPrefix: "",
-        systemSuffix: "Return only valid JSON matching the requested shape.",
+        systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation.",
         userMessage: buildPrompt(),
         maxTokens: 600,
         estimatedCostEur: 0.028,
-        jsonMode: true,
       });
 
       const raw = response.raw;
@@ -650,12 +648,12 @@ Return JSON object:
     let parsed: z.infer<typeof captionJsonSchema> | null = null;
     try {
       parsed = await tryGenerate();
-    } catch {
-      ctx.log.warn("GenerateCaptionStep: first attempt failed, retrying");
+    } catch (err) {
+      ctx.log.warn({ err: String(err) }, "GenerateCaptionStep: first attempt failed, retrying");
       try {
         parsed = await tryGenerate();
-      } catch {
-        ctx.log.error("GenerateCaptionStep: second attempt failed, using fallback");
+      } catch (err2) {
+        ctx.log.error({ err: String(err2) }, "GenerateCaptionStep: second attempt failed, using fallback");
       }
     }
 
