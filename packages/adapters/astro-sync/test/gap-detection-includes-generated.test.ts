@@ -34,7 +34,6 @@ const mockCtx = (projectId: string): StepContext => ({
 describe("DetectContentGapsStep — generated articles count (Spec 54.3)", () => {
   let projectId: string;
   let clusterId: string;
-  let articleIds: string[] = [];
 
   beforeAll(async () => {
     const [p] = await db
@@ -68,7 +67,7 @@ describe("DetectContentGapsStep — generated articles count (Spec 54.3)", () =>
     clusterId = c!.id;
 
     // 1 imported + 2 generated = 3 total → cluster_too_small should NOT fire
-    const insertedArticles = await db
+    await db
       .insert(articles)
       .values([
         {
@@ -104,9 +103,7 @@ describe("DetectContentGapsStep — generated articles count (Spec 54.3)", () =>
           status: "proposed",
           approvalMode: "manual",
         },
-      ])
-      .returning();
-    articleIds = insertedArticles.map((a) => a.id);
+      ]);
   });
 
   afterAll(async () => {

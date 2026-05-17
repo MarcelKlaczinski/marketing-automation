@@ -13,9 +13,14 @@ const InputSchema = z.object({
   selfReviewScore: z.number(),
   selfReviewIssues: z.array(z.unknown()),
   schemaJsonLd: z.record(z.unknown()),
-  // Optional: set title/metaDescription when the pipeline generates them (e.g. translation)
+  // Optional: set metadata when the pipeline provides them (e.g. translation)
   title: z.string().optional(),
+  slug: z.string().optional(),
   metaDescription: z.string().optional(),
+  category: z.string().optional(),
+  subcategory: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  frontmatterExtras: z.record(z.unknown()).optional(),
 });
 
 const OutputSchema = z.object({
@@ -81,7 +86,12 @@ export class PersistArticleStep extends BaseStep<
           updatedAt: new Date(),
           // Optional fields — only set when the calling pipeline provides them
           ...(input.title ? { title: input.title } : {}),
+          ...(input.slug ? { slug: input.slug } : {}),
           ...(input.metaDescription ? { metaDescription: input.metaDescription } : {}),
+          ...(input.category ? { category: input.category } : {}),
+          ...(input.subcategory ? { subcategory: input.subcategory } : {}),
+          ...(input.tags ? { tags: input.tags } : {}),
+          ...(input.frontmatterExtras ? { frontmatterExtras: input.frontmatterExtras } : {}),
         })
         .where(eq(articles.id, input.articleId));
 

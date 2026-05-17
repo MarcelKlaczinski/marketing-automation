@@ -125,6 +125,8 @@ FRONTMATTER_EXTRAS fields — output every field that applies:
       "overview" | "pricing" | "features" | "use-cases" | "comparison" | "tutorial" | "review" | "ethics" | "general"
       Note: "use-cases" has a hyphen, NOT an underscore. "general" is the fallback when nothing else fits.
   - "tags": 5-8 specific tags matching the article topic (strings array)
+  - "excerpt": 1-2 sentences (max 160 chars) summarising the article's core answer — used as Astro collection excerpt.
+      Write in the article's locale. Should include the primary keyword. No fluff, no clickbait.
   - "faq": 5-8 Q&A pairs the article answers — write in the article's locale, concrete answers (each answer 2-4 sentences)
 
   ALWAYS include:
@@ -189,7 +191,7 @@ Output format:
 
 [conclusion with clear takeaway]
 
-<!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","intentType":"...","bottomLinksVariant":"...","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
+<!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","intentType":"...","excerpt":"...","bottomLinksVariant":"...","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
     `.trim();
 
     const draftInstructions = await resolveMasterPrompt({
@@ -339,9 +341,20 @@ Output format:
       : null;
 
     if (mergedExtras) {
+      const extCategory = typeof mergedExtras.category === "string" ? mergedExtras.category : undefined;
+      const extSubcategory = typeof mergedExtras.subcategory === "string" ? mergedExtras.subcategory : undefined;
+      const rawTags = mergedExtras.tags;
+      const extTags = Array.isArray(rawTags)
+        ? rawTags.filter((t): t is string => typeof t === "string")
+        : undefined;
       await db
         .update(articles)
-        .set({ frontmatterExtras: mergedExtras })
+        .set({
+          frontmatterExtras: mergedExtras,
+          ...(extCategory !== undefined ? { category: extCategory } : {}),
+          ...(extSubcategory !== undefined ? { subcategory: extSubcategory } : {}),
+          ...(extTags !== undefined ? { tags: extTags } : {}),
+        })
         .where(eq(articles.id, input.articleId));
     }
     // Only write author if AuthorPickStep hasn't already set one

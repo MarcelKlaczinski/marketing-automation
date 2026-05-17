@@ -82,6 +82,15 @@ bun --filter @marketing-auto/adapter-anthropic fixtures prune 60
 sha256 of: `model` + `systemPrefix` + `systemSuffix` + `userMessage` + sampling params + `jsonMode`.
 Excluded (run-correlation only, don't affect LLM output): `projectId`, `pipelineRunId`, `articleId`, `operation`, `estimatedCostEur`.
 
+## JSON Mode Resilience
+
+When `jsonMode: true`, the adapter uses two hardening techniques:
+
+1. **Assistant prefill**: sends `{role: "assistant", content: "{"}` so the model continues from `{` — it cannot insert a code fence before a character it has already emitted, preventing ` ```json ` wrapping.
+2. **Retry loop**: if JSON parsing still fails (max 2 retries, 1 s / 2 s delay), each retry is a full cost-tracked API call. The adapter throws `JsonParseError` only after all retries are exhausted.
+
+The `raw` field in `MessagesResult` always has `{` prepended when `jsonMode: true`.
+
 ## Common Mistakes
 
 - DO NOT pass system as a string — must be the array of TextBlockParam (the adapter handles this; if you ever shortcut around the adapter, remember this)

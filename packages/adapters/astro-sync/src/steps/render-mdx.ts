@@ -12,10 +12,17 @@ const InputSchema = z.object({
     slug: z.string(),
     metaDescription: z.string(),
     bodyMd: z.string(),
-    cornerstoneKeyword: z.string(),
+    cornerstoneKeyword: z.string().nullable().optional(),
     heroImageAltText: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
     wordCount: z.number(),
+    frontmatterExtras: z.record(z.unknown()).nullable().optional(),
+    category: z.string().nullable().optional(),
+    subcategory: z.string().nullable().optional(),
+    tags: z.array(z.string()).nullable().optional(),
+    author: z.string().nullable().optional(),
+    intentType: z.string().nullable().optional(),
+    locale: z.string().nullable().optional(),
   }),
   cluster: z
     .object({
@@ -128,35 +135,81 @@ export class RenderMdxStep extends BaseStep<
 
 function buildFrontmatter(input: z.infer<typeof InputSchema>): Record<string, unknown> {
   const today = new Date().toISOString().split("T")[0]!;
+  const { article } = input;
+
+  // Layer 1: LLM-generated extras (faq, seoTitle, seoDescription, bottomLinksVariant, etc.)
+  const extras: Record<string, unknown> =
+    article.frontmatterExtras && typeof article.frontmatterExtras === "object"
+      ? { ...article.frontmatterExtras }
+      : {};
+
+  // Layer 2: normalized DB columns (override extras — these are authoritative)
+  const fromColumns: Record<string, unknown> = {};
+  if (article.category) fromColumns.category = article.category;
+  if (article.subcategory) fromColumns.subcategory = article.subcategory;
+  if (article.tags?.length) fromColumns.tags = article.tags;
+  if (article.author) fromColumns.author = article.author;
+  if (article.intentType) fromColumns.intentType = article.intentType;
+
+  // Derive readingTime from wordCount when not already in extras
+  const wordsPerMin = 200;
+  const readingMinutes = Math.max(1, Math.ceil((article.wordCount ?? 0) / wordsPerMin));
+  const readingTime =
+    extras.readingTime ??
+    (article.locale === "de"
+      ? `${readingMinutes} Min. Lesezeit`
+      : `${readingMinutes} min read`);
+
+  // Derive excerpt from seoDescription → seoTitle → metaDescription (in that priority)
+  const excerpt =
+    (extras.seoDescription as string | undefined) ??
+    (extras.excerpt as string | undefined) ??
+    article.metaDescription ??
+    "";
+
+  // Layer 3: static known fields (always win — highest priority)
   const known: Record<string, unknown> = {
-    title: input.article.title,
-    description: input.article.metaDescription,
-    slug: input.article.slug,
+    title: article.title,
+    description: article.metaDescription,
+    // seoTitle / seoDescription default to DB columns; extras can override with a shorter variant
+    seoTitle: (extras.seoTitle as string | undefined) ?? article.title ?? "",
+    seoDescription: (extras.seoDescription as string | undefined) ?? article.metaDescription ?? "",
+    // Astro schema uses 'date' as the primary publish date field
+    date: today,
     publishDate: today,
     publishedAt: today,
     pubDate: today,
     updatedDate: today,
+    updated: today,
     heroImage: "<placeholder — replaced below>",
-    heroImageAlt: input.article.heroImageAltText,
+    heroImageAlt: article.heroImageAltText,
     cluster: input.cluster?.name ?? "",
     pillar: input.cluster?.pillar ?? "",
-    cornerstoneKeyword: input.article.cornerstoneKeyword,
-    wordCount: input.article.wordCount,
-    schema: input.article.schemaJsonLd,
-    schemaJsonLd: input.article.schemaJsonLd,
-    tags: [] as string[],
+    cornerstoneKeyword: article.cornerstoneKeyword ?? "",
+    wordCount: article.wordCount,
+    schema: article.schemaJsonLd,
+    schemaJsonLd: article.schemaJsonLd,
     draft: false,
+    featured: false,
+    speakable: true,
+    readingTime,
+    excerpt,
+    // tags: prefer normalized column; fall back to extras; default to []
+    tags: article.tags?.length ? article.tags : ((extras.tags as string[] | undefined) ?? []),
   };
+
+  // Merged candidate map: extras < columns < known
+  const merged: Record<string, unknown> = { ...extras, ...fromColumns, ...known };
 
   if (input.collectionInfo.fields.length === 0) {
     log.warn("Schema parse returned no fields; emitting permissive frontmatter");
-    return known;
+    return merged;
   }
 
   const fm: Record<string, unknown> = {};
   for (const field of input.collectionInfo.fields) {
-    if (field.name in known) {
-      fm[field.name] = known[field.name];
+    if (field.name in merged) {
+      fm[field.name] = merged[field.name];
     }
   }
   return fm;

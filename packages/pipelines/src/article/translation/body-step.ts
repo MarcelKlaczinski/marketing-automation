@@ -15,6 +15,13 @@ import { BaseStep, type StepContext } from "../../engine/step.ts";
 import type { VoiceReference } from "../voice-reference/loader.ts";
 import { ArticlePipelineError } from "../types.ts";
 
+function stripCodeFence(text: string): string {
+  return text
+    .replace(/^```(?:mdx?|markdown|html)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+}
+
 const VoiceReferenceSchema = z.object({
   articleId:       z.string(),
   title:           z.string(),
@@ -36,12 +43,26 @@ const InputSchema = z.object({
 });
 
 const OutputSchema = z.object({
-  bodyMd:    z.string().min(200),
-  wordCount: z.number().int().min(50),
+  bodyMd:            z.string().min(200),
+  wordCount:         z.number().int().min(50),
+  enTitle:           z.string(),
+  enMetaDescription: z.string(),
+  enTags:            z.array(z.string()),
 });
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function parseBlock(text: string, tag: string): string | null {
+  const re = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, "i");
+  return text.match(re)?.[1]?.trim() ?? null;
+}
+
+function parseTagsBlock(text: string): string[] {
+  const raw = parseBlock(text, "TAGS");
+  if (!raw) return [];
+  return raw.split(",").map((t) => t.trim().toLowerCase().replace(/\s+/g, "-")).filter(Boolean);
 }
 
 function buildVoiceBlock(refs: VoiceReference[]): string {
@@ -86,6 +107,9 @@ ${voiceBlock}
 ---
 
 GERMAN ARTICLE TO TRANSLATE:
+Title: ${input.deTitle}
+Primary keyword: ${input.primaryKeyword}
+
 ${input.deBodyMd}
 
 ---
@@ -104,7 +128,16 @@ TRANSLATION REQUIREMENTS:
 - Keep markdown formatting intact (headings, bold, lists, code blocks, links)
 - Do NOT add any preamble, commentary, or "Here is the translation:" prefix
 
-Output locale: en-US. Output: the translated article body in markdown only.`;
+OUTPUT FORMAT:
+First output the translated article body in markdown, then append these tagged blocks at the very end:
+
+<TITLE>SEO-optimized English article title (max 70 chars, include primary keyword)</TITLE>
+<META_DESCRIPTION>English meta description (140-155 chars, include primary keyword, no clickbait)</META_DESCRIPTION>
+<TAGS>tag-one,tag-two,tag-three</TAGS>
+
+For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primary keyword and 3-7 relevant EN tags.
+
+Output locale: en-US.`;
 
     const result = await anthropic.messages({
       projectId:        ctx.projectId,
@@ -120,11 +153,22 @@ Output locale: en-US. Output: the translated article body in markdown only.`;
       estimatedCostEur: 0.20,
     });
 
-    const bodyMd = result.raw.trim();
+    const raw = result.raw.trim();
+    const enTitle = parseBlock(raw, "TITLE") ?? input.deTitle;
+    const enMetaDescription = parseBlock(raw, "META_DESCRIPTION") ?? "";
+    const enTags = parseTagsBlock(raw);
+    // Strip the tagged blocks from the body, then strip any leading code fence
+    const bodyMd = stripCodeFence(
+      raw
+        .replace(/<TITLE>[\s\S]*?<\/TITLE>/i, "")
+        .replace(/<META_DESCRIPTION>[\s\S]*?<\/META_DESCRIPTION>/i, "")
+        .replace(/<TAGS>[\s\S]*?<\/TAGS>/i, "")
+        .trim()
+    );
     if (!bodyMd || bodyMd.length < 200) {
       throw new ArticlePipelineError("Literal translation returned insufficient content", "translation-body");
     }
-    return { bodyMd, wordCount: countWords(bodyMd) };
+    return { bodyMd, wordCount: countWords(bodyMd), enTitle, enMetaDescription, enTags };
   }
 
   async #runAdaptivePath(
@@ -204,7 +248,14 @@ REQUIREMENTS:
 - Do NOT mention Germany, German regulations, or DSGVO unless they are globally relevant
 - Output locale: en-US
 
-Output: the complete article body in markdown, no preamble or commentary.`;
+OUTPUT FORMAT:
+Output the complete article body in markdown, then append at the very end:
+
+<TITLE>SEO-optimized English article title (max 70 chars, include primary keyword)</TITLE>
+<META_DESCRIPTION>English meta description (140-155 chars, include primary keyword, no clickbait)</META_DESCRIPTION>
+<TAGS>tag-one,tag-two,tag-three</TAGS>
+
+For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primary keyword and 3-7 relevant EN tags.`;
 
     const draftResult = await anthropic.messages({
       projectId:        ctx.projectId,
@@ -220,10 +271,20 @@ Output: the complete article body in markdown, no preamble or commentary.`;
       estimatedCostEur: 0.22,
     });
 
-    const bodyMd = draftResult.raw.trim();
+    const rawDraft = draftResult.raw.trim();
+    const enTitle = parseBlock(rawDraft, "TITLE") ?? input.deTitle;
+    const enMetaDescription = parseBlock(rawDraft, "META_DESCRIPTION") ?? "";
+    const enTags = parseTagsBlock(rawDraft);
+    const bodyMd = stripCodeFence(
+      rawDraft
+        .replace(/<TITLE>[\s\S]*?<\/TITLE>/i, "")
+        .replace(/<META_DESCRIPTION>[\s\S]*?<\/META_DESCRIPTION>/i, "")
+        .replace(/<TAGS>[\s\S]*?<\/TAGS>/i, "")
+        .trim()
+    );
     if (!bodyMd || bodyMd.length < 200) {
       throw new ArticlePipelineError("Adaptive translation draft returned insufficient content", "translation-body");
     }
-    return { bodyMd, wordCount: countWords(bodyMd) };
+    return { bodyMd, wordCount: countWords(bodyMd), enTitle, enMetaDescription, enTags };
   }
 }

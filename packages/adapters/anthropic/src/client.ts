@@ -247,11 +247,19 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
     estimatedCostEur: input.estimatedCostEur,
     fn: async () => {
       try {
+        // Prefill the assistant response with "{" when JSON is expected.
+        // The model cannot insert a code fence before a character it has already
+        // "said", which eliminates ```json wrapping and produces bare JSON every time.
+        const messagesTurn: Anthropic.Messages.MessageParam[] = [
+          { role: "user", content: input.userMessage },
+          ...(input.jsonMode ? [{ role: "assistant" as const, content: "{" }] : []),
+        ];
+
         const params: Anthropic.Messages.MessageCreateParamsNonStreaming = {
           model: modelId,
           max_tokens: maxTokens,
           system: systemBlocks,
-          messages: [{ role: "user", content: input.userMessage }],
+          messages: messagesTurn,
         };
 
         if (input.temperature !== undefined) {
@@ -297,19 +305,57 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
     }),
   };
 
-  let response;
-  if (input.pipelineRunId !== undefined && input.articleId !== undefined) {
-    response = await track({
-      ...trackBase,
-      pipelineRunId: input.pipelineRunId,
-      articleId: input.articleId,
-    });
-  } else if (input.pipelineRunId !== undefined) {
-    response = await track({ ...trackBase, pipelineRunId: input.pipelineRunId });
-  } else if (input.articleId !== undefined) {
-    response = await track({ ...trackBase, articleId: input.articleId });
-  } else {
-    response = await track(trackBase);
+  // Retry up to 2 times when jsonMode is on and the model returns non-JSON.
+  // Each attempt is a full API call (cost-tracked individually). 1s delay between retries.
+  const MAX_JSON_RETRIES = 2;
+  let parsedJson: unknown | null = null;
+
+  const callOnce = async (): Promise<Anthropic.Messages.Message> => {
+    if (input.pipelineRunId !== undefined && input.articleId !== undefined) {
+      return track({ ...trackBase, pipelineRunId: input.pipelineRunId, articleId: input.articleId });
+    } else if (input.pipelineRunId !== undefined) {
+      return track({ ...trackBase, pipelineRunId: input.pipelineRunId });
+    } else if (input.articleId !== undefined) {
+      return track({ ...trackBase, articleId: input.articleId });
+    }
+    return track(trackBase);
+  };
+
+  let response = await callOnce();
+  // When jsonMode prefills "{", the API returns only the continuation — prepend it back.
+  let raw = input.jsonMode ? "{" + extractText(response.content) : extractText(response.content);
+
+  if (input.jsonMode) {
+    let parseResult = tryParseJson(raw);
+    for (let attempt = 1; !parseResult.ok && attempt <= MAX_JSON_RETRIES; attempt++) {
+      await new Promise((res) => setTimeout(res, 1000 * attempt));
+      log.warn(
+        { attempt, operation: input.operation, projectId: input.projectId, rawPreview: raw.slice(0, 100) },
+        "JSON parse failed — retrying Anthropic call"
+      );
+      response = await callOnce();
+      raw = input.jsonMode ? "{" + extractText(response.content) : extractText(response.content);
+      parseResult = tryParseJson(raw);
+    }
+
+    if (!parseResult.ok) {
+      log.error(
+        {
+          projectId: input.projectId,
+          operation: input.operation,
+          rawLen: raw.length,
+          rawPreview: raw.slice(0, 200),
+          attempts: MAX_JSON_RETRIES + 1,
+        },
+        "JSON parse failed after all retries"
+      );
+      throw new JsonParseError(
+        `Anthropic returned non-JSON response for operation "${input.operation}" (after ${MAX_JSON_RETRIES + 1} attempts)`,
+        raw,
+        parseResult.error
+      );
+    }
+    parsedJson = parseResult.value;
   }
 
   const cacheRead = response.usage.cache_read_input_tokens ?? 0;
@@ -322,30 +368,6 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
     totalInputTokens: cacheRead + cacheCreate + fresh,
     hit: cacheRead > 0,
   };
-
-  const raw = extractText(response.content);
-
-  let parsedJson: unknown | null = null;
-  if (input.jsonMode) {
-    const r = tryParseJson(raw);
-    if (!r.ok) {
-      log.error(
-        {
-          projectId: input.projectId,
-          operation: input.operation,
-          rawLen: raw.length,
-          rawPreview: raw.slice(0, 200),
-        },
-        "JSON parse failed"
-      );
-      throw new JsonParseError(
-        `Anthropic returned non-JSON response for operation "${input.operation}"`,
-        raw,
-        r.error
-      );
-    }
-    parsedJson = r.value;
-  }
 
   log.info(
     {

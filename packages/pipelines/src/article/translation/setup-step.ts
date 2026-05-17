@@ -24,6 +24,7 @@ const OutputSchema = z.object({
   enArticleId:        z.string().uuid(),
   deBodyMd:           z.string(),
   deTitle:            z.string(),
+  deMetaDescription:  z.string().nullable(),
   deBodyExcerpt:      z.string(),  // first 2000 chars for decision step
   primaryKeyword:     z.string(),
   intentType:         z.string().nullable(),
@@ -38,6 +39,11 @@ const OutputSchema = z.object({
   deHeroAltText:      z.string().nullable(),
   // Base schema from DE article to carry forward into EN
   deSchemaJsonLd:     z.array(z.record(z.unknown())),
+  // DE taxonomy — category/subcategory are language-specific strings so not forwarded;
+  // deFrontmatterExtras carried for language-neutral extras (intentType, primaryTool, etc.)
+  deCategory:         z.string().nullable(),
+  deSubcategory:      z.string().nullable(),
+  deFrontmatterExtras: z.record(z.unknown()).nullable(),
 });
 
 export type TranslationSetupOutput = z.infer<typeof OutputSchema>;
@@ -159,6 +165,7 @@ export class TranslationSetupStep extends BaseStep<
       enArticleId,
       deBodyMd,
       deTitle:            deArticle.title ?? "",
+      deMetaDescription:  deArticle.metaDescription ?? null,
       deBodyExcerpt:      deBodyMd.substring(0, 2000),
       primaryKeyword:     deArticle.cornerstoneKeyword ?? "",
       intentType:         deArticle.intentType,
@@ -171,6 +178,9 @@ export class TranslationSetupStep extends BaseStep<
       deHeroPublicUrl:    deArticle.heroImagePublicUrl ?? null,
       deHeroAltText:      deArticle.heroImageAltText ?? null,
       deSchemaJsonLd:     (deArticle.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
+      deCategory:         deArticle.category ?? null,
+      deSubcategory:      deArticle.subcategory ?? null,
+      deFrontmatterExtras: (deArticle.frontmatterExtras as Record<string, unknown> | null) ?? null,
     };
   }
 }

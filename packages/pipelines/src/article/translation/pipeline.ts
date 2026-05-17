@@ -30,6 +30,7 @@ import { PersistBodyStep } from "../steps/persist-body.ts";
 import { PersistArticleStep } from "../steps/persist-article.ts";
 import { SelfReviewStep } from "../steps/self-review.ts";
 import { ToolLinkerStep } from "../tool-linker/step.ts";
+import { slugify } from "../trigger.ts";
 import { TranslationSetupStep, type TranslationSetupOutput } from "./setup-step.ts";
 import { TranslationDecisionStep } from "./decision.ts";
 import { TranslationBodyStep } from "./body-step.ts";
@@ -63,7 +64,7 @@ const TranslationPipelineOutputSchema = z.object({
 // ─── Bridge helper types ──────────────────────────────────────────────────────
 
 type DecisionOutput  = { decision: "literal" | "adaptive"; reasoning: string };
-type BodyOutput      = { bodyMd: string; wordCount: number };
+type BodyOutput      = { bodyMd: string; wordCount: number; enTitle: string; enMetaDescription: string; enTags: string[] };
 type PersistBody     = { articleId: string; bodyMd: string; wordCount: number };
 type ToolLinkerOutput = { bodyMd: string; linksAdded: number; linkedTools: string[] };
 type SelfReviewOutput = { score: number; issues: unknown[]; shouldBlock: boolean; summary: string };
@@ -172,15 +173,39 @@ export class TranslationPipeline extends Pipeline<
       const body = getStepOutput<BodyOutput>("translation-body")!;
       const sr = output as SelfReviewOutput;
 
-      // Extract EN title from the first # heading in the translated body
-      const titleMatch = linked.bodyMd.match(/^#\s+(.+)$/m);
-      const enTitle = titleMatch?.[1]?.trim();
+      // Title + metaDescription come from TranslationBodyStep (LLM-generated in EN).
+      // Falls back to DE values when the LLM omitted the tagged blocks.
+      const enTitle = body.enTitle || s.deTitle || undefined;
+      const enMetaDescription = body.enMetaDescription || s.deMetaDescription || undefined;
+      // Derive English slug from the LLM-generated EN title so EN articles get a proper
+      // English URL instead of the placeholder "{de-slug}-en" stub from TranslationSetupStep.
+      const enSlug = enTitle ? slugify(enTitle) : undefined;
 
       // Find the Article entry from DE schema to update its headline for EN
       const deArticleSchema = s.deSchemaJsonLd.find((e) => e["@type"] === "Article") ?? {};
       const enArticleSchema = enTitle
         ? { ...deArticleSchema, headline: enTitle }
         : deArticleSchema;
+
+      // Build EN frontmatterExtras from DE: copy language-independent fields,
+      // skip DE-language fields (faq, excerpt, seoTitle, seoDescription are in EN already via body/meta).
+      // NOTE: "category" and "subcategory" are human-readable strings (e.g. "Praxis & Use Cases")
+      // that may be in German — do NOT copy them; leave them blank for EN articles.
+      const LANG_INDEPENDENT_EXTRAS = [
+        "intentType", "bottomLinksVariant", "primaryTool",
+        "pricingTier", "priceFrom", "rating", "features", "pros", "cons",
+        "useCases", "toolSlugs", "winner", "verdict", "listicleType",
+        "authorPickStrategy",
+      ] as const;
+      const deExtras = s.deFrontmatterExtras ?? {};
+      const enExtras: Record<string, unknown> = {};
+      for (const key of LANG_INDEPENDENT_EXTRAS) {
+        if (key in deExtras) enExtras[key] = deExtras[key];
+      }
+      // Set excerpt from the LLM-generated EN meta description (language-correct)
+      if (enMetaDescription) enExtras.excerpt = enMetaDescription;
+      // Store the English slug in extras so buildFrontmatter() can emit it in the MDX frontmatter
+      if (enSlug) enExtras.slug = enSlug;
 
       return {
         articleId:        s.enArticleId,
@@ -193,6 +218,10 @@ export class TranslationPipeline extends Pipeline<
         selfReviewIssues: sr.issues,
         schemaJsonLd:     enArticleSchema,
         ...(enTitle ? { title: enTitle } : {}),
+        ...(enSlug ? { slug: enSlug } : {}),
+        ...(enMetaDescription ? { metaDescription: enMetaDescription } : {}),
+        ...(body.enTags.length > 0 ? { tags: body.enTags } : {}),
+        ...(Object.keys(enExtras).length > 0 ? { frontmatterExtras: enExtras } : {}),
       };
     }
 
