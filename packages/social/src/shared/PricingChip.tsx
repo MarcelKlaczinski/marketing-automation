@@ -1,4 +1,5 @@
 import React from "react";
+import type { BrandTokens } from "../compositions/list-carousel/types.ts";
 import { pricingColor } from "../lib/theme.ts";
 
 type Props = {
@@ -6,6 +7,7 @@ type Props = {
   label: string;
   fontFamily: string;
   theme?: "dark" | "light";
+  brandTokens?: BrandTokens;
 };
 
 function TierIcon({ tier, color }: { tier: Props["tier"]; color: string }) {
@@ -65,8 +67,8 @@ export function deriveSecondaryLabel(tier: Props["tier"], label: string): string
   return trimmed || null;
 }
 
-export function PricingChip({ tier, label, fontFamily, theme = "dark" }: Props) {
-  const color = pricingColor(tier);
+export function PricingChip({ tier, label, fontFamily, theme = "dark", brandTokens }: Props) {
+  const color = pricingColor(tier, brandTokens);
   const rightAlpha = theme === "light" ? "33" : "18"; // stronger tint on white bg
   const secondary = deriveSecondaryLabel(tier, label);
   return (

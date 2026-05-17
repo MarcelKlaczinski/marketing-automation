@@ -13,7 +13,6 @@ import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import {
   buildCloserHeadline,
-  type CloserHeadline,
   type CloserToolContext,
 } from "./closerEngine.ts";
 import { enrichToolUseCaseTokens } from "./enrichment/toolUseCaseTokens.ts";
@@ -60,7 +59,8 @@ const LoadArticleInputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
   theme: z.enum(["dark", "light"]).default("dark"),
-  variant: z.enum(["editorial", "stunning"]).default("editorial"),
+  variant: z.enum(["stunning"]).default("stunning"),
+  locales: z.array(z.string()).min(1).max(5).default(["de-DE"]),
   preRunId: z.string().uuid().optional(),
 });
 
@@ -69,7 +69,8 @@ const LoadArticleOutputSchema = z.object({
   projectId: z.string().uuid(),
   projectSlug: z.string(),
   theme: z.enum(["dark", "light"]),
-  variant: z.enum(["editorial", "stunning"]),
+  variant: z.enum(["stunning"]),
+  locales: z.array(z.string()),
   articleTitle: z.string(),
   articleSlug: z.string(),
   intentType: z.string().nullable(),
@@ -82,7 +83,8 @@ type LoadArticleInput = {
   articleId: string;
   projectId: string;
   theme: "dark" | "light";
-  variant: "editorial" | "stunning";
+  variant: "stunning";
+  locales: string[];
   preRunId?: string;
 };
 
@@ -120,6 +122,7 @@ export class LoadArticleStep extends BaseStep<
       projectSlug: project.slug,
       theme: input.theme,
       variant: input.variant,
+      locales: input.locales,
       articleTitle: article.title ?? article.slug,
       articleSlug: article.slug,
       intentType: article.intentType ?? null,
@@ -200,13 +203,11 @@ export class ExtractToolsStep extends BaseStep<
   override estimatedCostEur(): number { return 0.005; }
 
   async execute(input: z.infer<typeof ExtractToolsInputSchema>, ctx: StepContext) {
-    const isStunning = input.variant === "stunning";
-
-    const stunningSuffix = isStunning ? `
+    const stunningSuffix = `
 
 STUNNING VARIANT — additional fields per tool:
 - "keyDifferentiator": 1-5 words from the tagline naming the core differentiator (will be highlighted)
-- "starStrength": the MOST IMPORTANT of the 4 strengths (copy exactly from the strengths array)` : "";
+- "starStrength": the MOST IMPORTANT of the 4 strengths (copy exactly from the strengths array)`;
 
     const prompt = `You are a social-media content assistant. Extract structured data for an Instagram carousel from this article.
 
@@ -240,14 +241,14 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
       "tagline": "one sentence, max 120 chars",
       "bestFor": "short use-case label, max 40 chars",
       "strengths": ["strength 1", "strength 2", "strength 3", "optional strength 4"],
-      "pricing": { "tier": "free|freemium|paid", "label": "ab X€/Monat" }${isStunning ? `,
+      "pricing": { "tier": "free|freemium|paid", "label": "ab X€/Monat" },
       "keyDifferentiator": "1-5 key words from tagline",
-      "starStrength": "most important strength (copy from strengths array)"` : ""}
+      "starStrength": "most important strength (copy from strengths array)"
     }
   ]
 }
 
-Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
+Extract 3-10 tools. Keep all text in ${input.locales.every(l => !l.startsWith("de")) ? "ENGLISH" : "GERMAN"} (match the carousel target language).`;
 
     const response = await anthropic.messages({
       projectId: ctx.projectId,
@@ -257,7 +258,7 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
       systemPrefix: "",
       systemSuffix: "Extract structured tool data for Instagram carousel generation. Return valid JSON only.",
       userMessage: prompt,
-      maxTokens: isStunning ? 3000 : 2048,
+      maxTokens: 3000,
       estimatedCostEur: 0.005,
       jsonMode: true,
     });
@@ -289,54 +290,50 @@ Extract 3-10 tools. Keep all text in GERMAN (same language as the article).`;
     // If LLM still used "vs." pattern, override with count-based headline
     const leadHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineLead ?? "");
     const highlightHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineHighlight ?? "");
+    const isEnOnly = input.locales.every(l => !l.startsWith("de"));
+    const defaultLead = isEnOnly ? `The ${tools.length} Best` : `Die ${tools.length} besten`;
     const coverHeadlineLead = leadHasVs || highlightHasVs
-      ? `Die ${tools.length} besten`
-      : (parsed.coverHeadlineLead ?? `Die ${tools.length} besten`);
+      ? defaultLead
+      : (parsed.coverHeadlineLead ?? defaultLead);
 
     // ─── Hook generation (new phrase-based multi-pattern engine) ───────────────
-    let coverHookOutput: HookOutput | undefined;
-    if (isStunning) {
-      const primaryKeyword = parsed.coverHeadlineHighlight ?? tools[0]?.name ?? "KI-Tools";
-      const toolNames = tools.map((t) => t.name);
-      const articleCtx: HookArticleContext = {
-        id: input.articleId,
-        title: input.articleTitle,
-        toolCount: tools.length,
-        primaryKeyword,
-        toolNames,
-      };
-      const articleType = inferArticleType(input.articleTitle, tools.length);
-      const pattern = selectPattern(input.articleId, articleType);
-      coverHookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic);
-    }
+    const primaryKeyword = parsed.coverHeadlineHighlight ?? tools[0]?.name ?? "KI-Tools";
+    const toolNames = tools.map((t) => t.name);
+    const articleCtx: HookArticleContext = {
+      id: input.articleId,
+      title: input.articleTitle,
+      toolCount: tools.length,
+      primaryKeyword,
+      toolNames,
+    };
+    const articleType = inferArticleType(input.articleTitle, tools.length);
+    const pattern = selectPattern(input.articleId, articleType);
+    const coverHookOutput: HookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic);
 
     // ─── Tool-use-case-token enrichment + deterministic closer engine ──────────
-    let endCloser: CloserHeadline | undefined;
-    if (isStunning) {
-      const tokenMap = await enrichToolUseCaseTokens(
-        tools.map((t) => ({
-          slug: t.slug,
-          name: t.name,
-          tagline: t.tagline,
-          ...(t.bestFor !== undefined && { bestFor: t.bestFor }),
-        })),
-        ctx,
-      );
-      tools = tools.map((t) => {
-        const tokens = tokenMap[t.slug];
-        if (!tokens) return t;
-        return { ...t, endSlideToken: tokens.endSlideToken, identityVerb: tokens.identityVerb };
-      });
+    const tokenMap = await enrichToolUseCaseTokens(
+      tools.map((t) => ({
+        slug: t.slug,
+        name: t.name,
+        tagline: t.tagline,
+        ...(t.bestFor !== undefined && { bestFor: t.bestFor }),
+      })),
+      ctx,
+    );
+    tools = tools.map((t) => {
+      const tokens = tokenMap[t.slug];
+      if (!tokens) return t;
+      return { ...t, endSlideToken: tokens.endSlideToken, identityVerb: tokens.identityVerb };
+    });
 
-      const articleType = inferArticleType(input.articleTitle, tools.length);
-      const closerTools: CloserToolContext[] = tools.map((t) => {
-        const ctx: CloserToolContext = { name: t.name };
-        if (t.endSlideToken !== undefined) ctx.endSlideToken = t.endSlideToken;
-        if (t.identityVerb !== undefined) ctx.identityVerb = t.identityVerb;
-        return ctx;
-      });
-      endCloser = buildCloserHeadline(articleType, closerTools);
-    }
+    const closerArticleType = inferArticleType(input.articleTitle, tools.length);
+    const closerTools: CloserToolContext[] = tools.map((t) => {
+      const closerCtx: CloserToolContext = { name: t.name };
+      if (t.endSlideToken !== undefined) closerCtx.endSlideToken = t.endSlideToken;
+      if (t.identityVerb !== undefined) closerCtx.identityVerb = t.identityVerb;
+      return closerCtx;
+    });
+    const endCloser = buildCloserHeadline(closerArticleType, closerTools);
 
     return {
       ...input,
@@ -396,7 +393,10 @@ async function generateHookWithGate(
       const start = raw.indexOf("{");
       const end = raw.lastIndexOf("}");
       if (start >= 0 && end > start) {
-        hookPartial = JSON.parse(raw.slice(start, end + 1)) as { leadPhrase: string; highlightWord: string; trailPhrase: string };
+        const candidate = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+        if (typeof candidate.leadPhrase === "string" && typeof candidate.highlightWord === "string" && typeof candidate.trailPhrase === "string") {
+          hookPartial = candidate as { leadPhrase: string; highlightWord: string; trailPhrase: string };
+        }
       }
     } catch {
       ctx.log.warn({ attempt, pattern }, "Hook LLM call failed");
@@ -488,9 +488,6 @@ export class RenderSlidesStep extends BaseStep<
     // Dynamic import at runtime — social package is a workspace peer
     // biome-ignore lint/suspicious/noExplicitAny: dynamic import avoids circular dep during build
     const socialModule = await import("../../../../social/render-server.ts") as any;
-    const renderListCarousel = socialModule.renderListCarousel as (
-      input: Record<string, unknown>
-    ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     const renderListCarouselStunning = socialModule.renderListCarouselStunning as (
       input: Record<string, unknown>
     ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
@@ -521,8 +518,7 @@ export class RenderSlidesStep extends BaseStep<
     };
 
     await ctx.reportProgress(10, "Bundling Remotion");
-    const renderFn = input.variant === "stunning" ? renderListCarouselStunning : renderListCarousel;
-    const { slides, sequenceCount } = await renderFn(carouselInput);
+    const { slides, sequenceCount } = await renderListCarouselStunning(carouselInput);
     await ctx.reportProgress(90, `Rendered ${sequenceCount} slides`);
 
     return { ...input, slideBuffers: slides, totalSlides: sequenceCount };
@@ -572,10 +568,16 @@ export class UploadSlidesStep extends BaseStep<
 // ─── Step 6: GenerateCaptionStep ─────────────────────────────────────────────
 
 const GenerateCaptionInputSchema = UploadSlidesOutputSchema;
-const GenerateCaptionOutputSchema = GenerateCaptionInputSchema.extend({
+
+const perLocaleOutputSchema = z.object({
+  locale: z.string(),
   caption: z.string(),
   hashtags: z.array(z.string()),
   warnings: z.array(z.string()).optional(),
+});
+
+const GenerateCaptionOutputSchema = GenerateCaptionInputSchema.extend({
+  perLocaleOutputs: z.array(perLocaleOutputSchema).min(1),
 });
 
 const captionJsonSchema = z.object({
@@ -599,19 +601,21 @@ export class GenerateCaptionStep extends BaseStep<
   readonly inputSchema = GenerateCaptionInputSchema;
   readonly outputSchema = GenerateCaptionOutputSchema;
 
+  // Cost scales with locale count; pipeline registers base estimate per step
   override estimatedCostEur(): number { return 0.028; }
 
   async execute(input: z.infer<typeof GenerateCaptionInputSchema>, ctx: StepContext): Promise<z.infer<typeof GenerateCaptionOutputSchema>> {
     const brandVoice = (input.brandTokens as { voice?: { signaturePhrases?: string[]; addressForm?: string } })?.voice;
     const signaturePhrases = brandVoice?.signaturePhrases?.join(", ") ?? "redaktionell verifiziert, ehrlich";
     const addressForm = brandVoice?.addressForm ?? "du";
-    const locale = "de-DE"; // carousel pipeline currently produces DE-first content
     const contentType = deriveContentType(input.intentType);
     const toolNames = input.resolvedTools.map((t) => t.name);
 
-    const hashtagSection = buildHashtagInstructions({ locale, contentType, toolNames });
+    const tryGenerate = async (locale: string): Promise<z.infer<typeof captionJsonSchema>> => {
+      const captionLang = locale.startsWith("de") ? "GERMAN" : "ENGLISH";
+      const hashtagSection = buildHashtagInstructions({ locale, contentType, toolNames });
 
-    const buildPrompt = () => `Write an Instagram post in GERMAN for a carousel about: "${input.articleTitle}"
+      const prompt = `Write an Instagram post in ${captionLang} for a carousel about: "${input.articleTitle}"
 
 The post shows ${input.resolvedTools.length} AI tools in a visual list-carousel format.
 Brand voice: ${signaturePhrases}. Use "${addressForm}" form. Max 300 characters in caption. Use 1-2 fitting emojis.
@@ -622,7 +626,6 @@ ${hashtagSection}
 Respond with ONLY a valid JSON object — no markdown, no explanation:
 {"caption":"<the caption text>","hashtags":["#Tag1","#Tag2",...]}`;
 
-    const tryGenerate = async () => {
       // jsonMode not used: claude-sonnet-4-6 rejects assistant prefill (400).
       // JSON extraction is done manually below from raw response text.
       const response = await anthropic.messages({
@@ -632,7 +635,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
         model: "claude-sonnet-4-6",
         systemPrefix: "",
         systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation.",
-        userMessage: buildPrompt(),
+        userMessage: prompt,
         maxTokens: 600,
         estimatedCostEur: 0.028,
       });
@@ -644,41 +647,53 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
       return captionJsonSchema.parse(JSON.parse(clean));
     };
 
-    // Retry once on parse/validation failure; fall back to safe defaults on second failure.
-    let parsed: z.infer<typeof captionJsonSchema> | null = null;
-    try {
-      parsed = await tryGenerate();
-    } catch (err) {
-      ctx.log.warn({ err: String(err) }, "GenerateCaptionStep: first attempt failed, retrying");
+    const perLocaleOutputs: Array<z.infer<typeof perLocaleOutputSchema>> = [];
+
+    for (const locale of input.locales) {
+      // Retry once on parse/validation failure; fall back to safe defaults on second failure.
+      let parsed: z.infer<typeof captionJsonSchema> | null = null;
       try {
-        parsed = await tryGenerate();
-      } catch (err2) {
-        ctx.log.error({ err: String(err2) }, "GenerateCaptionStep: second attempt failed, using fallback");
+        parsed = await tryGenerate(locale);
+      } catch (err) {
+        ctx.log.warn({ err: String(err), locale }, "GenerateCaptionStep: first attempt failed, retrying");
+        try {
+          parsed = await tryGenerate(locale);
+        } catch (err2) {
+          ctx.log.error({ err: String(err2), locale }, "GenerateCaptionStep: second attempt failed, using fallback");
+        }
+      }
+
+      if (parsed) {
+        perLocaleOutputs.push({ locale, caption: parsed.caption, hashtags: parsed.hashtags });
+      } else {
+        perLocaleOutputs.push({
+          locale,
+          caption: `${input.articleTitle} → ${input.articleUrl}`,
+          hashtags: HASHTAG_FALLBACK,
+          warnings: ["hashtag_generation_fallback"],
+        });
       }
     }
 
-    if (parsed) {
-      return { ...input, caption: parsed.caption, hashtags: parsed.hashtags };
-    }
-
-    return {
-      ...input,
-      caption: `${input.articleTitle} → ${input.articleUrl}`,
-      hashtags: HASHTAG_FALLBACK,
-      warnings: ["hashtag_generation_fallback"],
-    };
+    return { ...input, perLocaleOutputs };
   }
 }
 
 // ─── Step 7: PersistSocialPostStep ───────────────────────────────────────────
 
 const PersistInputSchema = GenerateCaptionOutputSchema;
-const PersistOutputSchema = z.object({
+
+const socialPostResultSchema = z.object({
   socialPostId: z.string().uuid(),
+  locale: z.string(),
   slideUrls: z.array(z.string()),
   caption: z.string(),
   hashtags: z.array(z.string()),
   totalSlides: z.number().int(),
+});
+
+const PersistOutputSchema = z.object({
+  socialPosts: z.array(socialPostResultSchema).min(1),
 });
 
 export class PersistSocialPostStep extends BaseStep<
@@ -691,35 +706,44 @@ export class PersistSocialPostStep extends BaseStep<
 
   override estimatedCostEur(): number { return 0; }
 
-  async execute(input: z.infer<typeof PersistInputSchema>, _ctx: StepContext) {
-    const [post] = await db
-      .insert(socialPosts)
-      .values({
-        projectId: input.projectId,
-        articleId: input.articleId,
-        platform: "instagram",
-        format: "carousel",
-        status: "draft",
-        theme: input.theme,
+  async execute(input: z.infer<typeof PersistInputSchema>, _ctx: StepContext): Promise<z.infer<typeof PersistOutputSchema>> {
+    const results: Array<z.infer<typeof socialPostResultSchema>> = [];
+
+    for (const loc of input.perLocaleOutputs) {
+      const [post] = await db
+        .insert(socialPosts)
+        .values({
+          projectId: input.projectId,
+          articleId: input.articleId,
+          platform: "instagram",
+          format: "carousel",
+          status: "draft",
+          theme: input.theme,
+          locale: loc.locale,
+          totalSlides: input.totalSlides,
+          content: {
+            kind: "carousel",
+            slides: input.slideUrls.map((url) => ({ imageUrl: url })),
+            caption: loc.caption,
+            hashtags: loc.hashtags,
+            ...(loc.warnings ? { warnings: loc.warnings } : {}),
+          },
+          generatedAt: new Date(),
+        })
+        .returning({ id: socialPosts.id });
+
+      if (!post) throw new Error(`Failed to insert social post for locale ${loc.locale}`);
+
+      results.push({
+        socialPostId: post.id,
+        locale: loc.locale,
+        slideUrls: input.slideUrls,
+        caption: loc.caption,
+        hashtags: loc.hashtags,
         totalSlides: input.totalSlides,
-        content: {
-          kind: "carousel",
-          slides: input.slideUrls.map((url) => ({ imageUrl: url })),
-          caption: input.caption,
-          hashtags: input.hashtags,
-        },
-        generatedAt: new Date(),
-      })
-      .returning({ id: socialPosts.id });
+      });
+    }
 
-    if (!post) throw new Error("Failed to insert social post");
-
-    return {
-      socialPostId: post.id,
-      slideUrls: input.slideUrls,
-      caption: input.caption,
-      hashtags: input.hashtags,
-      totalSlides: input.totalSlides,
-    };
+    return { socialPosts: results };
   }
 }

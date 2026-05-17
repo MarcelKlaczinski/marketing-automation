@@ -24,6 +24,8 @@ const TOOL_SLUG_TO_LOBE: Record<string, string> = {
   "claude-opus": "claude",
   "claude-sonnet": "claude",
   "claude-haiku": "claude",
+  "claude-code": "claude",
+  "claude-code-cli": "claude",
 
   // Google
   "gemini-ai": "gemini",

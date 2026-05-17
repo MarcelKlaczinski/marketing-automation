@@ -1,6 +1,10 @@
 import { zValidator } from "@hono/zod-validator";
 import { db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import {
+  validateBrandTokenContrast,
+  brandTokensSchema as socialBrandTokensSchema,
+} from "@marketing-auto/social/lib";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -50,6 +54,7 @@ brandTokenRoutes.patch(
   async (c) => {
     const slug = c.req.param("slug");
     const body = c.req.valid("json");
+    const force = c.req.query("force") === "true";
 
     const [project] = await db
       .select({ id: projects.id, brandTokens: projects.brandTokens })
@@ -68,6 +73,13 @@ brandTokenRoutes.patch(
       social: { ...existing.social, ...body.tokens.social },
     };
 
+    // WCAG contrast validation — warning by default, blocker unless ?force=true
+    // socialBrandTokensSchema applies Remotion defaults so validator receives fully-resolved colors
+    const violations = validateBrandTokenContrast(socialBrandTokensSchema.parse(merged));
+    if (violations.length > 0 && !force) {
+      return c.json({ ok: false, error: "Contrast violations detected", violations }, 400);
+    }
+
     const rows = await db
       .update(projects)
       // exactOptionalPropertyTypes: ParsedBrandTokens has field?: T|undefined while BrandTokens has field?: T
@@ -81,9 +93,9 @@ brandTokenRoutes.patch(
 
     // Apply defaults before returning
     const tokens = await getBrandTokens(project.id);
-    log.info({ projectId: project.id }, "brand tokens updated");
+    log.info({ projectId: project.id, violationCount: violations.length }, "brand tokens updated");
 
-    return c.json({ ok: true, data: { tokens } });
+    return c.json({ ok: true, data: { tokens, violations } });
   }
 );
 

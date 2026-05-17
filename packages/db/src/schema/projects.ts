@@ -75,6 +75,10 @@ export const projects = pgTable(
     // Spec 51: Visual brand tokens for social-image generation (colors, typography, voice, social handles)
     brandTokens: jsonb("brand_tokens").$type<BrandTokens>().notNull().default({}),
 
+    // Spec 57.1: controls future auto-pipeline locale rendering. 'one' = canonical only, 'all' = all targetLocales.
+    // Stored but unused today — manual UI gives per-trigger choice; this setting is for Phase E automation.
+    socialAutoRenderLocales: text("social_auto_render_locales").notNull().default("one"),
+
     // Spec 56.6: Discovery automation config
     trendsCronEnabled: boolean("trends_cron_enabled").notNull().default(false),
     refreshCronEnabled: boolean("refresh_cron_enabled").notNull().default(false),

@@ -116,7 +116,8 @@ const makeBaseInput = (overrides: Partial<{
   projectId: overrides.projectId ?? crypto.randomUUID(),
   projectSlug: "test-slug",
   theme: "dark" as const,
-  variant: "editorial" as const,
+  variant: "stunning" as const,
+  locales: ["de-DE"],
   articleTitle: overrides.articleTitle ?? "Die 5 besten KI-Tools",
   articleSlug: "ki-tools-test",
   intentType: null as string | null,
@@ -315,7 +316,7 @@ describe("LoadArticleStep", () => {
   it("loads article and project from DB, returns correct output shape", async () => {
     const step = new LoadArticleStep();
     const out = await step.execute(
-      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "dark", variant: "editorial" as const },
+      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "dark", variant: "stunning" as const, locales: ["de-DE"] },
       mockCtx(sharedProjectId),
     );
 
@@ -335,7 +336,7 @@ describe("LoadArticleStep", () => {
     const step = new LoadArticleStep();
     await expect(
       step.execute(
-        { articleId: crypto.randomUUID(), projectId: sharedProjectId, theme: "dark", variant: "editorial" as const },
+        { articleId: crypto.randomUUID(), projectId: sharedProjectId, theme: "dark", variant: "stunning" as const, locales: ["de-DE"] },
         mockCtx(sharedProjectId),
       ),
     ).rejects.toThrow(/not found/i);
@@ -344,7 +345,7 @@ describe("LoadArticleStep", () => {
   it("respects theme=light in output", async () => {
     const step = new LoadArticleStep();
     const out = await step.execute(
-      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "light", variant: "editorial" as const },
+      { articleId: sharedArticleId, projectId: sharedProjectId, theme: "light", variant: "stunning" as const, locales: ["de-DE"] },
       mockCtx(sharedProjectId),
     );
     expect(out.theme).toBe("light");
@@ -369,7 +370,8 @@ describe("ResolveAssetsStep", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
-      variant: "editorial" as const,
+      variant: "stunning" as const,
+      locales: ["de-DE"],
       articleTitle: "Die 5 besten KI-Tools",
       articleSlug: "ki-tools-social-test",
       intentType: null as string | null,
@@ -471,7 +473,8 @@ describe("GenerateCaptionStep", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
-      variant: "editorial" as const,
+      variant: "stunning" as const,
+      locales: ["de-DE"],
       articleTitle: "Die 5 besten KI-Code-Editoren",
       articleSlug: "ki-code-editoren",
       intentType: overrides.intentType ?? null,
@@ -502,7 +505,7 @@ describe("GenerateCaptionStep", () => {
     };
   }
 
-  it("happy path: returns caption + hashtags from LLM JSON response", async () => {
+  it("happy path: returns perLocaleOutputs with caption + hashtags from LLM", async () => {
     mockMessages.mockImplementationOnce(async () => ({
       raw: JSON.stringify({
         caption: "Cursor ist der schnellste KI-Code-Editor. 🚀 Link in Bio → https://toolwiki.ai/de/ki-code-editoren",
@@ -514,11 +517,15 @@ describe("GenerateCaptionStep", () => {
     const step = new GenerateCaptionStep();
     const out = await step.execute(makeCaptionInput(), mockCtx(sharedProjectId));
 
-    expect(out.caption).toContain("Cursor");
-    expect(out.hashtags).toBeArray();
-    expect(out.hashtags.length).toBeGreaterThanOrEqual(5);
-    expect(out.hashtags.length).toBeLessThanOrEqual(10);
-    expect(out.warnings).toBeUndefined();
+    expect(out.perLocaleOutputs).toBeArray();
+    expect(out.perLocaleOutputs.length).toBe(1);
+    const loc = out.perLocaleOutputs[0]!;
+    expect(loc.locale).toBe("de-DE");
+    expect(loc.caption).toContain("Cursor");
+    expect(loc.hashtags).toBeArray();
+    expect(loc.hashtags.length).toBeGreaterThanOrEqual(5);
+    expect(loc.hashtags.length).toBeLessThanOrEqual(10);
+    expect(loc.warnings).toBeUndefined();
   });
 
   it("adapts anchor tags to comparison contentType via deriveContentType", async () => {
@@ -534,8 +541,9 @@ describe("GenerateCaptionStep", () => {
     // intentType "comparison" → contentType "comparison" → anchor tags include #KIVergleich
     const out = await step.execute(makeCaptionInput({ intentType: "comparison" }), mockCtx(sharedProjectId));
 
-    expect(out.caption).toBeString();
-    expect(out.hashtags).toBeArray();
+    const loc = out.perLocaleOutputs[0]!;
+    expect(loc.caption).toBeString();
+    expect(loc.hashtags).toBeArray();
   });
 
   it("falls back to safe defaults when LLM returns malformed JSON twice", async () => {
@@ -548,14 +556,15 @@ describe("GenerateCaptionStep", () => {
     const step = new GenerateCaptionStep();
     const out = await step.execute(makeCaptionInput(), mockCtx(sharedProjectId));
 
+    const loc = out.perLocaleOutputs[0]!;
     // Caption must be a non-empty string
-    expect(out.caption).toBeString();
-    expect(out.caption.length).toBeGreaterThan(0);
+    expect(loc.caption).toBeString();
+    expect(loc.caption.length).toBeGreaterThan(0);
     // Hashtags must be a non-empty array
-    expect(out.hashtags).toBeArray();
-    expect(out.hashtags.length).toBeGreaterThan(0);
+    expect(loc.hashtags).toBeArray();
+    expect(loc.hashtags.length).toBeGreaterThan(0);
     // Fallback must set the warnings flag
-    expect(out.warnings).toContain("hashtag_generation_fallback");
+    expect(loc.warnings).toContain("hashtag_generation_fallback");
 
     // Restore default mock for subsequent tests
     mockMessages.mockImplementation(async () => ({
@@ -586,7 +595,7 @@ describe("GenerateCaptionStep", () => {
     const out = await step.execute(makeCaptionInput(), mockCtx(sharedProjectId));
 
     // Schema rejects #KI-Tools, both retries fail, fallback fires
-    expect(out.warnings).toContain("hashtag_generation_fallback");
+    expect(out.perLocaleOutputs[0]!.warnings).toContain("hashtag_generation_fallback");
 
     // Restore default mock
     mockMessages.mockImplementation(async () => ({
@@ -622,7 +631,8 @@ describe("PersistSocialPostStep", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
-      variant: "editorial" as const,
+      variant: "stunning" as const,
+      locales: ["de-DE"],
       articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
       articleSlug: "ki-tools-social-test",
       intentType: null as string | null,
@@ -639,39 +649,43 @@ describe("PersistSocialPostStep", () => {
       slideBuffers: [Buffer.alloc(0), Buffer.alloc(0), Buffer.alloc(0)],
       totalSlides: 3,
       slideUrls,
-      caption,
-      hashtags,
+      perLocaleOutputs: [{ locale: "de-DE", caption, hashtags }],
     };
   }
 
-  it("inserts a social post row and returns correct output shape", async () => {
+  it("inserts one social post row per locale and returns correct output shape", async () => {
     const step = new PersistSocialPostStep();
     const out = await step.execute(makePersistInput(), mockCtx(sharedProjectId));
 
-    expect(out.socialPostId).toBeString();
-    // Must be a UUID
-    expect(out.socialPostId).toMatch(
+    expect(out.socialPosts).toBeArray();
+    expect(out.socialPosts.length).toBe(1);
+    const post = out.socialPosts[0]!;
+    expect(post.socialPostId).toBeString();
+    expect(post.socialPostId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
-    expect(out.slideUrls).toEqual(slideUrls);
-    expect(out.caption).toBe(caption);
-    expect(out.hashtags).toEqual(hashtags);
-    expect(out.totalSlides).toBe(3);
+    expect(post.locale).toBe("de-DE");
+    expect(post.slideUrls).toEqual(slideUrls);
+    expect(post.caption).toBe(caption);
+    expect(post.hashtags).toEqual(hashtags);
+    expect(post.totalSlides).toBe(3);
   });
 
-  it("DB row has correct theme, totalSlides, and carousel content", async () => {
+  it("DB row has correct theme, totalSlides, locale, and carousel content", async () => {
     const step = new PersistSocialPostStep();
     const out = await step.execute(makePersistInput(), mockCtx(sharedProjectId));
 
+    const post = out.socialPosts[0]!;
     const [row] = await db
       .select()
       .from(socialPosts)
-      .where(eq(socialPosts.id, out.socialPostId))
+      .where(eq(socialPosts.id, post.socialPostId))
       .limit(1);
 
     expect(row).toBeDefined();
     expect(row!.theme).toBe("dark");
     expect(row!.totalSlides).toBe(3);
+    expect(row!.locale).toBe("de-DE");
     expect(row!.platform).toBe("instagram");
     expect(row!.format).toBe("carousel");
     expect(row!.status).toBe("draft");
@@ -688,10 +702,11 @@ describe("PersistSocialPostStep", () => {
     const step = new PersistSocialPostStep();
     const out = await step.execute(makePersistInput(), mockCtx(sharedProjectId));
 
+    const post = out.socialPosts[0]!;
     const [row] = await db
       .select()
       .from(socialPosts)
-      .where(eq(socialPosts.id, out.socialPostId))
+      .where(eq(socialPosts.id, post.socialPostId))
       .limit(1);
 
     expect(row!.articleId).toBe(sharedArticleId);
@@ -721,7 +736,8 @@ describe.skipIf(!LIVE)("ExtractToolsStep (live LLM)", () => {
       projectId: sharedProjectId,
       projectSlug: sharedProjectSlug,
       theme: "dark" as const,
-      variant: "editorial" as const,
+      variant: "stunning" as const,
+      locales: ["de-DE"],
       articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
       articleSlug: "ki-tools-social-test",
       intentType: null as string | null,

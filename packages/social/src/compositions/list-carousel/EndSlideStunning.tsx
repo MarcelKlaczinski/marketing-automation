@@ -340,6 +340,7 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
           theme={theme}
           fontFamily={fontFamily}
           slideLabel={`${totalSlides}/${totalSlides}`}
+          brandTokens={brandTokens}
         />
       </div>
     </div>

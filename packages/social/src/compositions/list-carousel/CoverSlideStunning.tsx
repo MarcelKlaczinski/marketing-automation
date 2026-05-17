@@ -496,6 +496,7 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
           theme={theme}
           fontFamily={fontFamily}
           slideLabel={`1/${totalSlides}`}
+          brandTokens={brandTokens}
         />
       </div>
     </div>

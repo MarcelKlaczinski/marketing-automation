@@ -74,6 +74,10 @@
         v-else-if="activeTab === 'cost'"
         :article-id="articleId"
       />
+      <ArticleSocialTab
+        v-else-if="activeTab === 'social'"
+        :article-id="articleId"
+      />
     </template>
   </DetailPageShell>
 </template>
@@ -91,9 +95,10 @@ import ArticleFrontmatterTab from "src/pages/articles/tabs/ArticleFrontmatterTab
 import ArticleVersionsTab from "src/pages/articles/tabs/ArticleVersionsTab.vue";
 import ArticleRunsTab from "src/pages/articles/tabs/ArticleRunsTab.vue";
 import ArticleCostTab from "src/pages/articles/tabs/ArticleCostTab.vue";
+import ArticleSocialTab from "src/pages/articles/tabs/ArticleSocialTab.vue";
 import type { ArticleDetail } from "src/types/ui";
 
-type TabKey = "body" | "frontmatter" | "versions" | "runs" | "cost";
+type TabKey = "body" | "frontmatter" | "versions" | "runs" | "cost" | "social";
 
 const STATUS_LABEL: Record<string, string> = {
   proposed: "articles.status.proposed",
@@ -123,6 +128,7 @@ export default defineComponent({
     ArticleVersionsTab,
     ArticleRunsTab,
     ArticleCostTab,
+    ArticleSocialTab,
   },
 
   setup() {
@@ -162,6 +168,7 @@ export default defineComponent({
         { key: "versions", label: this.$t("articles.detailTabs.versions") as string },
         { key: "runs", label: this.$t("articles.detailTabs.runs") as string },
         { key: "cost", label: this.$t("articles.detailTabs.cost") as string },
+        { key: "social", label: this.$t("articles.detailTabs.social") as string },
       ];
     },
   },

@@ -17,7 +17,8 @@ type PipelineInput = {
   articleId: string;
   projectId: string;
   theme: "dark" | "light";
-  variant: "editorial" | "stunning";
+  variant: "stunning";
+  locales: string[];
   preRunId?: string;
 };
 
@@ -25,24 +26,33 @@ const InputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
   theme: z.enum(["dark", "light"]).default("dark"),
-  variant: z.enum(["editorial", "stunning"]).default("editorial"),
+  variant: z.enum(["stunning"]).default("stunning"),
+  locales: z.array(z.string()).min(1).max(5).default(["de-DE"]),
   preRunId: z.string().uuid().optional(),
 }) as z.ZodType<PipelineInput>;
 
-type PipelineOutput = {
+type SocialPostResult = {
   socialPostId: string;
+  locale: string;
   slideUrls: string[];
   caption: string;
   hashtags: string[];
   totalSlides: number;
 };
 
+type PipelineOutput = {
+  socialPosts: SocialPostResult[];
+};
+
 const OutputSchema = z.object({
-  socialPostId: z.string().uuid(),
-  slideUrls: z.array(z.string()),
-  caption: z.string(),
-  hashtags: z.array(z.string()),
-  totalSlides: z.number().int(),
+  socialPosts: z.array(z.object({
+    socialPostId: z.string().uuid(),
+    locale: z.string(),
+    slideUrls: z.array(z.string()),
+    caption: z.string(),
+    hashtags: z.array(z.string()),
+    totalSlides: z.number().int(),
+  })).min(1),
 }) as z.ZodType<PipelineOutput>;
 
 export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput> {
@@ -62,7 +72,7 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
 
   override async afterComplete(output: PipelineOutput, _input: PipelineInput, _runId: string): Promise<void> {
     log.info(
-      { socialPostId: output.socialPostId, totalSlides: output.totalSlides },
+      { localeCount: output.socialPosts.length, totalSlides: output.socialPosts[0]?.totalSlides },
       "Social image carousel generated"
     );
   }

@@ -32,13 +32,13 @@ export function getThemeTokens(
   const c = brandTokens?.colors;
   if (theme === "dark") {
     return {
-      bg:           c?.surfaceDark   ?? DARK_DEFAULTS.surfaceDark,
-      surface:      "oklch(22% 0.02 248)",
+      bg:           c?.surfaceDark       ?? DARK_DEFAULTS.surfaceDark,
+      surface:      c?.surfaceSecondary  ?? "oklch(22% 0.02 248)",
       ink:          "oklch(95% 0.01 250)",
       inkMuted:     "oklch(70% 0.025 250)",
-      brand:        c?.primary        ?? DARK_DEFAULTS.primary,
-      accent:       c?.accent         ?? DARK_DEFAULTS.accent,
-      eyebrowColor: "oklch(85% 0.10 168)",
+      brand:        c?.primary           ?? DARK_DEFAULTS.primary,
+      accent:       c?.accent            ?? DARK_DEFAULTS.accent,
+      eyebrowColor: c?.eyebrowColor      ?? "oklch(85% 0.10 168)",
     };
   }
   return {
@@ -52,10 +52,14 @@ export function getThemeTokens(
   };
 }
 
-export function pricingColor(tier: "free" | "freemium" | "paid"): string {
+export function pricingColor(
+  tier: "free" | "freemium" | "paid",
+  brandTokens?: BrandTokens,
+): string {
+  const c = brandTokens?.colors;
   switch (tier) {
-    case "free":     return "#22c55e";  // green
-    case "freemium": return "#3b82f6";  // blue
-    case "paid":     return "#f59e0b";  // amber
+    case "free":     return c?.pricingFree     ?? "#22c55e";
+    case "freemium": return c?.pricingFreemium ?? "#3b82f6";
+    case "paid":     return c?.pricingPaid     ?? "#f59e0b";
   }
 }

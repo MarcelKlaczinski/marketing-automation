@@ -38,6 +38,10 @@ export default {
       title: "Translation Automation",
       description: "Automatically generate an EN version when a DE article completes.",
     },
+    social: {
+      title: "Social Media",
+      description: "Settings for automated carousel generation.",
+    },
     fields: {
       name: "Project name",
       domain: "Domain",
@@ -122,6 +126,18 @@ export default {
       title: "Social media",
       instagramHandle: "Instagram handle",
       websiteUrl: "Website URL",
+    },
+    socialColors: {
+      title: "Social colors",
+      description: "Colors used in generated Instagram carousels. Changes apply to new renders only.",
+      eyebrowColor: "Eyebrow color",
+      eyebrowColorHelper: "Accent color for category labels above headings (dark theme)",
+      surfaceSecondary: "Secondary surface",
+      surfaceSecondaryHelper: "Background for content cards within dark-theme slides",
+      pricingColors: "Pricing tier colors",
+      pricingFree: "Free",
+      pricingFreemium: "Freemium",
+      pricingPaid: "Paid",
     },
   },
 

@@ -24,7 +24,8 @@ socialPostRoutes.use(requireAuth);
 const generateBodySchema = z.object({
   format: z.enum(["list_carousel"]).default("list_carousel"),
   theme: z.enum(["dark", "light"]).default("dark"),
-  variant: z.enum(["editorial", "stunning"]).default("editorial"),
+  variant: z.enum(["stunning"]).default("stunning"),
+  locales: z.array(z.string().min(2)).min(1).max(5).default(["de-DE"]),
 });
 
 socialPostRoutes.post(
@@ -48,7 +49,8 @@ socialPostRoutes.post(
       uniqueKey: { field: "articleId", value: articleId },
       costEstimate: {
         service: "anthropic",
-        estimatedCostEur: 0.03,
+        // €0.028 per locale (one merged caption+hashtag Sonnet call each)
+        estimatedCostEur: 0.028 * body.locales.length,
       },
       enqueue: (input) => {
         const enqueueInput: Parameters<typeof enqueueSocialImagePipeline>[0] = {
@@ -56,11 +58,12 @@ socialPostRoutes.post(
           projectId: input.projectId as string,
           theme: body.theme,
           variant: body.variant,
+          locales: body.locales,
         };
         if (input.preRunId) enqueueInput.preRunId = input.preRunId as string;
         return enqueueSocialImagePipeline(enqueueInput);
       },
-      extraInput: { articleId, theme: body.theme, variant: body.variant },
+      extraInput: { articleId, theme: body.theme, variant: body.variant, locales: body.locales },
     });
 
     return triggerResultToResponse(c, result);

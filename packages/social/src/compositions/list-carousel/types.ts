@@ -11,6 +11,12 @@ export const brandTokensSchema = z.object({
       ink: z.string().default("oklch(20% 0.025 250)"),
       inkMuted: z.string().default("oklch(45% 0.025 250)"),
       wikiCream: z.string().default("#fef9ec"),
+      // Spec 57.1 — previously hardcoded, now tokenized
+      surfaceSecondary: z.string().default("oklch(22% 0.02 248)"),
+      eyebrowColor: z.string().default("oklch(85% 0.10 168)"),
+      pricingFree: z.string().default("#22c55e"),
+      pricingFreemium: z.string().default("#3b82f6"),
+      pricingPaid: z.string().default("#f59e0b"),
     })
     .default({}),
   typography: z
@@ -19,6 +25,14 @@ export const brandTokensSchema = z.object({
       headingWeight: z.number().default(800),
       bodyWeight: z.number().default(400),
       eyebrowLetterSpacing: z.string().default("0.08em"),
+      // Spec 57.1 — previously hardcoded footer + rank-badge sizing
+      rankBadgeSize: z.number().default(72),
+      rankBadgeWeight: z.number().default(900),
+      rankBadgeLetterSpacing: z.string().default("-0.03em"),
+      footerWebsiteSize: z.number().default(20),
+      footerHandleSize: z.number().default(16),
+      footerLabelSize: z.number().default(18),
+      footerGap: z.number().default(2),
     })
     .default({}),
   voice: z
@@ -106,7 +120,7 @@ export type EndCloser = z.infer<typeof endCloserSchema>;
 
 export const listCarouselInputSchema = z.object({
   theme: z.enum(["dark", "light"]).default("dark"),
-  variant: z.enum(["editorial", "stunning"]).default("editorial"),
+  variant: z.enum(["stunning"]).default("stunning"),
   brandTokens: brandTokensSchema.default({}),
   slideIndex: z.number().int().default(0),
 

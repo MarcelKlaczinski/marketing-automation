@@ -131,7 +131,7 @@ function buildFrontmatter(
     tags?: string[] | null;
     intentType?: string | null;
     updatedAt?: Date | null;
-    importMetadata?: { readingTimeMinutes?: number } | null;
+    importMetadata?: { readingTimeMinutes?: number; wordCount?: number } | null;
   },
   cluster: { name: string; pillar: string | null } | null,
   schema?: FrontmatterFieldDescriptor[]
@@ -172,7 +172,8 @@ function buildFrontmatter(
     // Tags from DB column (lower priority than extras)
     ...(article.tags?.length ? { tags: article.tags } : {}),
     cornerstoneKeyword: article.cornerstoneKeyword ?? "",
-    wordCount: article.wordCount ?? 0,
+    // Fall back to importMetadata.wordCount for imported articles where the DB column is null
+    wordCount: article.wordCount ?? article.importMetadata?.wordCount ?? 0,
     draft: false,
     // Cluster role + key from article columns; fall back to cluster.name when column is null
     ...(article.clusterRole ? { clusterRole: article.clusterRole } : {}),

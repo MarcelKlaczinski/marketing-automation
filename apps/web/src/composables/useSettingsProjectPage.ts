@@ -41,6 +41,7 @@ interface ProjectSettingsData {
   pagespeedThresholds: PagespeedThresholds | null;
   costLimits: CostLimits;
   translationAutoTrigger: boolean;
+  socialAutoRenderLocales: string;
   trendsCronEnabled: boolean;
   refreshCronEnabled: boolean;
   autoApproveGaps: boolean;
@@ -150,6 +151,15 @@ export function useSettingsProjectPage(slug: string) {
     invalidateKeys: [["project-settings", slug]],
   });
 
+  const socialForm = useSectionForm({
+    initialData: () => ({
+      socialAutoRenderLocales: project.value?.socialAutoRenderLocales ?? "one",
+    }),
+    onSave: (data) =>
+      apiPatch(`/projects/${slug}`, { socialAutoRenderLocales: data.socialAutoRenderLocales as "one" | "all" }),
+    invalidateKeys: [["project-settings", slug]],
+  });
+
   const { discoveryForm, cronStatus, triggerCron } = useDiscoverySettings(slug, project);
 
   watch(project, () => {
@@ -159,6 +169,7 @@ export function useSettingsProjectPage(slug: string) {
     astroForm.resetFromUpstream();
     pagespeedForm.resetFromUpstream();
     translationForm.resetFromUpstream();
+    socialForm.resetFromUpstream();
     discoveryForm.resetFromUpstream();
   });
 
@@ -171,6 +182,7 @@ export function useSettingsProjectPage(slug: string) {
     astroForm,
     pagespeedForm,
     translationForm,
+    socialForm,
     discoveryForm,
     cronStatus,
     triggerCron,

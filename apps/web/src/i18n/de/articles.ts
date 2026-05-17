@@ -87,6 +87,7 @@ export default {
     versions: "Versionen",
     runs: "Runs",
     cost: "Kosten",
+    social: "Social",
   },
 
   detailActions: {

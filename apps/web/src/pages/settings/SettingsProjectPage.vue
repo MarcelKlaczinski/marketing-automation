@@ -206,7 +206,44 @@
         </FormField>
       </FormSection>
 
-      <!-- Section 7: Discovery automation -->
+      <!-- Section 7: Social Media -->
+      <FormSection
+        :title="$t('settings.project.social.title')"
+        :description="$t('settings.project.social.description')"
+        :dirty="socialForm.dirty.value"
+        :saving="socialForm.saving.value"
+        :last-saved-at="socialForm.lastSavedAt.value ?? ''"
+        @save="socialForm.save()"
+        @cancel="socialForm.cancel()"
+      >
+        <FormField
+          :label="$t('social.settings.autoRenderLocales.label')"
+          :helper="$t('social.settings.autoRenderLocales.hint')"
+        >
+          <div class="radio-group">
+            <label class="radio-row">
+              <input
+                type="radio"
+                value="one"
+                v-model="socialForm.formData.value.socialAutoRenderLocales"
+                class="radio-input"
+              />
+              <span>{{ $t("social.settings.autoRenderLocales.one") as string }}</span>
+            </label>
+            <label class="radio-row">
+              <input
+                type="radio"
+                value="all"
+                v-model="socialForm.formData.value.socialAutoRenderLocales"
+                class="radio-input"
+              />
+              <span>{{ $t("social.settings.autoRenderLocales.all") as string }}</span>
+            </label>
+          </div>
+        </FormField>
+      </FormSection>
+
+      <!-- Section 8: Discovery automation -->
       <FormSection
         :title="$t('settings.discovery.title')"
         :description="$t('settings.discovery.description')"
@@ -322,6 +359,7 @@ export default defineComponent({
   setup() {
     const route = useRoute();
     const slug = route.params.slug as string;
+    // Returns all form sections including socialForm
     return useSettingsProjectPage(slug);
   },
 
@@ -395,13 +433,27 @@ export default defineComponent({
   margin-bottom: 12px;
 }
 
-.checkbox-row {
+.checkbox-row,
+.radio-row {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
   font-size: 14px;
   color: var(--text-primary);
+}
+
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.radio-input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent-primary);
 }
 
 .checkbox-input {

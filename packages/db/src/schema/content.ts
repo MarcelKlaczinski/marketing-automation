@@ -365,7 +365,8 @@ export const socialPosts = pgTable(
 
     // Spec 54k: content planner columns
     templateKey: text("template_key"),  // e.g. "single-tool-spotlight" — enables dedup query
-    locale: text("locale"),             // "de" | "en"
+    // Spec 57.1: locale is now NOT NULL (migration 0047 backfilled existing rows to 'de-DE')
+    locale: text("locale").notNull().default("de-DE"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -377,6 +378,7 @@ export const socialPosts = pgTable(
     articleIdx: index("social_posts_article_idx").on(t.articleId),
     templateKeyIdx: index("social_posts_template_key_idx").on(t.projectId, t.templateKey),
     articleTemplateIdx: index("social_posts_article_template_idx").on(t.articleId, t.templateKey, t.locale),
+    articleLocaleStatusIdx: index("social_posts_article_locale_status_idx").on(t.articleId, t.locale, t.status),
   })
 );
 

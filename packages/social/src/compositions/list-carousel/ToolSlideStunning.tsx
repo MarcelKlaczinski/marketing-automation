@@ -88,10 +88,10 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
         <span
           style={{
             fontFamily,
-            fontSize: 72,
-            fontWeight: 900,
+            fontSize: brandTokens.typography.rankBadgeSize,
+            fontWeight: brandTokens.typography.rankBadgeWeight,
             color: theme.brand,
-            letterSpacing: "-0.03em",
+            letterSpacing: brandTokens.typography.rankBadgeLetterSpacing,
             lineHeight: 1,
           }}
         >
@@ -303,7 +303,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
             alignSelf: "center",
           }}
         >
-          <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} />
+          <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} brandTokens={brandTokens} />
         </div>
       </div>
 
@@ -315,6 +315,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
           theme={theme}
           fontFamily={fontFamily}
           slideLabel={`${slideNumber}/${totalSlides}`}
+          brandTokens={brandTokens}
         />
       </div>
     </div>

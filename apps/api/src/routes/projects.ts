@@ -165,6 +165,8 @@ projectRoutes.get("/:slug", async (c) => {
       costLimits: proj.costLimits,
       translationAutoTrigger: proj.translationAutoTrigger,
       autoPublish: proj.autoPublish,
+      targetLocales: proj.targetLocales,
+      socialAutoRenderLocales: proj.socialAutoRenderLocales,
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),
@@ -289,6 +291,8 @@ const updateProjectSchema = z.object({
     .regex(/^\d+(\.\d{1,2})?$/)
     .optional(),
   translationAutoTrigger: z.boolean().optional(),
+  // Spec 57.1: auto-pipeline locale setting. 'one' = canonical only, 'all' = all targetLocales
+  socialAutoRenderLocales: z.enum(["one", "all"]).optional(),
   // Discovery automation (Spec 56.6)
   trendsCronEnabled: z.boolean().optional(),
   refreshCronEnabled: z.boolean().optional(),
@@ -324,6 +328,8 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     setFields.linkRebuildBudgetMonthly = input.linkRebuildBudgetMonthly;
   if (input.translationAutoTrigger !== undefined)
     setFields.translationAutoTrigger = input.translationAutoTrigger;
+  if (input.socialAutoRenderLocales !== undefined)
+    setFields.socialAutoRenderLocales = input.socialAutoRenderLocales;
   if (input.trendsCronEnabled !== undefined) setFields.trendsCronEnabled = input.trendsCronEnabled;
   if (input.refreshCronEnabled !== undefined) setFields.refreshCronEnabled = input.refreshCronEnabled;
   if (input.autoApproveGaps !== undefined) setFields.autoApproveGaps = input.autoApproveGaps;

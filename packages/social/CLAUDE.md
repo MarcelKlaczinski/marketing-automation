@@ -6,6 +6,10 @@ Renders Instagram carousel slides as PNG via Remotion 4 (headless Chrome).
 Entry: `render-server.ts` → `renderListCarousel()` returns `Buffer[]` (one per slide).
 Compositions live in `src/compositions/<template-name>/`, shared primitives in `src/shared/`.
 
+## Variant History (Spec 57.1)
+
+The `editorial` variant was removed in Spec 57.1. All list-carousel templates now use the `stunning` variant only. The `variant` field remains in `listCarouselInputSchema` for potential future extension but accepts only `'stunning'`. Files deleted: `ListCarousel.tsx`, `CoverSlide.tsx`, `ToolSlide.tsx`, `EndSlide.tsx` (all editorial). Migration 0047 backfills existing `social_posts.locale` rows to `'de-DE'` (NOT NULL).
+
 ## Caption + Hashtag Generation (Spec 57.4)
 
 Caption and hashtags are **NOT** generated in this package. They are produced by `GenerateCaptionStep` in `packages/pipelines/src/article/social-image/steps.ts` — a single Sonnet 4.6 JSON call that returns `{ caption: string, hashtags: string[] }`.

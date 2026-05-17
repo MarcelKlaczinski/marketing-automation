@@ -4,7 +4,8 @@ export type EnqueueSocialImageInput = {
   articleId: string;
   projectId: string;
   theme?: "dark" | "light";
-  variant?: "editorial" | "stunning";
+  variant?: "stunning";
+  locales?: string[];
   preRunId?: string;
 };
 
@@ -18,7 +19,8 @@ export async function enqueueSocialImagePipeline(
       articleId: input.articleId,
       projectId: input.projectId,
       theme: input.theme ?? "dark",
-      variant: input.variant ?? "editorial",
+      variant: input.variant ?? "stunning",
+      locales: input.locales ?? ["de-DE"],
     },
     jobOptions: {
       jobId: `social-image-${input.articleId}-${Date.now()}`,

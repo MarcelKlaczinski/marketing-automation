@@ -38,6 +38,10 @@ export default {
       title: "Übersetzungs-Automatisierung",
       description: "Automatisch EN-Version generieren wenn ein DE-Artikel fertiggestellt wird.",
     },
+    social: {
+      title: "Social Media",
+      description: "Einstellungen für die automatisierte Carousel-Generierung.",
+    },
     fields: {
       name: "Projektname",
       domain: "Domain",
@@ -122,6 +126,18 @@ export default {
       title: "Social Media",
       instagramHandle: "Instagram-Handle",
       websiteUrl: "Website-URL",
+    },
+    socialColors: {
+      title: "Social-Farben",
+      description: "Farben für generierte Instagram-Karussells. Änderungen wirken sich auf neue Renders aus.",
+      eyebrowColor: "Eyebrow-Farbe",
+      eyebrowColorHelper: "Akzentfarbe für Kategorie-Labels über Überschriften (dark theme)",
+      surfaceSecondary: "Sekundäre Fläche",
+      surfaceSecondaryHelper: "Hintergrund für Inhalts-Karten innerhalb der dark-theme Slides",
+      pricingColors: "Pricing-Tier-Farben",
+      pricingFree: "Kostenlos",
+      pricingFreemium: "Freemium",
+      pricingPaid: "Kostenpflichtig",
     },
   },
 

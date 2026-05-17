@@ -10,6 +10,8 @@ const TOOLWIKI_TO_SIMPLE_ICONS: Record<string, string> = {
   "claude-opus": "claude",
   "claude-sonnet": "claude",
   "claude-haiku": "claude",
+  "claude-code": "claude",      // Claude Code CLI — Anthropic product, uses same icon
+  "claude-code-cli": "claude",
   "anthropic": "anthropic",
 
   // Google
@@ -18,6 +20,20 @@ const TOOLWIKI_TO_SIMPLE_ICONS: Record<string, string> = {
   "google-gemini": "googlegemini",
   "bard": "googlegemini",
 
+  // OpenAI
+  "chatgpt": "openai",
+  "gpt-4": "openai",
+  "gpt-4o": "openai",
+  "codex": "openai",
+  "codex-cli": "openai",
+
+  // Code assistants
+  "cursor": "cursor",
+  "codeium": "codeium",
+  "tabnine": "tabnine",
+  "copilot-inline": "githubcopilot",
+  "copilot-chat": "githubcopilot",
+
   // Design
   "figma": "figma",
   "notion": "notion",
@@ -25,6 +41,9 @@ const TOOLWIKI_TO_SIMPLE_ICONS: Record<string, string> = {
   // Dev tools
   "github-copilot": "githubcopilot",
   "copilot": "githubcopilot",
+  "jetbrains": "jetbrains",
+  "vscode": "visualstudiocode",
+  "visual-studio-code": "visualstudiocode",
 
   // Audio/Voice
   "elevenlabs": "elevenlabs",

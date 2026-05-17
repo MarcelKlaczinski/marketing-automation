@@ -135,7 +135,7 @@
       </FormField>
     </FormSection>
 
-    <!-- Social -->
+    <!-- Social identity -->
     <FormSection
       :title="$t('settings.brandTokens.social.title')"
       :dirty="socialForm.dirty.value"
@@ -161,19 +161,80 @@
         />
       </FormField>
     </FormSection>
+
+    <!-- Social media colors -->
+    <FormSection
+      :title="$t('settings.brandTokens.socialColors.title')"
+      :description="$t('settings.brandTokens.socialColors.description')"
+      :dirty="socialColorsForm.dirty.value"
+      :saving="socialColorsForm.saving.value"
+      :last-saved-at="socialColorsForm.lastSavedAt.value ?? ''"
+      @save="socialColorsForm.save()"
+      @cancel="socialColorsForm.cancel()"
+    >
+      <FormField
+        :label="$t('settings.brandTokens.socialColors.eyebrowColor')"
+        :helper="$t('settings.brandTokens.socialColors.eyebrowColorHelper')"
+      >
+        <div class="color-input-row">
+          <input type="color" v-model="socialColorsForm.formData.value.eyebrowColor" class="color-picker" />
+          <FormInput v-model="socialColorsForm.formData.value.eyebrowColor" placeholder="#85f0c8" autocomplete="off" />
+          <div class="color-preview" :style="{ background: socialColorsForm.formData.value.eyebrowColor || 'transparent' }" />
+        </div>
+      </FormField>
+
+      <FormField
+        :label="$t('settings.brandTokens.socialColors.surfaceSecondary')"
+        :helper="$t('settings.brandTokens.socialColors.surfaceSecondaryHelper')"
+      >
+        <div class="color-input-row">
+          <input type="color" v-model="socialColorsForm.formData.value.surfaceSecondary" class="color-picker" />
+          <FormInput v-model="socialColorsForm.formData.value.surfaceSecondary" placeholder="#1e2635" autocomplete="off" />
+          <div class="color-preview" :style="{ background: socialColorsForm.formData.value.surfaceSecondary || 'transparent' }" />
+        </div>
+      </FormField>
+
+      <div class="pricing-colors-group">
+        <div class="pricing-colors-label">{{ $t("settings.brandTokens.socialColors.pricingColors") as string }}</div>
+
+        <FormField :label="$t('settings.brandTokens.socialColors.pricingFree')">
+          <div class="color-input-row">
+            <input type="color" v-model="socialColorsForm.formData.value.pricingFree" class="color-picker" />
+            <FormInput v-model="socialColorsForm.formData.value.pricingFree" placeholder="#22c55e" autocomplete="off" />
+            <div class="color-preview" :style="{ background: socialColorsForm.formData.value.pricingFree || 'transparent' }" />
+          </div>
+        </FormField>
+
+        <FormField :label="$t('settings.brandTokens.socialColors.pricingFreemium')">
+          <div class="color-input-row">
+            <input type="color" v-model="socialColorsForm.formData.value.pricingFreemium" class="color-picker" />
+            <FormInput v-model="socialColorsForm.formData.value.pricingFreemium" placeholder="#3b82f6" autocomplete="off" />
+            <div class="color-preview" :style="{ background: socialColorsForm.formData.value.pricingFreemium || 'transparent' }" />
+          </div>
+        </FormField>
+
+        <FormField :label="$t('settings.brandTokens.socialColors.pricingPaid')">
+          <div class="color-input-row">
+            <input type="color" v-model="socialColorsForm.formData.value.pricingPaid" class="color-picker" />
+            <FormInput v-model="socialColorsForm.formData.value.pricingPaid" placeholder="#f59e0b" autocomplete="off" />
+            <div class="color-preview" :style="{ background: socialColorsForm.formData.value.pricingPaid || 'transparent' }" />
+          </div>
+        </FormField>
+      </div>
+    </FormSection>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, watch } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { useRoute } from "vue-router";
 import FormSection from "src/components/forms/FormSection.vue";
 import FormField from "src/components/forms/FormField.vue";
 import FormInput from "src/components/forms/FormInput.vue";
 import FormSelect from "src/components/forms/FormSelect.vue";
 import FormTextarea from "src/components/forms/FormTextarea.vue";
 import { useSectionForm } from "src/composables/useSectionForm";
+import { useProjectStore } from "src/stores/project";
 import { apiGet, apiPatch } from "src/lib/api";
 
 interface BrandTokensResponse {
@@ -181,6 +242,11 @@ interface BrandTokensResponse {
     primary?: string;
     accent?: string;
     surface?: string;
+    surfaceSecondary?: string;
+    eyebrowColor?: string;
+    pricingFree?: string;
+    pricingFreemium?: string;
+    pricingPaid?: string;
   };
   typography?: {
     fontFamily?: string;
@@ -204,8 +270,8 @@ export default defineComponent({
   components: { FormSection, FormField, FormInput, FormSelect, FormTextarea },
 
   setup() {
-    const route = useRoute();
-    const slug = route.params.slug as string;
+    const projectStore = useProjectStore();
+    const slug = projectStore.currentSlug ?? "";
 
     const { data: tokens } = useQuery({
       queryKey: ["brand-tokens", slug],
@@ -276,14 +342,38 @@ export default defineComponent({
       invalidateKeys: [["brand-tokens", slug]],
     });
 
+    const socialColorsForm = useSectionForm({
+      initialData: () => ({
+        eyebrowColor: tokens.value?.colors?.eyebrowColor ?? "",
+        surfaceSecondary: tokens.value?.colors?.surfaceSecondary ?? "",
+        pricingFree: tokens.value?.colors?.pricingFree ?? "",
+        pricingFreemium: tokens.value?.colors?.pricingFreemium ?? "",
+        pricingPaid: tokens.value?.colors?.pricingPaid ?? "",
+      }),
+      onSave: (data) =>
+        apiPatch(`/projects/${slug}/brand-tokens?force=true`, {
+          tokens: {
+            colors: {
+              ...(data.eyebrowColor ? { eyebrowColor: data.eyebrowColor } : {}),
+              ...(data.surfaceSecondary ? { surfaceSecondary: data.surfaceSecondary } : {}),
+              ...(data.pricingFree ? { pricingFree: data.pricingFree } : {}),
+              ...(data.pricingFreemium ? { pricingFreemium: data.pricingFreemium } : {}),
+              ...(data.pricingPaid ? { pricingPaid: data.pricingPaid } : {}),
+            },
+          },
+        }),
+      invalidateKeys: [["brand-tokens", slug]],
+    });
+
     watch(tokens, () => {
       colorsForm.resetFromUpstream();
       typographyForm.resetFromUpstream();
       voiceForm.resetFromUpstream();
       socialForm.resetFromUpstream();
+      socialColorsForm.resetFromUpstream();
     });
 
-    return { colorsForm, typographyForm, voiceForm, socialForm };
+    return { colorsForm, typographyForm, voiceForm, socialForm, socialColorsForm };
   },
 });
 </script>
@@ -317,5 +407,23 @@ export default defineComponent({
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-soft);
   flex-shrink: 0;
+}
+
+.pricing-colors-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.02));
+}
+
+.pricing-colors-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
 }
 </style>
