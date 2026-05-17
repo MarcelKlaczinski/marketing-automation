@@ -43,16 +43,6 @@ interface CostAlert {
   createdAt: string;
 }
 
-function formatRelative(dateStr: string): string {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
-
 export default defineComponent({
   name: "CostAlertCard",
 
@@ -66,12 +56,24 @@ export default defineComponent({
 
   computed: {
     relativeTime(): string {
-      return formatRelative(this.alert.createdAt);
+      return this.formatRelative(this.alert.createdAt);
     },
 
     ackedRelativeTime(): string {
       if (!this.alert.acknowledgedAt) return "";
-      return formatRelative(this.alert.acknowledgedAt);
+      return this.formatRelative(this.alert.acknowledgedAt);
+    },
+  },
+
+  methods: {
+    formatRelative(dateStr: string): string {
+      const diffMs = Date.now() - new Date(dateStr).getTime();
+      const mins = Math.floor(diffMs / 60_000);
+      if (mins < 1) return this.$t("forms.justNow") as string;
+      if (mins < 60) return this.$t("forms.minutesAgo", { n: mins }) as string;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return this.$t("forms.hoursAgo", { n: hrs }) as string;
+      return this.$t("forms.daysAgo", { n: Math.floor(hrs / 24) }) as string;
     },
   },
 });

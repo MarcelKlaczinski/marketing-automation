@@ -24,9 +24,7 @@ import { defineComponent } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { useRoute } from "vue-router";
 import AssetUploadSlot from "src/components/settings/AssetUploadSlot.vue";
-import { apiDelete } from "src/lib/api";
-
-const BASE = (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
+import { apiGet, apiDelete } from "src/lib/api";
 
 interface BrandAsset {
   id: string;
@@ -59,13 +57,7 @@ export default defineComponent({
 
     const { data: assets } = useQuery({
       queryKey: ["brand-assets", slug],
-      queryFn: async () => {
-        const res = await fetch(`${BASE}/projects/${slug}/brand-assets`, {
-          credentials: "include",
-        });
-        const body = (await res.json()) as { ok: boolean; data: BrandAsset[] };
-        return body.data;
-      },
+      queryFn: () => apiGet<BrandAsset[]>(`/projects/${slug}/brand-assets`),
     });
 
     return { slug, queryClient, assets };
@@ -90,7 +82,9 @@ export default defineComponent({
       fd.append("assetType", payload.assetType);
       fd.append("assetKey", payload.assetKey);
 
-      await fetch(`${BASE}/projects/${this.slug}/brand-assets/upload`, {
+      // raw fetch required: apiPost assumes JSON; multipart uploads need FormData
+      const base = (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
+      await fetch(`${base}/projects/${this.slug}/brand-assets/upload`, {
         method: "POST",
         credentials: "include",
         body: fd,
