@@ -60,7 +60,7 @@ export default defineComponent({
 
   computed: {
     queuedCount(): number {
-      return (this.activityFeed ?? []).filter((r) => r.status === "queued").length;
+      return (this.activityFeed as Array<{ status: string }> | null ?? []).filter((r) => r.status === "queued").length;
     },
     todayCostDisplay(): string {
       const cost = this.todaySummary.data?.value?.totalEur ?? 0;

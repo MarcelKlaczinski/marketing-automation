@@ -13,10 +13,12 @@ export function useActivityFeed() {
 
   return useQuery({
     queryKey: ["pipeline-runs", "active", projectStore.currentSlug],
-    queryFn: () =>
-      apiGet<PipelineRunSummary[]>(
-        `/projects/${projectStore.currentSlug}/pipeline-runs?status=active`,
-      ),
+    queryFn: async () => {
+      const result = await apiGet<{ items: PipelineRunSummary[]; total: number; limit: number; offset: number }>(
+        `/projects/${projectStore.currentSlug}/pipeline-runs?limit=50`,
+      );
+      return result.items;
+    },
     refetchInterval: 60_000,
     enabled: !!projectStore.currentSlug,
   });
