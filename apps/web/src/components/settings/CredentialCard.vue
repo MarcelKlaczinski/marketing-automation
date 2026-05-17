@@ -31,7 +31,7 @@
       <FormField
         v-for="keySpec in adapter.keys"
         :key="keySpec.key"
-        :label="keySpec.label"
+        :label="$t(keySpec.labelKey) as string"
       >
         <FormInput
           :model-value="values[keySpec.key] ?? ''"
@@ -67,7 +67,7 @@ import { apiPost, apiDelete } from "src/lib/api";
 
 interface KeySpec {
   key: string;
-  label: string;
+  labelKey: string;
 }
 
 interface AdapterDef {
@@ -157,7 +157,7 @@ export default defineComponent({
         if (result.ok) {
           this.$q.notify({ type: "positive", message: this.$t("settings.credentials.verifySuccess") as string });
         } else {
-          this.$q.notify({ type: "negative", message: result.message ?? "Verification failed" });
+          this.$q.notify({ type: "negative", message: result.message ?? (this.$t("settings.credentials.verifyFailed") as string) });
         }
         this.$emit("refresh");
       } catch (err) {

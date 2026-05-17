@@ -123,6 +123,13 @@ export default {
     setBefore: "(bereits konfiguriert)",
     savedSuccess: "Zugangsdaten gespeichert",
     verifySuccess: "Verbindung erfolgreich",
+    verifyFailed: "Verbindung fehlgeschlagen",
+    keys: {
+      apiKey: "API-Schlüssel",
+      apiToken: "API-Token",
+      login: "Benutzername",
+      password: "Passwort",
+    },
   },
 
   tabs: {

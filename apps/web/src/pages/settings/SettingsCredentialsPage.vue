@@ -49,25 +49,25 @@ export default defineComponent({
       {
         id: "anthropic",
         name: "Anthropic Claude",
-        keys: [{ key: "api_key", label: "API Key" }],
+        keys: [{ key: "api_key", labelKey: "settings.credentials.keys.apiKey" }],
       },
       {
         id: "voyage",
         name: "Voyage AI",
-        keys: [{ key: "api_key", label: "API Key" }],
+        keys: [{ key: "api_key", labelKey: "settings.credentials.keys.apiKey" }],
       },
       {
         id: "dataforseo",
         name: "DataForSEO",
         keys: [
-          { key: "login", label: "Login" },
-          { key: "password", label: "Password" },
+          { key: "login", labelKey: "settings.credentials.keys.login" },
+          { key: "password", labelKey: "settings.credentials.keys.password" },
         ],
       },
       {
         id: "replicate",
         name: "Replicate",
-        keys: [{ key: "api_token", label: "API Token" }],
+        keys: [{ key: "api_token", labelKey: "settings.credentials.keys.apiToken" }],
       },
     ],
   }),

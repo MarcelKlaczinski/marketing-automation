@@ -18,17 +18,18 @@
           v-else-if="!searchResults.length"
           :title="$t('articleTools.manual.noResults') as string"
           :description="$t('articleTools.manual.noResultsDescription') as string"
-          size="sm"
+          :compact="true"
         />
 
-        <ArticleListItem
-          v-for="article in searchResults"
-          v-else
-          :key="article.id"
-          :article="article"
-          :selected="article.id === selectedArticleId"
-          @click="selectArticle(article.id)"
-        />
+        <template v-else>
+          <ArticleListItem
+            v-for="article in searchResults"
+            :key="article.id"
+            :article="article"
+            :selected="article.id === selectedArticleId"
+            @click="selectArticle(article.id)"
+          />
+        </template>
       </aside>
 
       <main class="trigger-panel">
@@ -69,6 +70,7 @@ interface ArticleEntry {
 
 interface ArticlesResponse {
   items: ArticleEntry[];
+  hasMore?: boolean;
 }
 
 export default defineComponent({
@@ -116,7 +118,7 @@ export default defineComponent({
         const data = await apiGet<ArticlesResponse>(
           `/projects/${this.slug}/articles?${params.toString()}`,
         );
-        this.searchResults = data.items ?? (data as unknown as ArticleEntry[]);
+        this.searchResults = data.items;
       } catch {
         this.searchResults = [];
       } finally {
