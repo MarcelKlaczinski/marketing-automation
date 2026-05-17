@@ -91,7 +91,54 @@ const routes = [
           import("src/pages/clusters/ClusterDetailPage.vue"),
       },
 
-      // 56.3: settings, costs, products
+      // 56.3: Settings — sidebar nav with 4 sub-sections
+      {
+        path: "settings",
+        name: "settings",
+        component: () => import("src/pages/settings/SettingsPage.vue"),
+        children: [
+          {
+            path: "project",
+            name: "settings-project",
+            component: () => import("src/pages/settings/SettingsProjectPage.vue"),
+          },
+          {
+            path: "brand-tokens",
+            name: "settings-brand-tokens",
+            component: () => import("src/pages/settings/SettingsBrandTokensPage.vue"),
+          },
+          {
+            path: "brand-assets",
+            name: "settings-brand-assets",
+            component: () => import("src/pages/settings/SettingsBrandAssetsPage.vue"),
+          },
+          {
+            path: "credentials",
+            name: "settings-credentials",
+            component: () => import("src/pages/settings/SettingsCredentialsPage.vue"),
+          },
+          // Redirect bare /settings to /settings/project
+          {
+            path: "",
+            redirect: { name: "settings-project" },
+          },
+        ],
+      },
+
+      // 56.3: Costs — overview + alerts
+      {
+        path: "costs",
+        name: "costs",
+        component: () => import("src/pages/costs/CostsPage.vue"),
+      },
+
+      // 56.3: Article Tools — generate wizard + manual triggers
+      {
+        path: "article-tools",
+        name: "article-tools",
+        component: () => import("src/pages/article-tools/ArticleToolsPage.vue"),
+      },
+
       // 56.4: cold-start
     ],
   },

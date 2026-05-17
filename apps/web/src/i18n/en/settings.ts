@@ -1,6 +1,52 @@
 export default {
   title: "Settings",
 
+  sections: {
+    project: "Project",
+    "brand-tokens": "Brand Tokens",
+    "brand-assets": "Brand Assets",
+    credentials: "Credentials",
+  },
+
+  project: {
+    title: "Project Settings",
+  },
+
+  brandTokens: {
+    title: "Brand Tokens",
+    formMode: "Form view",
+    advancedMode: "JSON editor",
+    advancedDescription: "Edit all brand tokens as JSON.",
+    resetSection: "Reset section",
+    colors: {
+      title: "Colors",
+      primary: "Primary color",
+      secondary: "Secondary color",
+    },
+    typography: {
+      title: "Typography",
+      headingFont: "Heading font",
+      headingFontCustom: "Custom font",
+    },
+  },
+
+  brandAssets: {
+    title: "Brand Assets",
+    slots: {},
+  },
+
+  credentials: {
+    title: "Credentials",
+    description: "Manage API keys for external services.",
+    set: "Save",
+    update: "Update",
+    verify: "Test connection",
+    remove: "Remove",
+    setBefore: "(already configured)",
+    savedSuccess: "Credentials saved",
+    verifySuccess: "Connection successful",
+  },
+
   tabs: {
     adapters: "Adapters",
     system: "System",

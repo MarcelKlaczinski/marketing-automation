@@ -1,0 +1,139 @@
+import { randomUUID } from "node:crypto";
+import { zValidator } from "@hono/zod-validator";
+import { COST_OPS } from "@marketing-auto/core";
+import { articles, db, eq, projects, topicBriefs } from "@marketing-auto/db";
+import { enqueueBlogGenerationPipeline } from "@marketing-auto/pipelines";
+import { createLogger } from "@marketing-auto/shared";
+import { Hono } from "hono";
+import { z } from "zod";
+import { requireAuth } from "../../middleware/auth.ts";
+import {
+  triggerWithPreRunId,
+  triggerResultToResponse,
+} from "../_lib/trigger-helpers.ts";
+
+const log = createLogger("routes:articles-standalone");
+
+export const articleStandaloneRoutes = new Hono();
+
+articleStandaloneRoutes.use(requireAuth);
+
+const standaloneGenerateSchema = z.object({
+  topic: z.string().min(5).max(200),
+  primaryKeyword: z.string().min(2).max(100),
+  collection: z.enum(["blog", "tools", "comparisons", "ki-wissen", "usecases", "tool-categories"]),
+  locale: z.enum(["de", "en"]),
+  intentType: z
+    .enum(["overview", "general", "review", "comparison", "pricing", "tutorial", "use-cases", "features"])
+    .default("general"),
+  authorSlug: z.string().optional(),
+  clusterId: z.string().uuid().optional(),
+  // "assist" maps to DB "manual" approval mode
+  approvalMode: z.enum(["assist", "auto"]).default("assist"),
+  estimatedWordCount: z.number().int().min(500).max(5000).default(2000),
+});
+
+function slugifyTopic(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .slice(0, 80);
+}
+
+// POST /:slug/articles/generate-standalone — from-scratch single article wizard (Spec 56.3 §A.2)
+articleStandaloneRoutes.post(
+  "/:slug/articles/generate-standalone",
+  zValidator("json", standaloneGenerateSchema),
+  async (c) => {
+    const { slug } = c.req.param();
+    const input = c.req.valid("json");
+
+    const [project] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.slug, slug))
+      .limit(1);
+    if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const articleId = randomUUID();
+    const articleSlug = slugifyTopic(input.topic);
+    const dbApprovalMode = input.approvalMode === "auto" ? "auto" : "manual";
+
+    // Insert the brief first so the pipeline worker finds it on startup
+    const briefRows = await db
+      .insert(topicBriefs)
+      .values({
+        projectId: project.id,
+        source: "manual",
+        topicTitle: input.topic,
+        primaryKeyword: input.primaryKeyword,
+        locale: input.locale,
+        intentType: input.intentType,
+        clusterId: input.clusterId ?? null,
+        clusterAction: input.clusterId ? "append_to_existing" : "standalone",
+        suggestedTitle: input.topic,
+        suggestedSlug: articleSlug,
+        suggestedMeta: "",
+        approvalStatus: "approved",
+        approvedBy: "user",
+        approvedAt: new Date(),
+        routedArticleId: articleId,
+      })
+      .returning();
+
+    const briefId = briefRows[0]!.id;
+
+    // Insert the article stub (title/body filled by pipeline)
+    await db.insert(articles).values({
+      id: articleId,
+      projectId: project.id,
+      slug: articleSlug,
+      cornerstoneKeyword: input.primaryKeyword,
+      locale: input.locale,
+      source: "generated",
+      collection: input.collection,
+      status: "proposed",
+      intentType: input.intentType,
+      approvalMode: dbApprovalMode,
+      clusterId: input.clusterId ?? null,
+      author: input.authorSlug ?? null,
+    });
+
+    // Trigger the blog pipeline (handles pause + cost + idempotency + pipeline_runs + enqueue)
+    const result = await triggerWithPreRunId({
+      pipelineName: "article:blog",
+      projectId: project.id,
+      uniqueKey: { field: "articleId", value: articleId },
+      costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
+      extraInput: { articleId, briefId: briefId },
+      enqueue: enqueueBlogGenerationPipeline,
+    });
+
+    if ("error" in result) {
+      log.warn(
+        { error: result.error, projectId: project.id, articleId },
+        "Standalone article generation blocked",
+      );
+      return triggerResultToResponse(c, result);
+    }
+
+    log.info(
+      { articleId, briefId: briefId, runId: result.runId },
+      "Standalone article generation enqueued",
+    );
+
+    return c.json(
+      {
+        ok: true,
+        data: {
+          articleId,
+          briefId: briefId,
+          runId: result.runId,
+          jobId: result.jobId,
+        },
+      },
+      202,
+    );
+  },
+);

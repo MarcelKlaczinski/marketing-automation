@@ -28,6 +28,8 @@ import settings from "./settings";
 import trends from "./trends";
 import briefs from "./briefs";
 import search from "./search";
+import forms from "./forms";
+import articleTools from "./articleTools";
 
 export default {
   app,
@@ -60,4 +62,6 @@ export default {
   briefs,
   dashboard,
   search,
+  forms,
+  articleTools,
 };

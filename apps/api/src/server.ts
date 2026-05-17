@@ -32,6 +32,7 @@ import { scopedArticleRoutes } from "./routes/projects/articles.ts";
 import { scopedBriefRoutes } from "./routes/projects/briefs.ts";
 import { scopedPillarRoutes } from "./routes/projects/pillars.ts";
 import { scopedPipelineRunsRoutes } from "./routes/projects/pipeline-runs.ts";
+import { articleStandaloneRoutes } from "./routes/projects/articles-standalone.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -103,6 +104,7 @@ app.route("/api/projects", scopedArticleRoutes);
 app.route("/api/projects", scopedBriefRoutes);
 app.route("/api/projects", scopedPillarRoutes);
 app.route("/api/projects", scopedPipelineRunsRoutes);
+app.route("/api/projects", articleStandaloneRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 
