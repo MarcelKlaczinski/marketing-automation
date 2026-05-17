@@ -12,17 +12,6 @@
           :label="$t('nav.dashboard') as string"
           v-bind="runningCount > 0 ? { badge: runningCount, badgeVariant: 'live' } : {}"
         />
-        <NavItem
-          :to="`/projects/${slug}/activity`"
-          icon="activity"
-          :label="$t('nav.activity') as string"
-        />
-        <NavItem
-          :to="`/projects/${slug}/failures`"
-          icon="failures"
-          :label="$t('nav.failures') as string"
-          v-bind="failedCount > 0 ? { badge: failedCount, badgeVariant: 'urgent' } : {}"
-        />
       </div>
 
       <!-- === Content section === -->
@@ -51,19 +40,19 @@
         <p class="nav-section-label label-caps">{{ $t("nav.platform") }}</p>
 
         <NavItem
-          :to="`/projects/${slug}/cost`"
+          :to="`/projects/${slug}/costs`"
           icon="cost"
           :label="$t('nav.cost') as string"
         />
         <NavItem
-          to="/settings"
+          :to="`/projects/${slug}/settings`"
           icon="settings"
           :label="$t('nav.settings') as string"
         />
         <NavItem
-          :to="`/projects/${slug}/products`"
-          icon="products"
-          :label="$t('nav.products') as string"
+          :to="`/projects/${slug}/article-tools`"
+          icon="articleTools"
+          :label="$t('nav.articleTools') as string"
         />
       </div>
 
@@ -121,7 +110,6 @@ export default defineComponent({
     isMobile: { type: Boolean, default: false },
     open: { type: Boolean, default: false },
     runningCount: { type: Number, default: 0 },
-    failedCount: { type: Number, default: 0 },
   },
 
   emits: ["close"],

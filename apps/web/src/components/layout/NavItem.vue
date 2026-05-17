@@ -57,11 +57,10 @@
         <circle cx="8" cy="8" r="2.5" />
         <path d="M8 1.5v1.3M8 13.2v1.3M1.5 8h1.3M13.2 8h1.3M3.4 3.4l.9.9M11.7 11.7l.9.9M12.6 3.4l-.9.9M4.3 11.7l-.9.9" />
       </svg>
-      <!-- Products -->
-      <svg v-else-if="icon === 'products'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-        <path d="M1.5 4.5l6.5-3 6.5 3v7l-6.5 3-6.5-3z" />
-        <line x1="8" y1="1.5" x2="8" y2="14.5" />
-        <line x1="1.5" y1="4.5" x2="14.5" y2="4.5" />
+      <!-- Article Tools (pen + wrench) -->
+      <svg v-else-if="icon === 'articleTools'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 12.5h4l6.5-6.5-4-4L2 8.5z" />
+        <line x1="10" y1="4" x2="12" y2="6" />
       </svg>
       <!-- Fallback generic dot -->
       <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">

@@ -8,7 +8,6 @@
       :is-mobile="isMobile"
       :open="uiStore.sidebarOpen"
       :running-count="runningCount"
-      :failed-count="failedCount"
       @close="uiStore.closeSidebar()"
     />
 
@@ -89,9 +88,6 @@ export default defineComponent({
   computed: {
     runningCount(): number {
       return this.activityData?.runningCount ?? 0;
-    },
-    failedCount(): number {
-      return this.activityData?.failedLast24h ?? 0;
     },
   },
 

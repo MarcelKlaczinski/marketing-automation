@@ -4,7 +4,6 @@ export default {
   inbox: "Inbox",
   projects: "Projects",
   cost: "Costs",
-  activity: "Activity",
   settings: "Settings",
   templates: "Templates",
   trends: "Trends",
@@ -15,11 +14,10 @@ export default {
   failedCount: "{n} failed",
   // 56.1 dashboard sections
   dashboard: "Dashboard",
-  failures: "Failures",
   clusters: "Clusters",
   articles: "Articles",
   briefs: "Briefs",
-  products: "Products",
+  articleTools: "Article Tools",
   // sidebar section headings
   orchestration: "Orchestration",
   content: "Content",
