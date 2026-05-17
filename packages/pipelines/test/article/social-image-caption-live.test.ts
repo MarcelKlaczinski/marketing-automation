@@ -45,7 +45,7 @@ describe.skipIf(!LIVE)("GenerateCaptionStep — live hashtag quality smoke test"
     const step = new GenerateCaptionStep();
     const out = await step.execute({
       articleId: crypto.randomUUID(),
-      projectId: crypto.randomUUID(),
+      projectId: liveProjectId,
       projectSlug: "toolwiki",
       theme: "dark",
       variant: "editorial",
@@ -83,7 +83,7 @@ describe.skipIf(!LIVE)("GenerateCaptionStep — live hashtag quality smoke test"
     const step = new GenerateCaptionStep();
     const out = await step.execute({
       articleId: crypto.randomUUID(),
-      projectId: crypto.randomUUID(),
+      projectId: liveProjectId,
       projectSlug: "toolwiki",
       theme: "dark",
       variant: "editorial",
@@ -111,5 +111,45 @@ describe.skipIf(!LIVE)("GenerateCaptionStep — live hashtag quality smoke test"
     expect(out.warnings, "fallback fired — check LLM response").toBeUndefined();
     expect(out.hashtags.filter(h => h.includes("-"))).toEqual([]);
     expect(out.hashtags.filter(h => /\d{4}/.test(h))).toEqual([]);
+  }, 60_000);
+
+  it("general article (DE): uses #KIFürBusiness anchors, not #KIVergleich", async () => {
+    const step = new GenerateCaptionStep();
+    const out = await step.execute({
+      articleId: crypto.randomUUID(),
+      projectId: liveProjectId,
+      projectSlug: "toolwiki",
+      theme: "dark",
+      variant: "editorial",
+      articleTitle: "Wie KI-Tools deinen Arbeitsalltag verändern: Ein Überblick",
+      articleSlug: "ki-tools-arbeitsalltag",
+      intentType: "general",
+      bodyMd: "## KI im Alltag",
+      articleUrl: "https://toolwiki.ai/de/ki-tools-arbeitsalltag",
+      brandTokens: {},
+      extractedTools: [],
+      coverEyebrow: "KI IM ALLTAG",
+      coverHeadlineLead: "So verändert",
+      coverHeadlineHighlight: "KI deinen Job",
+      endHeadline: "Mehr Reviews,",
+      endHeadlineHighlight: "ehrlich getestet.",
+      resolvedTools,
+      slideBuffers: [],
+      totalSlides: 4,
+      slideUrls: ["https://pub.example.com/slide-0.png"],
+    }, mockCtx());
+
+    console.log("[general/DE] Caption:", out.caption);
+    console.log("[general/DE] Hashtags:", out.hashtags);
+
+    expect(out.warnings, "fallback fired — check LLM response").toBeUndefined();
+    expect(out.hashtags.length).toBeGreaterThanOrEqual(5);
+    expect(out.hashtags.length).toBeLessThanOrEqual(10);
+    expect(out.hashtags.filter(h => h.includes("-"))).toEqual([]);
+    expect(out.hashtags.filter(h => /\d{4}/.test(h))).toEqual([]);
+    expect(out.hashtags.filter(h => !h.startsWith("#"))).toEqual([]);
+    // general intentType must NOT use comparison anchors
+    expect(out.hashtags).not.toContain("#KIVergleich");
+    expect(out.hashtags).not.toContain("#AIComparison");
   }, 60_000);
 });
