@@ -39,7 +39,8 @@ const resolvedToolSchema = z.object({
   domain: z.string(),
   eyebrow: z.string(),
   tagline: z.string(),
-  bestFor: z.string().max(40).optional(),
+  // LLM sometimes exceeds 40 chars — truncate rather than reject
+  bestFor: z.string().transform((s) => s.slice(0, 40)).optional(),
   strengths: z.array(z.string()),
   pricing: z.object({
     tier: z.enum(["free", "freemium", "paid"]),
@@ -143,7 +144,8 @@ const extractedToolSchema = z.object({
   slug: z.string(),
   domain: z.string(),
   tagline: z.string(),
-  bestFor: z.string().max(40).optional(),
+  // LLM sometimes exceeds 40 chars — truncate rather than reject
+  bestFor: z.string().transform((s) => s.slice(0, 40)).optional(),
   strengths: z.array(z.string()).min(1).max(4),
   pricing: z.object({ tier: z.enum(["free", "freemium", "paid"]), label: z.string() }),
   keyDifferentiator: z.string().max(60).optional(),
