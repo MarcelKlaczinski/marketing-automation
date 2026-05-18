@@ -84,6 +84,10 @@ export default {
       thresholdLabel: "Staleness-Schwellenwert (Tage)",
       thresholdHelper: "Artikel, die länger als N Tage nicht aktualisiert wurden, erscheinen in der Refresh-Queue.",
     },
+    qualityAnalysis: {
+      title: "Qualitätsanalyse (KI)",
+      description: "Tägliche LLM-Analyse aller Artikel auf Aktualität und inhaltliche Lücken (03:00 UTC).",
+    },
     autoApproveGaps: {
       title: "Content-Gaps automatisch genehmigen",
       description: "Startet die Artikel-Generierung direkt nach dem Suggest-Schritt, ohne manuelle Freigabe.",

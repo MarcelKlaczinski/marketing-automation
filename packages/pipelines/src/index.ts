@@ -17,6 +17,14 @@ export * from "./routing/index.ts";
 export * from "./signal-sources/index.ts";
 export { proposeCluster, type ProposeClusterInput, ClusterProposalSchema, type ClusterProposal } from "./cluster-creator/index.ts";
 export {
+  enqueueArticleQualityAnalysis,
+  getArticleQualityAnalysisQueue,
+  closeArticleQualityAnalysisQueue,
+  type ArticleQualityAnalysisJobData,
+  type ArticleQualityAnalysisJobResult,
+  type ArticleQualityAnalysisPerArticleData,
+} from "./engine/article-quality-analysis-queue.ts";
+export {
   generateClusterPlan,
   ClusterPlanOutputSchema,
   ProposedSpokeSchema,

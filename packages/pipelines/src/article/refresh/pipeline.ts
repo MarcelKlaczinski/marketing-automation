@@ -1,4 +1,4 @@
-import { articles, db } from "@marketing-auto/db";
+import { articles, db, markArticleRefreshed } from "@marketing-auto/db";
 import { eq } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
@@ -182,6 +182,13 @@ export class RefreshPipeline extends Pipeline<
     _output: z.infer<typeof RefreshPipelineOutputSchema>,
     pipelineInput: RefreshPipelineInput,
   ): Promise<void> {
+    // Mark article as refreshed now that body generation succeeded
+    try {
+      await markArticleRefreshed(pipelineInput.articleId);
+    } catch (e) {
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "[refresh] markArticleRefreshed failed — skipped");
+    }
+
     // Enqueue schema extension for the refreshed article
     try {
       await enqueueSchemaExtension({ articleId: pipelineInput.articleId, projectId: pipelineInput.projectId });

@@ -82,6 +82,7 @@ export const projects = pgTable(
     // Spec 56.6: Discovery automation config
     trendsCronEnabled: boolean("trends_cron_enabled").notNull().default(false),
     refreshCronEnabled: boolean("refresh_cron_enabled").notNull().default(false),
+    qualityAnalysisCronEnabled: boolean("quality_analysis_cron_enabled").notNull().default(false),
     autoApproveGaps: boolean("auto_approve_gaps").notNull().default(false),
     refreshStalenessThresholdDays: integer("refresh_staleness_threshold_days").notNull().default(90),
 

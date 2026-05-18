@@ -91,6 +91,9 @@ export const COST_OPS = {
 
   // === Spec 54.12: Full Cluster Generation ===
   CLUSTER_PLAN_GENERATION: "cluster-plan-generation", // Sonnet: expand trend brief into Hub + 4-6 Spokes (~€0.40)
+
+  // === Spec E.1a: Article quality analysis ===
+  ARTICLE_QUALITY_ANALYSIS: "article-quality-analysis", // Sonnet: standalone content review for refresh suggestions (~€0.03)
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

@@ -64,6 +64,14 @@ const LoadArticleInputSchema = z.object({
   preRunId: z.string().uuid().optional(),
 });
 
+const localeArticleSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  slug: z.string(),
+  bodyMd: z.string(),
+  articleUrl: z.string(),
+});
+
 const LoadArticleOutputSchema = z.object({
   articleId: z.string().uuid(),
   projectId: z.string().uuid(),
@@ -77,6 +85,9 @@ const LoadArticleOutputSchema = z.object({
   bodyMd: z.string(),
   articleUrl: z.string(),
   brandTokens: z.record(z.unknown()),
+  // Locale-specific sibling articles keyed by locale prefix ("en", "de").
+  // Populated when the canonical article has translation siblings.
+  localeArticles: z.record(z.string(), localeArticleSchema).optional(),
 });
 
 type LoadArticleInput = {
@@ -116,6 +127,33 @@ export class LoadArticleStep extends BaseStep<
     const cmsBase = (project.cmsConfig as { baseUrl?: string })?.baseUrl ?? `https://${project.domain ?? "example.com"}`;
     const articleUrl = `${cmsBase}/${article.slug}`;
 
+    // Load translation siblings when multiple locales are requested or a non-canonical locale
+    // is requested. Keyed by locale prefix ("de", "en") for downstream steps.
+    let localeArticles: Record<string, z.infer<typeof localeArticleSchema>> | undefined;
+    if (article.translationKey && input.locales.length > 0) {
+      const siblings = await db
+        .select()
+        .from(articles)
+        .where(and(
+          eq(articles.translationKey, article.translationKey),
+          eq(articles.projectId, input.projectId),
+        ));
+
+      if (siblings.length > 1) {
+        localeArticles = {};
+        for (const sib of siblings) {
+          const localePrefix = ((sib.locale ?? "de").split("-")[0] ?? "de").split("_")[0] ?? "de";
+          localeArticles[localePrefix] = {
+            id: sib.id,
+            title: sib.title ?? sib.slug,
+            slug: sib.slug,
+            bodyMd: sib.bodyMd ?? "",
+            articleUrl: `${cmsBase}/${sib.slug}`,
+          };
+        }
+      }
+    }
+
     return {
       articleId: article.id,
       projectId: project.id,
@@ -129,6 +167,7 @@ export class LoadArticleStep extends BaseStep<
       bodyMd: article.bodyMd ?? "",
       articleUrl,
       brandTokens: (project.brandTokens as Record<string, unknown>) ?? {},
+      ...(localeArticles ? { localeArticles } : {}),
     };
   }
 }
@@ -179,6 +218,19 @@ const endCloserSchema = z.object({
   fullText: z.string(),
 });
 
+// Per-locale extraction result — used when the run spans DE + EN so each locale
+// gets its own tool text (tagline, bestFor, strengths, pricing.label, cover copy).
+const localeToolsDataSchema = z.object({
+  tools: z.array(extractedToolSchema),
+  coverEyebrow: z.string(),
+  coverHeadlineLead: z.string(),
+  coverHeadlineHighlight: z.string(),
+  coverHeadlineTrail: z.string().optional(),
+  coverSubhead: z.string().optional(),
+  endHeadline: z.string(),
+  endHeadlineHighlight: z.string(),
+});
+
 const ExtractToolsOutputSchema = ExtractToolsInputSchema.extend({
   extractedTools: z.array(extractedToolSchema).min(1).max(10),
   coverEyebrow: z.string(),
@@ -191,6 +243,9 @@ const ExtractToolsOutputSchema = ExtractToolsInputSchema.extend({
   // Stunning variant extras (populated when variant === 'stunning')
   coverHookOutput: hookOutputZodSchema.optional(),
   endCloser: endCloserSchema.optional(),
+  // Non-DE locale extractions keyed by locale prefix ("en").
+  // Populated when locales contains a non-DE locale AND a sibling article exists.
+  localeToolsData: z.record(z.string(), localeToolsDataSchema).optional(),
 });
 
 export class ExtractToolsStep extends BaseStep<
@@ -204,6 +259,14 @@ export class ExtractToolsStep extends BaseStep<
   override estimatedCostEur(): number { return 0.005; }
 
   async execute(input: z.infer<typeof ExtractToolsInputSchema>, ctx: StepContext) {
+    // For EN-only requests, use the EN sibling article body if available — otherwise the LLM
+    // translates on the fly from the DE body (acceptable fallback; EN sibling gives better results).
+    const isEnOnly = input.locales.every(l => !l.startsWith("de"));
+    const enSibling = isEnOnly ? input.localeArticles?.["en"] : undefined;
+    const sourceBody = enSibling?.bodyMd ?? input.bodyMd;
+    const sourceTitle = enSibling?.title ?? input.articleTitle;
+    const sourceUrl = enSibling?.articleUrl ?? input.articleUrl;
+
     const stunningSuffix = `
 
 STUNNING VARIANT — additional fields per tool:
@@ -212,11 +275,11 @@ STUNNING VARIANT — additional fields per tool:
 
     const prompt = `You are a social-media content assistant. Extract structured data for an Instagram carousel from this article.
 
-Article title: ${input.articleTitle}
-Article URL: ${input.articleUrl}
+Article title: ${sourceTitle}
+Article URL: ${sourceUrl}
 
 Article body (markdown):
-${input.bodyMd.slice(0, 6000)}
+${sourceBody.slice(0, 6000)}
 
 IMPORTANT for cover headlines: Base them on the ACTUAL tools you extract, not the article title.
 - If you extract N tools: coverHeadlineLead = "Die {N} besten", coverHeadlineHighlight = the category (e.g. "KI-Bild-Generatoren")
@@ -249,7 +312,7 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
   ]
 }
 
-Extract 3-10 tools. Keep all text in ${input.locales.every(l => !l.startsWith("de")) ? "ENGLISH" : "GERMAN"} (match the carousel target language).`;
+Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match the carousel target language).`;
 
     const response = await anthropic.messages({
       projectId: ctx.projectId,
@@ -291,7 +354,6 @@ Extract 3-10 tools. Keep all text in ${input.locales.every(l => !l.startsWith("d
     // If LLM still used "vs." pattern, override with count-based headline
     const leadHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineLead ?? "");
     const highlightHasVs = /\bvs\.?\b/i.test(parsed.coverHeadlineHighlight ?? "");
-    const isEnOnly = input.locales.every(l => !l.startsWith("de"));
     const defaultLead = isEnOnly ? `The ${tools.length} Best` : `Die ${tools.length} besten`;
     const coverHeadlineLead = leadHasVs || highlightHasVs
       ? defaultLead
@@ -336,6 +398,106 @@ Extract 3-10 tools. Keep all text in ${input.locales.every(l => !l.startsWith("d
     });
     const endCloser = buildCloserHeadline(closerArticleType, closerTools);
 
+    // ─── EN extraction for bilingual runs ────────────────────────────────────
+    // When locales includes a non-DE locale AND an EN sibling exists, run a second
+    // Haiku extraction on the EN article body so tool text (bestFor, tagline,
+    // strengths, pricing.label) and cover copy are in English, not German.
+    let localeToolsData: Record<string, z.infer<typeof localeToolsDataSchema>> | undefined;
+    const hasNonDeLocale = input.locales.some((l) => !l.startsWith("de"));
+    const enSiblingForExtract = !isEnOnly && hasNonDeLocale ? input.localeArticles?.["en"] : undefined;
+    if (enSiblingForExtract) {
+      try {
+        const enPrompt = `You are a social-media content assistant. Extract structured data for an Instagram carousel from this article.
+
+Article title: ${enSiblingForExtract.title}
+Article URL: ${enSiblingForExtract.articleUrl}
+
+Article body (markdown):
+${(enSiblingForExtract.bodyMd ?? "").slice(0, 6000)}
+
+IMPORTANT for cover headlines: Base them on the ACTUAL tools you extract, not the article title.
+- If you extract N tools: coverHeadlineLead = "The {N} Best", coverHeadlineHighlight = the category (e.g. "AI Image Generators")
+- Do NOT use "X vs. Y" format — a carousel shows a list, not a duel
+- coverEyebrow should reflect the category/topic, not the article title
+
+Return ONLY valid JSON (no markdown fences) with this exact shape:
+{
+  "coverEyebrow": "string up to 40 chars, e.g. 'AI IMAGE GENERATORS 2026'",
+  "coverHeadlineLead": "string up to 30 chars — MUST reflect tool count, e.g. 'The 5 Best'",
+  "coverHeadlineHighlight": "string up to 40 chars — the tool category, e.g. 'AI Image Generators'",
+  "coverHeadlineTrail": "optional string up to 20 chars, e.g. 'Compared'",
+  "coverSubhead": "optional string up to 80 chars",
+  "endHeadline": "string up to 40 chars",
+  "endHeadlineHighlight": "string up to 40 chars",
+  "tools": [
+    {
+      "rank": 1,
+      "name": "Tool Name",
+      "slug": "tool-slug",
+      "domain": "tool.com",
+      "tagline": "one sentence, max 120 chars",
+      "bestFor": "short use-case label, max 40 chars",
+      "strengths": ["strength 1", "strength 2", "strength 3", "optional strength 4"],
+      "pricing": { "tier": "free|freemium|paid", "label": "from $X/month" },
+      "keyDifferentiator": "1-5 key words from tagline that name the core differentiator",
+      "starStrength": "copy the most important strength exactly from the strengths array",
+      "identityVerb": "short gerund phrase describing what you use this tool for (e.g. 'writing code', 'designing logos', 'generating images')"
+    }
+  ]
+}
+
+Extract ${tools.length} tools in the same order as the DE extraction. Keep ALL text in ENGLISH.`;
+
+        const enResp = await anthropic.messages({
+          projectId: ctx.projectId,
+          pipelineRunId: ctx.pipelineRunId,
+          operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
+          model: "claude-haiku-4-5",
+          systemPrefix: "",
+          systemSuffix: "Extract structured tool data for Instagram carousel generation. Return valid JSON only.",
+          userMessage: enPrompt,
+          maxTokens: 3000,
+          estimatedCostEur: 0.005,
+          jsonMode: true,
+        });
+
+        const enRaw = enResp.raw;
+        const enStart = enRaw.indexOf("{");
+        const enEnd = enRaw.lastIndexOf("}");
+        const enClean = enStart >= 0 && enEnd > enStart ? enRaw.slice(enStart, enEnd + 1) : enRaw;
+        const enParsed = JSON.parse(enClean) as {
+          tools: Array<z.infer<typeof extractedToolSchema> & { identityVerb?: string }>;
+          coverEyebrow: string;
+          coverHeadlineLead: string;
+          coverHeadlineHighlight: string;
+          coverHeadlineTrail?: string;
+          coverSubhead?: string;
+          endHeadline: string;
+          endHeadlineHighlight: string;
+        };
+        const enToolsParsed = z.array(extractedToolSchema).min(1).max(10).parse(enParsed.tools);
+        const enLeadHasVs = /\bvs\.?\b/i.test(enParsed.coverHeadlineLead ?? "");
+        const enHighlightHasVs = /\bvs\.?\b/i.test(enParsed.coverHeadlineHighlight ?? "");
+        const enDefaultLead = `The ${enToolsParsed.length} Best`;
+        const enLeadFinal = enLeadHasVs || enHighlightHasVs ? enDefaultLead : (enParsed.coverHeadlineLead ?? enDefaultLead);
+
+        const enData: z.infer<typeof localeToolsDataSchema> = {
+          tools: enToolsParsed,
+          coverEyebrow: enParsed.coverEyebrow ?? (enSiblingForExtract.title.split(":")[0] ?? enSiblingForExtract.title).toUpperCase().slice(0, 40).trim(),
+          coverHeadlineLead: enLeadFinal,
+          coverHeadlineHighlight: enParsed.coverHeadlineHighlight ?? "AI Tools",
+          endHeadline: enParsed.endHeadline ?? "More reviews,",
+          endHeadlineHighlight: enParsed.endHeadlineHighlight ?? "honestly tested.",
+          ...(enParsed.coverHeadlineTrail !== undefined && { coverHeadlineTrail: enParsed.coverHeadlineTrail }),
+          ...(enParsed.coverSubhead !== undefined && { coverSubhead: enParsed.coverSubhead }),
+        };
+        localeToolsData = { en: enData };
+        ctx.log.info({ toolCount: enToolsParsed.length }, "EN locale extraction succeeded");
+      } catch (err) {
+        ctx.log.warn({ err: String(err) }, "EN locale extraction failed — EN slides will use DE copy");
+      }
+    }
+
     return {
       ...input,
       extractedTools: tools,
@@ -350,6 +512,7 @@ Extract 3-10 tools. Keep all text in ${input.locales.every(l => !l.startsWith("d
       endHeadlineHighlight: parsed.endHeadlineHighlight ?? "ehrlich getestet.",
       coverHookOutput,
       endCloser,
+      ...(localeToolsData !== undefined && { localeToolsData }),
     };
   }
 }
@@ -507,20 +670,28 @@ export class GenerateCaptionStep extends BaseStep<
 
   async execute(input: z.infer<typeof GenerateCaptionInputSchema>, ctx: StepContext): Promise<z.infer<typeof GenerateCaptionOutputSchema>> {
     const brandVoice = (input.brandTokens as { voice?: { signaturePhrases?: string[]; addressForm?: string } })?.voice;
-    const signaturePhrases = brandVoice?.signaturePhrases?.join(", ") ?? "redaktionell verifiziert, ehrlich";
-    const addressForm = brandVoice?.addressForm ?? "du";
+    const deSignaturePhrases = brandVoice?.signaturePhrases?.join(", ") ?? "redaktionell verifiziert, ehrlich";
+    const deAddressForm = brandVoice?.addressForm ?? "du";
     const contentType = deriveContentType(input.intentType);
     const toolNames = input.resolvedTools.map((t) => t.name);
 
     const tryGenerate = async (locale: string): Promise<z.infer<typeof captionJsonSchema>> => {
-      const captionLang = locale.startsWith("de") ? "GERMAN" : "ENGLISH";
+      const isDeLocale = locale.startsWith("de");
+      const captionLang = isDeLocale ? "GERMAN" : "ENGLISH";
+      const localePrefix = (locale.split("-")[0] ?? "de").split("_")[0] ?? "de";
+      const localeSibling = input.localeArticles?.[localePrefix];
+      const captionUrl = localeSibling?.articleUrl ?? input.articleUrl;
+      const captionTitle = localeSibling?.title ?? input.articleTitle;
       const hashtagSection = buildHashtagInstructions({ locale, contentType, toolNames });
+      // Brand voice is defined in German — adapt for non-DE locales so the model stays in English
+      const signaturePhrases = isDeLocale ? deSignaturePhrases : "editorially verified, honest, no hype";
+      const addressForm = isDeLocale ? deAddressForm : "you";
 
-      const prompt = `Write an Instagram post in ${captionLang} for a carousel about: "${input.articleTitle}"
+      const prompt = `Write an Instagram post in ${captionLang} for a carousel about: "${captionTitle}"
 
 The post shows ${input.resolvedTools.length} AI tools in a visual list-carousel format.
 Brand voice: ${signaturePhrases}. Use "${addressForm}" form. Max 300 characters in caption. Use 1-2 fitting emojis.
-End caption with: Link in Bio → ${input.articleUrl}
+End caption with: Link in Bio → ${captionUrl}
 
 ${hashtagSection}
 
@@ -656,6 +827,62 @@ export class RenderSlidesStep extends BaseStep<
 
       // Build job payload — snapshot all render inputs at enqueue time
       // (no DB reads in worker; exactOptionalPropertyTypes requires conditional spreads)
+      const localePrefix = (loc.locale.split("-")[0] ?? "de").split("_")[0] ?? "de";
+      const localeSibling = input.localeArticles?.[localePrefix];
+      const isDeLocale = loc.locale.startsWith("de");
+      const localeTitle = localeSibling?.title ?? input.articleTitle;
+
+      // For non-DE locales: use EN-specific extraction results when available.
+      // Falls back to simple derivation from the article title if the EN extraction failed.
+      const localeData = !isDeLocale ? input.localeToolsData?.[localePrefix] : undefined;
+
+      const localeCoverEyebrow = isDeLocale
+        ? input.coverEyebrow
+        : (localeData?.coverEyebrow ?? (localeTitle.split(":")[0] ?? localeTitle).toUpperCase().slice(0, 40).trim());
+      const localeCoverHeadlineLead = isDeLocale
+        ? input.coverHeadlineLead
+        : (localeData?.coverHeadlineLead ?? `The ${input.resolvedTools.length} Best`);
+      const localeCoverHeadlineHighlight = isDeLocale
+        ? input.coverHeadlineHighlight
+        : (localeData?.coverHeadlineHighlight ?? input.coverHeadlineHighlight);
+      const localeCoverHeadlineTrail = isDeLocale
+        ? input.coverHeadlineTrail
+        : (localeData?.coverHeadlineTrail ?? (input.coverHeadlineTrail !== undefined ? "Compared" : undefined));
+      const localeCoverSubhead = isDeLocale
+        ? input.coverSubhead
+        : (localeData?.coverSubhead ?? undefined);
+      const localeEndHeadline = isDeLocale
+        ? input.endHeadline
+        : (localeData?.endHeadline ?? input.endHeadline);
+      const localeEndHeadlineHighlight = isDeLocale
+        ? input.endHeadlineHighlight
+        : (localeData?.endHeadlineHighlight ?? input.endHeadlineHighlight);
+
+      // For non-DE locales: merge EN tool text with DE icon data (icons are slug-keyed, same for both locales).
+      const resolvedToolsForLocale: Array<Record<string, unknown>> = localeData
+        ? localeData.tools.map((enTool) => {
+            const deTool = input.resolvedTools.find((dt) => (dt as { slug: string }).slug === enTool.slug);
+            return {
+              slug: enTool.slug,
+              rank: enTool.rank,
+              name: enTool.name,
+              domain: enTool.domain,
+              eyebrow: (deTool as { eyebrow?: string } | undefined)?.eyebrow ?? enTool.slug.toUpperCase(),
+              tagline: enTool.tagline,
+              strengths: enTool.strengths,
+              pricing: enTool.pricing,
+              ...(enTool.bestFor !== undefined && { bestFor: enTool.bestFor }),
+              ...(enTool.keyDifferentiator !== undefined && { keyDifferentiator: enTool.keyDifferentiator }),
+              ...(enTool.starStrength !== undefined && { starStrength: enTool.starStrength }),
+              ...(enTool.identityVerb !== undefined && { identityVerb: enTool.identityVerb }),
+              // Icon fields from DE resolved tools (same slug → same icon)
+              ...((deTool as { iconSvg?: string } | undefined)?.iconSvg !== undefined && { iconSvg: (deTool as { iconSvg: string }).iconSvg }),
+              ...((deTool as { iconInitials?: string } | undefined)?.iconInitials !== undefined && { iconInitials: (deTool as { iconInitials: string }).iconInitials }),
+              ...((deTool as { iconHue?: number } | undefined)?.iconHue !== undefined && { iconHue: (deTool as { iconHue: number }).iconHue }),
+            };
+          })
+        : (input.resolvedTools as Array<Record<string, unknown>>);
+
       const jobData: SocialRenderJobData = {
         socialPostId: post.id,
         projectId: input.projectId,
@@ -664,22 +891,24 @@ export class RenderSlidesStep extends BaseStep<
         locale: loc.locale,
         brandTokens: input.brandTokens,
         overrides: resolvedOverrides,
-        resolvedTools: input.resolvedTools as Array<Record<string, unknown>>,
-        articleTitle: input.articleTitle,
-        articleSlug: input.articleSlug,
+        resolvedTools: resolvedToolsForLocale,
+        articleTitle: localeTitle,
+        articleSlug: localeSibling?.slug ?? input.articleSlug,
         projectSlug: input.projectSlug,
-        articleUrl: input.articleUrl,
+        articleUrl: localeSibling?.articleUrl ?? input.articleUrl,
         theme: input.theme,
         variant: input.variant,
-        coverEyebrow: input.coverEyebrow,
-        coverHeadlineLead: input.coverHeadlineLead,
-        coverHeadlineHighlight: input.coverHeadlineHighlight,
-        endHeadline: input.endHeadline,
-        endHeadlineHighlight: input.endHeadlineHighlight,
-        ...(input.coverHeadlineTrail !== undefined && { coverHeadlineTrail: input.coverHeadlineTrail }),
-        ...(input.coverSubhead !== undefined && { coverSubhead: input.coverSubhead }),
-        ...(input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
-        ...(input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
+        coverEyebrow: localeCoverEyebrow,
+        coverHeadlineLead: localeCoverHeadlineLead,
+        coverHeadlineHighlight: localeCoverHeadlineHighlight,
+        endHeadline: localeEndHeadline,
+        endHeadlineHighlight: localeEndHeadlineHighlight,
+        ...(localeCoverHeadlineTrail !== undefined && { coverHeadlineTrail: localeCoverHeadlineTrail }),
+        ...(localeCoverSubhead !== undefined && { coverSubhead: localeCoverSubhead }),
+        // Hook and closer are generated from the DE article — only forward for DE renders.
+        // EN renders fall back to the editorial headline path (coverHeadlineLead/Highlight/Trail).
+        ...(isDeLocale && input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
+        ...(isDeLocale && input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
       };
 
       const renderJobId = await enqueueSocialRenderJob(jobData);

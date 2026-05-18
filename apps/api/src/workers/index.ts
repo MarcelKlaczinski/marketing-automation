@@ -44,6 +44,8 @@ import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
 import { closeSocialRenderQueue } from "@marketing-auto/pipelines/social-render-queue";
+import { startArticleQualityAnalysisWorker } from "./article-quality-analysis.worker.ts";
+import { closeArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("worker");
@@ -182,6 +184,7 @@ async function main() {
   await registerCronOrchestrator();
   const gapAutoApproverWorker = startGapAutoApproverWorker();
   const socialRenderWorker = startSocialRenderWorker();
+  const articleQualityAnalysisWorker = startArticleQualityAnalysisWorker();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -198,6 +201,8 @@ async function main() {
     await gapAutoApproverWorker.close();
     await socialRenderWorker.close();
     await closeSocialRenderQueue();
+    await articleQualityAnalysisWorker.close();
+    await closeArticleQualityAnalysisQueue();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

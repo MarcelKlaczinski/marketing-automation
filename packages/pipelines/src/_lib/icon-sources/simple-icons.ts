@@ -7,56 +7,166 @@ const TOOLWIKI_TO_SIMPLE_ICONS: Record<string, string> = {
   "claude": "claude",
   "claude-ai": "claude",
   "claude-3": "claude",
+  "claude-3-5": "claude",
   "claude-opus": "claude",
   "claude-sonnet": "claude",
   "claude-haiku": "claude",
-  "claude-code": "claude",      // Claude Code CLI — Anthropic product, uses same icon
+  "claude-code": "claude",
   "claude-code-cli": "claude",
   "anthropic": "anthropic",
 
   // Google
   "gemini": "googlegemini",
   "gemini-ai": "googlegemini",
+  "gemini-pro": "googlegemini",
+  "gemini-ultra": "googlegemini",
+  "gemini-flash": "googlegemini",
   "google-gemini": "googlegemini",
+  "google-ai": "google",
+  "google-ai-studio": "google",
   "bard": "googlegemini",
+  "google-notebooklm": "google",
+  "notebooklm": "google",
 
-  // OpenAI
+  // OpenAI — all pricing/tier variants map to the OpenAI logo
+  "openai": "openai",
+  "openai-api": "openai",
   "chatgpt": "openai",
+  "chatgpt-free": "openai",
+  "chatgpt-plus": "openai",
+  "chatgpt-pro": "openai",
+  "chatgpt-team": "openai",
+  "chatgpt-enterprise": "openai",
+  "chatgpt-edu": "openai",
   "gpt-4": "openai",
   "gpt-4o": "openai",
+  "gpt-4-turbo": "openai",
+  "gpt-4o-mini": "openai",
+  "gpt-3": "openai",
+  "gpt-3.5": "openai",
+  "gpt-3.5-turbo": "openai",
+  "gpt-o1": "openai",
+  "o1": "openai",
+  "o1-mini": "openai",
+  "o3": "openai",
+  "o3-mini": "openai",
+  "o4": "openai",
+  "o4-mini": "openai",
+  "sora": "openai",
+  "dall-e": "openai",
+  "dall-e-3": "openai",
   "codex": "openai",
   "codex-cli": "openai",
+  "openai-codex": "openai",
+  "whisper": "openai",
+
+  // Microsoft / Copilot
+  "copilot": "microsoftcopilot",
+  "github-copilot": "githubcopilot",
+  "github-copilot-chat": "githubcopilot",
+  "copilot-inline": "githubcopilot",
+  "copilot-chat": "githubcopilot",
+  "microsoft-copilot": "microsoftcopilot",
+  "bing-chat": "microsoftbing",
+  "bing": "microsoftbing",
 
   // Code assistants
   "cursor": "cursor",
   "codeium": "codeium",
+  "windsurf": "codeium",
   "tabnine": "tabnine",
-  "copilot-inline": "githubcopilot",
-  "copilot-chat": "githubcopilot",
-
-  // Design
-  "figma": "figma",
-  "notion": "notion",
-
-  // Dev tools
-  "github-copilot": "githubcopilot",
-  "copilot": "githubcopilot",
+  "jetbrains-ai": "jetbrains",
   "jetbrains": "jetbrains",
   "vscode": "visualstudiocode",
   "visual-studio-code": "visualstudiocode",
+  "visual-studio": "visualstudio",
+  "replit": "replit",
+  "replit-ai": "replit",
+
+  // Design / Creativity
+  "figma": "figma",
+  "figma-ai": "figma",
+  "midjourney": "midjourney",
+  "adobe-firefly": "adobe",
+  "adobe": "adobe",
+  "adobe-photoshop": "adobephotoshop",
+  "adobe-illustrator": "adobeillustrator",
+  "canva": "canva",
+  "canva-ai": "canva",
+  "stable-diffusion": "stability",
+  "stability-ai": "stability",
+
+  // Productivity / Writing
+  "notion": "notion",
+  "notion-ai": "notion",
+  "grammarly": "grammarly",
+  "jasper": "jasper",
+  "jasper-ai": "jasper",
+  "copy-ai": "copyai",
+  "writesonic": "writesonic",
+
+  // Search / Research
+  "perplexity": "perplexity",
+  "perplexity-ai": "perplexity",
+  "you-com": "you",
 
   // Audio/Voice
   "elevenlabs": "elevenlabs",
+  "murf": "murf",
 
-  // Search/Research
-  "perplexity": "perplexity",
+  // Video
+  "runway": "runway",
+  "runway-ml": "runway",
+
+  // Data / Analytics
+  "hugging-face": "huggingface",
+  "huggingface": "huggingface",
+  "cohere": "cohere",
+  "mistral": "mistral",
+  "mistral-ai": "mistral",
+  "llama": "meta",
+  "llama-2": "meta",
+  "llama-3": "meta",
+  "meta-ai": "meta",
 };
+
+// Prefix-based fallback: if a slug starts with one of these prefixes, use the brand icon.
+// Covers pricing tiers, model versions, and minor product variants not listed above.
+const PREFIX_BRAND_MAP: Array<[prefix: string, icon: string]> = [
+  ["chatgpt-", "openai"],
+  ["gpt-", "openai"],
+  ["claude-", "claude"],
+  ["gemini-", "googlegemini"],
+  ["copilot-", "githubcopilot"],
+  ["github-copilot", "githubcopilot"],
+  ["microsoft-copilot", "microsoftcopilot"],
+  ["adobe-", "adobe"],
+  ["figma-", "figma"],
+  ["notion-", "notion"],
+  ["canva-", "canva"],
+  ["perplexity-", "perplexity"],
+  ["midjourney-", "midjourney"],
+  ["dall-e", "openai"],
+  ["o1-", "openai"],
+  ["o3-", "openai"],
+  ["o4-", "openai"],
+  ["llama-", "meta"],
+  ["mistral-", "mistral"],
+  ["runway-", "runway"],
+  ["elevenlabs-", "elevenlabs"],
+  ["replit-", "replit"],
+  ["codeium-", "codeium"],
+  ["cursor-", "cursor"],
+  ["hugging-face", "huggingface"],
+];
 
 export const simpleIconsAdapter: IconSourceAdapter = {
   name: "simple-icons",
 
   async tryResolve(toolSlug: string): Promise<ResolvedIconAsset | null> {
-    const mapped = TOOLWIKI_TO_SIMPLE_ICONS[toolSlug] ?? toolSlug;
+    // Exact match → prefix fallback → raw slug
+    const prefixMatch = PREFIX_BRAND_MAP.find(([p]) => toolSlug.startsWith(p));
+    const mapped = TOOLWIKI_TO_SIMPLE_ICONS[toolSlug] ?? prefixMatch?.[1] ?? toolSlug;
     // Build the export key: "si" + PascalCase, dashes stripped
     const exportKey = `si${mapped.charAt(0).toUpperCase()}${mapped.slice(1).replace(/-/g, "")}`;
 

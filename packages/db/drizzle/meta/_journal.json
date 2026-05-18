@@ -365,6 +365,34 @@
       "when": 1782900000000,
       "tag": "0051_social_posts_render_status",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1783000000000,
+      "tag": "0052_articles_last_refreshed_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1783100000000,
+      "tag": "0053_refresh_suggestions",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1783200000000,
+      "tag": "0054_cron_job_type_quality_analysis",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1783300000000,
+      "tag": "0055_projects_quality_analysis_cron",
+      "breakpoints": true
     }
   ]
 }

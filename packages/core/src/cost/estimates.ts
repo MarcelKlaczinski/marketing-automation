@@ -51,6 +51,9 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // Spec 54.12: cluster plan generation
     [COST_OPS.CLUSTER_PLAN_GENERATION]: 0.40, // Sonnet 4.6, ~4k input + 3k output (hub + 4-6 spokes)
 
+    // Spec E.1a: article quality analysis (standalone refresh detection)
+    [COST_OPS.ARTICLE_QUALITY_ANALYSIS]: 0.03, // Sonnet 4.6, ~8k input + 2k output per article
+
     // Spec 51/57.4: Social image pipeline (Anthropic calls)
     [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005, // Haiku: extract tool list from article body
     [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.028, // Sonnet: caption + hashtags (merged, Spec 57.4)

@@ -47,9 +47,8 @@ export async function resolveToolIcon(
       };
       return typeof cachedBrandColor === "string" ? { ...base, brandColor: cachedBrandColor } : base;
     }
-    if (cached.source === "deterministic-avatar") {
-      return { type: "avatar", initials: toolSlug.slice(0, 2).toUpperCase(), hue: hashToHue(toolSlug) };
-    }
+    // deterministic-avatar is NOT terminal — fall through so the resolution chain
+    // can upgrade the entry when a new PREFIX_BRAND_MAP rule is added later.
     // stale/unknown source (e.g. old broken "lobe-icons" entry) → re-resolve below
   }
 

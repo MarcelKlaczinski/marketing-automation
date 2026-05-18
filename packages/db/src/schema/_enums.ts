@@ -113,3 +113,8 @@ export const cornerstoneSpecStatusEnum = pgEnum("cornerstone_spec_status", [
   "article_done",
   "rejected",
 ]);
+
+export const refreshSuggestionSourceEnum = pgEnum("refresh_suggestion_source", [
+  "time",
+  "quality",
+]);

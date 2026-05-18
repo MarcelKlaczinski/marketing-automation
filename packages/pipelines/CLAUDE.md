@@ -20,6 +20,20 @@ on top of this.
 - Steps MUST use `@marketing-auto/cost-tracker` for any external API call
 - Pipelines MUST be registered before workers start
 
+## Standalone BullMQ Workers (Spec 58.1)
+
+Not every async job runs through the pipeline engine. For jobs that are NOT multi-step pipelines (e.g. a single LLM call per article), use a **standalone BullMQ worker** pattern:
+
+1. **Queue definition** in `packages/pipelines/src/engine/<name>-queue.ts` — exports `getQueue`, `enqueue`, `close`, `JobData`, `JobResult`, `PerJobData` (specific shape without the cron-batch variant)
+2. **Worker** in `apps/api/src/workers/<name>.worker.ts` — imports queue from the subpath, discriminates two job shapes via Zod `.safeParse()`:
+   - **Cron-batch variant** (`{ type: "cron-triggered", projectId }`) — fans out per-item jobs
+   - **Per-item variant** (`{ articleId, projectId, projectSlug }`) — does the actual LLM work
+3. **Union type** for `JobData` in the queue file, plus a separate `PerJobData` type for callers that only enqueue per-item jobs (avoids exposing `type: "cron-triggered"` to those call sites)
+4. **Subpath export** in `packages/pipelines/package.json` + matching `paths` entry in `apps/api/tsconfig.json`
+5. **Cron registration** in `apps/api/src/workers/cron-orchestrator.ts` (4 places: type union, `getQueueForJobType`, `allQueues`, `isCronOrchestrated`)
+
+See `packages/pipelines/src/engine/article-quality-analysis-queue.ts` + `apps/api/src/workers/article-quality-analysis.worker.ts` for the canonical example.
+
 ## External Signal Sources (Spec 54.4+)
 
 `ExternalSignalSource<Input>` is a parallel abstraction to `TopicSource` for fetching raw external signals (PH launches, HN posts, RSS items). Lives in `src/signal-sources/`.

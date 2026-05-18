@@ -293,9 +293,10 @@ const updateProjectSchema = z.object({
   translationAutoTrigger: z.boolean().optional(),
   // Spec 57.1: auto-pipeline locale setting. 'one' = canonical only, 'all' = all targetLocales
   socialAutoRenderLocales: z.enum(["one", "all"]).optional(),
-  // Discovery automation (Spec 56.6)
+  // Discovery automation (Spec 56.6 / 58.1)
   trendsCronEnabled: z.boolean().optional(),
   refreshCronEnabled: z.boolean().optional(),
+  qualityAnalysisCronEnabled: z.boolean().optional(),
   autoApproveGaps: z.boolean().optional(),
   refreshStalenessThresholdDays: z.number().int().min(7).max(365).optional(),
 });
@@ -332,6 +333,7 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     setFields.socialAutoRenderLocales = input.socialAutoRenderLocales;
   if (input.trendsCronEnabled !== undefined) setFields.trendsCronEnabled = input.trendsCronEnabled;
   if (input.refreshCronEnabled !== undefined) setFields.refreshCronEnabled = input.refreshCronEnabled;
+  if (input.qualityAnalysisCronEnabled !== undefined) setFields.qualityAnalysisCronEnabled = input.qualityAnalysisCronEnabled;
   if (input.autoApproveGaps !== undefined) setFields.autoApproveGaps = input.autoApproveGaps;
   if (input.refreshStalenessThresholdDays !== undefined)
     setFields.refreshStalenessThresholdDays = input.refreshStalenessThresholdDays;
@@ -343,16 +345,19 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     .where(eq(projects.id, existing.id));
 
   // Sync cron_state rows when cron flags change so orchestrator picks up changes within seconds
-  const cronChanges: Array<{ jobType: "trends_synthesizer" | "refresh_detector"; isActive: boolean }> = [];
+  const cronChanges: Array<{ jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis"; isActive: boolean }> = [];
   if (input.trendsCronEnabled !== undefined)
     cronChanges.push({ jobType: "trends_synthesizer", isActive: input.trendsCronEnabled });
   if (input.refreshCronEnabled !== undefined)
     cronChanges.push({ jobType: "refresh_detector", isActive: input.refreshCronEnabled });
+  if (input.qualityAnalysisCronEnabled !== undefined)
+    cronChanges.push({ jobType: "quality_analysis", isActive: input.qualityAnalysisCronEnabled });
 
   if (cronChanges.length > 0) {
     const defaultPatterns: Record<string, string> = {
       trends_synthesizer: "30 1 * * *",
       refresh_detector: "0 2 * * *",
+      quality_analysis: "0 3 * * *",
     };
     for (const { jobType, isActive } of cronChanges) {
       await db

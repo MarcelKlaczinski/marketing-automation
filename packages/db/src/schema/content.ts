@@ -227,6 +227,9 @@ export const articles = pgTable(
     importedAt: timestamp("imported_at", { withTimezone: true }),
     lastImportedAt: timestamp("last_imported_at", { withTimezone: true }),
 
+    // Spec E.1a: tracks when article body was last meaningfully refreshed (≠ updatedAt)
+    lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
+
     // Spec 54.2: links article to the project_configurations row active when it was generated
     // FK declared via raw SQL migration (project-config.ts → projects.ts; no circular dep,
     // but project-config.ts is loaded after content.ts in schema/index.ts ordering)
@@ -268,6 +271,10 @@ export const articles = pgTable(
     clusterRoleIdx: index("articles_cluster_role_idx").on(t.projectId, t.clusterRole),
     // Spec 54.12: cluster generation run filtering (completion detection + partial-retry)
     clusterGenerationIdIdx: index("articles_cluster_generation_id_idx").on(t.clusterGenerationId),
+    // Spec E.1a: staleness queries for refresh detection
+    lastRefreshedAtIdx: index("articles_last_refreshed_at_idx")
+      .on(t.lastRefreshedAt)
+      .where(sql`last_refreshed_at IS NOT NULL`),
   })
 );
 

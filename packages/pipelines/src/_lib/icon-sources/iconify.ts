@@ -2,9 +2,17 @@ import type { IconSourceAdapter, ResolvedIconAsset } from "./types.ts";
 
 // Multi-candidate lookup: try these names in the iconify "logos" set
 const TOOLWIKI_TO_ICONIFY: Record<string, string[]> = {
-  // OpenAI family
+  // OpenAI family — all chatgpt-* sub-plan slugs map to the openai logo
   "openai": ["openai"],
   "chatgpt": ["openai"],
+  "chatgpt-free": ["openai"],
+  "chatgpt-go": ["openai"],
+  "chatgpt-plus": ["openai"],
+  "chatgpt-pro": ["openai"],
+  "chatgpt-team": ["openai"],
+  "chatgpt-business": ["openai"],
+  "chatgpt-enterprise": ["openai"],
+  "chatgpt-edu": ["openai"],
   "gpt-4": ["openai"],
   "gpt-4o": ["openai"],
   "gpt-4o-mini": ["openai"],

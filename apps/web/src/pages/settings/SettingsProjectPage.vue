@@ -295,6 +295,27 @@
           </label>
         </div>
 
+        <!-- Quality analysis cron -->
+        <div class="discovery-row">
+          <div class="discovery-row-info">
+            <h4 class="discovery-row-title">{{ $t("settings.discovery.qualityAnalysis.title") }}</h4>
+            <p class="discovery-row-desc">{{ $t("settings.discovery.qualityAnalysis.description") }}</p>
+            <CronStatusDisplay
+              v-if="cronStatus && cronStatus.qualityAnalysis"
+              :status="cronStatus.qualityAnalysis"
+              :triggering="qualityAnalysisTriggeringInFlight"
+              @trigger="onTriggerCron('quality_analysis')"
+            />
+          </div>
+          <label class="toggle-switch">
+            <input
+              type="checkbox"
+              v-model="discoveryForm.formData.value.qualityAnalysisCronEnabled"
+            />
+            <span class="toggle-slider" />
+          </label>
+        </div>
+
         <!-- Staleness threshold -->
         <FormField
           :label="$t('settings.discovery.refresh.thresholdLabel')"
@@ -371,6 +392,7 @@ export default defineComponent({
   data: () => ({
     trendsTriggeringInFlight: false,
     refreshTriggeringInFlight: false,
+    qualityAnalysisTriggeringInFlight: false,
     importInFlight: false,
   }),
 
@@ -388,15 +410,16 @@ export default defineComponent({
       }
     },
 
-    async onTriggerCron(jobType: "trends_synthesizer" | "refresh_detector"): Promise<void> {
-      const isTrends = jobType === "trends_synthesizer";
-      if (isTrends) this.trendsTriggeringInFlight = true;
-      else this.refreshTriggeringInFlight = true;
+    async onTriggerCron(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis"): Promise<void> {
+      if (jobType === "trends_synthesizer") this.trendsTriggeringInFlight = true;
+      else if (jobType === "refresh_detector") this.refreshTriggeringInFlight = true;
+      else this.qualityAnalysisTriggeringInFlight = true;
       try {
         await this.triggerCron(jobType);
       } finally {
-        if (isTrends) this.trendsTriggeringInFlight = false;
-        else this.refreshTriggeringInFlight = false;
+        if (jobType === "trends_synthesizer") this.trendsTriggeringInFlight = false;
+        else if (jobType === "refresh_detector") this.refreshTriggeringInFlight = false;
+        else this.qualityAnalysisTriggeringInFlight = false;
       }
     },
   },

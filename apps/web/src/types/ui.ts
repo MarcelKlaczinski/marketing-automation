@@ -32,6 +32,8 @@ export type PipelineEventType =
   | "trends.discovered"
   | "gaps.detected"
   | "refresh.detected"
+  // Spec 58.1: Quality analysis events
+  | "refresh.suggestion.created"
   // Spec 57.2: Social render lifecycle events
   | "social.render.started"
   | "social.render.completed"

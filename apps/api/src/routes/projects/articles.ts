@@ -104,11 +104,12 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
         translationKey: articles.translationKey,
         heroImagePublicUrl: articles.heroImagePublicUrl,
         daysSinceLastUpdate: sql<number>`
-          EXTRACT(DAY FROM NOW() - COALESCE(${articles.publishedAt}, ${articles.updatedAt}))::int
+          EXTRACT(DAY FROM NOW() - COALESCE(${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}))::int
         `,
         needsRefresh: sql<boolean>`
           ${articles.status} = 'published'
-          AND COALESCE(${articles.publishedAt}, ${articles.updatedAt}) < NOW() - INTERVAL '${sql.raw(String(project.refreshStalenessThresholdDays))} days'
+          AND ${articles.lastRefreshedAt} IS NOT NULL
+          AND ${articles.lastRefreshedAt} < NOW() - INTERVAL '${sql.raw(String(project.refreshStalenessThresholdDays))} days'
         `,
       })
       .from(articles)
@@ -151,11 +152,12 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
         translationKey: articles.translationKey,
         heroImagePublicUrl: articles.heroImagePublicUrl,
         daysSinceLastUpdate: sql<number>`
-          EXTRACT(DAY FROM NOW() - COALESCE(${articles.publishedAt}, ${articles.updatedAt}))::int
+          EXTRACT(DAY FROM NOW() - COALESCE(${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}))::int
         `,
         needsRefresh: sql<boolean>`
           ${articles.status} = 'published'
-          AND COALESCE(${articles.publishedAt}, ${articles.updatedAt}) < NOW() - INTERVAL '${sql.raw(String(project.refreshStalenessThresholdDays))} days'
+          AND ${articles.lastRefreshedAt} IS NOT NULL
+          AND ${articles.lastRefreshedAt} < NOW() - INTERVAL '${sql.raw(String(project.refreshStalenessThresholdDays))} days'
         `,
       })
       .from(articles)

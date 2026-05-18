@@ -7,11 +7,11 @@ import {
   db,
   eq,
   isNull,
+  isNotNull,
   lt,
   articles,
   projects,
   refreshDismissed,
-  sql,
 } from "@marketing-auto/db";
 import { publishPipelineEvent } from "@marketing-auto/core/events";
 import { createLogger, getEnv } from "@marketing-auto/shared";
@@ -103,10 +103,8 @@ export async function detectStaleArticles(projectId: string): Promise<RefreshDet
       and(
         eq(articles.projectId, projectId),
         eq(articles.status, "published"),
-        lt(
-          sql`COALESCE(${articles.publishedAt}, ${articles.updatedAt})`,
-          cutoff.toISOString()
-        ),
+        isNotNull(articles.lastRefreshedAt),
+        lt(articles.lastRefreshedAt, cutoff),
         isNull(refreshDismissed.id)
       )
     )

@@ -83,6 +83,8 @@ export function usePipelineEvents() {
       void queryClient.invalidateQueries({ queryKey: ["content-gaps", slug] });
     } else if (event.type === "refresh.detected") {
       void queryClient.invalidateQueries({ queryKey: ["refresh-candidates", slug] });
+    } else if (event.type === "refresh.suggestion.created") {
+      void queryClient.invalidateQueries({ queryKey: ["refresh-suggestions", slug] });
     }
   }
 
@@ -132,6 +134,7 @@ export function usePipelineEvents() {
       "trends.discovered",
       "gaps.detected",
       "refresh.detected",
+      "refresh.suggestion.created",
     ] as const;
 
     for (const name of discoveryEvents) {

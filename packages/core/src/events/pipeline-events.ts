@@ -11,6 +11,8 @@ export type PipelineEvent =
   | { type: "trends.discovered"; projectId: string; newBriefIds: string[]; topScore: number; timestamp: string }
   | { type: "gaps.detected"; projectId: string; clusterId: string; gapIds: string[]; timestamp: string }
   | { type: "refresh.detected"; projectId: string; candidateCount: number; autoApprovedCount: number; timestamp: string }
+  // Spec 58.1: Quality analysis suggestion created
+  | { type: "refresh.suggestion.created"; articleId: string; timestamp: string }
   // Spec 57.2: Async Remotion render events
   | { type: "social.render.started"; socialPostId: string; projectId: string; articleId: string; timestamp: string }
   | { type: "social.render.completed"; socialPostId: string; projectId: string; articleId: string; slideCount: number; timestamp: string }

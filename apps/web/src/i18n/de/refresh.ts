@@ -17,6 +17,7 @@ export default {
   empty: {
     title: "Keine Kandidaten",
     description: "Alle Artikel sind aktuell. Starte die Erkennung, um veraltete zu finden.",
+    suggestions: "Keine offenen Qualitäts-Empfehlungen.",
   },
 
   lastUpdated: "Zuletzt aktualisiert",
@@ -24,5 +25,45 @@ export default {
   actions: {
     refresh: "Refresh",
     dismiss: "Verwerfen",
+    markRefreshed: "Als aktualisiert markieren",
+    viewFindings: "Details ansehen",
+  },
+
+  analyzeAll: "Alle analysieren",
+  analyzeAllHint: "Startet KI-Qualitätsanalyse für alle veröffentlichten Artikel.",
+  analyzing: "Wird analysiert…",
+  analyzeStarted: "Analyse für {count} Artikel gestartet",
+  analyzeFailed: "Fehler beim Starten der Analyse",
+
+  markRefreshedSuccess: "Artikel als aktualisiert markiert",
+  markRefreshedFailed: "Fehler beim Markieren",
+  suggestionDismissed: "Empfehlung verworfen",
+
+  suggestionsTitle: "Qualitäts-Empfehlungen",
+  suggestionsDescription: "KI-Analyse identifizierte diese Artikel für eine Überarbeitung.",
+
+  source: {
+    time: "Zeitbasiert",
+    quality: "KI-Qualitätsanalyse",
+  },
+
+  recommendation: {
+    "refresh-now": "Jetzt aktualisieren",
+    "refresh-soon": "Bald aktualisieren",
+    "no-action": "Kein Handlungsbedarf",
+  },
+
+  confidence: {
+    high: "Hoch",
+    medium: "Mittel",
+    low: "Niedrig",
+  },
+
+  findings: {
+    outdatedClaims: "Veraltete Aussagen",
+    missingCoverage: "Fehlende Themen",
+    staleReferences: "Veraltete Referenzen",
+    confidenceLabel: "Konfidenz",
+    noFindings: "Keine spezifischen Befunde.",
   },
 };

@@ -7,6 +7,7 @@ import {
   db,
   eq,
   isNull,
+  isNotNull,
   lt,
   projects,
   refreshDismissed,
@@ -20,6 +21,7 @@ import { requireAuth } from "../../middleware/auth.ts";
 import { syncCronJobs } from "../../workers/cron-orchestrator.ts";
 import { getRefreshDetectorQueue } from "../../workers/refresh-detector.ts";
 import { getTrendSynthesizerQueue } from "../../workers/trend-synthesizer.ts";
+import { getArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 
 const log = createLogger("api:cron-routes");
 
@@ -67,6 +69,7 @@ projectCronRoutes.get("/:slug/cron-status", async (c) => {
     data: {
       trendsSynthesizer: format(byType["trends_synthesizer"]),
       refreshDetector: format(byType["refresh_detector"]),
+      qualityAnalysis: format(byType["quality_analysis"]),
     },
   });
 });
@@ -74,7 +77,7 @@ projectCronRoutes.get("/:slug/cron-status", async (c) => {
 // ─── PATCH /:slug/cron-status ─────────────────────────────────────────────────
 
 const patchCronStatusSchema = z.object({
-  jobType: z.enum(["trends_synthesizer", "refresh_detector"]),
+  jobType: z.enum(["trends_synthesizer", "refresh_detector", "quality_analysis"]),
   isActive: z.boolean(),
   cronPattern: z.string().optional(),
 });
@@ -88,7 +91,10 @@ projectCronRoutes.patch(
     if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
 
     const body = c.req.valid("json");
-    const defaultPattern = body.jobType === "trends_synthesizer" ? "30 1 * * *" : "0 2 * * *";
+    const defaultPattern =
+      body.jobType === "trends_synthesizer" ? "30 1 * * *" :
+      body.jobType === "refresh_detector" ? "0 2 * * *" :
+      "0 3 * * *";
     const cronPattern = body.cronPattern ?? defaultPattern;
 
     // Upsert cron_state row
@@ -111,9 +117,9 @@ projectCronRoutes.patch(
 
     // Also mirror to the projects table flag for quick reads
     const projectUpdate =
-      body.jobType === "trends_synthesizer"
-        ? { trendsCronEnabled: body.isActive }
-        : { refreshCronEnabled: body.isActive };
+      body.jobType === "trends_synthesizer" ? { trendsCronEnabled: body.isActive } :
+      body.jobType === "refresh_detector" ? { refreshCronEnabled: body.isActive } :
+      { qualityAnalysisCronEnabled: body.isActive };
     await db.update(projects).set(projectUpdate).where(eq(projects.id, project.id));
 
     // Trigger immediate sync (don't block the response)
@@ -129,7 +135,7 @@ projectCronRoutes.patch(
 // ─── POST /:slug/cron-status/run ─────────────────────────────────────────────
 
 const runNowSchema = z.object({
-  jobType: z.enum(["trends_synthesizer", "refresh_detector"]),
+  jobType: z.enum(["trends_synthesizer", "refresh_detector", "quality_analysis"]),
 });
 
 projectCronRoutes.post(
@@ -152,12 +158,22 @@ projectCronRoutes.post(
       return c.json({ ok: true, data: { jobId: job.id, jobType } }, 202);
     }
 
-    // refresh_detector
-    const queue = getRefreshDetectorQueue();
+    if (jobType === "refresh_detector") {
+      const queue = getRefreshDetectorQueue();
+      const job = await queue.add(
+        `refresh_detector:${project.id}`,
+        { projectId: project.id },
+        { jobId: `manual:refresh:${project.id}:${Date.now()}` }
+      );
+      return c.json({ ok: true, data: { jobId: job.id, jobType } }, 202);
+    }
+
+    // quality_analysis — enqueue a cron-triggered batch job
+    const queue = getArticleQualityAnalysisQueue();
     const job = await queue.add(
-      `refresh_detector:${project.id}`,
-      { projectId: project.id },
-      { jobId: `manual:refresh:${project.id}:${Date.now()}` }
+      `quality_analysis:${project.id}`,
+      { type: "cron-triggered", projectId: project.id },
+      { jobId: `manual:quality:${project.id}:${Date.now()}` }
     );
     return c.json({ ok: true, data: { jobId: job.id, jobType } }, 202);
   }
@@ -208,10 +224,8 @@ projectCronRoutes.get("/:slug/discovery-counts", async (c) => {
         and(
           eq(articles.projectId, project.id),
           eq(articles.status, "published"),
-          lt(
-            sql`COALESCE(${articles.publishedAt}, ${articles.updatedAt})`,
-            cutoff.toISOString()
-          ),
+          isNotNull(articles.lastRefreshedAt),
+          lt(articles.lastRefreshedAt, cutoff),
           isNull(refreshDismissed.id)
         )
       ),

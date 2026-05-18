@@ -84,6 +84,7 @@ export class PersistArticleStep extends BaseStep<
           status: "final_review",
           draftPipelineRunId: ctx.pipelineRunId,
           updatedAt: new Date(),
+          lastRefreshedAt: new Date(),
           // Optional fields — only set when the calling pipeline provides them
           ...(input.title ? { title: input.title } : {}),
           ...(input.slug ? { slug: input.slug } : {}),

@@ -11,6 +11,9 @@
 - Cross-tenant queries are a security bug — wrap in helper that requires explicit `crossTenant: true` flag
 - The `users`, `magic_link_tokens`, `sessions`, `push_subscriptions` tables are platform-wide (not tenant-scoped)
 
+## Helpers
+Single-table read helpers live in `packages/db/src/helpers/articles-read.ts` (and similar `*-read.ts` files). Single-table **write** helpers (e.g. `markArticleRefreshed`) live in `packages/db/src/helpers/articles-write.ts`. Both are exported via `packages/db/src/index.ts` as `export * from "./helpers/..."`. Do NOT create a `repos/` directory — the `helpers/` convention is established.
+
 ## Conventions
 - Primary keys: `uuid` with `defaultRandom()`
 - Timestamps: `timestamp({ withTimezone: true })` everywhere, `notNull()`, `defaultNow()`
@@ -55,4 +58,5 @@
 - DO NOT cast a `$type<T>()` jsonb column value to `Record<string, unknown>` before reading its fields — the column is already typed as `T`, so access `gap.metadata?.clusterName` directly. Casting through `Record<string, unknown>` loses the type and forces `as` re-casts for every field.
 - DO NOT pass a Zod-inferred type with `.optional()` fields directly to `db.insert().values()` under `exactOptionalPropertyTypes` — Zod optional fields are `T | undefined` but Drizzle's insert type expects `T | null`. Strip undefined entries first: `Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as typeof table.$inferInsert`. Safe when the mapper explicitly uses `null` (not `undefined`) for absent optional fields.
 - DO NOT reference `ContentPillar` as a named import from `@marketing-auto/db` — it does not exist as an explicit export. Use `typeof contentPillars.$inferSelect` for the full type, or an inline object shape (e.g. `{ id: string; name: string }`) when only a subset of columns is needed in a function parameter. The same applies to any table that only exports the Drizzle table object but not an explicit type alias.
+- DO NOT omit `project_id` from child tables just because a parent FK (e.g. `article_id`) already chains to a tenant — child tables are queried directly in many contexts and must satisfy the multi-tenant invariant independently. Pattern: `project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE` + a project index. Caught during Spec E.1a review: `refresh_suggestions` initially lacked it despite `refresh_dismissed` having it as a reference.
 - DO NOT import `sql` from `drizzle-orm/pg-core` when using it inside a schema file for partial index `.where()` conditions — `sql` is not exported by `drizzle-orm/pg-core` and TypeScript will error (`Module '"drizzle-orm/pg-core"' has no exported member 'sql'`). Import `sql` from `drizzle-orm` as a separate import alongside the `drizzle-orm/pg-core` imports. Pattern: `import { index, pgTable, ... } from "drizzle-orm/pg-core"; import { sql } from "drizzle-orm";`. See `packages/db/src/schema/content.ts` `renderStatusActiveIdx` for the canonical example.

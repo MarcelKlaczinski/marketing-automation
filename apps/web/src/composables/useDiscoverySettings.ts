@@ -15,11 +15,13 @@ export interface CronJobStatus {
 export interface CronStatusData {
   trendsSynthesizer: CronJobStatus;
   refreshDetector: CronJobStatus;
+  qualityAnalysis: CronJobStatus;
 }
 
 interface DiscoveryProject {
   trendsCronEnabled: boolean;
   refreshCronEnabled: boolean;
+  qualityAnalysisCronEnabled: boolean;
   autoApproveGaps: boolean;
   refreshStalenessThresholdDays: number;
 }
@@ -35,6 +37,7 @@ export function useDiscoverySettings(slug: string, project: Ref<DiscoveryProject
     initialData: () => ({
       trendsCronEnabled: project.value?.trendsCronEnabled ?? false,
       refreshCronEnabled: project.value?.refreshCronEnabled ?? false,
+      qualityAnalysisCronEnabled: project.value?.qualityAnalysisCronEnabled ?? false,
       autoApproveGaps: project.value?.autoApproveGaps ?? false,
       refreshStalenessThresholdDays: String(project.value?.refreshStalenessThresholdDays ?? 90),
     }),
@@ -42,6 +45,7 @@ export function useDiscoverySettings(slug: string, project: Ref<DiscoveryProject
       apiPatch(`/projects/${slug}`, {
         trendsCronEnabled: data.trendsCronEnabled,
         refreshCronEnabled: data.refreshCronEnabled,
+        qualityAnalysisCronEnabled: data.qualityAnalysisCronEnabled,
         autoApproveGaps: data.autoApproveGaps,
         refreshStalenessThresholdDays: parseInt(data.refreshStalenessThresholdDays, 10),
       }),
@@ -51,7 +55,7 @@ export function useDiscoverySettings(slug: string, project: Ref<DiscoveryProject
     ],
   });
 
-  const triggerCron = async (jobType: "trends_synthesizer" | "refresh_detector") => {
+  const triggerCron = async (jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis") => {
     await apiPost(`/projects/${slug}/cron-status/run`, { jobType });
     void refetchCronStatus();
   };

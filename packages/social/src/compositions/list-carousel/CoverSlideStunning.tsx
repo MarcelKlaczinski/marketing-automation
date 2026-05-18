@@ -471,20 +471,31 @@ export function CoverSlideStunning({ input, theme, totalSlides }: Props) {
             })()}
           </>
         ) : (
-          /* Editorial headline fallback (if no hookOutput, e.g. old carousel re-render) */
-          <div
-            style={{
-              fontFamily,
-              fontSize: 96,
-              fontWeight: L.hookFontWeight,
-              lineHeight: 1.05,
-              color: coverColors.hookText,
-            }}
-          >
-            <span>{cover.headlineLead} </span>
-            <span style={{ color: coverColors.hookHighlight }}>{cover.headlineHighlight}</span>
-            {cover.headlineTrail && <span> {cover.headlineTrail}</span>}
-          </div>
+          /* Editorial headline fallback (EN locale or old carousel re-render).
+             Mirrors the hook path: headline at top, ToolPreviewRow fills lower half.
+             maxWidth keeps headline inside TEXT_SAFE_W to avoid overlapping logo column. */
+          <>
+            <div
+              style={{
+                fontFamily,
+                fontSize: 96,
+                fontWeight: L.hookFontWeight,
+                lineHeight: 1.05,
+                color: coverColors.hookText,
+                maxWidth: L.textSafeWidth,
+              }}
+            >
+              <span>{cover.headlineLead} </span>
+              <span style={{ color: coverColors.hookHighlight }}>{cover.headlineHighlight}</span>
+              {cover.headlineTrail && <span> {cover.headlineTrail}</span>}
+            </div>
+            <ToolPreviewRow
+              tools={tools}
+              themeMode={input.theme}
+              brand={coverColors.hookHighlight}
+              fontFamily={fontFamily}
+            />
+          </>
         )}
       </div>
 

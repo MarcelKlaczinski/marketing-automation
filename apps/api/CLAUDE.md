@@ -272,6 +272,7 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT add a second network round-trip when `autoApproveGaps = true` in the `/suggest` handler — auto-generation fires inline after the dual-write (brief + gap metadata), using `decideRoute` + `executeDecision` + `triggerWithPreRunId` with the in-memory `updatedBrief` object. The response is enriched with `{ autoTriggered: true, articleId, runId, jobId }` so the frontend knows immediately. Errors during auto-trigger (cost limit, routing skip, exception) fall through to return the plain suggestion with `autoTriggered: false` — the suggestion itself never fails due to auto-approval.
 
 - DO NOT interpolate a numeric variable directly into an `INTERVAL` sql template — Drizzle binds it as a parameter and PostgreSQL rejects `INTERVAL $1 days`. Use `sql.raw(String(n))` for the number: `` sql`COALESCE(...) < NOW() - INTERVAL '${sql.raw(String(days))} days'` ``. Only safe for integers derived from DB config (not user input). Caught in Spec 56.6 `needsRefresh` and `discovery-counts` expressions.
+- DO NOT add a new cron job type without updating all 4 places: (1) SQL migration (`ALTER TYPE cron_job_type ADD VALUE`), (2) Drizzle `cronJobTypeEnum` in `packages/db/src/schema/cron.ts`, (3) `getQueueForJobType()` switch in `cron-orchestrator.ts`, (4) `allQueues` array in `syncCronJobs()`. Missing any one silently ignores jobs or causes TypeScript errors at runtime. See migration 0054 + cron-orchestrator.ts for the canonical pattern.
 
 ## Gap Routes — TopicBrief as SSoT (Spec 54.3)
 

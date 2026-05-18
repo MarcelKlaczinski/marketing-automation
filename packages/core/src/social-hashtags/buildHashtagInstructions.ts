@@ -19,18 +19,17 @@ export function buildHashtagInstructions(ctx: HashtagContext): string {
     ? [["#KITools", "#KIVergleich"], ["#AITools", "#AIComparison"]]
     : [["#KITools", "#KIFürBusiness"], ["#AITools", "#AIForBusiness"]];
 
-  const nicheHint = ctx.toolCategory
-    ? `#${pascalCase(ctx.toolCategory)}`
-    : isGermanPrimary
-    ? "#SoftwareTest, #Produktivität"
-    : "#SoftwareReview, #Productivity";
-
   const toolNameHint = ctx.toolNames.slice(0, 3).join(", ");
 
-  return `HASHTAGS (exactly 7 tags, bilingual mix for dual search intent on Instagram):
+  if (isGermanPrimary) {
+    const nicheHintDE = ctx.toolCategory
+      ? `#${pascalCase(ctx.toolCategory)}`
+      : "#SoftwareTest, #Produktivität";
+
+    return `HASHTAGS (exactly 7 tags, bilingual DE+EN mix for dual search intent on Instagram):
 - German anchor tags: ${anchorDE.join(", ")}
 - English anchor tags: ${anchorEN.join(", ")}
-- Plus 1 niche German tag matching tool category (e.g. ${nicheHint})
+- Plus 1 niche German tag matching tool category (e.g. ${nicheHintDE})
 - Plus 1 niche English tag matching tool category
 - Plus 1 tool-name tag if a tool name reads naturally as a hashtag: ${toolNameHint}
 - Total: EXACTLY 7 tags
@@ -41,6 +40,26 @@ RULES:
 - NO self-promotional tags (#Toolwiki, #ToolwikiAI, #ToolwikiBlog)
 - NO redundant variants of the same concept (avoid #DeveloperTools AND #DevTools AND #CodingTools in the same post)
 - Mix German and English freely — German users searching in either language should find the post`;
+  }
+
+  // Non-DE locale (e.g. en-US): English-only hashtags
+  const nicheHintEN = ctx.toolCategory
+    ? `#${pascalCase(ctx.toolCategory)}`
+    : "#SoftwareReview, #Productivity";
+
+  return `HASHTAGS (exactly 7 tags, English-only for international reach on Instagram):
+- English anchor tags: ${anchorEN.join(", ")}
+- Plus 2 niche English tags matching tool category (e.g. ${nicheHintEN})
+- Plus 1 tool-name tag if a tool name reads naturally as a hashtag: ${toolNameHint}
+- Plus remaining tags: broad English tech tags (e.g. #TechTools, #AIProductivity, #WorkSmarter)
+- Total: EXACTLY 7 tags
+
+RULES:
+- English only — NO German hashtags (#KITools, #KIVergleich, #Produktivität, etc.)
+- NO hyphens in hashtags (write #AITools not #AI-Tools)
+- NO year tags (#AI2026, #Tech2026 — these age out within months)
+- NO self-promotional tags (#Toolwiki, #ToolwikiAI, #ToolwikiBlog)
+- NO redundant variants of the same concept (avoid #DeveloperTools AND #DevTools AND #CodingTools in the same post)`;
 }
 
 /**

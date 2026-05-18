@@ -74,7 +74,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
 
   // Determine which strength is "star" — use starStrength if available, else first strength
   const starStrength = tool.starStrength ?? tool.strengths[0];
-  const regularStrengths = tool.strengths.filter((s) => s !== starStrength).slice(0, 3);
+  const regularStrengths = tool.strengths.filter((s) => s !== starStrength).slice(0, 2);
 
   return (
     <div
@@ -128,7 +128,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
       {/* Center: Tool card — fills remaining space.
           Spec 51a-stunning-v2.1 follow-up: bigger fonts + extra For-you panel
           so the 4:5 canvas reads dense instead of half-empty. */}
-      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 64, flex: 1 }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 40, flex: 1, overflow: "hidden" }}>
 
         {/* Icon (prominent) + Name row */}
         <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
@@ -270,7 +270,16 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
             designen") from the du-form identityVerb so the German word order
             is natural. Falls through cleanly when no token is available. */}
         {(() => {
-          const useCase = tool.identityVerb ? deriveInfinitiveUseCase(tool.identityVerb) : null;
+          // DE: transform German du-form verb → infinitive ("designst Logos" → "Logos designen")
+          // EN: use identityVerb (English gerund) if present and not a leaked German du-form verb;
+          // fall back to bestFor so the "Perfect for" panel is never empty on EN slides.
+          const GERMAN_DU_FORM_RE = /^(designst|machst|schreibst|baust|erstellst|generierst|nutzt|brauchst|willst|suchst|erzeugst)\s+/i;
+          const useCase = isDE
+            ? (tool.identityVerb ? deriveInfinitiveUseCase(tool.identityVerb) : null)
+            : (() => {
+                if (tool.identityVerb && !GERMAN_DU_FORM_RE.test(tool.identityVerb)) return tool.identityVerb;
+                return tool.bestFor ?? null;
+              })();
           if (!useCase) return null;
           return (
             <div
@@ -315,7 +324,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
               alignSelf: "center",
             }}
           >
-            <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} brandTokens={brandTokens} />
+            <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} brandTokens={brandTokens} locale={isDE ? "de" : "en"} />
           </div>
         )}
       </div>

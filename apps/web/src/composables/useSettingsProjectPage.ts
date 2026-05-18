@@ -44,6 +44,7 @@ interface ProjectSettingsData {
   socialAutoRenderLocales: string;
   trendsCronEnabled: boolean;
   refreshCronEnabled: boolean;
+  qualityAnalysisCronEnabled: boolean;
   autoApproveGaps: boolean;
   refreshStalenessThresholdDays: number;
 }

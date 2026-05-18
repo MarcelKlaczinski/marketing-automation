@@ -3,17 +3,24 @@ import {
   and,
   articles,
   asc,
+  desc,
   db,
   eq,
   isNull,
+  isNotNull,
   lt,
   projects,
   refreshDismissed,
+  refreshSuggestions,
   sql,
   topicBriefs,
 } from "@marketing-auto/db";
-import { COST_OPS, estimateCostEur } from "@marketing-auto/core";
+import { COST_OPS, estimateCostEur, assertCostBudget } from "@marketing-auto/core";
 import { enqueueRefreshPipeline } from "@marketing-auto/pipelines";
+import { markArticleRefreshed } from "@marketing-auto/db";
+import {
+  enqueueArticleQualityAnalysis,
+} from "@marketing-auto/pipelines/article-quality-analysis-queue";
 import { createLogger } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -63,10 +70,8 @@ projectRefreshRoutes.get(
     const conditions = [
       eq(articles.projectId, project.id),
       eq(articles.status, "published"),
-      lt(
-        sql`COALESCE(${articles.publishedAt}, ${articles.updatedAt})`,
-        cutoff.toISOString()
-      ),
+      isNotNull(articles.lastRefreshedAt),
+      lt(articles.lastRefreshedAt, cutoff),
       isNull(refreshDismissed.id),
     ];
 
@@ -86,7 +91,7 @@ projectRefreshRoutes.get(
         publishedAt: articles.publishedAt,
         updatedAt: articles.updatedAt,
         daysSinceLastUpdate: sql<number>`
-          EXTRACT(DAY FROM NOW() - COALESCE(${articles.publishedAt}, ${articles.updatedAt}))::int
+          EXTRACT(DAY FROM NOW() - ${articles.lastRefreshedAt})::int
         `,
       })
       .from(articles)
@@ -239,4 +244,157 @@ projectRefreshRoutes.post("/:slug/refresh-candidates/:articleId/trigger", async 
 
   log.info({ slug, articleId, briefId: brief.id }, "Refresh pipeline triggered from queue");
   return triggerResultToResponse(c, result);
+});
+
+// ─── POST /:slug/articles/quality-analysis ────────────────────────────────────
+// Enqueue quality analysis jobs for all published articles (or a subset via body.articleIds).
+
+const qualityAnalysisBodySchema = z.object({
+  articleIds: z.array(z.string().uuid()).optional(),
+});
+
+projectRefreshRoutes.post(
+  "/:slug/articles/quality-analysis",
+  async (c) => {
+    const { slug } = c.req.param();
+    const project = await resolveProject(slug);
+    if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const rawBody = await c.req.json().catch(() => ({}));
+    const { articleIds } = qualityAnalysisBodySchema.safeParse(rawBody).data ?? {};
+
+    let targetIds: string[];
+    if (articleIds && articleIds.length > 0) {
+      targetIds = articleIds;
+    } else {
+      const all = await db
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(
+          eq(articles.projectId, project.id),
+          eq(articles.status, "published"),
+        ));
+      targetIds = all.map((a) => a.id);
+    }
+
+    const perArticleCost = estimateCostEur("anthropic", COST_OPS.ARTICLE_QUALITY_ANALYSIS);
+    const batchCostEur = Math.round(targetIds.length * perArticleCost * 100) / 100;
+
+    // Pre-flight budget check before enqueuing any jobs
+    try {
+      await assertCostBudget(project.id, "anthropic", batchCostEur);
+    } catch {
+      return c.json({ ok: false, error: "cost_limit_exceeded", estimatedCostEur: batchCostEur }, 402);
+    }
+
+    const jobIds: string[] = [];
+    for (const articleId of targetIds) {
+      const jobId = await enqueueArticleQualityAnalysis({
+        articleId,
+        projectId: project.id,
+        projectSlug: slug,
+      });
+      jobIds.push(jobId);
+    }
+
+    log.info({ slug, count: targetIds.length, estimatedCostEur: batchCostEur }, "Quality analysis batch enqueued");
+
+    return c.json({ ok: true, data: { enqueued: targetIds.length, estimatedCostEur: batchCostEur, jobIds } });
+  }
+);
+
+// ─── GET /:slug/refresh-suggestions ──────────────────────────────────────────
+// Priority-ordered: quality refresh-now → quality refresh-soon → time-based
+
+projectRefreshRoutes.get("/:slug/refresh-suggestions", async (c) => {
+  const { slug } = c.req.param();
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const rows = await db
+    .select({
+      id: refreshSuggestions.id,
+      source: refreshSuggestions.source,
+      reasoning: refreshSuggestions.reasoning,
+      stalenessDays: refreshSuggestions.stalenessDays,
+      qualityFindings: refreshSuggestions.qualityFindings,
+      generatedAt: refreshSuggestions.generatedAt,
+      articleId: articles.id,
+      articleTitle: articles.title,
+      articleSlug: articles.slug,
+      articleLocale: articles.locale,
+      articleLastRefreshedAt: articles.lastRefreshedAt,
+    })
+    .from(refreshSuggestions)
+    .innerJoin(articles, eq(refreshSuggestions.articleId, articles.id))
+    .where(and(
+      eq(articles.projectId, project.id),
+      isNull(refreshSuggestions.dismissedAt),
+      isNull(refreshSuggestions.approvedAt),
+    ))
+    .orderBy(
+      sql`CASE
+        WHEN ${refreshSuggestions.source} = 'quality' AND ${refreshSuggestions.qualityFindings}->>'overallRecommendation' = 'refresh-now' THEN 1
+        WHEN ${refreshSuggestions.source} = 'quality' AND ${refreshSuggestions.qualityFindings}->>'overallRecommendation' = 'refresh-soon' THEN 2
+        WHEN ${refreshSuggestions.source} = 'time' THEN 3
+        ELSE 4
+      END`,
+      desc(refreshSuggestions.generatedAt)
+    );
+
+  return c.json({ ok: true, data: { suggestions: rows } });
+});
+
+// ─── POST /:slug/articles/:articleId/mark-refreshed ──────────────────────────
+// Sets lastRefreshedAt + closes all active suggestions for the article.
+
+projectRefreshRoutes.post("/:slug/articles/:articleId/mark-refreshed", async (c) => {
+  const { slug, articleId } = c.req.param();
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const [article] = await db
+    .select({ id: articles.id })
+    .from(articles)
+    .where(and(eq(articles.id, articleId), eq(articles.projectId, project.id)))
+    .limit(1);
+  if (!article) return c.json({ ok: false, error: "article_not_found" }, 404);
+
+  await markArticleRefreshed(articleId);
+
+  // Close all active suggestions (both time + quality) for this article
+  await db
+    .update(refreshSuggestions)
+    .set({ approvedAt: new Date() })
+    .where(and(
+      eq(refreshSuggestions.articleId, articleId),
+      isNull(refreshSuggestions.dismissedAt),
+      isNull(refreshSuggestions.approvedAt),
+    ));
+
+  log.info({ slug, articleId }, "Article marked as refreshed; suggestions closed");
+  return c.json({ ok: true, data: { articleId } });
+});
+
+// ─── DELETE /:slug/refresh-suggestions/:id ────────────────────────────────────
+// Dismiss a specific refresh suggestion.
+
+projectRefreshRoutes.delete("/:slug/refresh-suggestions/:id", async (c) => {
+  const { slug, id } = c.req.param();
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const rows = await db
+    .update(refreshSuggestions)
+    .set({ dismissedAt: new Date() })
+    .where(and(
+      eq(refreshSuggestions.id, id),
+      eq(refreshSuggestions.projectId, project.id),
+    ))
+    .returning({ id: refreshSuggestions.id });
+
+  if (rows.length === 0) return c.json({ ok: false, error: "suggestion_not_found" }, 404);
+
+  log.info({ slug, id }, "Refresh suggestion dismissed");
+  return c.json({ ok: true, data: { id } });
 });

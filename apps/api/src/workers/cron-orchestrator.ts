@@ -4,6 +4,7 @@ import { db, eq, cronState } from "@marketing-auto/db";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { getTrendSynthesizerQueue } from "./trend-synthesizer.ts";
 import { getRefreshDetectorQueue } from "./refresh-detector.ts";
+import { getArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 
 const log = createLogger("cron-orchestrator");
 
@@ -34,8 +35,9 @@ export function getCronOrchestratorQueue(): Queue {
 
 // ─── Queue registry ───────────────────────────────────────────────────────────
 
-function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector"): Queue {
+function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis"): Queue {
   if (jobType === "trends_synthesizer") return getTrendSynthesizerQueue();
+  if (jobType === "quality_analysis") return getArticleQualityAnalysisQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -66,14 +68,15 @@ export async function syncCronJobs(): Promise<void> {
 
   // Remove jobs that are no longer in desired state
   const desiredNames = new Set(desired.map((d) => `${d.jobType}:${d.projectId}`));
-  const allQueues = [getTrendSynthesizerQueue(), getRefreshDetectorQueue()];
+  const allQueues = [getTrendSynthesizerQueue(), getRefreshDetectorQueue(), getArticleQualityAnalysisQueue()];
 
   for (const queue of allQueues) {
     const repeats = await queue.getRepeatableJobs();
     for (const repeat of repeats) {
       const isCronOrchestrated =
         repeat.name.startsWith("trends_synthesizer:") ||
-        repeat.name.startsWith("refresh_detector:");
+        repeat.name.startsWith("refresh_detector:") ||
+        repeat.name.startsWith("quality_analysis:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

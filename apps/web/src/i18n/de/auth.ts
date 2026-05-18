@@ -3,7 +3,7 @@ export default {
     title: "Anmelden",
     subtitle: "Erhalte einen einmaligen Anmelde-Link per E-Mail",
     emailLabel: "E-Mail-Adresse",
-    emailPlaceholder: "deine@email.de",
+    emailPlaceholder: "deine{'@'}email.de",
     emailRequired: "E-Mail-Adresse erforderlich",
     emailInvalid: "Ungültige E-Mail-Adresse",
     submitButton: "Magic Link senden",

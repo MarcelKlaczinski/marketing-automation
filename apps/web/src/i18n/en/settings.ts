@@ -84,6 +84,10 @@ export default {
       thresholdLabel: "Staleness threshold (days)",
       thresholdHelper: "Articles not updated for more than N days will appear in the refresh queue.",
     },
+    qualityAnalysis: {
+      title: "Quality Analysis (AI)",
+      description: "Daily LLM analysis of all articles for freshness and content gaps (03:00 UTC).",
+    },
     autoApproveGaps: {
       title: "Auto-approve content gaps",
       description: "Triggers article generation immediately after the suggest step, without manual approval.",

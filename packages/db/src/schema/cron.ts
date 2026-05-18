@@ -4,6 +4,7 @@ import { projects } from "./projects.ts";
 export const cronJobTypeEnum = pgEnum("cron_job_type", [
   "trends_synthesizer",
   "refresh_detector",
+  "quality_analysis",
 ]);
 
 export const cronState = pgTable(

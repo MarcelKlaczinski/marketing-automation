@@ -1106,12 +1106,14 @@ articleRoutes.post("/:id/body", zValidator("json", BodyUpdateSchema), async (c) 
 
   await db.insert(articleVersions).values(values);
 
+  const now = new Date();
   await db
     .update(articles)
     .set({
       bodyMd: input.bodyMd,
       wordCount: input.bodyMd.trim().split(/\s+/).filter(Boolean).length,
-      updatedAt: new Date(),
+      updatedAt: now,
+      lastRefreshedAt: now,
     })
     .where(eq(articles.id, id));
 

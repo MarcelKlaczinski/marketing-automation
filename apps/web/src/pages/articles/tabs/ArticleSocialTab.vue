@@ -139,6 +139,7 @@
                   :alt="($t('social.slideAlt', { n: idx + 1 }) as string)"
                   class="slide-thumb"
                   loading="lazy"
+                  @click="openPreview(post, idx)"
                 />
               </div>
             </div>
@@ -147,6 +148,99 @@
       </div>
     </div>
   </div>
+
+  <!-- ─── Instagram preview modal ─────────────────────────────────────────── -->
+  <Teleport to="body">
+    <div
+      v-if="preview.open"
+      class="ig-overlay"
+      @click.self="closePreview"
+      role="dialog"
+      :aria-label="$t('social.preview') as string"
+    >
+      <div class="ig-modal">
+        <!-- Phone shell -->
+        <div class="ig-phone">
+          <!-- Instagram top bar -->
+          <div class="ig-header">
+            <div class="ig-header-left">
+              <div class="ig-avatar">TW</div>
+              <div>
+                <div class="ig-username">toolwiki.ai</div>
+                <div class="ig-location">Instagram</div>
+              </div>
+            </div>
+            <div class="ig-header-right">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </div>
+          </div>
+
+          <!-- Slide image -->
+          <div class="ig-slide-wrap">
+            <img
+              v-if="preview.urls.length > 0"
+              :src="preview.urls[preview.slideIdx]"
+              class="ig-slide-img"
+              :alt="($t('social.slideAlt', { n: preview.slideIdx + 1 }) as string)"
+            />
+            <!-- Dot pagination -->
+            <div class="ig-dots">
+              <span
+                v-for="(_, i) in preview.urls"
+                :key="i"
+                class="ig-dot"
+                :class="{ 'ig-dot--active': i === preview.slideIdx }"
+              />
+            </div>
+            <!-- Prev / Next tap zones -->
+            <button
+              v-if="preview.slideIdx > 0"
+              class="ig-nav ig-nav--prev"
+              :aria-label="$t('social.prevSlide') as string"
+              @click="preview.slideIdx--"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+            </button>
+            <button
+              v-if="preview.slideIdx < preview.urls.length - 1"
+              class="ig-nav ig-nav--next"
+              :aria-label="$t('social.nextSlide') as string"
+              @click="preview.slideIdx++"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </div>
+
+          <!-- Action bar -->
+          <div class="ig-actions">
+            <div class="ig-actions-left">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </div>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </div>
+
+          <!-- Caption (truncated) -->
+          <div class="ig-caption">
+            <span class="ig-caption-user">toolwiki.ai</span>
+            {{ (preview.caption ?? "").slice(0, 120) }}{{ (preview.caption ?? "").length > 120 ? "…" : "" }}
+            <span v-if="preview.hashtags && preview.hashtags.length" class="ig-hashtags">
+              {{ preview.hashtags.join(" ") }}
+            </span>
+          </div>
+
+          <!-- Slide counter -->
+          <div class="ig-counter">{{ preview.slideIdx + 1 }} / {{ preview.urls.length }}</div>
+        </div>
+
+        <!-- Close button outside phone -->
+        <button class="ig-close" @click="closePreview" :aria-label="$t('social.closePreview') as string">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script lang="ts">
@@ -165,6 +259,8 @@ interface ProjectInfo {
 
 interface SocialPostContent {
   slides?: Array<{ imageUrl: string }>;
+  caption?: string;
+  hashtags?: string[];
 }
 
 interface SocialPost {
@@ -235,6 +331,14 @@ export default defineComponent({
     generating: false,
     downloadingId: null as string | null,
     expandedPostId: null as string | null,
+    preview: {
+      open: false,
+      urls: [] as string[],
+      slideIdx: 0,
+      caption: "" as string | null,
+      hashtags: [] as string[],
+    },
+    _previewKeyHandler: null as ((e: Event) => void) | null,
   }),
 
   computed: {
@@ -306,6 +410,34 @@ export default defineComponent({
       return key ? (this.$t(key) as string) : status;
     },
 
+    openPreview(post: SocialPost, slideIdx: number): void {
+      const urls = this.postSlideUrls(post);
+      if (urls.length === 0) return;
+      this.preview = {
+        open: true,
+        urls,
+        slideIdx,
+        caption: post.content?.caption ?? null,
+        hashtags: post.content?.hashtags ?? [],
+      };
+      // Store bound handler so removeEventListener gets the same reference
+      this._previewKeyHandler = (e: Event) => {
+        const key = (e as KeyboardEvent).key;
+        if (key === "Escape") this.closePreview();
+        if (key === "ArrowRight" && this.preview.slideIdx < this.preview.urls.length - 1) this.preview.slideIdx++;
+        if (key === "ArrowLeft" && this.preview.slideIdx > 0) this.preview.slideIdx--;
+      };
+      document.addEventListener("keydown", this._previewKeyHandler);
+    },
+
+    closePreview(): void {
+      this.preview.open = false;
+      if (this._previewKeyHandler) {
+        document.removeEventListener("keydown", this._previewKeyHandler);
+        this._previewKeyHandler = null;
+      }
+    },
+
     formatDate(iso: string): string {
       const d = new Date(iso);
       return d.toLocaleString(this.$i18n.locale === "de" ? "de-DE" : "en-US", {
@@ -349,13 +481,22 @@ export default defineComponent({
     async onDownload(postId: string): Promise<void> {
       this.downloadingId = postId;
       try {
-        const url = `/api/social-posts/${postId}/download-bundle`;
+        // Use full API base URL: relative /api/... resolves to the Quasar dev server (no proxy),
+        // so we must fetch through the same base the rest of the app uses.
+        const base = (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
+        const res = await fetch(`${base}/social-posts/${postId}/download-bundle`, { credentials: "include" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
+        a.href = objUrl;
         a.download = `social-post-${postId}.zip`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        URL.revokeObjectURL(objUrl);
+      } catch (err) {
+        this.$q.notify({ type: "negative", message: err instanceof Error ? err.message : (this.$t("social.postStatus.failed") as string) });
       } finally {
         this.downloadingId = null;
       }
@@ -543,7 +684,14 @@ export default defineComponent({
   flex-shrink: 0;
   object-fit: contain;
   background: var(--surface-tertiary, rgba(0, 0, 0, 0.2));
+  cursor: pointer;
+  transition: opacity 0.15s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
 }
+
+@media (hover: hover) and (pointer: fine) {
+  .slide-thumb:hover { opacity: 0.82; }
+}
+.slide-thumb:active { transform: scale(0.97); }
 
 .post-meta {
   display: flex;
@@ -623,4 +771,212 @@ export default defineComponent({
   display: flex;
   gap: 6px;
 }
+
+/* ─── Instagram preview modal ─────────────────────────────────── */
+.ig-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: igFadeIn 0.18s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@keyframes igFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.ig-modal {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.ig-phone {
+  width: 375px;
+  background: #fff;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+  animation: igSlideUp 0.22s var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@keyframes igSlideUp {
+  from { transform: scale(0.95) translateY(12px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.ig-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.ig-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ig-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: -apple-system, sans-serif;
+  flex-shrink: 0;
+}
+
+.ig-username {
+  font-size: 13px;
+  font-weight: 600;
+  color: #000;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.2;
+}
+
+.ig-location {
+  font-size: 11px;
+  color: #737373;
+  font-family: -apple-system, sans-serif;
+  line-height: 1.2;
+}
+
+.ig-header-right {
+  color: #000;
+  display: flex;
+  align-items: center;
+}
+
+.ig-slide-wrap {
+  position: relative;
+  width: 375px;
+  height: 375px;
+  background: #000;
+  overflow: hidden;
+}
+
+.ig-slide-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ig-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.ig-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.ig-dot--active {
+  background: #fff;
+  width: 6px;
+}
+
+.ig-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.85);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #000;
+  transition: background 0.12s;
+}
+
+.ig-nav:hover { background: #fff; }
+.ig-nav--prev { left: 10px; }
+.ig-nav--next { right: 10px; }
+
+.ig-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 4px;
+}
+
+.ig-actions-left {
+  display: flex;
+  gap: 16px;
+  color: #000;
+}
+
+.ig-actions svg { color: #000; }
+
+.ig-caption {
+  padding: 0 14px 6px;
+  font-size: 13px;
+  color: #000;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.45;
+}
+
+.ig-caption-user {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.ig-hashtags {
+  display: block;
+  margin-top: 4px;
+  color: #00376b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ig-counter {
+  padding: 0 14px 12px;
+  font-size: 11px;
+  color: #737373;
+  font-family: -apple-system, sans-serif;
+}
+
+.ig-close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  transition: background 0.12s;
+}
+
+.ig-close:hover { background: rgba(255, 255, 255, 0.22); }
 </style>

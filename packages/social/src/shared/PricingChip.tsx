@@ -8,6 +8,7 @@ type Props = {
   fontFamily: string;
   theme?: "dark" | "light";
   brandTokens?: BrandTokens;
+  locale?: "de" | "en";
 };
 
 function TierIcon({ tier, color }: { tier: Props["tier"]; color: string }) {
@@ -39,10 +40,9 @@ function TierIcon({ tier, color }: { tier: Props["tier"]; color: string }) {
   );
 }
 
-const TIER_LABEL: Record<Props["tier"], string> = {
-  free: "Kostenlos",
-  freemium: "Freemium",
-  paid: "Kostenpflichtig",
+const TIER_LABELS: Record<"de" | "en", Record<Props["tier"], string>> = {
+  de: { free: "Kostenlos", freemium: "Freemium", paid: "Kostenpflichtig" },
+  en: { free: "Free", freemium: "Freemium", paid: "Paid" },
 };
 
 /**
@@ -67,9 +67,10 @@ export function deriveSecondaryLabel(tier: Props["tier"], label: string): string
   return trimmed || null;
 }
 
-export function PricingChip({ tier, label, fontFamily, theme = "dark", brandTokens }: Props) {
+export function PricingChip({ tier, label, fontFamily, theme = "dark", brandTokens, locale = "de" }: Props) {
   const color = pricingColor(tier, brandTokens);
   const rightAlpha = theme === "light" ? "33" : "18"; // stronger tint on white bg
+  const TIER_LABEL = TIER_LABELS[locale];
   const secondary = deriveSecondaryLabel(tier, label);
   return (
     <div

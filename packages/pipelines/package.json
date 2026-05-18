@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./social-render-queue": "./src/engine/social-render-queue.ts",
+    "./article-quality-analysis-queue": "./src/engine/article-quality-analysis-queue.ts",
+    "./article-quality": "./src/article-quality/index.ts",
     "./engine": "./src/engine/index.ts",
     "./skills": "./src/skills/index.ts",
     "./cold-start": "./src/cold-start/index.ts",

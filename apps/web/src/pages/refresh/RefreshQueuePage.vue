@@ -20,73 +20,155 @@
         >
           {{ $t("refresh.runDetection") as string }}
         </GlassButton>
+        <GlassButton
+          variant="ghost"
+          size="sm"
+          :loading="analyzing"
+          :title="$t('refresh.analyzeAllHint') as string"
+          @click="onAnalyzeAll"
+        >
+          {{ $t("refresh.analyzeAll") as string }}
+        </GlassButton>
       </div>
     </header>
 
-    <!-- Loading -->
-    <LoadingShimmer v-if="isLoading" variant="card" :count="5" />
+    <!-- ── Quality Suggestions section ─────────────────────────────── -->
+    <section class="suggestions-section">
+      <div class="section-header">
+        <h2 class="section-title">{{ $t("refresh.suggestionsTitle") as string }}</h2>
+        <p class="section-desc">{{ $t("refresh.suggestionsDescription") as string }}</p>
+      </div>
 
-    <!-- Empty -->
-    <EmptyState
-      v-else-if="!candidates.length && !isLoading"
-      :title="$t('refresh.empty.title') as string"
-      :description="$t('refresh.empty.description') as string"
-    />
+      <LoadingShimmer v-if="suggestionsLoading" variant="card" :count="3" />
 
-    <!-- List -->
-    <div v-else class="candidates-list stagger-list">
-      <RefreshCandidateCard
-        v-for="candidate in candidates"
-        :key="candidate.id"
-        class="stagger-item"
-        :candidate="candidate"
-        @trigger="onTrigger(candidate.id)"
-        @dismiss="onDismiss(candidate.id)"
+      <EmptyState
+        v-else-if="!suggestions.length"
+        :title="$t('refresh.empty.suggestions') as string"
+        description=""
+        compact
       />
-    </div>
 
-    <!-- Load more -->
-    <div v-if="hasMore" class="load-more">
-      <GlassButton
-        variant="ghost"
-        size="sm"
-        :loading="isFetchingMore"
-        @click="loadMore()"
-      >
-        {{ $t("refresh.loadMore") as string }}
-      </GlassButton>
-    </div>
+      <div v-else class="suggestions-list stagger-list">
+        <RefreshSuggestionCard
+          v-for="s in suggestions"
+          :key="s.id"
+          class="stagger-item"
+          :suggestion="s"
+          @mark-refreshed="onMarkRefreshed"
+          @dismiss="onDismissSuggestion"
+          @view-findings="onViewFindings"
+        />
+      </div>
+    </section>
+
+    <!-- ── Time-based candidates section ──────────────────────────── -->
+    <section class="candidates-section">
+      <div class="section-header">
+        <h2 class="section-title">{{ $t("refresh.pageTitle") as string }}</h2>
+      </div>
+
+      <LoadingShimmer v-if="isLoading" variant="card" :count="5" />
+
+      <EmptyState
+        v-else-if="!candidates.length && !isLoading"
+        :title="$t('refresh.empty.title') as string"
+        :description="$t('refresh.empty.description') as string"
+      />
+
+      <div v-else class="candidates-list stagger-list">
+        <RefreshCandidateCard
+          v-for="candidate in candidates"
+          :key="candidate.id"
+          class="stagger-item"
+          :candidate="candidate"
+          @trigger="onTrigger(candidate.id)"
+          @dismiss="onDismiss(candidate.id)"
+        />
+      </div>
+
+      <div v-if="hasMore" class="load-more">
+        <GlassButton
+          variant="ghost"
+          size="sm"
+          :loading="isFetchingMore"
+          @click="loadMore()"
+        >
+          {{ $t("refresh.loadMore") as string }}
+        </GlassButton>
+      </div>
+    </section>
+
+    <!-- Quality Findings Modal -->
+    <QualityFindingsModal
+      v-if="findingsModal.open && findingsModal.findings"
+      v-model="findingsModal.open"
+      :article-title="findingsModal.articleTitle"
+      :recommendation="findingsModal.findings.overallRecommendation"
+      :confidence="findingsModal.findings.confidence"
+      :findings="findingsModal.findings"
+    />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from "vue";
 import { useRefreshCandidates } from "src/composables/useRefreshCandidates";
+import { useRefreshSuggestions, type RefreshSuggestion, type QualityFindings } from "src/composables/useRefreshSuggestions";
 import { apiGet, apiPost } from "src/lib/api";
 import { useProjectStore } from "src/stores/project";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import EmptyState from "src/components/ui/EmptyState.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
 import RefreshCandidateCard from "src/components/refresh/RefreshCandidateCard.vue";
+import RefreshSuggestionCard from "src/components/refresh/RefreshSuggestionCard.vue";
+import QualityFindingsModal from "src/components/refresh/QualityFindingsModal.vue";
 
 interface CronStatusResponse {
   active: boolean;
   lastRunAt: string | null;
 }
 
+interface AnalyzeAllResponse {
+  enqueued: number;
+  estimatedCostEur: number;
+  jobIds: string[];
+}
+
+interface FindingsModalState {
+  open: boolean;
+  articleTitle: string;
+  findings: QualityFindings | null;
+}
+
 export default defineComponent({
   name: "RefreshQueuePage",
 
-  components: { GlassButton, EmptyState, LoadingShimmer, RefreshCandidateCard },
+  components: {
+    GlassButton,
+    EmptyState,
+    LoadingShimmer,
+    RefreshCandidateCard,
+    RefreshSuggestionCard,
+    QualityFindingsModal,
+  },
 
   setup() {
-    return useRefreshCandidates();
+    return {
+      ...useRefreshCandidates(),
+      ...useRefreshSuggestions(),
+    };
   },
 
   data: () => ({
     detecting: false,
+    analyzing: false,
     cronActive: false,
     cronLastRunAt: null as string | null,
+    findingsModal: {
+      open: false,
+      articleTitle: "",
+      findings: null,
+    } as FindingsModalState,
   }),
 
   computed: {
@@ -101,6 +183,9 @@ export default defineComponent({
         return this.$t("refresh.lastDetection", { time: this.relativeTime(this.cronLastRunAt) }) as string;
       }
       return this.$t("refresh.neverDetected") as string;
+    },
+    suggestionsLoading(): boolean {
+      return (this as unknown as ReturnType<typeof useRefreshSuggestions>).isLoading.value;
     },
   },
 
@@ -140,6 +225,27 @@ export default defineComponent({
       }
     },
 
+    async onAnalyzeAll(): Promise<void> {
+      this.analyzing = true;
+      try {
+        const result = await apiPost<AnalyzeAllResponse>(
+          `/projects/${this.slug}/articles/quality-analysis`,
+          {},
+        );
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("refresh.analyzeStarted", { count: result.enqueued }) as string,
+        });
+      } catch {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("refresh.analyzeFailed") as string,
+        });
+      } finally {
+        this.analyzing = false;
+      }
+    },
+
     async onTrigger(articleId: string): Promise<void> {
       try {
         await this.triggerRefresh(articleId);
@@ -166,6 +272,45 @@ export default defineComponent({
       }
     },
 
+    async onMarkRefreshed(articleId: string): Promise<void> {
+      try {
+        await this.markRefreshed(articleId);
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("refresh.markRefreshedSuccess") as string,
+        });
+      } catch {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("refresh.markRefreshedFailed") as string,
+        });
+      }
+    },
+
+    async onDismissSuggestion(id: string): Promise<void> {
+      try {
+        await this.dismissSuggestion(id);
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("refresh.suggestionDismissed") as string,
+        });
+      } catch {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("refresh.dismissFailed") as string,
+        });
+      }
+    },
+
+    onViewFindings(suggestion: RefreshSuggestion): void {
+      if (!suggestion.qualityFindings) return;
+      this.findingsModal = {
+        open: true,
+        articleTitle: suggestion.articleTitle ?? suggestion.articleSlug,
+        findings: suggestion.qualityFindings,
+      };
+    },
+
     relativeTime(iso: string): string {
       const diff = Date.now() - new Date(iso).getTime();
       const mins = Math.floor(diff / 60_000);
@@ -185,7 +330,7 @@ export default defineComponent({
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 24px;
   max-width: 860px;
 }
 
@@ -212,8 +357,9 @@ export default defineComponent({
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .cron-status {
@@ -243,6 +389,33 @@ export default defineComponent({
   color: var(--text-tertiary);
 }
 
+.suggestions-section,
+.candidates-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.section-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.suggestions-list,
 .candidates-list {
   display: flex;
   flex-direction: column;
