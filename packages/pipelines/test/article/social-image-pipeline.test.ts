@@ -89,7 +89,6 @@ import {
   ExtractToolsStep,
   GenerateCaptionStep,
   LoadArticleStep,
-  PersistSocialPostStep,
   ResolveAssetsStep,
 } from "../../src/article/social-image/steps.ts";
 
@@ -466,7 +465,7 @@ describe("ResolveAssetsStep", () => {
 // ─── GenerateCaptionStep — unit tests (mocked LLM) ───────────────────────────
 
 describe("GenerateCaptionStep", () => {
-  /** Minimal input satisfying UploadSlidesOutputSchema */
+  /** Minimal input satisfying ResolveAssetsOutputSchema (caption runs before render now) */
   function makeCaptionInput(overrides: { intentType?: string | null } = {}) {
     return {
       articleId: sharedArticleId,
@@ -499,9 +498,6 @@ describe("GenerateCaptionStep", () => {
           pricing: { tier: "freemium" as const, label: "ab 0$/Monat" },
         },
       ],
-      slideBuffers: [],
-      totalSlides: 3,
-      slideUrls: ["https://pub.example.com/slide-0.png"],
     };
   }
 
@@ -610,107 +606,6 @@ describe("GenerateCaptionStep", () => {
       }),
       cost: { totalEur: 0.001 },
     }));
-  });
-});
-
-// ─── PersistSocialPostStep — DB test ─────────────────────────────────────────
-
-describe("PersistSocialPostStep", () => {
-  const slideUrls = [
-    "https://pub.example.com/slide-0.png",
-    "https://pub.example.com/slide-1.png",
-    "https://pub.example.com/slide-2.png",
-  ];
-  const caption = "Schau dir die 5 besten KI-Tools an! 🎨 Link in Bio → https://example.com";
-  const hashtags = ["#KITools", "#ArtificialIntelligence", "#KI"];
-
-  /** Full PersistInputSchema-compatible input. Only a subset of fields is used by the step. */
-  function makePersistInput() {
-    return {
-      articleId: sharedArticleId,
-      projectId: sharedProjectId,
-      projectSlug: sharedProjectSlug,
-      theme: "dark" as const,
-      variant: "stunning" as const,
-      locales: ["de-DE"],
-      articleTitle: "Die 5 besten KI-Bildgeneratoren 2026",
-      articleSlug: "ki-tools-social-test",
-      intentType: null as string | null,
-      bodyMd: "# Test",
-      articleUrl: "https://example.com/ki-tools",
-      brandTokens: {},
-      extractedTools: [],
-      coverEyebrow: "KI-TOOLS 2026",
-      coverHeadlineLead: "Die 5 besten",
-      coverHeadlineHighlight: "KI-Tools",
-      endHeadline: "Mehr Reviews,",
-      endHeadlineHighlight: "ehrlich getestet.",
-      resolvedTools: [],
-      slideBuffers: [Buffer.alloc(0), Buffer.alloc(0), Buffer.alloc(0)],
-      totalSlides: 3,
-      slideUrls,
-      perLocaleOutputs: [{ locale: "de-DE", caption, hashtags }],
-    };
-  }
-
-  it("inserts one social post row per locale and returns correct output shape", async () => {
-    const step = new PersistSocialPostStep();
-    const out = await step.execute(makePersistInput(), mockCtx(sharedProjectId));
-
-    expect(out.socialPosts).toBeArray();
-    expect(out.socialPosts.length).toBe(1);
-    const post = out.socialPosts[0]!;
-    expect(post.socialPostId).toBeString();
-    expect(post.socialPostId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    );
-    expect(post.locale).toBe("de-DE");
-    expect(post.slideUrls).toEqual(slideUrls);
-    expect(post.caption).toBe(caption);
-    expect(post.hashtags).toEqual(hashtags);
-    expect(post.totalSlides).toBe(3);
-  });
-
-  it("DB row has correct theme, totalSlides, locale, and carousel content", async () => {
-    const step = new PersistSocialPostStep();
-    const out = await step.execute(makePersistInput(), mockCtx(sharedProjectId));
-
-    const post = out.socialPosts[0]!;
-    const [row] = await db
-      .select()
-      .from(socialPosts)
-      .where(eq(socialPosts.id, post.socialPostId))
-      .limit(1);
-
-    expect(row).toBeDefined();
-    expect(row!.theme).toBe("dark");
-    expect(row!.totalSlides).toBe(3);
-    expect(row!.locale).toBe("de-DE");
-    expect(row!.platform).toBe("instagram");
-    expect(row!.format).toBe("carousel");
-    expect(row!.status).toBe("draft");
-
-    const content = row!.content as { kind: string; slides: Array<{ imageUrl: string }>; caption: string; hashtags: string[] };
-    expect(content.kind).toBe("carousel");
-    expect(content.slides.length).toBe(3);
-    expect(content.slides[0]!.imageUrl).toBe(slideUrls[0]!);
-    expect(content.caption).toBe(caption);
-    expect(content.hashtags).toEqual(hashtags);
-  });
-
-  it("links the social post to the correct articleId", async () => {
-    const step = new PersistSocialPostStep();
-    const out = await step.execute(makePersistInput(), mockCtx(sharedProjectId));
-
-    const post = out.socialPosts[0]!;
-    const [row] = await db
-      .select()
-      .from(socialPosts)
-      .where(eq(socialPosts.id, post.socialPostId))
-      .limit(1);
-
-    expect(row!.articleId).toBe(sharedArticleId);
-    expect(row!.projectId).toBe(sharedProjectId);
   });
 });
 

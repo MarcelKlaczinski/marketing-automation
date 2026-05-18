@@ -5,10 +5,8 @@ import {
   ExtractToolsStep,
   GenerateCaptionStep,
   LoadArticleStep,
-  PersistSocialPostStep,
   RenderSlidesStep,
   ResolveAssetsStep,
-  UploadSlidesStep,
 } from "./steps.ts";
 
 const log = createLogger("pipelines:social-image");
@@ -34,10 +32,9 @@ const InputSchema = z.object({
 type SocialPostResult = {
   socialPostId: string;
   locale: string;
-  slideUrls: string[];
+  renderJobId: string;
   caption: string;
   hashtags: string[];
-  totalSlides: number;
 };
 
 type PipelineOutput = {
@@ -48,10 +45,9 @@ const OutputSchema = z.object({
   socialPosts: z.array(z.object({
     socialPostId: z.string().uuid(),
     locale: z.string(),
-    slideUrls: z.array(z.string()),
+    renderJobId: z.string(),
     caption: z.string(),
     hashtags: z.array(z.string()),
-    totalSlides: z.number().int(),
   })).min(1),
 }) as z.ZodType<PipelineOutput>;
 
@@ -64,16 +60,14 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
     new LoadArticleStep(),
     new ExtractToolsStep(),
     new ResolveAssetsStep(),
-    new RenderSlidesStep(),
-    new UploadSlidesStep(),
     new GenerateCaptionStep(),
-    new PersistSocialPostStep(),
+    new RenderSlidesStep(),
   ];
 
   override async afterComplete(output: PipelineOutput, _input: PipelineInput, _runId: string): Promise<void> {
     log.info(
-      { localeCount: output.socialPosts.length, totalSlides: output.socialPosts[0]?.totalSlides },
-      "Social image carousel generated"
+      { localeCount: output.socialPosts.length },
+      "Social image pipeline complete — render jobs enqueued"
     );
   }
 }

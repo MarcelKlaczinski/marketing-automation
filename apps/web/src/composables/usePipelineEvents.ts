@@ -86,6 +86,19 @@ export function usePipelineEvents() {
     }
   }
 
+  function handleSocialRenderEvent(e: MessageEvent): void {
+    const event = JSON.parse(e.data as string) as PipelineEvent;
+    eventsStore.addEvent(event);
+
+    // Invalidate social post queries so render-status chips + slide previews update.
+    // Scope to the article when known; fall back to broader invalidation.
+    if (event.articleId) {
+      void queryClient.invalidateQueries({ queryKey: ["social-posts", event.articleId] });
+    } else {
+      void queryClient.invalidateQueries({ queryKey: ["social-posts"] });
+    }
+  }
+
   function connect(): void {
     cleanup();
 
@@ -123,6 +136,16 @@ export function usePipelineEvents() {
 
     for (const name of discoveryEvents) {
       eventSource.addEventListener(name, handleDiscoveryEvent);
+    }
+
+    const socialRenderEvents = [
+      "social.render.started",
+      "social.render.completed",
+      "social.render.failed",
+    ] as const;
+
+    for (const name of socialRenderEvents) {
+      eventSource.addEventListener(name, handleSocialRenderEvent);
     }
 
     eventSource.onerror = () => {

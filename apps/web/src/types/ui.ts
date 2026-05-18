@@ -31,7 +31,11 @@ export type PipelineEventType =
   // Spec 56.6: Discovery events
   | "trends.discovered"
   | "gaps.detected"
-  | "refresh.detected";
+  | "refresh.detected"
+  // Spec 57.2: Social render lifecycle events
+  | "social.render.started"
+  | "social.render.completed"
+  | "social.render.failed";
 
 /** A single SSE pipeline event */
 export interface PipelineEvent {
@@ -41,6 +45,11 @@ export interface PipelineEvent {
   clusterId?: string;
   projectSlug: string;
   payload: Record<string, unknown>;
+  // Spec 57.2: social render event fields
+  socialPostId?: string;
+  articleId?: string;
+  slideCount?: number;
+  error?: string;
 }
 
 /** Which DB table this activity entry originates from — determines which detail endpoint to call */

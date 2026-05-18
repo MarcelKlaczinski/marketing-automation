@@ -5,6 +5,7 @@
   "main": "./src/index.tsx",
   "exports": {
     ".": "./src/index.tsx",
+    "./render-server": "./render-server.ts",
     "./templates": "./src/templates/index.ts",
     "./templates/overrides": "./src/templates/overrides/index.ts",
     "./lib": "./src/lib/index.ts"

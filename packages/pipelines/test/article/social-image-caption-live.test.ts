@@ -51,9 +51,6 @@ const BASE_INPUT = {
   coverHeadlineHighlight: "KI-Code-Editoren",
   endHeadline: "Mehr Reviews,",
   endHeadlineHighlight: "ehrlich getestet.",
-  slideBuffers: [] as never[],
-  totalSlides: 5,
-  slideUrls: ["https://pub.example.com/slide-0.png"],
 };
 
 describe.skipIf(!LIVE)("GenerateCaptionStep — live hashtag quality smoke test", () => {
@@ -100,7 +97,6 @@ describe.skipIf(!LIVE)("GenerateCaptionStep — live hashtag quality smoke test"
       coverEyebrow: "CURSOR REVIEW",
       coverHeadlineLead: "Review:",
       coverHeadlineHighlight: "Cursor",
-      totalSlides: 3,
       resolvedTools: [resolvedTools[0]!],
     }, mockCtx());
 
@@ -128,7 +124,6 @@ describe.skipIf(!LIVE)("GenerateCaptionStep — live hashtag quality smoke test"
       coverEyebrow: "KI IM ALLTAG",
       coverHeadlineLead: "So verändert",
       coverHeadlineHighlight: "KI deinen Job",
-      totalSlides: 4,
       resolvedTools,
     }, mockCtx());
 

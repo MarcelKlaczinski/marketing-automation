@@ -1,11 +1,12 @@
 // Spec 57.2: BullMQ queue for async Remotion rendering.
-// Job data is a complete snapshot of everything the worker needs — no DB reads during render.
+// Intentionally lives in packages/pipelines so pipeline steps can enqueue directly.
+// The worker (apps/api/src/workers/social-render.worker.ts) also imports from here.
 import { Queue } from "bullmq";
 import { db, eq, socialPosts } from "@marketing-auto/db";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 
-const log = createLogger("workers:social-render-queue");
+const log = createLogger("pipelines:social-render-queue");
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -80,10 +81,11 @@ export async function enqueueSocialRenderJob(data: SocialRenderJobData): Promise
   const queue = getSocialRenderQueue();
 
   const job = await queue.add("render", data, {
-    // Idempotent: BullMQ rejects a second enqueue with the same jobId if a job is already waiting/active
+    // Idempotent: BullMQ rejects a second enqueue with the same jobId if job is already waiting/active
     jobId: `render-${data.socialPostId}`,
   });
 
+  // BullMQ always sets job.id to the provided jobId option — non-null is safe here.
   const jobId = job.id!;
 
   await db

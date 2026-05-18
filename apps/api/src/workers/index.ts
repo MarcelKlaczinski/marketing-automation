@@ -43,7 +43,7 @@ import { startCronOrchestratorWorker, registerCronOrchestrator } from "./cron-or
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
-import { closeSocialRenderQueue } from "./social-render.queue.ts";
+import { closeSocialRenderQueue } from "@marketing-auto/pipelines/social-render-queue";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("worker");

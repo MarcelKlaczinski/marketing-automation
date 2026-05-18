@@ -103,6 +103,30 @@ socialPostDetailRoutes.get("/:id", async (c) => {
   return c.json({ ok: true, data: post });
 });
 
+// ─── GET /api/social-posts/:id/render-status ────────────────────────────────
+// Polling fallback for SSE recovery — returns current render lifecycle state.
+
+socialPostDetailRoutes.get("/:id/render-status", async (c) => {
+  const id = c.req.param("id");
+
+  const rows = await db
+    .select({
+      renderStatus: socialPosts.renderStatus,
+      renderStartedAt: socialPosts.renderStartedAt,
+      renderCompletedAt: socialPosts.renderCompletedAt,
+      renderError: socialPosts.renderError,
+      totalSlides: socialPosts.totalSlides,
+    })
+    .from(socialPosts)
+    .where(eq(socialPosts.id, id))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return c.json({ ok: false, error: "Social post not found" }, 404);
+
+  return c.json({ ok: true, data: row });
+});
+
 // ─── GET /api/social-posts/:id/download-bundle ──────────────────────────────
 
 socialPostDetailRoutes.get("/:id/download-bundle", async (c) => {

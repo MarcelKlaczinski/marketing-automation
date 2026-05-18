@@ -4,10 +4,11 @@
 import { Worker } from "bullmq";
 import { publishPipelineEvent } from "@marketing-auto/core/events";
 import { type RenderError, db, eq, socialPosts, sql } from "@marketing-auto/db";
+import { r2 } from "@marketing-auto/adapter-storage";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 import { z } from "zod";
-import { getSocialRenderQueue, type SocialRenderJobData, type SocialRenderJobResult } from "./social-render.queue.ts";
+import { getSocialRenderQueue, type SocialRenderJobData, type SocialRenderJobResult } from "@marketing-auto/pipelines/social-render-queue";
 
 const log = createLogger("workers:social-render");
 
@@ -41,10 +42,56 @@ const socialRenderJobDataSchema = z.object({
 
 // ─── Remotion render (real impl wired in Session 3) ──────────────────────────
 
-async function renderSlidesViaRemotion(_data: SocialRenderJobData): Promise<{ slideUrls: string[] }> {
-  // Session 3 will replace this stub with the actual Remotion + R2 upload logic
-  // extracted from the former synchronous RenderSlidesStep + UploadSlidesStep.
-  throw new Error("renderSlidesViaRemotion: not yet implemented (Session 3)");
+async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ slideUrls: string[] }> {
+  const locale = (data.locale.startsWith("de") ? "de" : "en") as "de" | "en";
+  const toolRecap = (data.resolvedTools as Array<{ slug: string }>).map((t) => t.slug);
+
+  const carouselInput = {
+    theme: data.theme,
+    variant: data.variant,
+    locale,
+    brandTokens: data.brandTokens,
+    slideIndex: 0,
+    overrides: data.overrides,
+    cover: {
+      eyebrow: data.coverEyebrow,
+      headlineLead: data.coverHeadlineLead,
+      headlineHighlight: data.coverHeadlineHighlight,
+      ...(data.coverHeadlineTrail !== undefined && { headlineTrail: data.coverHeadlineTrail }),
+      ...(data.coverSubhead !== undefined && { subhead: data.coverSubhead }),
+      ...(data.coverHookOutput !== undefined && { hookOutput: data.coverHookOutput }),
+    },
+    tools: data.resolvedTools,
+    end: {
+      headline: data.endHeadline,
+      headlineHighlight: data.endHeadlineHighlight,
+      articleUrl: data.articleUrl,
+      ...(data.endCloser !== undefined && { closer: data.endCloser }),
+      toolRecap,
+    },
+  };
+
+  // Dynamic import: avoids Remotion bundling into API startup context (per packages/social CLAUDE.md).
+  // Import from the /render-server subpath (pure .ts, no JSX) so the API tsconfig doesn't need --jsx.
+  const { renderListCarouselStunning } = (await import("@marketing-auto/social/render-server")) as unknown as {
+    renderListCarouselStunning: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  };
+  const { slides } = await renderListCarouselStunning(carouselInput as Record<string, unknown>);
+
+  // Upload each PNG buffer to R2 and collect public URLs
+  const timestamp = Date.now();
+  const slideUrls: string[] = [];
+  for (let i = 0; i < slides.length; i++) {
+    const key = `${data.projectSlug}/social/${data.articleSlug}-${timestamp}-slide-${i}.png`;
+    const result = await r2.put({
+      key,
+      body: slides[i]!,
+      contentType: "image/png",
+    });
+    slideUrls.push(result.publicUrl);
+  }
+
+  return { slideUrls };
 }
 
 // ─── Worker factory ───────────────────────────────────────────────────────────
@@ -130,6 +177,7 @@ export function startSocialRenderWorker(): Worker<SocialRenderJobData, SocialRen
         .set({
           renderStatus: "rendered",
           renderCompletedAt: new Date(),
+          totalSlides: slideUrls.length,
           content: sql`jsonb_set(${socialPosts.content}, '{slides}', ${slidesJson}::jsonb)`,
         })
         .where(eq(socialPosts.id, socialPostId));

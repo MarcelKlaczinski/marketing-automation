@@ -1,6 +1,6 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
-import { r2 } from "@marketing-auto/adapter-storage";
 import { COST_OPS, buildHashtagInstructions, deriveContentType } from "@marketing-auto/core";
+import { enqueueSocialRenderJob, type SocialRenderJobData } from "../../engine/social-render-queue.ts";
 import {
   articles,
   db,
@@ -9,7 +9,6 @@ import {
   projects,
   socialPosts,
 } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -29,8 +28,6 @@ import {
   selectPattern,
   validateHook,
 } from "@marketing-auto/core";
-
-const log = createLogger("pipelines:social-image");
 
 // ─── Shared schemas ────────────────────────────────────────────────────────────
 
@@ -468,129 +465,10 @@ export class ResolveAssetsStep extends BaseStep<
   }
 }
 
-// ─── Step 4: RenderSlidesStep ────────────────────────────────────────────────
+// ─── Step 4: GenerateCaptionStep ─────────────────────────────────────────────
+// Runs before rendering — caption doesn't depend on slide images.
 
-const RenderSlidesInputSchema = ResolveAssetsOutputSchema;
-const RenderSlidesOutputSchema = RenderSlidesInputSchema.extend({
-  slideBuffers: z.array(z.instanceof(Buffer)),
-  totalSlides: z.number().int(),
-});
-
-export class RenderSlidesStep extends BaseStep<
-  z.infer<typeof RenderSlidesInputSchema>,
-  z.infer<typeof RenderSlidesOutputSchema>
-> {
-  readonly name = "render-slides";
-  readonly inputSchema = RenderSlidesInputSchema;
-  readonly outputSchema = RenderSlidesOutputSchema;
-
-  override estimatedCostEur(): number { return 0.002; }
-
-  async execute(input: z.infer<typeof RenderSlidesInputSchema>, ctx: StepContext) {
-    ctx.log.info({ toolCount: input.resolvedTools.length }, "Rendering Remotion slides");
-
-    // Determine template key from tool count (comparison-stunning-3 = exactly 3 tools)
-    const templateKey = input.resolvedTools.length === 3 ? "comparison-stunning-3" : "comparison-stunning";
-
-    // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
-    const { getOverrideSchema, mergeOverrides } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
-    const overrideRow = await fetchTemplateOverrides(input.projectId, templateKey);
-    const resolvedOverrides = mergeOverrides(getOverrideSchema(templateKey), overrideRow?.values);
-
-    // Fire-and-forget: mark last_used_at (approximate — only writes when older than 1h)
-    if (overrideRow) {
-      markTemplateOverrideUsed(input.projectId, templateKey).catch((err: unknown) => {
-        ctx.log.warn({ err, projectId: input.projectId, templateKey }, "markTemplateOverrideUsed failed");
-      });
-    }
-
-    // Dynamic import at runtime — social package is a workspace peer
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic import avoids circular dep during build
-    const socialModule = await import("../../../../social/render-server.ts") as any;
-    const renderListCarouselStunning = socialModule.renderListCarouselStunning as (
-      input: Record<string, unknown>
-    ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
-
-    const toolRecap = input.resolvedTools.map((t) => t.slug);
-    // Derive locale from pipeline locales (first locale, fallback to "de")
-    const locale = (input.locales[0]?.startsWith("de") ? "de" : "en") as "de" | "en";
-
-    const carouselInput = {
-      theme: input.theme,
-      variant: input.variant,
-      locale,
-      brandTokens: input.brandTokens,
-      slideIndex: 0,
-      overrides: resolvedOverrides,
-      cover: {
-        eyebrow: input.coverEyebrow,
-        headlineLead: input.coverHeadlineLead,
-        headlineHighlight: input.coverHeadlineHighlight,
-        headlineTrail: input.coverHeadlineTrail,
-        subhead: input.coverSubhead,
-        ...(input.coverHookOutput && { hookOutput: input.coverHookOutput }),
-      },
-      tools: input.resolvedTools,
-      end: {
-        headline: input.endHeadline,
-        headlineHighlight: input.endHeadlineHighlight,
-        articleUrl: input.articleUrl,
-        ...(input.endCloser && { closer: input.endCloser }),
-        toolRecap,
-      },
-    };
-
-    await ctx.reportProgress(10, "Bundling Remotion");
-    const { slides, sequenceCount } = await renderListCarouselStunning(carouselInput);
-    await ctx.reportProgress(90, `Rendered ${sequenceCount} slides`);
-
-    return { ...input, slideBuffers: slides, totalSlides: sequenceCount };
-  }
-}
-
-// ─── Step 5: UploadSlidesStep ────────────────────────────────────────────────
-
-const UploadSlidesInputSchema = RenderSlidesOutputSchema;
-const UploadSlidesOutputSchema = UploadSlidesInputSchema.extend({
-  slideUrls: z.array(z.string()),
-});
-
-export class UploadSlidesStep extends BaseStep<
-  z.infer<typeof UploadSlidesInputSchema>,
-  z.infer<typeof UploadSlidesOutputSchema>
-> {
-  readonly name = "upload-slides";
-  readonly inputSchema = UploadSlidesInputSchema;
-  readonly outputSchema = UploadSlidesOutputSchema;
-
-  override estimatedCostEur(): number { return 0.0001; }
-
-  async execute(input: z.infer<typeof UploadSlidesInputSchema>, ctx: StepContext) {
-    const timestamp = Date.now();
-    const slideUrls: string[] = [];
-
-    for (let i = 0; i < input.slideBuffers.length; i++) {
-      const key = `${input.projectSlug}/social/${input.articleSlug}-${timestamp}-slide-${i}.png`;
-      const result = await r2.put({
-        key,
-        body: input.slideBuffers[i]!,
-        contentType: "image/png",
-      });
-      slideUrls.push(result.publicUrl);
-      await ctx.reportProgress(
-        Math.round((i / input.slideBuffers.length) * 100),
-        `Uploaded slide ${i + 1}/${input.slideBuffers.length}`
-      );
-    }
-
-    log.info({ count: slideUrls.length }, "Slides uploaded to R2");
-    return { ...input, slideUrls };
-  }
-}
-
-// ─── Step 6: GenerateCaptionStep ─────────────────────────────────────────────
-
-const GenerateCaptionInputSchema = UploadSlidesOutputSchema;
+const GenerateCaptionInputSchema = ResolveAssetsOutputSchema;
 
 const perLocaleOutputSchema = z.object({
   locale: z.string(),
@@ -702,37 +580,54 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
   }
 }
 
-// ─── Step 7: PersistSocialPostStep ───────────────────────────────────────────
+// ─── Step 5: RenderSlidesStep (enqueue async Remotion render) ────────────────
+// Inserts one social_post row per locale with caption/hashtags, then enqueues
+// a BullMQ render job. The worker (social-render.worker.ts) uploads slides to
+// R2 and updates renderStatus → rendered + content.slides.
 
-const PersistInputSchema = GenerateCaptionOutputSchema;
+const RenderSlidesInputSchema = GenerateCaptionOutputSchema;
 
 const socialPostResultSchema = z.object({
   socialPostId: z.string().uuid(),
   locale: z.string(),
-  slideUrls: z.array(z.string()),
+  renderJobId: z.string(),
   caption: z.string(),
   hashtags: z.array(z.string()),
-  totalSlides: z.number().int(),
 });
 
-const PersistOutputSchema = z.object({
+const RenderSlidesOutputSchema = z.object({
   socialPosts: z.array(socialPostResultSchema).min(1),
 });
 
-export class PersistSocialPostStep extends BaseStep<
-  z.infer<typeof PersistInputSchema>,
-  z.infer<typeof PersistOutputSchema>
+export class RenderSlidesStep extends BaseStep<
+  z.infer<typeof RenderSlidesInputSchema>,
+  z.infer<typeof RenderSlidesOutputSchema>
 > {
-  readonly name = "persist-social-post";
-  readonly inputSchema = PersistInputSchema;
-  readonly outputSchema = PersistOutputSchema;
+  readonly name = "render-slides";
+  readonly inputSchema = RenderSlidesInputSchema;
+  readonly outputSchema = RenderSlidesOutputSchema;
 
-  override estimatedCostEur(): number { return 0; }
+  override estimatedCostEur(): number { return 0.002; }
 
-  async execute(input: z.infer<typeof PersistInputSchema>, _ctx: StepContext): Promise<z.infer<typeof PersistOutputSchema>> {
+  async execute(input: z.infer<typeof RenderSlidesInputSchema>, ctx: StepContext): Promise<z.infer<typeof RenderSlidesOutputSchema>> {
+    const templateKey = input.resolvedTools.length === 3 ? "comparison-stunning-3" : "comparison-stunning";
+
+    // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
+    const { getOverrideSchema, mergeOverrides } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
+    const overrideRow = await fetchTemplateOverrides(input.projectId, templateKey);
+    const resolvedOverrides = mergeOverrides(getOverrideSchema(templateKey), overrideRow?.values);
+
+    // Fire-and-forget: mark last_used_at (approximate — only writes when older than 1h)
+    if (overrideRow) {
+      markTemplateOverrideUsed(input.projectId, templateKey).catch((err: unknown) => {
+        ctx.log.warn({ err, projectId: input.projectId, templateKey }, "markTemplateOverrideUsed failed");
+      });
+    }
+
     const results: Array<z.infer<typeof socialPostResultSchema>> = [];
 
     for (const loc of input.perLocaleOutputs) {
+      // INSERT social_post row immediately — slides array populated by render worker later
       const [post] = await db
         .insert(socialPosts)
         .values({
@@ -743,27 +638,60 @@ export class PersistSocialPostStep extends BaseStep<
           status: "draft",
           theme: input.theme,
           locale: loc.locale,
-          totalSlides: input.totalSlides,
+          templateKey,
+          totalSlides: 0,
           content: {
             kind: "carousel",
-            slides: input.slideUrls.map((url) => ({ imageUrl: url })),
+            slides: [],
             caption: loc.caption,
             hashtags: loc.hashtags,
             ...(loc.warnings ? { warnings: loc.warnings } : {}),
           },
+          renderStatus: "pending",
           generatedAt: new Date(),
         })
         .returning({ id: socialPosts.id });
 
       if (!post) throw new Error(`Failed to insert social post for locale ${loc.locale}`);
 
+      // Build job payload — snapshot all render inputs at enqueue time
+      // (no DB reads in worker; exactOptionalPropertyTypes requires conditional spreads)
+      const jobData: SocialRenderJobData = {
+        socialPostId: post.id,
+        projectId: input.projectId,
+        articleId: input.articleId,
+        templateKey,
+        locale: loc.locale,
+        brandTokens: input.brandTokens,
+        overrides: resolvedOverrides,
+        resolvedTools: input.resolvedTools as Array<Record<string, unknown>>,
+        articleTitle: input.articleTitle,
+        articleSlug: input.articleSlug,
+        projectSlug: input.projectSlug,
+        articleUrl: input.articleUrl,
+        theme: input.theme,
+        variant: input.variant,
+        coverEyebrow: input.coverEyebrow,
+        coverHeadlineLead: input.coverHeadlineLead,
+        coverHeadlineHighlight: input.coverHeadlineHighlight,
+        endHeadline: input.endHeadline,
+        endHeadlineHighlight: input.endHeadlineHighlight,
+        ...(input.coverHeadlineTrail !== undefined && { coverHeadlineTrail: input.coverHeadlineTrail }),
+        ...(input.coverSubhead !== undefined && { coverSubhead: input.coverSubhead }),
+        ...(input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
+        ...(input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
+      };
+
+      const renderJobId = await enqueueSocialRenderJob(jobData);
+
+      ctx.log.info({ socialPostId: post.id, renderJobId, locale: loc.locale }, "Social post created + render job enqueued");
+
       results.push({
         socialPostId: post.id,
         locale: loc.locale,
-        slideUrls: input.slideUrls,
+        renderJobId,
         caption: loc.caption,
         hashtags: loc.hashtags,
-        totalSlides: input.totalSlides,
       });
     }
 

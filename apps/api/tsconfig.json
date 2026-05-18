@@ -46,6 +46,8 @@
       "@marketing-auto/adapter-voyage/verify": ["../../packages/adapters/voyage/src/verify.ts"],
       "@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"],
       "@marketing-auto/pipelines/engine": ["../../packages/pipelines/src/engine/index.ts"],
+      "@marketing-auto/pipelines/social-render-queue": ["../../packages/pipelines/src/engine/social-render-queue.ts"],
+      "@marketing-auto/social/render-server": ["../../packages/social/render-server.ts"],
       "@marketing-auto/social/templates": ["../../packages/social/src/templates/index.ts"],
       "@marketing-auto/social/templates/overrides": ["../../packages/social/src/templates/overrides/index.ts"],
       "@marketing-auto/social/lib": ["../../packages/social/src/lib/index.ts"]
