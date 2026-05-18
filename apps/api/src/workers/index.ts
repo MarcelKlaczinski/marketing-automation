@@ -42,6 +42,8 @@ import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
 import { startCronOrchestratorWorker, registerCronOrchestrator } from "./cron-orchestrator.ts";
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
+import { startSocialRenderWorker } from "./social-render.worker.ts";
+import { closeSocialRenderQueue } from "./social-render.queue.ts";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("worker");
@@ -179,6 +181,7 @@ async function main() {
   const cronOrchestratorWorker = startCronOrchestratorWorker();
   await registerCronOrchestrator();
   const gapAutoApproverWorker = startGapAutoApproverWorker();
+  const socialRenderWorker = startSocialRenderWorker();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -193,6 +196,8 @@ async function main() {
     await refreshDetectorWorker.close();
     await cronOrchestratorWorker.close();
     await gapAutoApproverWorker.close();
+    await socialRenderWorker.close();
+    await closeSocialRenderQueue();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

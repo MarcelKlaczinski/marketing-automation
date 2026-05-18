@@ -63,6 +63,13 @@ export const socialStatusEnum = pgEnum("social_status", [
   "replaced",  // Spec 52b: old post superseded by re-render
 ]);
 
+export const socialRenderStatusEnum = pgEnum("social_render_status", [
+  "pending",
+  "rendering",
+  "rendered",
+  "failed",
+]);
+
 export const credentialServiceEnum = pgEnum("credential_service", [
   "google_analytics",
   "google_search_console",

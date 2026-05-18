@@ -10,6 +10,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { vector } from "drizzle-orm/pg-core";
 import {
@@ -18,6 +19,7 @@ import {
   cornerstoneSpecStatusEnum,
   socialFormatEnum,
   socialPlatformEnum,
+  socialRenderStatusEnum,
   socialStatusEnum,
 } from "./_enums.ts";
 import { clusters } from "./identity.ts";
@@ -368,6 +370,13 @@ export const socialPosts = pgTable(
     // Spec 57.1: locale is now NOT NULL (migration 0047 backfilled existing rows to 'de-DE')
     locale: text("locale").notNull().default("de-DE"),
 
+    // Spec 57.2: render lifecycle (orthogonal to content-lifecycle `status`)
+    renderStatus: socialRenderStatusEnum("render_status").notNull().default("pending"),
+    renderJobId: text("render_job_id"),
+    renderStartedAt: timestamp("render_started_at", { withTimezone: true }),
+    renderCompletedAt: timestamp("render_completed_at", { withTimezone: true }),
+    renderError: jsonb("render_error").$type<RenderError | null>(),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -379,6 +388,9 @@ export const socialPosts = pgTable(
     templateKeyIdx: index("social_posts_template_key_idx").on(t.projectId, t.templateKey),
     articleTemplateIdx: index("social_posts_article_template_idx").on(t.articleId, t.templateKey, t.locale),
     articleLocaleStatusIdx: index("social_posts_article_locale_status_idx").on(t.articleId, t.locale, t.status),
+    renderStatusActiveIdx: index("social_posts_render_status_idx")
+      .on(t.renderStatus)
+      .where(sql`render_status IN ('pending', 'rendering')`),
   })
 );
 
@@ -392,6 +404,13 @@ export type SocialPostContent =
   | { kind: "reel"; videoUrl: string; coverUrl: string; caption: string; hashtags: string[] }
   | { kind: "single_image"; imageUrl: string; caption: string; hashtags: string[] }
   | { kind: "story"; imageUrl: string; durationSec?: number };
+
+export type RenderError = {
+  code: string;
+  message: string;
+  stack?: string;
+  attemptedAt: string;
+};
 
 // ─── Spec 49b: Content Gap Detection ─────────────────────────────────────────
 
