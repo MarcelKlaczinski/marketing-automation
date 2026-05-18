@@ -75,7 +75,7 @@ systemRoutes.get("/status", async (c) => {
 // Auth required — only logged-in users may write credentials.
 
 const credentialSchema = z.object({
-  service: z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage"]),
+  service: z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]),
   key: z.string().min(1).max(100),
   value: z.string().min(1).max(10_000),
   metadata: z.record(z.unknown()).optional(),
@@ -120,7 +120,7 @@ systemRoutes.delete("/credentials/:service/:key", requireAuth, async (c) => {
 // ───── DELETE /api/system/credentials/:service ──────────────────────────────
 // Auth required — removes all credentials for a service and clears its verify status.
 
-const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage"] as const;
+const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"] as const;
 
 systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
   const service = c.req.param("service");
