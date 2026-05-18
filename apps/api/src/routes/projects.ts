@@ -232,7 +232,7 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       signalSources: {
         producthunt: false,
         hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5 },
-        reddit: { enabled: false, subreddits: [] },
+        reddit: { enabled: false, subreddits: ["LocalLLaMA", "MachineLearning", "ChatGPT", "ClaudeAI", "SaaS", "InternetIsBeautiful", "SideProject", "PromptEngineering", "StableDiffusion"], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" },
         github: false,
         vendor_rss: { enabled: false, feeds: [] },
         dataforseo_trends: false,
@@ -297,6 +297,7 @@ const updateProjectSchema = z.object({
   trendsCronEnabled: z.boolean().optional(),
   refreshCronEnabled: z.boolean().optional(),
   qualityAnalysisCronEnabled: z.boolean().optional(),
+  redditSignalCronEnabled: z.boolean().optional(),
   autoApproveGaps: z.boolean().optional(),
   refreshStalenessThresholdDays: z.number().int().min(7).max(365).optional(),
 });
@@ -345,19 +346,22 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     .where(eq(projects.id, existing.id));
 
   // Sync cron_state rows when cron flags change so orchestrator picks up changes within seconds
-  const cronChanges: Array<{ jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis"; isActive: boolean }> = [];
+  const cronChanges: Array<{ jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit"; isActive: boolean }> = [];
   if (input.trendsCronEnabled !== undefined)
     cronChanges.push({ jobType: "trends_synthesizer", isActive: input.trendsCronEnabled });
   if (input.refreshCronEnabled !== undefined)
     cronChanges.push({ jobType: "refresh_detector", isActive: input.refreshCronEnabled });
   if (input.qualityAnalysisCronEnabled !== undefined)
     cronChanges.push({ jobType: "quality_analysis", isActive: input.qualityAnalysisCronEnabled });
+  if (input.redditSignalCronEnabled !== undefined)
+    cronChanges.push({ jobType: "signal_collector_reddit", isActive: input.redditSignalCronEnabled });
 
   if (cronChanges.length > 0) {
     const defaultPatterns: Record<string, string> = {
       trends_synthesizer: "30 1 * * *",
       refresh_detector: "0 2 * * *",
       quality_analysis: "0 3 * * *",
+      signal_collector_reddit: "30 2 * * *",
     };
     for (const { jobType, isActive } of cronChanges) {
       await db

@@ -60,6 +60,16 @@ type Input = z.infer<typeof _InputSchema>;
 const InputSchema = _InputSchema as z.ZodType<Input>; // resolves exactOptionalPropertyTypes variance
 ```
 
+**Implemented sources:**
+| Adapter | Package | Cron job type | Free? |
+|---------|---------|---------------|-------|
+| HackerNews (Algolia) | `@marketing-auto/adapter-hackernews` | `signal_collector_hackernews` | ✅ |
+| ProductHunt | `@marketing-auto/adapter-producthunt` | `signal_collector_producthunt` | ✅ |
+| Vendor RSS | `@marketing-auto/adapter-vendor-rss` | `signal_collector_vendor_rss` | ✅ |
+| Reddit OAuth | `@marketing-auto/adapter-reddit` | `signal_collector_reddit` | ✅ |
+
+**Reddit specifics:** OAuth2 `client_credentials` flow. Token cached per `clientId` (60s pre-expiry buffer). Credentials stored via `global_credentials` service=`"reddit"`, keys: `client_id`, `client_secret`, `user_agent`. Default: 9 AI/SaaS subreddits, `sortMode=top`, `timeWindow=week`. Stickied + NSFW posts filtered before returning. Rate-limit header `x-ratelimit-remaining` parsed and logged; 429 throws `RedditApiError(status=429)`. Live test: `RUN_LIVE_REDDIT=1 REDDIT_CLIENT_ID=... bun --filter @marketing-auto/adapter-reddit test`.
+
 **Adding a new source**: create `packages/adapters/<name>/`, implement `ExternalSignalSource<Input>`, add the adapter to the `collect-adapter` switch in `signal-collector.ts`, and register it in `handleCollectProject()`.
 
 ## Topic Sources (Spec 54.1+)

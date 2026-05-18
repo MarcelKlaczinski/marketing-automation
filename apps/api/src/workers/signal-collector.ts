@@ -9,6 +9,7 @@ import { readAdapterCreds } from "../lib/system-service.ts";
 import { ProductHuntSignalSource } from "@marketing-auto/adapter-producthunt";
 import { HackerNewsSignalSource } from "@marketing-auto/adapter-hackernews";
 import { VendorRssSignalSource } from "@marketing-auto/adapter-vendor-rss";
+import { RedditSignalSource } from "@marketing-auto/adapter-reddit";
 
 const log = createLogger("signal-collector");
 
@@ -53,7 +54,7 @@ const collectProjectJobSchema = z.object({
 const collectAdapterJobSchema = z.object({
   type: z.literal("collect-adapter"),
   projectId: z.string().uuid(),
-  adapter: z.enum(["producthunt", "hackernews", "vendor_rss"]),
+  adapter: z.enum(["producthunt", "hackernews", "vendor_rss", "reddit"]),
 });
 
 // ─── Worker ───────────────────────────────────────────────────────────────────
@@ -79,6 +80,13 @@ export function startSignalCollectorWorker() {
       if (name === "collect-adapter") {
         const data = collectAdapterJobSchema.parse(job.data);
         await handleCollectAdapter(data.projectId, data.adapter);
+        return;
+      }
+
+      // Per-project Reddit cron dispatched by cron-orchestrator
+      if (name.startsWith("signal_collector_reddit:")) {
+        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
+        await handleCollectAdapter(projectId, "reddit");
         return;
       }
 
@@ -112,10 +120,11 @@ async function handleCollectProject(projectId: string): Promise<void> {
     return;
   }
 
-  const enabled: Array<"producthunt" | "hackernews" | "vendor_rss"> = [];
+  const enabled: Array<"producthunt" | "hackernews" | "vendor_rss" | "reddit"> = [];
   if (config.signalSources.producthunt) enabled.push("producthunt");
   if (config.signalSources.hackernews.enabled) enabled.push("hackernews");
   if (config.signalSources.vendor_rss.enabled) enabled.push("vendor_rss");
+  if (config.signalSources.reddit.enabled) enabled.push("reddit");
 
   if (enabled.length === 0) {
     log.info({ projectId }, "collect-project: no signal sources enabled, skipping");
@@ -132,7 +141,7 @@ async function handleCollectProject(projectId: string): Promise<void> {
 
 async function handleCollectAdapter(
   projectId: string,
-  adapter: "producthunt" | "hackernews" | "vendor_rss",
+  adapter: "producthunt" | "hackernews" | "vendor_rss" | "reddit",
 ): Promise<void> {
   const ctx = { projectId };
   let signals: RawSignal[] = [];
@@ -175,6 +184,34 @@ async function handleCollectAdapter(
         return;
       }
       signals = await new VendorRssSignalSource().fetch({ feeds, maxAgeDays: 14 }, ctx);
+      break;
+    }
+    case "reddit": {
+      let redditConfig;
+      try {
+        redditConfig = (await loadActiveConfig(projectId)).signalSources.reddit;
+      } catch {
+        log.warn({ projectId }, "reddit: no active config, skipping");
+        return;
+      }
+      const creds = await readAdapterCreds("reddit");
+      if (!creds.client_id || !creds.client_secret || !creds.user_agent) {
+        throw new Error("reddit: client_id, client_secret, and user_agent credentials not configured");
+      }
+      signals = await new RedditSignalSource().fetch({
+        subreddits:  redditConfig.subreddits,
+        sortMode:    redditConfig.sortMode,
+        timeWindow:  redditConfig.timeWindow,
+        minUpvotes:  redditConfig.minUpvotes,
+        minComments: redditConfig.minComments,
+        maxAgeDays:  redditConfig.maxAgeDays,
+        limit:       100,
+        credentials: {
+          clientId:     creds.client_id,
+          clientSecret: creds.client_secret,
+          userAgent:    creds.user_agent,
+        },
+      }, ctx);
       break;
     }
   }

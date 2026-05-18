@@ -85,6 +85,10 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   pagespeed: {
     [COST_OPS.PAGESPEED_PSI_API]: 0,
   },
+  // Reddit OAuth API is free — tracked for observability only
+  reddit: {
+    [COST_OPS.REDDIT_SIGNAL_COLLECT]: 0,
+  },
 };
 
 export function estimateCostEur(service: string, operation: string, multiplier = 1): number {

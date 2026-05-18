@@ -24,6 +24,7 @@
         "@marketing-auto/adapter-hackernews": "workspace:*",
         "@marketing-auto/adapter-pagespeed": "workspace:*",
         "@marketing-auto/adapter-producthunt": "workspace:*",
+        "@marketing-auto/adapter-reddit": "workspace:*",
         "@marketing-auto/adapter-replicate": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/adapter-vendor-rss": "workspace:*",
@@ -178,6 +179,16 @@
         "@marketing-auto/pipelines": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
         "graphql-request": "^7.0.0",
+        "zod": "^3.23.0",
+      },
+    },
+    "packages/adapters/reddit": {
+      "name": "@marketing-auto/adapter-reddit",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/pipelines": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
         "zod": "^3.23.0",
       },
     },
@@ -634,6 +645,8 @@
     "@marketing-auto/adapter-pagespeed": ["@marketing-auto/adapter-pagespeed@workspace:packages/adapters/pagespeed"],
 
     "@marketing-auto/adapter-producthunt": ["@marketing-auto/adapter-producthunt@workspace:packages/adapters/producthunt"],
+
+    "@marketing-auto/adapter-reddit": ["@marketing-auto/adapter-reddit@workspace:packages/adapters/reddit"],
 
     "@marketing-auto/adapter-replicate": ["@marketing-auto/adapter-replicate@workspace:packages/adapters/replicate"],
 

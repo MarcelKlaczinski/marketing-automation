@@ -5,6 +5,7 @@ export const cronJobTypeEnum = pgEnum("cron_job_type", [
   "trends_synthesizer",
   "refresh_detector",
   "quality_analysis",
+  "signal_collector_reddit",
 ]);
 
 export const cronState = pgTable(

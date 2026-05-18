@@ -393,6 +393,13 @@
       "when": 1783300000000,
       "tag": "0055_projects_quality_analysis_cron",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1783400000000,
+      "tag": "0056_reddit_signal_source",
+      "breakpoints": true
     }
   ]
 }

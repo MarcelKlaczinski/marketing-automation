@@ -1,0 +1,101 @@
+{
+  "data": {
+    "children": [
+      {
+        "data": {
+          "id": "1abc234",
+          "title": "Claude 3.5 Sonnet is now available",
+          "url": "https://anthropic.com/news/claude-3-5-sonnet",
+          "permalink": "/r/ClaudeAI/comments/1abc234/claude_35_sonnet_is_now_available/",
+          "selftext": "",
+          "is_self": false,
+          "author": "anthropic_official",
+          "score": 1250,
+          "upvote_ratio": 0.97,
+          "num_comments": 342,
+          "total_awards_received": 5,
+          "created_utc": 1716000000,
+          "over_18": false,
+          "stickied": false,
+          "subreddit": "ClaudeAI"
+        }
+      },
+      {
+        "data": {
+          "id": "2def567",
+          "title": "My experience using Claude for a month — honest review",
+          "url": "https://reddit.com/r/ClaudeAI/comments/2def567/my_experience_using_claude/",
+          "permalink": "/r/ClaudeAI/comments/2def567/my_experience_using_claude/",
+          "selftext": "After using Claude for a month, here are my thoughts...",
+          "is_self": true,
+          "author": "techreview_user",
+          "score": 430,
+          "upvote_ratio": 0.92,
+          "num_comments": 87,
+          "total_awards_received": 1,
+          "created_utc": 1715950000,
+          "over_18": false,
+          "stickied": false,
+          "subreddit": "ClaudeAI"
+        }
+      },
+      {
+        "data": {
+          "id": "3ghi890",
+          "title": "Stickied: Community rules and guidelines",
+          "url": "https://reddit.com/r/ClaudeAI/comments/3ghi890/",
+          "permalink": "/r/ClaudeAI/comments/3ghi890/stickied_rules/",
+          "selftext": "Please follow the rules.",
+          "is_self": true,
+          "author": "moderator",
+          "score": 1,
+          "upvote_ratio": 0.5,
+          "num_comments": 0,
+          "total_awards_received": 0,
+          "created_utc": 1715000000,
+          "over_18": false,
+          "stickied": true,
+          "subreddit": "ClaudeAI"
+        }
+      },
+      {
+        "data": {
+          "id": "4jkl123",
+          "title": "NSFW AI art generation comparison",
+          "url": "https://example.com/nsfw-ai",
+          "permalink": "/r/ClaudeAI/comments/4jkl123/nsfw/",
+          "selftext": "",
+          "is_self": false,
+          "author": "nsfw_user",
+          "score": 500,
+          "upvote_ratio": 0.88,
+          "num_comments": 120,
+          "total_awards_received": 2,
+          "created_utc": 1715900000,
+          "over_18": true,
+          "stickied": false,
+          "subreddit": "ClaudeAI"
+        }
+      },
+      {
+        "data": {
+          "id": "5mno456",
+          "title": "New AI tool with only 5 upvotes",
+          "url": "https://example.com/new-tool",
+          "permalink": "/r/ClaudeAI/comments/5mno456/new_tool/",
+          "selftext": "",
+          "is_self": false,
+          "author": "new_user",
+          "score": 5,
+          "upvote_ratio": 0.7,
+          "num_comments": 2,
+          "total_awards_received": 0,
+          "created_utc": 1715980000,
+          "over_18": false,
+          "stickied": false,
+          "subreddit": "ClaudeAI"
+        }
+      }
+    ]
+  }
+}

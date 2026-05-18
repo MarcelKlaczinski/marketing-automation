@@ -5,6 +5,7 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import { getTrendSynthesizerQueue } from "./trend-synthesizer.ts";
 import { getRefreshDetectorQueue } from "./refresh-detector.ts";
 import { getArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
+import { getSignalCollectorQueue } from "./signal-collector.ts";
 
 const log = createLogger("cron-orchestrator");
 
@@ -35,9 +36,10 @@ export function getCronOrchestratorQueue(): Queue {
 
 // ─── Queue registry ───────────────────────────────────────────────────────────
 
-function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis"): Queue {
+function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit"): Queue {
   if (jobType === "trends_synthesizer") return getTrendSynthesizerQueue();
   if (jobType === "quality_analysis") return getArticleQualityAnalysisQueue();
+  if (jobType === "signal_collector_reddit") return getSignalCollectorQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -68,7 +70,7 @@ export async function syncCronJobs(): Promise<void> {
 
   // Remove jobs that are no longer in desired state
   const desiredNames = new Set(desired.map((d) => `${d.jobType}:${d.projectId}`));
-  const allQueues = [getTrendSynthesizerQueue(), getRefreshDetectorQueue(), getArticleQualityAnalysisQueue()];
+  const allQueues = [getTrendSynthesizerQueue(), getRefreshDetectorQueue(), getArticleQualityAnalysisQueue(), getSignalCollectorQueue()];
 
   for (const queue of allQueues) {
     const repeats = await queue.getRepeatableJobs();
@@ -76,7 +78,8 @@ export async function syncCronJobs(): Promise<void> {
       const isCronOrchestrated =
         repeat.name.startsWith("trends_synthesizer:") ||
         repeat.name.startsWith("refresh_detector:") ||
-        repeat.name.startsWith("quality_analysis:");
+        repeat.name.startsWith("quality_analysis:") ||
+        repeat.name.startsWith("signal_collector_reddit:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

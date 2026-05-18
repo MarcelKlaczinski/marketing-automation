@@ -35,6 +35,7 @@
     "@marketing-auto/adapter-astro-sync": "workspace:*",
     "@marketing-auto/adapter-hackernews": "workspace:*",
     "@marketing-auto/adapter-producthunt": "workspace:*",
+    "@marketing-auto/adapter-reddit": "workspace:*",
     "@marketing-auto/adapter-vendor-rss": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",
     "@marketing-auto/adapter-email": "workspace:*",

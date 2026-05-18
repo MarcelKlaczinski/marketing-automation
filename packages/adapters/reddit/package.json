@@ -1,0 +1,20 @@
+{
+  "name": "@marketing-auto/adapter-reddit",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./verify": "./src/verify.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/reddit/test"
+  },
+  "dependencies": {
+    "@marketing-auto/pipelines": "workspace:*",
+    "@marketing-auto/shared": "workspace:*",
+    "@marketing-auto/db": "workspace:*",
+    "zod": "^3.23.0"
+  }
+}

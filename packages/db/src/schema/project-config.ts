@@ -80,9 +80,25 @@ export const SignalSourcesSchema = z
     reddit: z
       .object({
         enabled: z.boolean().default(false),
-        subreddits: z.array(z.string()).default([]),
+        subreddits: z.array(z.string()).default([
+          "LocalLLaMA",
+          "MachineLearning",
+          "ChatGPT",
+          "ClaudeAI",
+          "SaaS",
+          "InternetIsBeautiful",
+          "SideProject",
+          "PromptEngineering",
+          "StableDiffusion",
+        ]),
+        sortMode: z.enum(["top", "hot", "new"]).default("top"),
+        timeWindow: z.enum(["day", "week", "month"]).default("week"),
+        minUpvotes: z.number().int().min(0).default(50),
+        minComments: z.number().int().min(0).default(10),
+        maxAgeDays: z.number().int().positive().default(7),
+        cronPattern: z.string().default("30 2 * * *"),
       })
-      .default({ enabled: false, subreddits: [] }),
+      .default({ enabled: false, subreddits: [], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" }),
     github: z.boolean().default(false),
     vendor_rss: z
       .object({
@@ -95,7 +111,7 @@ export const SignalSourcesSchema = z
   .default({
     producthunt: false,
     hackernews: { enabled: false, queries: HN_DEFAULT_QUERIES, hitsPerPage: 50, minPoints: 5 },
-    reddit: { enabled: false, subreddits: [] },
+    reddit: { enabled: false, subreddits: [], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" },
     github: false,
     vendor_rss: { enabled: false, feeds: [] },
     dataforseo_trends: false,

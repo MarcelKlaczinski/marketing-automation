@@ -23,6 +23,7 @@ import { verifyDataForSeo } from "@marketing-auto/adapter-dataforseo/verify";
 import { verifySmtp } from "@marketing-auto/adapter-email/verify";
 import { verifyProductHunt } from "@marketing-auto/adapter-producthunt/verify";
 import { verifyReplicate } from "@marketing-auto/adapter-replicate/verify";
+import { verifyReddit } from "@marketing-auto/adapter-reddit/verify";
 import { verifyR2 } from "@marketing-auto/adapter-storage/verify";
 import { verifyVoyage } from "@marketing-auto/adapter-voyage/verify";
 
@@ -135,7 +136,7 @@ systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
 // ───── POST /api/system/verify/:adapter ─────────────────────────────────────
 // Auth required — verifying runs a live network call against a configured credential.
 
-const adapterEnum = z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage"]);
+const adapterEnum = z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit"]);
 
 systemRoutes.post("/verify/:adapter", requireAuth, async (c) => {
   const parsed = adapterEnum.safeParse(c.req.param("adapter"));
@@ -225,5 +226,9 @@ async function runVerifyByAdapter(
     case "voyage":
       if (!creds.api_key) return { ok: false, message: "API key not set" };
       return verifyVoyage(creds.api_key);
+    case "reddit":
+      if (!creds.client_id || !creds.client_secret || !creds.user_agent)
+        return { ok: false, message: "client_id, client_secret, and user_agent required" };
+      return verifyReddit({ clientId: creds.client_id, clientSecret: creds.client_secret, userAgent: creds.user_agent });
   }
 }
