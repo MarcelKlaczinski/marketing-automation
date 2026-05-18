@@ -8,6 +8,7 @@ import {
   markTemplateOverrideUsed,
   projects,
   socialPosts,
+  type SocialPostRenderInput,
 } from "@marketing-auto/db";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -798,35 +799,8 @@ export class RenderSlidesStep extends BaseStep<
     const results: Array<z.infer<typeof socialPostResultSchema>> = [];
 
     for (const loc of input.perLocaleOutputs) {
-      // INSERT social_post row immediately — slides array populated by render worker later
-      const [post] = await db
-        .insert(socialPosts)
-        .values({
-          projectId: input.projectId,
-          articleId: input.articleId,
-          platform: "instagram",
-          format: "carousel",
-          status: "draft",
-          theme: input.theme,
-          locale: loc.locale,
-          templateKey,
-          totalSlides: 0,
-          content: {
-            kind: "carousel",
-            slides: [],
-            caption: loc.caption,
-            hashtags: loc.hashtags,
-            ...(loc.warnings ? { warnings: loc.warnings } : {}),
-          },
-          renderStatus: "pending",
-          generatedAt: new Date(),
-        })
-        .returning({ id: socialPosts.id });
-
-      if (!post) throw new Error(`Failed to insert social post for locale ${loc.locale}`);
-
-      // Build job payload — snapshot all render inputs at enqueue time
-      // (no DB reads in worker; exactOptionalPropertyTypes requires conditional spreads)
+      // Compute locale-specific render inputs BEFORE INSERT so we can persist them as a
+      // renderInput snapshot in content (enables re-render without re-running pipeline steps).
       const localePrefix = (loc.locale.split("-")[0] ?? "de").split("_")[0] ?? "de";
       const localeSibling = input.localeArticles?.[localePrefix];
       const isDeLocale = loc.locale.startsWith("de");
@@ -883,32 +857,65 @@ export class RenderSlidesStep extends BaseStep<
           })
         : (input.resolvedTools as Array<Record<string, unknown>>);
 
-      const jobData: SocialRenderJobData = {
-        socialPostId: post.id,
-        projectId: input.projectId,
-        articleId: input.articleId,
+      // Build renderInput snapshot — persisted in content JSONB so re-render can
+      // reconstruct SocialRenderJobData without re-running pipeline steps.
+      const renderInput: SocialPostRenderInput = {
         templateKey,
         locale: loc.locale,
-        brandTokens: input.brandTokens,
-        overrides: resolvedOverrides,
-        resolvedTools: resolvedToolsForLocale,
+        theme: input.theme,
+        variant: input.variant,
         articleTitle: localeTitle,
         articleSlug: localeSibling?.slug ?? input.articleSlug,
         projectSlug: input.projectSlug,
         articleUrl: localeSibling?.articleUrl ?? input.articleUrl,
-        theme: input.theme,
-        variant: input.variant,
         coverEyebrow: localeCoverEyebrow,
         coverHeadlineLead: localeCoverHeadlineLead,
         coverHeadlineHighlight: localeCoverHeadlineHighlight,
         endHeadline: localeEndHeadline,
         endHeadlineHighlight: localeEndHeadlineHighlight,
+        resolvedTools: resolvedToolsForLocale,
         ...(localeCoverHeadlineTrail !== undefined && { coverHeadlineTrail: localeCoverHeadlineTrail }),
         ...(localeCoverSubhead !== undefined && { coverSubhead: localeCoverSubhead }),
-        // Hook and closer are generated from the DE article — only forward for DE renders.
-        // EN renders fall back to the editorial headline path (coverHeadlineLead/Highlight/Trail).
+        // Hook + closer: DE only (EN falls back to editorial headline path)
         ...(isDeLocale && input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
         ...(isDeLocale && input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
+      };
+
+      // INSERT social_post row — slides populated by render worker, renderInput snapshot persisted for re-render
+      const [post] = await db
+        .insert(socialPosts)
+        .values({
+          projectId: input.projectId,
+          articleId: input.articleId,
+          platform: "instagram",
+          format: "carousel",
+          status: "draft",
+          theme: input.theme,
+          locale: loc.locale,
+          templateKey,
+          totalSlides: 0,
+          content: {
+            kind: "carousel",
+            slides: [],
+            caption: loc.caption,
+            hashtags: loc.hashtags,
+            renderInput,
+            ...(loc.warnings ? { warnings: loc.warnings } : {}),
+          },
+          renderStatus: "pending",
+          generatedAt: new Date(),
+        })
+        .returning({ id: socialPosts.id });
+
+      if (!post) throw new Error(`Failed to insert social post for locale ${loc.locale}`);
+
+      const jobData: SocialRenderJobData = {
+        socialPostId: post.id,
+        projectId: input.projectId,
+        articleId: input.articleId,
+        brandTokens: input.brandTokens,
+        overrides: resolvedOverrides,
+        ...renderInput,
       };
 
       const renderJobId = await enqueueSocialRenderJob(jobData);

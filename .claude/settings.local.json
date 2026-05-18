@@ -930,7 +930,8 @@
       "Bash(echo \"New worker started with PID $!\")",
       "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); entries=j['entries']; last=entries[-1]; print\\(f'Last: idx={last[\\\\\"idx\\\\\"]}, when={last[\\\\\"when\\\\\"]}, tag={last[\\\\\"tag\\\\\"]}'\\)\")",
       "Bash(kill -TERM 43070)",
-      "Bash(kill -TERM 44186)"
+      "Bash(kill -TERM 44186)",
+      "Bash(grep -n \"DO NOT use \\\\`bun add\\\\|DO NOT pass a bare\\\\|DO NOT write a partial\\\\|DO NOT make discriminator\\\\|DO NOT run \\\\`drizzle-kit\\\\|DO NOT rely on CASCADE\\\\|DO NOT add a new Cold-Start\\\\|DO NOT set \\\\`article\\\\|DO NOT assume an Astro\\\\|DO NOT pass \\\\`frontmatterSchema\\\\|DO NOT use \\\\`sql.*!=\\\\|DO NOT query by \\\\`translation\\\\|DO NOT pass \\\\`pipelineRunId\\\\|DO NOT use \\\\`field.*T\\\\` in local\\\\|DO NOT assign the result\\\\|DO NOT cast \\\\`Array.isArray\\\\|DO NOT write LLM prompts\\\\|DO NOT expect pipeline-generated\\\\|DO NOT use \\\\`jsonMode\\\\|DO NOT use \\\\`claude-opus\\\\|DO NOT forget that \\\\`pricing\\\\|DO NOT add transparency\\\\|DO NOT implement custom ZIP\\\\|DO NOT import \\\\`drizzle-orm\\\\|DO NOT import from \\\\`packages\\\\/pipelines\\\\|DO NOT pass a JS \\\\`number\\\\|DO NOT pass \\\\`toolCategory\\\\|DO NOT use \\\\`\\\\/\\\\^\\\\#\\\\\\\\\\\\w\\\\|DO NOT add locale-aware\\\\|DO NOT add a \\\\`PUT\\\\`-method\\\\|DO NOT use a single \\\\`JobData\\\\|DO NOT define a BullMQ queue\\\\|DO NOT use bare \\\\`\\\\.max\\\\|DO NOT add an explicit slug\\\\|DO NOT hardcode numeric\\\\|DO NOT use \\\\`system:\\\\|DO NOT add transparency\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)"
     ]
   }
 }

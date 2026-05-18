@@ -74,15 +74,18 @@ export function getSocialRenderQueue(): Queue<SocialRenderJobData, SocialRenderJ
 
 /**
  * Enqueue a Remotion render job for a social_post row.
- * Uses socialPostId as jobId for idempotency — duplicate enqueue for the same post is a no-op.
- * Also sets render_status='pending' and render_job_id on the DB row.
+ * By default uses `render-{socialPostId}` as jobId for idempotency (initial renders).
+ * Pass `opts.jobId` to override — re-renders use a unique timestamp-based ID so BullMQ
+ * doesn't deduplicate against a completed/failed job from the prior render.
  */
-export async function enqueueSocialRenderJob(data: SocialRenderJobData): Promise<string> {
+export async function enqueueSocialRenderJob(
+  data: SocialRenderJobData,
+  opts?: { jobId?: string },
+): Promise<string> {
   const queue = getSocialRenderQueue();
 
   const job = await queue.add("render", data, {
-    // Idempotent: BullMQ rejects a second enqueue with the same jobId if job is already waiting/active
-    jobId: `render-${data.socialPostId}`,
+    jobId: opts?.jobId ?? `render-${data.socialPostId}`,
   });
 
   // BullMQ always sets job.id to the provided jobId option — non-null is safe here.

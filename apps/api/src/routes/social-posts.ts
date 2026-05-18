@@ -1,12 +1,13 @@
 import { zValidator } from "@hono/zod-validator";
-import { articleDiscovery, articles, db, projects, socialPosts, templateRenders } from "@marketing-auto/db";
+import { articleDiscovery, articles, db, fetchTemplateOverrides, projects, socialPosts, templateRenders } from "@marketing-auto/db";
 import type { Article, ArticleDiscovery } from "@marketing-auto/db";
 import { readFile } from "node:fs/promises";
 import { templateRegistry } from "@marketing-auto/social/templates";
 import { enqueueSocialImagePipeline } from "@marketing-auto/pipelines";
+import { enqueueSocialRenderJob } from "@marketing-auto/pipelines/social-render-queue";
 import { enqueueTemplateRenderJob } from "../workers/discoveryWorker.ts";
 import { createLogger } from "@marketing-auto/shared";
-import { and, desc, eq, inArray, lt } from "@marketing-auto/db";
+import { and, desc, eq, inArray, lt, sql } from "@marketing-auto/db";
 import { zipSync } from "fflate";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -203,42 +204,86 @@ socialPostDetailRoutes.get("/:id/download-bundle", async (c) => {
 });
 
 // ─── POST /api/social-posts/:id/re-render ────────────────────────────────────
+// Spec 58.2: re-renders slides using current brand tokens + template overrides.
+// Caption and hashtags are preserved as-is. No new social_post row is created.
 
 socialPostDetailRoutes.post("/:id/re-render", async (c) => {
   const id = c.req.param("id");
 
+  // 1. Fetch post
   const [post] = await db
     .select()
     .from(socialPosts)
     .where(eq(socialPosts.id, id))
     .limit(1);
   if (!post) return c.json({ ok: false, error: "Social post not found" }, 404);
-  if (!post.articleId) return c.json({ ok: false, error: "Post has no article" }, 400);
 
-  const result = await triggerWithPreRunId({
-    pipelineName: "article:social-image",
-    projectId: post.projectId,
-    uniqueKey: { field: "articleId", value: `rerender-${post.articleId}-${Date.now()}` },
-    costEstimate: { service: "anthropic", estimatedCostEur: 0.03 },
-    enqueue: (input) => {
-      const enqueueInput: Parameters<typeof enqueueSocialImagePipeline>[0] = {
-        articleId: post.articleId as string,
-        projectId: post.projectId,
-        theme: post.theme as "dark" | "light",
-      };
-      if (input.preRunId) enqueueInput.preRunId = input.preRunId as string;
-      return enqueueSocialImagePipeline(enqueueInput);
-    },
-    extraInput: { articleId: post.articleId },
-  });
+  // 2. Guard: block if a render is already in progress or queued
+  if (post.renderStatus === "rendering" || post.renderStatus === "pending") {
+    return c.json({ ok: false, error: "Render already in progress" }, 409);
+  }
 
-  // Mark old post as replaced
+  // 3. Retrieve render input snapshot (persisted by RenderSlidesStep at creation time)
+  const content = post.content;
+  if (!content || content.kind !== "carousel" || !content.renderInput) {
+    return c.json({
+      ok: false,
+      error: "No render snapshot available for this post. Generate a new post to enable re-render.",
+    }, 422);
+  }
+  const renderInput = content.renderInput;
+
+  // 4. Fetch current brand tokens (live state — key principle: re-render uses CURRENT tokens)
+  const [project] = await db
+    .select({ brandTokens: projects.brandTokens, slug: projects.slug })
+    .from(projects)
+    .where(eq(projects.id, post.projectId))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+
+  // 5. Fetch current template overrides (live state)
+  const { getOverrideSchema, mergeOverrides, isOverrideTemplateKey } = await import("@marketing-auto/social/templates/overrides") as typeof import("@marketing-auto/social/templates/overrides");
+  const overrideRow = await fetchTemplateOverrides(post.projectId, renderInput.templateKey);
+  const resolvedOverrides = isOverrideTemplateKey(renderInput.templateKey)
+    ? mergeOverrides(getOverrideSchema(renderInput.templateKey), overrideRow?.values)
+    : {};
+
+  // social_posts.articleId is set at creation time (RenderSlidesStep INSERT); null is not
+  // reachable on posts created after Spec 57.2, but guard defensively.
+  if (!post.articleId) return c.json({ ok: false, error: "Post has no articleId" }, 400);
+
+  // 6. Reset render lifecycle (preserve caption/hashtags via jsonb_set on slides only)
   await db
     .update(socialPosts)
-    .set({ status: "replaced", updatedAt: new Date() })
+    .set({
+      renderStatus: "pending",
+      renderJobId: null,
+      renderStartedAt: null,
+      renderCompletedAt: null,
+      renderError: null,
+      totalSlides: 0,
+      content: sql`jsonb_set(${socialPosts.content}, '{slides}', '[]'::jsonb)`,
+      updatedAt: new Date(),
+    })
     .where(eq(socialPosts.id, id));
 
-  return triggerResultToResponse(c, result);
+  // 7. Enqueue render with fresh brand tokens + overrides, stored composition inputs
+  // Use timestamp-based jobId so BullMQ doesn't deduplicate against the prior completed job.
+  const renderJobId = await enqueueSocialRenderJob(
+    {
+      socialPostId: id,
+      projectId: post.projectId,
+      articleId: post.articleId,
+      brandTokens: (project.brandTokens ?? {}) as Record<string, unknown>, // Drizzle jsonb → BullMQ payload; structurally compatible
+      overrides: resolvedOverrides as Record<string, unknown>, // mergeOverrides returns TemplateOverrides; plain object subset of Record
+      ...renderInput,
+    },
+    { jobId: `rerender-${id}-${Date.now()}` },
+  );
+
+  log.info({ socialPostId: id, renderJobId }, "Re-render enqueued");
+
+  return c.json({ ok: true, data: { renderJobId, socialPostId: id } });
 });
 
 // ─── POST /api/projects/:slug/social-posts/re-render-batch ───────────────────

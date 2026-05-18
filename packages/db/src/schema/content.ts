@@ -401,12 +401,37 @@ export const socialPosts = pgTable(
   })
 );
 
+// Snapshot of all Remotion composition inputs, persisted at INSERT time so that
+// re-render (Spec 58.2) can rebuild SocialRenderJobData without re-running pipeline steps.
+export type SocialPostRenderInput = {
+  templateKey: string;
+  locale: string;
+  theme: string;
+  variant: string;
+  articleTitle: string;
+  articleSlug: string;
+  projectSlug: string;
+  articleUrl: string;
+  coverEyebrow: string;
+  coverHeadlineLead: string;
+  coverHeadlineHighlight: string;
+  coverHeadlineTrail?: string;
+  coverSubhead?: string;
+  endHeadline: string;
+  endHeadlineHighlight: string;
+  resolvedTools: Array<Record<string, unknown>>;
+  coverHookOutput?: Record<string, unknown>;
+  endCloser?: Record<string, unknown>;
+};
+
 export type SocialPostContent =
   | {
       kind: "carousel";
       slides: Array<{ imageUrl: string; caption?: string }>;
       caption: string;
       hashtags: string[];
+      warnings?: string[];
+      renderInput?: SocialPostRenderInput;
     }
   | { kind: "reel"; videoUrl: string; coverUrl: string; caption: string; hashtags: string[] }
   | { kind: "single_image"; imageUrl: string; caption: string; hashtags: string[] }

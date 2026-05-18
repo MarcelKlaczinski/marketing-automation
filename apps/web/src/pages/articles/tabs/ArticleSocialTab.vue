@@ -128,6 +128,16 @@
                   >
                     {{ $t("social.download") as string }}
                   </GlassButton>
+                  <GlassButton
+                    v-if="canReRender(post)"
+                    variant="ghost"
+                    size="sm"
+                    :loading="reRenderingIds.includes(post.id)"
+                    @click="confirmReRender(post)"
+                  >
+                    {{ $t("social.reRender") as string }}
+                    <q-tooltip>{{ $t("social.reRenderHint") as string }}</q-tooltip>
+                  </GlassButton>
                 </div>
               </div>
 
@@ -330,6 +340,7 @@ export default defineComponent({
     selectedLocales: [] as string[],
     generating: false,
     downloadingId: null as string | null,
+    reRenderingIds: [] as string[],
     expandedPostId: null as string | null,
     preview: {
       open: false,
@@ -476,6 +487,36 @@ export default defineComponent({
 
     toggleSlides(postId: string): void {
       this.expandedPostId = this.expandedPostId === postId ? null : postId;
+    },
+
+    canReRender(post: SocialPost): boolean {
+      return post.renderStatus === "rendered" || post.renderStatus === "failed";
+    },
+
+    confirmReRender(post: SocialPost): void {
+      this.$q.dialog({
+        title: this.$t("social.reRenderConfirm.title") as string,
+        message: this.$t("social.reRenderConfirm.message") as string,
+        ok: { label: this.$t("social.reRenderConfirm.ok") as string, color: "primary", flat: true },
+        cancel: { flat: true },
+      }).onOk(() => {
+        void this.triggerReRender(post.id);
+      });
+    },
+
+    async triggerReRender(postId: string): Promise<void> {
+      this.reRenderingIds = [...this.reRenderingIds, postId];
+      try {
+        await apiPost(`/social-posts/${postId}/re-render`);
+        void this.queryClient.invalidateQueries({ queryKey: ["social-posts", this.articleId] });
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : (this.$t("social.reRenderFailed") as string),
+        });
+      } finally {
+        this.reRenderingIds = this.reRenderingIds.filter((id) => id !== postId);
+      }
     },
 
     async onDownload(postId: string): Promise<void> {
