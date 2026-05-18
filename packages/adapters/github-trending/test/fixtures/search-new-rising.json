@@ -1,0 +1,42 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 111111,
+      "name": "awesome-llm",
+      "full_name": "acme/awesome-llm",
+      "html_url": "https://github.com/acme/awesome-llm",
+      "description": "A curated list of LLM resources",
+      "homepage": "https://awesome-llm.dev",
+      "language": "Python",
+      "topics": ["llm", "ai-tools"],
+      "stargazers_count": 340,
+      "forks_count": 28,
+      "watchers_count": 340,
+      "open_issues_count": 5,
+      "archived": false,
+      "created_at": "2026-05-10T12:00:00Z",
+      "pushed_at": "2026-05-15T09:30:00Z",
+      "license": { "spdx_id": "MIT" }
+    },
+    {
+      "id": 222222,
+      "name": "ai-agents-kit",
+      "full_name": "beta/ai-agents-kit",
+      "html_url": "https://github.com/beta/ai-agents-kit",
+      "description": "Toolkit for building AI agents",
+      "homepage": null,
+      "language": "TypeScript",
+      "topics": ["ai-agents", "llm"],
+      "stargazers_count": 85,
+      "forks_count": 7,
+      "watchers_count": 85,
+      "open_issues_count": 2,
+      "archived": false,
+      "created_at": "2026-05-12T08:00:00Z",
+      "pushed_at": "2026-05-16T14:00:00Z",
+      "license": null
+    }
+  ]
+}

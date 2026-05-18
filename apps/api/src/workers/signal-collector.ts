@@ -10,6 +10,7 @@ import { ProductHuntSignalSource } from "@marketing-auto/adapter-producthunt";
 import { HackerNewsSignalSource } from "@marketing-auto/adapter-hackernews";
 import { VendorRssSignalSource } from "@marketing-auto/adapter-vendor-rss";
 import { RedditSignalSource } from "@marketing-auto/adapter-reddit";
+import { GitHubSignalSource } from "@marketing-auto/adapter-github-trending";
 
 const log = createLogger("signal-collector");
 
@@ -54,7 +55,7 @@ const collectProjectJobSchema = z.object({
 const collectAdapterJobSchema = z.object({
   type: z.literal("collect-adapter"),
   projectId: z.string().uuid(),
-  adapter: z.enum(["producthunt", "hackernews", "vendor_rss", "reddit"]),
+  adapter: z.enum(["producthunt", "hackernews", "vendor_rss", "reddit", "github"]),
 });
 
 // ─── Worker ───────────────────────────────────────────────────────────────────
@@ -90,6 +91,13 @@ export function startSignalCollectorWorker() {
         return;
       }
 
+      // Per-project GitHub cron dispatched by cron-orchestrator
+      if (name.startsWith("signal_collector_github:")) {
+        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
+        await handleCollectAdapter(projectId, "github");
+        return;
+      }
+
       throw new Error(`Unknown signal-collector job name: ${name}`);
     },
     {
@@ -120,11 +128,12 @@ async function handleCollectProject(projectId: string): Promise<void> {
     return;
   }
 
-  const enabled: Array<"producthunt" | "hackernews" | "vendor_rss" | "reddit"> = [];
+  const enabled: Array<"producthunt" | "hackernews" | "vendor_rss" | "reddit" | "github"> = [];
   if (config.signalSources.producthunt) enabled.push("producthunt");
   if (config.signalSources.hackernews.enabled) enabled.push("hackernews");
   if (config.signalSources.vendor_rss.enabled) enabled.push("vendor_rss");
   if (config.signalSources.reddit.enabled) enabled.push("reddit");
+  if (config.signalSources.github.enabled) enabled.push("github");
 
   if (enabled.length === 0) {
     log.info({ projectId }, "collect-project: no signal sources enabled, skipping");
@@ -141,7 +150,7 @@ async function handleCollectProject(projectId: string): Promise<void> {
 
 async function handleCollectAdapter(
   projectId: string,
-  adapter: "producthunt" | "hackernews" | "vendor_rss" | "reddit",
+  adapter: "producthunt" | "hackernews" | "vendor_rss" | "reddit" | "github",
 ): Promise<void> {
   const ctx = { projectId };
   let signals: RawSignal[] = [];
@@ -210,6 +219,31 @@ async function handleCollectAdapter(
           clientId:     creds.client_id,
           clientSecret: creds.client_secret,
           userAgent:    creds.user_agent,
+        },
+      }, ctx);
+      break;
+    }
+    case "github": {
+      let githubConfig;
+      try {
+        githubConfig = (await loadActiveConfig(projectId)).signalSources.github;
+      } catch {
+        log.warn({ projectId }, "github: no active config, skipping");
+        return;
+      }
+      const creds = await readAdapterCreds("github");
+      if (!creds.personal_access_token) {
+        throw new Error("github: personal_access_token credential not configured");
+      }
+      signals = await new GitHubSignalSource().fetch({
+        topics:               githubConfig.topics,
+        timeWindowDays:       githubConfig.timeWindowDays,
+        minStarsNew:          githubConfig.minStarsNew,
+        minStarsEstablished:  githubConfig.minStarsEstablished,
+        maxAgeDays:           githubConfig.maxAgeDays,
+        perQueryLimit:        30,
+        credentials: {
+          personalAccessToken: creds.personal_access_token,
         },
       }, ctx);
       break;

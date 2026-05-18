@@ -233,7 +233,7 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         producthunt: false,
         hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5 },
         reddit: { enabled: false, subreddits: ["LocalLLaMA", "MachineLearning", "ChatGPT", "ClaudeAI", "SaaS", "InternetIsBeautiful", "SideProject", "PromptEngineering", "StableDiffusion"], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" },
-        github: false,
+        github: { enabled: false, topics: ["ai-tools", "llm", "ai-agents", "chatbot", "ai-assistant", "langchain", "llamaindex", "rag", "prompt-engineering", "vector-database"], timeWindowDays: 7, minStarsNew: 20, minStarsEstablished: 500, maxAgeDays: 14, cronPattern: "0 3 * * *" },
         vendor_rss: { enabled: false, feeds: [] },
         dataforseo_trends: false,
       },

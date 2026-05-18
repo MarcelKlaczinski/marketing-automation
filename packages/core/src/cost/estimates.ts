@@ -89,6 +89,10 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   reddit: {
     [COST_OPS.REDDIT_SIGNAL_COLLECT]: 0,
   },
+  // GitHub REST API is free (5000 req/hour with PAT) — tracked for observability only
+  github: {
+    [COST_OPS.GITHUB_SIGNAL_COLLECT]: 0,
+  },
 };
 
 export function estimateCostEur(service: string, operation: string, multiplier = 1): number {

@@ -97,6 +97,9 @@ export const COST_OPS = {
 
   // === Spec 59.1a: Reddit signal source ===
   REDDIT_SIGNAL_COLLECT: "reddit-signal-collect", // free API — tracked for observability only
+
+  // === Spec 59.1b: GitHub trending signal source ===
+  GITHUB_SIGNAL_COLLECT: "github-signal-collect", // free API — tracked for observability only
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

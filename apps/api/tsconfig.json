@@ -44,6 +44,8 @@
       "@marketing-auto/adapter-vendor-rss": ["../../packages/adapters/vendor-rss/src/index.ts"],
       "@marketing-auto/adapter-reddit": ["../../packages/adapters/reddit/src/index.ts"],
       "@marketing-auto/adapter-reddit/verify": ["../../packages/adapters/reddit/src/verify.ts"],
+      "@marketing-auto/adapter-github-trending": ["../../packages/adapters/github-trending/src/index.ts"],
+      "@marketing-auto/adapter-github-trending/verify": ["../../packages/adapters/github-trending/src/verify.ts"],
       "@marketing-auto/adapter-voyage": ["../../packages/adapters/voyage/src/index.ts"],
       "@marketing-auto/adapter-voyage/verify": ["../../packages/adapters/voyage/src/verify.ts"],
       "@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"],

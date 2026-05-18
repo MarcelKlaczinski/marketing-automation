@@ -36,10 +36,11 @@ export function getCronOrchestratorQueue(): Queue {
 
 // ─── Queue registry ───────────────────────────────────────────────────────────
 
-function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit"): Queue {
+function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit" | "signal_collector_github"): Queue {
   if (jobType === "trends_synthesizer") return getTrendSynthesizerQueue();
   if (jobType === "quality_analysis") return getArticleQualityAnalysisQueue();
   if (jobType === "signal_collector_reddit") return getSignalCollectorQueue();
+  if (jobType === "signal_collector_github") return getSignalCollectorQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -79,7 +80,8 @@ export async function syncCronJobs(): Promise<void> {
         repeat.name.startsWith("trends_synthesizer:") ||
         repeat.name.startsWith("refresh_detector:") ||
         repeat.name.startsWith("quality_analysis:") ||
-        repeat.name.startsWith("signal_collector_reddit:");
+        repeat.name.startsWith("signal_collector_reddit:") ||
+        repeat.name.startsWith("signal_collector_github:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

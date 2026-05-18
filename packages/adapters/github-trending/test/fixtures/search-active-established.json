@@ -1,0 +1,42 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 333333,
+      "name": "langchain",
+      "full_name": "langchain-ai/langchain",
+      "html_url": "https://github.com/langchain-ai/langchain",
+      "description": "Build context-aware reasoning applications",
+      "homepage": "https://langchain.com",
+      "language": "Python",
+      "topics": ["llm", "langchain", "ai-tools"],
+      "stargazers_count": 95000,
+      "forks_count": 15000,
+      "watchers_count": 95000,
+      "open_issues_count": 800,
+      "archived": false,
+      "created_at": "2022-10-01T00:00:00Z",
+      "pushed_at": "2026-05-17T12:00:00Z",
+      "license": { "spdx_id": "MIT" }
+    },
+    {
+      "id": 111111,
+      "name": "awesome-llm",
+      "full_name": "acme/awesome-llm",
+      "html_url": "https://github.com/acme/awesome-llm",
+      "description": "A curated list of LLM resources",
+      "homepage": "https://awesome-llm.dev",
+      "language": "Python",
+      "topics": ["llm", "ai-tools"],
+      "stargazers_count": 340,
+      "forks_count": 28,
+      "watchers_count": 340,
+      "open_issues_count": 5,
+      "archived": false,
+      "created_at": "2026-05-10T12:00:00Z",
+      "pushed_at": "2026-05-15T09:30:00Z",
+      "license": { "spdx_id": "MIT" }
+    }
+  ]
+}
