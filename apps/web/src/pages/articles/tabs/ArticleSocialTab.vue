@@ -96,6 +96,15 @@
                 <div class="post-meta">
                   <span class="post-status-dot" :class="`dot-${post.status}`" />
                   <span class="post-status mono">{{ statusLabel(post.status) }}</span>
+                  <span v-if="post.renderStatus" class="render-chip" :class="`render-chip--${post.renderStatus}`">
+                    <span v-if="post.renderStatus === 'rendering'" class="render-pulse" />
+                    {{ renderStatusLabel(post.renderStatus) }}
+                    <span
+                      v-if="post.renderStatus === 'failed' && post.renderError"
+                      class="render-error-hint"
+                      :title="post.renderError.message"
+                    >{{ $t("social.render.errorViewDetails") as string }}</span>
+                  </span>
                   <span class="post-date mono">{{ formatDate(post.createdAt) }}</span>
                   <span v-if="post.costEur != null" class="post-cost mono">
                     €{{ parseFloat(post.costEur).toFixed(3) }}
@@ -162,6 +171,8 @@ interface SocialPost {
   id: string;
   locale: string;
   status: string;
+  renderStatus?: string;
+  renderError?: { code: string; message: string } | null;
   totalSlides: number;
   costEur: string | null;
   createdAt: string;
@@ -172,6 +183,13 @@ interface LocaleGroup {
   locale: string;
   posts: SocialPost[];
 }
+
+const RENDER_STATUS_KEYS: Record<string, string> = {
+  pending: "social.render.pending",
+  rendering: "social.render.rendering",
+  rendered: "social.render.rendered",
+  failed: "social.render.failed",
+};
 
 const STATUS_LABEL_KEYS: Record<string, string> = {
   draft: "social.postStatus.draft",
@@ -196,8 +214,10 @@ export default defineComponent({
     const queryClient = useQueryClient();
     const projectStore = useProjectStore();
 
+    // Query key matches usePipelineEvents composable's "social-posts" invalidation key so
+    // SSE social.render.* events auto-refresh this list without manual wiring in the component.
     const { data: postsData, isLoading } = useQuery({
-      queryKey: ["article-social-posts", props.articleId],
+      queryKey: ["social-posts", props.articleId],
       queryFn: () => apiGet<SocialPost[]>(`/articles/${props.articleId}/social-posts`),
     });
 
@@ -281,6 +301,11 @@ export default defineComponent({
       return key ? (this.$t(key) as string) : status;
     },
 
+    renderStatusLabel(status: string): string {
+      const key = RENDER_STATUS_KEYS[status];
+      return key ? (this.$t(key) as string) : status;
+    },
+
     formatDate(iso: string): string {
       const d = new Date(iso);
       return d.toLocaleString(this.$i18n.locale === "de" ? "de-DE" : "en-US", {
@@ -301,8 +326,8 @@ export default defineComponent({
           variant: "stunning",
           locales: this.selectedLocales,
         });
-        this.$q.notify({ type: "positive", message: this.$t("social.generating") as string });
-        void this.queryClient.invalidateQueries({ queryKey: ["article-social-posts", this.articleId] });
+        this.$q.notify({ type: "positive", message: this.$t("social.render.enqueuedHint") as string });
+        void this.queryClient.invalidateQueries({ queryKey: ["social-posts", this.articleId] });
       } catch (err) {
         this.$q.notify({
           type: "negative",
@@ -541,6 +566,57 @@ export default defineComponent({
 .post-status, .post-date, .post-cost {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.render-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.render-chip--pending {
+  color: var(--text-tertiary);
+  background: color-mix(in oklch, var(--text-tertiary) 12%, transparent);
+}
+
+.render-chip--rendering {
+  color: #f59e0b;
+  background: color-mix(in oklch, #f59e0b 12%, transparent);
+}
+
+.render-chip--rendered {
+  color: #22c55e;
+  background: color-mix(in oklch, #22c55e 12%, transparent);
+}
+
+.render-chip--failed {
+  color: #ef4444;
+  background: color-mix(in oklch, #ef4444 12%, transparent);
+}
+
+.render-pulse {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: renderPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes renderPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+.render-error-hint {
+  text-decoration: underline;
+  cursor: help;
+  opacity: 0.8;
 }
 
 .post-actions {
