@@ -60,9 +60,9 @@ const toolSchema = z.object({
   rank: z.number().int(),
   name: z.string(),
   domain: z.string(),
-  eyebrow: z.string().max(40),
-  tagline: z.string().max(120),
-  bestFor: z.string().max(40).optional(),
+  eyebrow: z.string().max(40).transform((s) => s.slice(0, 40)),
+  tagline: z.string().max(120).transform((s) => s.slice(0, 120)),
+  bestFor: z.string().max(40).transform((s) => s.slice(0, 40)).optional(),
   strengths: z.array(z.string()).min(2).max(4),
   pricing: z.object({
     tier: z.enum(["free", "freemium", "paid"]),
