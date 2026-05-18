@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.tsx",
     "./templates": "./src/templates/index.ts",
+    "./templates/overrides": "./src/templates/overrides/index.ts",
     "./lib": "./src/lib/index.ts"
   },
   "scripts": {

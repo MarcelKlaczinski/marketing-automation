@@ -46,6 +46,7 @@ export interface RenderContext<TInput = unknown> {
   theme: Theme;
   input: TInput;
   brandTokens?: BrandTokens;        // project override; templates fall back to DEFAULT_BRAND_TOKENS
+  overrides?: Record<string, unknown>; // project-scoped template overrides (Spec 57.3)
   generatedContent?: GeneratedContent; // populated by runner via template.generateContent() before render()
 }
 

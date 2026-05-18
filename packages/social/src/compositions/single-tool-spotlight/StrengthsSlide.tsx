@@ -34,7 +34,7 @@ function RatingStars({ rating, brand, inkMuted }: { rating: number; brand: strin
 }
 
 export function StrengthsSlide({ input, slideNumber }: Props) {
-  const { tool, theme: themeMode, locale, websiteUrl, instagramHandle, totalSlides } = input;
+  const { tool, theme: themeMode, locale, brandTokens, totalSlides } = input;
   const theme = getThemeTokens(undefined, themeMode);
 
   const eyebrow = locale === "de" ? "STÄRKEN" : "STRENGTHS";
@@ -206,8 +206,8 @@ export function StrengthsSlide({ input, slideNumber }: Props) {
 
       <div style={{ position: "absolute", bottom: 72, left: SZ.PAD_X, right: SZ.PAD_X }}>
         <BrandFooter
-          websiteUrl={websiteUrl}
-          instagramHandle={instagramHandle}
+          websiteUrl={brandTokens.social.websiteUrl}
+          instagramHandle={brandTokens.social.instagramHandle}
           theme={theme}
           fontFamily={FONT}
           slideLabel={`${slideNumber}/${totalSlides}`}

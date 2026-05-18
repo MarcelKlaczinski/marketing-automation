@@ -351,6 +351,13 @@
       "when": 1782700000000,
       "tag": "0049_toolwiki_brand_tokens_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782800000000,
+      "tag": "0050_project_template_overrides",
+      "breakpoints": true
     }
   ]
 }

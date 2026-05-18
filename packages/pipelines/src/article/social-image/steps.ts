@@ -4,6 +4,8 @@ import { COST_OPS, buildHashtagInstructions, deriveContentType } from "@marketin
 import {
   articles,
   db,
+  fetchTemplateOverrides,
+  markTemplateOverrideUsed,
   projects,
   socialPosts,
 } from "@marketing-auto/db";
@@ -487,6 +489,21 @@ export class RenderSlidesStep extends BaseStep<
   async execute(input: z.infer<typeof RenderSlidesInputSchema>, ctx: StepContext) {
     ctx.log.info({ toolCount: input.resolvedTools.length }, "Rendering Remotion slides");
 
+    // Determine template key from tool count (comparison-stunning-3 = exactly 3 tools)
+    const templateKey = input.resolvedTools.length === 3 ? "comparison-stunning-3" : "comparison-stunning";
+
+    // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
+    const { getOverrideSchema, mergeOverrides } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
+    const overrideRow = await fetchTemplateOverrides(input.projectId, templateKey);
+    const resolvedOverrides = mergeOverrides(getOverrideSchema(templateKey), overrideRow?.values);
+
+    // Fire-and-forget: mark last_used_at (approximate — only writes when older than 1h)
+    if (overrideRow) {
+      markTemplateOverrideUsed(input.projectId, templateKey).catch((err: unknown) => {
+        ctx.log.warn({ err, projectId: input.projectId, templateKey }, "markTemplateOverrideUsed failed");
+      });
+    }
+
     // Dynamic import at runtime — social package is a workspace peer
     // biome-ignore lint/suspicious/noExplicitAny: dynamic import avoids circular dep during build
     const socialModule = await import("../../../../social/render-server.ts") as any;
@@ -495,12 +512,16 @@ export class RenderSlidesStep extends BaseStep<
     ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
 
     const toolRecap = input.resolvedTools.map((t) => t.slug);
+    // Derive locale from pipeline locales (first locale, fallback to "de")
+    const locale = (input.locales[0]?.startsWith("de") ? "de" : "en") as "de" | "en";
 
     const carouselInput = {
       theme: input.theme,
       variant: input.variant,
+      locale,
       brandTokens: input.brandTokens,
       slideIndex: 0,
+      overrides: resolvedOverrides,
       cover: {
         eyebrow: input.coverEyebrow,
         headlineLead: input.coverHeadlineLead,

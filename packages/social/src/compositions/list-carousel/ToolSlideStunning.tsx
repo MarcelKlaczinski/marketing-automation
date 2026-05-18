@@ -6,6 +6,9 @@ import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
 import type { ListCarouselInput, Tool } from "./types.ts";
 import { CAROUSEL_SAFE_ZONES as SZ } from "./safeZones.ts";
+import { comparisonStunningOverridesSchema } from "../../templates/overrides/comparisonStunning.overrides.ts";
+
+const DEFAULT_OVERRIDES = comparisonStunningOverridesSchema.parse({});
 
 type Props = {
   input: ListCarouselInput;
@@ -56,8 +59,14 @@ function renderTaglineWithHighlight(
 }
 
 export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme, themeMode }: Props) {
-  const { brandTokens } = input;
+  const { brandTokens, locale } = input;
   const { fontFamily, headingWeight, eyebrowLetterSpacing } = brandTokens.typography;
+  const isDE = (locale ?? "de") === "de";
+
+  const overrides = input.overrides ?? DEFAULT_OVERRIDES;
+  const perfektFürLabel = isDE
+    ? overrides.copy.endSlide.perfektFürLabel.de
+    : overrides.copy.endSlide.perfektFürLabel.en;
 
   const rankNum = tool.rank;
   const rankLabel = `#${String(rankNum).padStart(2, "0")}`;
@@ -85,18 +94,20 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
       {/* Top: Rank badge + tool name eyebrow */}
       <div style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 20, marginBottom: 36 }}>
         {/* Rank badge — big, brand color */}
-        <span
-          style={{
-            fontFamily,
-            fontSize: brandTokens.typography.rankBadgeSize,
-            fontWeight: brandTokens.typography.rankBadgeWeight,
-            color: theme.brand,
-            letterSpacing: brandTokens.typography.rankBadgeLetterSpacing,
-            lineHeight: 1,
-          }}
-        >
-          {rankLabel}
-        </span>
+        {overrides.layout.showRankBadge && (
+          <span
+            style={{
+              fontFamily,
+              fontSize: brandTokens.typography.rankBadgeSize,
+              fontWeight: brandTokens.typography.rankBadgeWeight,
+              color: theme.brand,
+              letterSpacing: brandTokens.typography.rankBadgeLetterSpacing,
+              lineHeight: 1,
+            }}
+          >
+            {rankLabel}
+          </span>
+        )}
 
         {/* Tool name in eyebrow style */}
         <span
@@ -283,7 +294,7 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
                   textTransform: "uppercase" as const,
                 }}
               >
-                Perfekt für
+                {perfektFürLabel}
               </span>
               <span style={{ fontFamily, fontSize: 36, fontWeight: 800, color: theme.ink, lineHeight: 1.15 }}>
                 {useCase}.
@@ -294,17 +305,19 @@ export function ToolSlideStunning({ input, tool, slideNumber, totalSlides, theme
 
         {/* Pricing chip — centered with extra bottom margin so it breathes
             clear of the footer. */}
-        <div
-          style={{
-            marginBottom: 100,
-            border: `2px solid color-mix(in oklch, ${theme.brand} 25%, transparent)`,
-            borderRadius: 16,
-            padding: "4px",
-            alignSelf: "center",
-          }}
-        >
-          <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} brandTokens={brandTokens} />
-        </div>
+        {overrides.layout.showPricingChip && (
+          <div
+            style={{
+              marginBottom: 100,
+              border: `2px solid color-mix(in oklch, ${theme.brand} 25%, transparent)`,
+              borderRadius: 16,
+              padding: "4px",
+              alignSelf: "center",
+            }}
+          >
+            <PricingChip tier={tool.pricing.tier} label={tool.pricing.label} fontFamily={fontFamily} theme={themeMode} brandTokens={brandTokens} />
+          </div>
+        )}
       </div>
 
       {/* Footer: absolute so it never pushes content */}

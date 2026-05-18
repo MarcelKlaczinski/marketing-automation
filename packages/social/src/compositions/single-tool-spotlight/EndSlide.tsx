@@ -6,18 +6,31 @@ import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import { getThemeTokens } from "../../lib/theme.ts";
 import { CAROUSEL_SAFE_ZONES as SZ } from "../list-carousel/safeZones.ts";
 import type { SingleToolSpotlightInput } from "./types.ts";
+import { singleToolSpotlightOverridesSchema } from "../../templates/overrides/singleToolSpotlight.overrides.ts";
 
 loadFont();
 
 const FONT = "Space Grotesk, sans-serif";
+const DEFAULT_OVERRIDES = singleToolSpotlightOverridesSchema.parse({});
 
 type Props = { input: SingleToolSpotlightInput; slideNumber: number };
 
 export function EndSlide({ input, slideNumber }: Props) {
-  const { tool, theme: themeMode, locale, websiteUrl, instagramHandle, totalSlides, articleSlug } = input;
+  const { tool, theme: themeMode, locale, brandTokens, totalSlides, articleSlug } = input;
   const theme = getThemeTokens(undefined, themeMode);
+  const isDE = locale === "de";
 
-  const eyebrow = locale === "de" ? "ZUR VERTIEFUNG" : "DIVE DEEPER";
+  const overrides = input.overrides ?? DEFAULT_OVERRIDES;
+  const copy = overrides.copy.endSlide;
+  const layout = overrides.layout;
+
+  const eyebrow = isDE ? "ZUR VERTIEFUNG" : "DIVE DEEPER";
+  const ctaSaveLabel = isDE ? copy.ctaSaveLabel.de : copy.ctaSaveLabel.en;
+  const ctaSaveSubline = isDE
+    ? `als ${tool.name}-Cheat-Sheet`
+    : `as your ${tool.name} cheat sheet`;
+  const ctaFollowLabel = isDE ? copy.ctaFollowLabel.de : copy.ctaFollowLabel.en;
+  const reviewedLabel = isDE ? "Im Check" : "Reviewed";
 
   return (
     <div
@@ -52,75 +65,81 @@ export function EndSlide({ input, slideNumber }: Props) {
         {/* CTA headline */}
         <div style={{ marginTop: 52 }}>
           <div style={{ fontFamily: FONT, fontSize: 72, fontWeight: 800, lineHeight: 1.1, color: theme.ink }}>
-            {locale === "de" ? "Speichere diesen" : "Save this"}
+            {isDE ? "Speichere diesen" : "Save this"}
           </div>
           <div style={{ fontFamily: FONT, fontSize: 72, fontWeight: 800, lineHeight: 1.1 }}>
-            <span style={{ color: theme.ink }}>{locale === "de" ? "Post" : "post"} </span>
-            <span style={{ color: theme.brand, fontWeight: 900 }}>{locale === "de" ? "für später." : "for later."}</span>
+            <span style={{ color: theme.ink }}>{isDE ? "Post" : "post"} </span>
+            <span style={{ color: theme.brand, fontWeight: 900 }}>{isDE ? "für später." : "for later."}</span>
           </div>
         </div>
 
         {/* Action cards */}
         <div style={{ marginTop: 60, display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Save card */}
-          <div
-            style={{
-              padding: "24px 28px",
-              borderRadius: 16,
-              background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
-              border: `1px solid color-mix(in oklch, ${theme.brand} 20%, transparent)`,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme.brand, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
-              {locale === "de" ? "Speichere diesen Post" : "Save this post"}
+          {layout.showSavePrompt && (
+            <div
+              style={{
+                padding: "24px 28px",
+                borderRadius: 16,
+                background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
+                border: `1px solid color-mix(in oklch, ${theme.brand} 20%, transparent)`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme.brand, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
+                {ctaSaveLabel}
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 600, color: theme.brand }}>
+                {ctaSaveSubline}
+              </div>
             </div>
-            <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 600, color: theme.brand }}>
-              {locale === "de" ? `als ${tool.name}-Cheat-Sheet` : `as your ${tool.name} cheat sheet`}
-            </div>
-          </div>
+          )}
 
           {/* Follow card */}
-          <div
-            style={{
-              padding: "24px 28px",
-              borderRadius: 16,
-              background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
-              border: `1px solid color-mix(in oklch, ${theme.inkMuted} 15%, transparent)`,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
-              {locale === "de" ? "Mehr ehrliche Vergleiche" : "More honest reviews"}
+          {layout.showFollowCTA && (
+            <div
+              style={{
+                padding: "24px 28px",
+                borderRadius: 16,
+                background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
+                border: `1px solid color-mix(in oklch, ${theme.inkMuted} 15%, transparent)`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
+                {ctaFollowLabel}
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: theme.brand }}>
+                {brandTokens.social.instagramHandle}
+              </div>
             </div>
-            <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: theme.brand }}>
-              {instagramHandle}
-            </div>
-          </div>
+          )}
 
           {/* Article URL card */}
-          <div
-            style={{
-              padding: "24px 28px",
-              borderRadius: 16,
-              background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
-              border: `1px solid color-mix(in oklch, ${theme.inkMuted} 15%, transparent)`,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
-              {locale === "de" ? "Vollständiger Test" : "Full review"}
+          {layout.showArticleLink && (
+            <div
+              style={{
+                padding: "24px 28px",
+                borderRadius: 16,
+                background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
+                border: `1px solid color-mix(in oklch, ${theme.inkMuted} 15%, transparent)`,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <div style={{ fontFamily: FONT, fontSize: 16, fontWeight: 700, color: theme.inkMuted, letterSpacing: "0.06em", textTransform: "uppercase" as const }}>
+                {isDE ? "Vollständiger Test" : "Full review"}
+              </div>
+              <div style={{ fontFamily: FONT, fontSize: 22, fontWeight: 500, color: theme.ink }}>
+                {brandTokens.social.websiteUrl}/{articleSlug}
+              </div>
             </div>
-            <div style={{ fontFamily: FONT, fontSize: 22, fontWeight: 500, color: theme.ink }}>
-              {websiteUrl}/{articleSlug}
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Tool recap */}
@@ -148,7 +167,7 @@ export function EndSlide({ input, slideNumber }: Props) {
               flexShrink: 0,
             }}
           >
-            {locale === "de" ? "Im Check" : "Reviewed"}
+            {reviewedLabel}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <ToolIconImage
@@ -166,8 +185,8 @@ export function EndSlide({ input, slideNumber }: Props) {
 
       <div style={{ position: "absolute", bottom: 72, left: SZ.PAD_X, right: SZ.PAD_X }}>
         <BrandFooter
-          websiteUrl={websiteUrl}
-          instagramHandle={instagramHandle}
+          websiteUrl={brandTokens.social.websiteUrl}
+          instagramHandle={brandTokens.social.instagramHandle}
           theme={theme}
           fontFamily={FONT}
           slideLabel={`${slideNumber}/${totalSlides}`}

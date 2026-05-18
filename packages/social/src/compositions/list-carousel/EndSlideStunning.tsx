@@ -4,6 +4,9 @@ import { Eyebrow } from "../../shared/Eyebrow.tsx";
 import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
 import type { CloserLine, EndCloser, ListCarouselInput } from "./types.ts";
+import { comparisonStunningOverridesSchema } from "../../templates/overrides/comparisonStunning.overrides.ts";
+
+const DEFAULT_OVERRIDES = comparisonStunningOverridesSchema.parse({});
 
 type Props = {
   input: ListCarouselInput;
@@ -30,12 +33,14 @@ function StunningEndBackground({ theme }: { theme: ThemeTokens }) {
 
 // Tool recap — per-tool row with icon + name + endSlideToken so the slide
 // gives a concrete "Recraft → Logos. Ideogram → Poster." takeaway.
-function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
+function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode, recapLabel, forLabel }: {
   tools: ListCarouselInput["tools"];
   recap: string[] | undefined;
   theme: ThemeTokens;
   fontFamily: string;
   themeMode: "dark" | "light";
+  recapLabel: string;
+  forLabel: string;
 }) {
   const slugs = recap ?? tools.map((t) => t.slug);
   const displayTools = tools.filter((t) => slugs.includes(t.slug)).slice(0, 6);
@@ -66,7 +71,7 @@ function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
           textTransform: "uppercase" as const,
         }}
       >
-        Tools im Detail
+        {recapLabel}
       </span>
       <div
         style={{
@@ -105,7 +110,7 @@ function ToolRecapGrid({ tools, recap, theme, fontFamily, themeMode }: {
               </span>
               {tool.endSlideToken && (
                 <span style={{ fontFamily, fontSize: 20, fontWeight: 600, color: theme.inkMuted }}>
-                  für {tool.endSlideToken}
+                  {forLabel}{tool.endSlideToken}
                 </span>
               )}
             </div>
@@ -159,9 +164,21 @@ function CloserHeadlineRenderer({
 }
 
 export function EndSlideStunning({ input, theme, totalSlides }: Props) {
-  const { end, tools, brandTokens } = input;
+  const { end, tools, brandTokens, locale } = input;
   const { fontFamily, headingWeight, eyebrowLetterSpacing } = brandTokens.typography;
   const closer = end.closer;
+  const isDE = (locale ?? "de") === "de";
+
+  const overrides = input.overrides ?? DEFAULT_OVERRIDES;
+  const copy = overrides.copy;
+  const layout = overrides.layout;
+
+  const eyebrowText = isDE ? copy.deepDiveEyebrow.de : copy.deepDiveEyebrow.en;
+  const ctaSaveLabel = isDE ? copy.endSlide.ctaSaveLabel.de : copy.endSlide.ctaSaveLabel.en;
+  const ctaSaveSubline = isDE ? copy.endSlide.ctaSaveSubline.de : copy.endSlide.ctaSaveSubline.en;
+  const ctaFollowLabel = isDE ? copy.endSlide.ctaFollowLabel.de : copy.endSlide.ctaFollowLabel.en;
+  const toolsRecapLabel = isDE ? copy.endSlide.toolsRecapLabel.de : copy.endSlide.toolsRecapLabel.en;
+  const forLabel = isDE ? copy.endSlide.forLabel.de : copy.endSlide.forLabel.en;
 
   return (
     <div
@@ -181,7 +198,7 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
       {/* Top: Eyebrow */}
       <div style={{ position: "relative", marginBottom: 48 }}>
         <Eyebrow
-          text="ZUR VERTIEFUNG"
+          text={eyebrowText}
           theme={theme}
           fontFamily={fontFamily}
           letterSpacing={eyebrowLetterSpacing}
@@ -217,119 +234,129 @@ export function EndSlideStunning({ input, theme, totalSlides }: Props) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {/* Save-action block — primary algo signal */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 24,
-              padding: "30px 32px",
-              background: `color-mix(in oklch, ${theme.brand} 12%, transparent)`,
-              borderRadius: 20,
-              border: `1.5px solid color-mix(in oklch, ${theme.brand} 35%, transparent)`,
-            }}
-          >
-            <span style={{ fontSize: 44 }}>📌</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span
-                style={{
-                  fontFamily,
-                  fontSize: 20,
-                  fontWeight: 700,
-                  color: theme.inkMuted,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase" as const,
-                }}
-              >
-                Speichere diesen Post
-              </span>
-              <span style={{ fontFamily, fontSize: 32, fontWeight: 800, color: theme.brand, lineHeight: 1.15 }}>
-                als Cheat-Sheet für deinen Workflow
-              </span>
+          {layout.showSavePrompt && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 24,
+                padding: "30px 32px",
+                background: `color-mix(in oklch, ${theme.brand} 12%, transparent)`,
+                borderRadius: 20,
+                border: `1.5px solid color-mix(in oklch, ${theme.brand} 35%, transparent)`,
+              }}
+            >
+              <span style={{ fontSize: 44 }}>📌</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span
+                  style={{
+                    fontFamily,
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: theme.inkMuted,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase" as const,
+                  }}
+                >
+                  {ctaSaveLabel}
+                </span>
+                <span style={{ fontFamily, fontSize: 32, fontWeight: 800, color: theme.brand, lineHeight: 1.15 }}>
+                  {ctaSaveSubline}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Follow CTA */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 24,
-              padding: "30px 32px",
-              background: `color-mix(in oklch, ${theme.accent} 12%, transparent)`,
-              borderRadius: 20,
-              border: `1.5px solid color-mix(in oklch, ${theme.accent} 35%, transparent)`,
-            }}
-          >
-            <span style={{ fontSize: 44 }}>📱</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span
-                style={{
-                  fontFamily,
-                  fontSize: 20,
-                  fontWeight: 700,
-                  color: theme.inkMuted,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase" as const,
-                }}
-              >
-                Mehr ehrliche Vergleiche
-              </span>
-              <span style={{ fontFamily, fontSize: 32, fontWeight: 800, color: theme.accent, lineHeight: 1.15 }}>
-                {brandTokens.social.instagramHandle}
-              </span>
+          {layout.showFollowCTA && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 24,
+                padding: "30px 32px",
+                background: `color-mix(in oklch, ${theme.accent} 12%, transparent)`,
+                borderRadius: 20,
+                border: `1.5px solid color-mix(in oklch, ${theme.accent} 35%, transparent)`,
+              }}
+            >
+              <span style={{ fontSize: 44 }}>📱</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span
+                  style={{
+                    fontFamily,
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: theme.inkMuted,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase" as const,
+                  }}
+                >
+                  {ctaFollowLabel}
+                </span>
+                <span style={{ fontFamily, fontSize: 32, fontWeight: 800, color: theme.accent, lineHeight: 1.15 }}>
+                  {brandTokens.social.instagramHandle}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Article link */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 24,
-              padding: "26px 32px",
-              background: `color-mix(in oklch, ${theme.inkMuted} 8%, transparent)`,
-              borderRadius: 20,
-              border: `1.5px solid color-mix(in oklch, ${theme.inkMuted} 20%, transparent)`,
-            }}
-          >
-            <span style={{ fontSize: 40 }}>🌐</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span
-                style={{
-                  fontFamily,
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: theme.inkMuted,
-                  letterSpacing: "0.04em",
-                  textTransform: "uppercase" as const,
-                }}
-              >
-                Vollständiger Artikel
-              </span>
-              <span
-                style={{
-                  fontFamily,
-                  fontSize: 26,
-                  fontWeight: 700,
-                  color: theme.ink,
-                  wordBreak: "break-all",
-                  lineHeight: 1.15,
-                }}
-              >
-                {end.articleUrl.replace(/^https?:\/\//, "")}
-              </span>
+          {layout.showArticleLink && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 24,
+                padding: "26px 32px",
+                background: `color-mix(in oklch, ${theme.inkMuted} 8%, transparent)`,
+                borderRadius: 20,
+                border: `1.5px solid color-mix(in oklch, ${theme.inkMuted} 20%, transparent)`,
+              }}
+            >
+              <span style={{ fontSize: 40 }}>🌐</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span
+                  style={{
+                    fontFamily,
+                    fontSize: 18,
+                    fontWeight: 700,
+                    color: theme.inkMuted,
+                    letterSpacing: "0.04em",
+                    textTransform: "uppercase" as const,
+                  }}
+                >
+                  {isDE ? "Vollständiger Artikel" : "Full article"}
+                </span>
+                <span
+                  style={{
+                    fontFamily,
+                    fontSize: 26,
+                    fontWeight: 700,
+                    color: theme.ink,
+                    wordBreak: "break-all",
+                    lineHeight: 1.15,
+                  }}
+                >
+                  {end.articleUrl.replace(/^https?:\/\//, "")}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Tool recap — per-tool with endSlideToken */}
-        <ToolRecapGrid
-          tools={tools}
-          recap={end.toolRecap}
-          theme={theme}
-          fontFamily={fontFamily}
-          themeMode={input.theme}
-        />
+        {layout.showToolRecap && (
+          <ToolRecapGrid
+            tools={tools}
+            recap={end.toolRecap}
+            theme={theme}
+            fontFamily={fontFamily}
+            themeMode={input.theme}
+            recapLabel={toolsRecapLabel}
+            forLabel={forLabel}
+          />
+        )}
       </div>
 
       {/* Footer: absolute so it never pushes content */}

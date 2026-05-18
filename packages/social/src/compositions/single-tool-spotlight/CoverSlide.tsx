@@ -14,7 +14,7 @@ const FONT = "Space Grotesk, sans-serif";
 type Props = { input: SingleToolSpotlightInput };
 
 export function CoverSlide({ input }: Props) {
-  const { tool, theme: themeMode, locale, websiteUrl, instagramHandle, totalSlides } = input;
+  const { tool, theme: themeMode, locale, brandTokens, totalSlides } = input;
   const theme = getThemeTokens(undefined, themeMode);
   const year = new Date().getFullYear();
 
@@ -185,8 +185,8 @@ export function CoverSlide({ input }: Props) {
       {/* Footer */}
       <div style={{ position: "absolute", bottom: 72, left: SZ.PAD_X, right: SZ.PAD_X }}>
         <BrandFooter
-          websiteUrl={websiteUrl}
-          instagramHandle={instagramHandle}
+          websiteUrl={brandTokens.social.websiteUrl}
+          instagramHandle={brandTokens.social.instagramHandle}
           theme={theme}
           fontFamily={FONT}
           slideLabel={`1/${totalSlides}`}

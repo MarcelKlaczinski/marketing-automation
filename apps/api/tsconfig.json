@@ -47,6 +47,7 @@
       "@marketing-auto/pipelines": ["../../packages/pipelines/src/index.ts"],
       "@marketing-auto/pipelines/engine": ["../../packages/pipelines/src/engine/index.ts"],
       "@marketing-auto/social/templates": ["../../packages/social/src/templates/index.ts"],
+      "@marketing-auto/social/templates/overrides": ["../../packages/social/src/templates/overrides/index.ts"],
       "@marketing-auto/social/lib": ["../../packages/social/src/lib/index.ts"]
     }
   },

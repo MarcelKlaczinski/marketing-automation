@@ -2,6 +2,7 @@ import type { TemplateDefinition } from "../types.ts";
 import { getToolContext, type ToolContext } from "../adapters/tool.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
+import { singleToolSpotlightOverridesSchema } from "../overrides/singleToolSpotlight.overrides.ts";
 import { SINGLE_TOOL_SPOTLIGHT_FIXTURES } from "./fixtures/singleToolSpotlight.fixtures.ts";
 import {
   generateContentWithGate,
@@ -111,6 +112,7 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
   render: async (context) => {
     const { article, input, locale, theme } = context;
     const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
+    const resolvedOverrides = singleToolSpotlightOverridesSchema.parse(context.overrides ?? {});
 
     const hasUseCaseSlide = input.useCases.length >= 3;
     const totalSlides = hasUseCaseSlide ? 5 : 4;
@@ -127,8 +129,8 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
       locale,
       slideIndex: 0,
       totalSlides,
-      websiteUrl: brandTokens.social.websiteUrl ?? "toolwiki.ai",
-      instagramHandle: brandTokens.social.instagramHandle ?? "@toolwiki.ai",
+      brandTokens,
+      overrides: resolvedOverrides,
       articleSlug: article.slug,
       tool: {
         slug: input.slug,

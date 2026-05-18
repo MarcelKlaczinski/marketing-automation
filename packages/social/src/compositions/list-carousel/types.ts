@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { comparisonStunningOverridesSchema } from "../../templates/overrides/comparisonStunning.overrides.ts";
 
 export const brandTokensSchema = z.object({
   colors: z
@@ -121,6 +122,7 @@ export type EndCloser = z.infer<typeof endCloserSchema>;
 export const listCarouselInputSchema = z.object({
   theme: z.enum(["dark", "light"]).default("dark"),
   variant: z.enum(["stunning"]).default("stunning"),
+  locale: z.enum(["de", "en"]).default("de"),
   brandTokens: brandTokensSchema.default({}),
   slideIndex: z.number().int().default(0),
 
@@ -145,6 +147,8 @@ export const listCarouselInputSchema = z.object({
     closer: endCloserSchema.optional(),
     toolRecap: z.array(z.string()).optional(), // tool slugs for recap strip
   }),
+  // Spec 57.3 — project-scoped overrides; defaults applied when absent
+  overrides: comparisonStunningOverridesSchema.optional(),
 });
 
 export type ListCarouselInput = z.infer<typeof listCarouselInputSchema>;

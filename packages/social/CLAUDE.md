@@ -25,6 +25,27 @@ Key rules enforced by the Zod schema and prompt:
 
 If the LLM fails twice (malformed JSON or schema validation), the step falls back to 7 generic hardcoded tags and sets `social_posts.content.warnings = ['hashtag_generation_fallback']`.
 
+## Template Override System (Spec 57.3)
+
+Project-scoped overrides let admins customize copy strings, layout toggles, and eligibility gates per template without forking template code.
+
+**Schema location:** `src/templates/overrides/<templateKey>.overrides.ts` — one file per template (or per shared schema). Exported from `src/templates/overrides/index.ts` as the `@marketing-auto/social/templates/overrides` subpath.
+
+**Pattern for adding overrides to a new template:**
+1. Create `src/templates/overrides/<name>.overrides.ts` with a `z.object({...}).strip()` schema — `.strip()` is required for schema evolution safety. All nested objects must have `.default({})` so `schema.parse({})` returns a fully-populated object.
+2. Add to `OVERRIDE_TEMPLATE_KEYS` and the `getOverrideSchema()` switch in `index.ts`.
+3. Add `overrides?: <Schema>.optional()` to the composition's input schema (`types.ts`).
+4. In the composition, resolve via `const overrides = input.overrides ?? schema.parse({})`. Never hardcode locale strings — read from `overrides.copy.*` with `isDE ? copy.field.de : copy.field.en`.
+5. In `RenderSlidesStep`: call `fetchTemplateOverrides(projectId, templateKey)` from `@marketing-auto/db`, then `mergeOverrides(schema, row?.values)`. Fire-and-forget `markTemplateOverrideUsed()` (no await — must not block render).
+
+**`mergeOverrides` is just `schema.parse(storedValues ?? {})`** — Zod's `.default({})` on nested objects fills in all missing keys. No custom merge logic needed.
+
+**`markTemplateOverrideUsed` is an approximated write** — only fires when `lastUsedAt` is null or older than 1 hour to avoid write contention from parallel pipeline runs. It's a no-op when no row exists.
+
+**`locale` field required on composition inputSchema** — when a composition uses locale-aware override strings, add `locale: z.enum(["de", "en"]).default("de")` to the composition's input schema. `listCarouselInputSchema` had this field missing before Spec 57.3.
+
+**Dynamic import in pipeline step** — import `getOverrideSchema`/`mergeOverrides` from `@marketing-auto/social/templates/overrides` directly (not dynamic import needed; dynamic import was considered but the package is already on the dependency graph).
+
 ## Gotchas
 
 - **Font loading must be at module level** — call `loadFont()` from `@remotion/google-fonts/<Font>` at the top of the composition file (outside the component function). Remotion pre-loads fonts before headless Chrome renders; calling inside the component body is too late and produces blank/default font.

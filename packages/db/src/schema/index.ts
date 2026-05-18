@@ -10,4 +10,5 @@ export * from "./push.ts";
 export * from "./notifications.ts";
 export * from "./cron.ts";
 export * from "./refresh.ts";
+export * from "./social-overrides.ts";
 // contentGaps exported via content.ts
