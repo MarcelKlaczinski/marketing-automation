@@ -5,6 +5,8 @@ import { UseCaseVerdictComposition } from "./compositions/verdict-cards/UseCaseV
 import { useCaseVerdictInputSchema } from "./compositions/verdict-cards/types.ts";
 import { SingleToolSpotlightComposition } from "./compositions/single-tool-spotlight/SingleToolSpotlightComposition.tsx";
 import { singleToolSpotlightInputSchema } from "./compositions/single-tool-spotlight/types.ts";
+import { ProConVerdictComposition } from "./compositions/pro-con-verdict/ProConVerdict.tsx";
+import { proConVerdictInputSchema } from "./compositions/pro-con-verdict/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -152,6 +154,36 @@ export function RemotionRoot() {
             useCases: ["Corporate Training", "Compliance-Schulungen", "Produktvideos in 140 Sprachen"],
             iconInitials: "SY",
             iconHue: 200,
+          },
+        })}
+      />
+      <Composition
+        id="ProConVerdict"
+        component={ProConVerdictComposition}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={proConVerdictInputSchema}
+        defaultProps={proConVerdictInputSchema.parse({
+          theme: "dark",
+          locale: "de",
+          slideIndex: 0,
+          tool: { name: "Loom" },
+          pros: [
+            "Async-Video direkt im Browser, kein Schnitt nötig",
+            "Auto-Transkription in 50+ Sprachen",
+            "Integriert sich in Slack, Notion, Linear",
+          ],
+          cons: [
+            "Free-Tier auf 5 Min/Video begrenzt",
+            "Editor schwach für längere Tutorials",
+            "Keine echte Live-Recording-Option",
+          ],
+          verdict: {
+            snippet: "Solide für schnelle Async-Updates, schwach für Tutorial-Macher",
+            whenToUse: "Wenn du regelmäßig kurze Status-Videos für Teams brauchst. Loom glänzt bei 1-5 Min Clips ohne Schnitt.",
+            whenToSkip: "Wenn du längere strukturierte Tutorials produzierst oder Live-Streaming brauchst.",
           },
         })}
       />

@@ -18,6 +18,9 @@ export const brandTokensSchema = z.object({
       pricingFree: z.string().default("#22c55e"),
       pricingFreemium: z.string().default("#3b82f6"),
       pricingPaid: z.string().default("#f59e0b"),
+      // pro-con-verdict template: optional semantic colors for pros/cons tints
+      prosColor: z.string().optional(),
+      consColor: z.string().optional(),
     })
     .default({}),
   typography: z

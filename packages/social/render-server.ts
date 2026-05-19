@@ -12,6 +12,7 @@ import { readFile, rm, mkdir } from "node:fs/promises";
 import type { ListCarouselInput } from "./src/compositions/list-carousel/types.ts";
 import type { UseCaseVerdictInput } from "./src/compositions/verdict-cards/types.ts";
 import type { SingleToolSpotlightInput } from "./src/compositions/single-tool-spotlight/types.ts";
+import type { ProConVerdictInput } from "./src/compositions/pro-con-verdict/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 
@@ -91,6 +92,43 @@ export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput)
   if (!baseComposition) throw new Error("SingleToolSpotlight composition not found in bundle");
 
   const outDir = resolve(tmpdir(), `social-render-sts-${Date.now()}`);
+  await mkdir(outDir, { recursive: true });
+
+  const slides: Buffer[] = [];
+  try {
+    for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
+      const outPath = resolve(outDir, `slide-${slideIndex}.png`);
+      const slideProps = { ...input, slideIndex, totalSlides } as Record<string, unknown>;
+
+      await renderStill({
+        composition: { ...baseComposition, props: slideProps },
+        serveUrl,
+        output: outPath,
+        frame: 0,
+        imageFormat: "png",
+      });
+
+      const buf = await readFile(outPath);
+      slides.push(buf);
+    }
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+
+  return { slides, sequenceCount: totalSlides };
+}
+
+export async function renderProConVerdict(input: ProConVerdictInput): Promise<RenderResult> {
+  const overrides = input.overrides as { layout?: { includeEndSlide?: boolean } } | undefined;
+  const includeEndSlide = overrides?.layout?.includeEndSlide ?? true;
+  const totalSlides = includeEndSlide ? 5 : 4;
+
+  const serveUrl = await getBundle();
+  const compositions = await getCompositions(serveUrl);
+  const baseComposition = compositions.find((c) => c.id === "ProConVerdict");
+  if (!baseComposition) throw new Error("ProConVerdict composition not found in bundle");
+
+  const outDir = resolve(tmpdir(), `social-render-pcv-${Date.now()}`);
   await mkdir(outDir, { recursive: true });
 
   const slides: Buffer[] = [];

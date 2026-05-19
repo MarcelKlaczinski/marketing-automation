@@ -44,39 +44,54 @@ const socialRenderJobDataSchema = z.object({
 
 async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ slideUrls: string[] }> {
   const locale = (data.locale.startsWith("de") ? "de" : "en") as "de" | "en";
-  const toolRecap = (data.resolvedTools as Array<{ slug: string }>).map((t) => t.slug);
-
-  const carouselInput = {
-    theme: data.theme,
-    variant: data.variant,
-    locale,
-    brandTokens: data.brandTokens,
-    slideIndex: 0,
-    overrides: data.overrides,
-    cover: {
-      eyebrow: data.coverEyebrow,
-      headlineLead: data.coverHeadlineLead,
-      headlineHighlight: data.coverHeadlineHighlight,
-      ...(data.coverHeadlineTrail !== undefined && { headlineTrail: data.coverHeadlineTrail }),
-      ...(data.coverSubhead !== undefined && { subhead: data.coverSubhead }),
-      ...(data.coverHookOutput !== undefined && { hookOutput: data.coverHookOutput }),
-    },
-    tools: data.resolvedTools,
-    end: {
-      headline: data.endHeadline,
-      headlineHighlight: data.endHeadlineHighlight,
-      articleUrl: data.articleUrl,
-      ...(data.endCloser !== undefined && { closer: data.endCloser }),
-      toolRecap,
-    },
-  };
+  const templateKey = data.templateKey;
 
   // Dynamic import: avoids Remotion bundling into API startup context (per packages/social CLAUDE.md).
   // Import from the /render-server subpath (pure .ts, no JSX) so the API tsconfig doesn't need --jsx.
-  const { renderComparisonGrid } = (await import("@marketing-auto/social/render-server")) as unknown as {
+  const renderServer = (await import("@marketing-auto/social/render-server")) as unknown as {
     renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderVerdictPerUseCase: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderSingleToolSpotlight: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderProConVerdict: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   };
-  const { slides } = await renderComparisonGrid(carouselInput as Record<string, unknown>);
+
+  let slides: Buffer[];
+
+  if (templateKey === "comparison-grid-4" || templateKey === "comparison-grid-3") {
+    const toolRecap = (data.resolvedTools as Array<{ slug: string }>).map((t) => t.slug);
+    const carouselInput = {
+      theme: data.theme,
+      variant: data.variant,
+      locale,
+      brandTokens: data.brandTokens,
+      slideIndex: 0,
+      overrides: data.overrides,
+      cover: {
+        eyebrow: data.coverEyebrow,
+        headlineLead: data.coverHeadlineLead,
+        headlineHighlight: data.coverHeadlineHighlight,
+        ...(data.coverHeadlineTrail !== undefined && { headlineTrail: data.coverHeadlineTrail }),
+        ...(data.coverSubhead !== undefined && { subhead: data.coverSubhead }),
+        ...(data.coverHookOutput !== undefined && { hookOutput: data.coverHookOutput }),
+      },
+      tools: data.resolvedTools,
+      end: {
+        headline: data.endHeadline,
+        headlineHighlight: data.endHeadlineHighlight,
+        articleUrl: data.articleUrl,
+        ...(data.endCloser !== undefined && { closer: data.endCloser }),
+        toolRecap,
+      },
+    };
+    const result = await renderServer.renderComparisonGrid(carouselInput as Record<string, unknown>);
+    slides = result.slides;
+  } else if (templateKey === "verdict-per-use-case" || templateKey === "single-tool-spotlight" || templateKey === "pro-con-verdict") {
+    // These templates use the renderInput snapshot persisted in social_posts.content (Spec 58.2).
+    // Full input construction from snapshot will be wired in Session 3 (Spec 59.3 Section F).
+    throw new Error(`Template '${templateKey}' render not yet wired in worker — wire in Session 3`);
+  } else {
+    throw new Error(`Unknown templateKey: ${templateKey}`);
+  }
 
   // Upload each PNG buffer to R2 and collect public URLs
   const timestamp = Date.now();
