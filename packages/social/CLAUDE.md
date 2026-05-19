@@ -113,7 +113,7 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 
 - **Font loading must be at module level** — call `loadFont()` from `@remotion/google-fonts/<Font>` at the top of the composition file (outside the component function). Remotion pre-loads fonts before headless Chrome renders; calling inside the component body is too late and produces blank/default font.
 
-- **No web-safe fonts in headless Chrome** — Inter Variable, system-ui, and other common fonts are not available in Remotion's bundled Chromium. Always use a `@remotion/google-fonts/<Font>` package: `bun add @remotion/google-fonts --cwd packages/social`. Currently using `SpaceGrotesk`.
+- **No web-safe fonts in headless Chrome** — Inter Variable, system-ui, and other common fonts are not available in Remotion's bundled Chromium. Always use a `@remotion/google-fonts/<Font>` package: `bun add @remotion/google-fonts --cwd packages/social`. Currently using `Inter Variable` (Spec 60.1+), replacing the legacy `SpaceGrotesk` used in pre-refresh templates
 
 - **Tool icons are inline SVGs, not file paths** (Spec 52a) — `ToolIconImage` receives an `iconSvg` string (inline SVG from simple-icons/iconify/lobe-icons) or `initials`+`hue` for the avatar fallback. The old `iconUrl` file-path pattern and `resolveIconUrls()` pre-processing were removed. Never pass `file://` paths or emoji strings to `ToolIconImage`.
 
@@ -136,6 +136,10 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 - **`fileURLToPath` is in `node:url`, not `node:path` in Bun** — Bun throws `SyntaxError: Export named 'fileURLToPath' not found in module 'node:path'` if you import it from `node:path`. Always: `import { fileURLToPath } from "node:url"`.
 
 - **Heterogeneous `TemplateDefinition<T>[]` arrays need an explicit cast** — TypeScript infers a union like `TemplateDefinition<A> | TemplateDefinition<B>` from a mixed array, which breaks generic calls (`register<T>(t)`, `assertFixtures(t)`). Cast the whole array once: `const templates = [...] as unknown as TemplateDefinition<unknown>[];`. Add a comment justifying the cast (e.g. "only reads non-generic fields").
+
+- **`resolveBrandTokens()` must be called at the top of every DS-refreshed slide component** (Spec 60.1+) — compositions receive `brandTokens?: unknown` from the input schema. Call `resolveBrandTokens(brandTokens)` from `src/lib/brand-tokens.ts` immediately at the start of each slide component to convert it to a typed `BrandTokens` with defaults applied. Pass the result to `deriveDsTokens(tokens, theme)` immediately after. Pattern: `const tokens = useMemo(() => deriveDsTokens(resolveBrandTokens(brandTokens), theme), [brandTokens, theme])`.
+
+- **`loadFonts.ts` must be imported as a side-effect, not a named import** (Spec 60.1+) — font loading happens once at module load time via `loadFont()` from `@remotion/google-fonts/Inter`. In the composition's main file (e.g., `SingleToolSpotlight.tsx`), import it with `import "./loadFonts.ts"` (no named bindings). This ensures Remotion registers Inter before any slide component renders. Calling `loadFont()` inside the component body is too late and produces blank fonts.
 
 ## Visual test harness (Spec 59.3.5)
 

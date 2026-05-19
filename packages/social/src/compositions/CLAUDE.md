@@ -58,12 +58,14 @@ Children inside a fixed-height parent may use `1fr` or `flex: 1` freely, because
 
 ---
 
-## Consuming DS helpers (Spec 60.0b v2)
+## Consuming DS helpers (Spec 60.0b v2 + 60.1)
 
 For visual-refreshed templates (Spec 60.1+), compositions consume:
 
 - `deriveDsTokens(brandTokens, theme)` from `../brand-tokens/derive`
   → returns the full DS token set (brand stops, accent, surface, ink, etc.)
+- `resolveBrandTokens(unknown)` from `../lib/brand-tokens`
+  → converts loosely-typed input (from Remotion's schema) to fully-typed BrandTokens with defaults
 - `<DsGlow>`, `<DsTop>`, `<DsFoot>` from `../../ds-components`
   → the only three components shared across multiple templates
 
@@ -72,10 +74,16 @@ Pattern:
 ```tsx
 import { AbsoluteFill, useMemo } from "remotion";
 import { deriveDsTokens } from "../brand-tokens/derive";
+import { resolveBrandTokens } from "../lib/brand-tokens";
 import { DsGlow, DsTop, DsFoot } from "../../ds-components";
 
 const MyTemplateSlide: React.FC<Props> = ({ brandTokens, theme, content }) => {
-  const tokens = useMemo(() => deriveDsTokens(brandTokens, theme), [brandTokens, theme]);
+  // First: resolve loosely-typed schema input to fully-typed BrandTokens
+  const resolvedTokens = resolveBrandTokens(brandTokens);
+  
+  // Then: derive DS tokens once, memoized for stability across re-renders
+  const tokens = useMemo(() => deriveDsTokens(resolvedTokens, theme), [resolvedTokens, theme]);
+  
   return (
     <AbsoluteFill style={{
       background: tokens.surface.base,

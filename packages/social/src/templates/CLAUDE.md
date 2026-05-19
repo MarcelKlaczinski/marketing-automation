@@ -222,6 +222,20 @@ If `edge-min` looks sparse or `edge-max` clips text, the layout is not productio
 **Zod silently strips fields not in the composition schema:** If your template's `render()` passes a computed field (e.g. `pricingLabel`) to the composition input but that field is not declared in the composition's Zod schema, Zod strips it silently at parse time. No compile error, no runtime error. Each slide then has to recompute it from first principles — wasted computation and inconsistent logic. Rule: either declare the field in the schema AND pass it from render(), OR don't pass it and have slides compute it locally. Never half-do it.
 
 ---
+## ContentBounds Shape Hierarchy (Spec 60.0c)
+
+A `ContentBounds` object recursively describes field-level character/count constraints. It has four shapes:
+
+1. **FieldBound** — character range for a string field: `{ min: 10, max: 60 }`
+2. **ListBound** — count + per-item limits for an array field:
+   - `{ max: 5, perItemMaxChars: 80 }` — up to 5 items, each ≤80 chars
+   - `{ count: 4, ... }` — exactly 4 items
+   - `{ countMin: 3, countMax: 4, each: { min: 30, max: 70 } }` — 3–4 items, each 30–70 chars
+3. **Numeric count** — structural field indicating a fixed count (not character-bounded): e.g., `facts: { count: 4, ...fields }`
+4. **Nested ContentBounds** — grouped fields: `{ tool: { name: {...}, version: {...} }, footer: { ctaLine: {...}, url: {...} } }`
+
+`buildConstraintBlock()` recursively walks this structure and produces prompt text with proper indentation for nested groups. See buildConstraintBlock examples below for output formats (DE/EN).
+
 
 ## LLM Constraint Blocks (Spec 60.1)
 
