@@ -55,3 +55,52 @@ Every LLM-produced text slot must have a `-webkit-line-clamp` safety net. The cl
 Canvas = 1080×1350px. Root element must declare this explicitly. No `height: auto`, no `flex: 1` at the composition root — these let content push the layout taller than the canvas.
 
 Children inside a fixed-height parent may use `1fr` or `flex: 1` freely, because the parent already constrains the total.
+
+---
+
+## Consuming DS helpers (Spec 60.0b v2)
+
+For visual-refreshed templates (Spec 60.1+), compositions consume:
+
+- `deriveDsTokens(brandTokens, theme)` from `../brand-tokens/derive`
+  → returns the full DS token set (brand stops, accent, surface, ink, etc.)
+- `<DsGlow>`, `<DsTop>`, `<DsFoot>` from `../../ds-components`
+  → the only three components shared across multiple templates
+
+Pattern:
+
+```tsx
+import { AbsoluteFill, useMemo } from "remotion";
+import { deriveDsTokens } from "../brand-tokens/derive";
+import { DsGlow, DsTop, DsFoot } from "../../ds-components";
+
+const MyTemplateSlide: React.FC<Props> = ({ brandTokens, theme, content }) => {
+  const tokens = useMemo(() => deriveDsTokens(brandTokens, theme), [brandTokens, theme]);
+  return (
+    <AbsoluteFill style={{
+      background: tokens.surface.base,
+      color: tokens.ink.base,
+      fontFamily: tokens.typography.fontFamily,
+      padding: 56,
+      boxSizing: "border-box",
+      overflow: "hidden",
+    }}>
+      <DsGlow tokens={tokens} theme={theme} corner="top-right" color="brand" />
+      <div style={{
+        position: "relative", zIndex: 1,
+        display: "grid",
+        gridTemplateRows: "auto auto 1fr auto",
+        rowGap: 24, height: "100%",
+      }}>
+        <DsTop tokens={tokens} eyebrow={content.eyebrow} rightText={content.headerNum} />
+        {/* ...template-specific body... */}
+        <DsFoot tokens={tokens} logoUrl={content.logoUrl} ctaBold={content.ctaLine} />
+      </div>
+    </AbsoluteFill>
+  );
+};
+```
+
+Anything beyond these three components belongs INLINE in the slide component. REMOTION.md
+explicitly says "don't restructure the layout when porting" — adding more shared abstractions
+fights the design system's intent.

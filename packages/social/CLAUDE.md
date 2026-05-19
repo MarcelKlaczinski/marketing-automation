@@ -24,7 +24,19 @@ Display names (i18n labels) can be human-friendly; keys must be semantic.
 import { brandTokensSchema, type BrandTokens, DEFAULT_BRAND_TOKENS } from "@marketing-auto/shared/brand-tokens";
 ```
 
-`packages/social/src/compositions/list-carousel/types.ts` re-exports them for back-compat. The `packages/social/src/lib/index.ts` re-export also resolves to shared. `packages/social/src/brand-tokens/index.ts` is a thin re-export ready for `deriveDsTokens()` in Spec 60.0b.
+`packages/social/src/compositions/list-carousel/types.ts` re-exports them for back-compat. The `packages/social/src/lib/index.ts` re-export also resolves to shared. `packages/social/src/brand-tokens/index.ts` also exports `deriveDsTokens` and `DsTokens` (Spec 60.0b).
+
+**DS token derivation (Spec 60.0b)** — new visual-refreshed compositions (60.1+) derive the full render-time token set via:
+
+```typescript
+import { deriveDsTokens, type DsTokens } from "../brand-tokens/derive";
+// or via barrel:
+import { deriveDsTokens } from "@marketing-auto/social/brand-tokens";
+
+const tokens = deriveDsTokens(brandTokens, theme); // pure, call inside useMemo
+```
+
+`DsTokens` contains: 7 brand stops, 2 accent stops, surface/border/ink, semantic colors, shadows (light only), pricing colors, and typography. Do NOT reach into `brandTokens` directly in slide components — call `deriveDsTokens` once and pass `tokens` down. See `src/ds-components/CLAUDE.md` for the three shared components that consume it.
 
 ## What this package does
 

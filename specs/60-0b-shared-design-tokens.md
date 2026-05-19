@@ -1,54 +1,65 @@
-# Spec 60.0b — Shared DS Components Library
+# Spec 60.0b v2 — Shared DS Helpers (Lean)
 
 **Theme:** 60 (Design System Visual Refresh)
-**Status:** Draft
-**Estimated effort:** 1.5 days (~10-12 focused hours across 4 sessions)
-**Prerequisite:** Spec 60.0 (brand_tokens schema sync) shipped
+**Status:** Implemented (2026-05-19)
+**Estimated effort:** 0.5 day (~4-5 focused hours across 2 sessions)
+**Prerequisite:** Spec 60.0 (schema sync) + Spec 60.0c (skill installed) shipped
 **Successor:** Spec 60.1 — single-tool-spotlight Visual Refresh
+
+**Supersedes:** the original Spec 60.0b draft (5 components + helper) — that version was speculative; this revision is evidence-based after reading the actual HTML.
 
 ---
 
 ## Goal
 
-Build the shared component library and utility functions that all 5 visual-refresh template specs (60.1-60.5) will consume. After 60.0b lands:
+Build the minimum shared infrastructure needed by Spec 60.1+ template refreshes:
 
-- A `deriveDsTokens(brandTokens, theme)` function exposes the full DS token set (brand stops, accent stops, surface/ink, semantic colors) computed from the schema's `brandHue`/`accentHue` + theme parameter
-- Five shared React components built and tested: `<DsBackgroundGlow>`, `<DsEyebrow>`, `<DsFooter>`, `<DsWinnerBadge>`, `<DsScoreNumber>`
-- Each component renders correctly at 1080×1350 (4:5) using the Spec 59.3.5 layout-shift-free patterns
-- Components are isolated, fixture-tested, and ready for consumption in Spec 60.1+
+1. **`deriveDsTokens(brandTokens, theme)`** — pure function returning the full DS token set from `brand_tokens` + theme parameter (per Spec 60.0's schema with `brandHue` / `accentHue`)
+2. **`<DsGlow>`** — the only React component genuinely shared across all 5 templates (radial gradient + blur, parameterized by corner/color/intensity)
+3. **`<DsTop>` + `<DsFoot>`** — top eyebrow row and footer logo row — visually identical in 4/5 templates per HTML evidence
 
-Spec 60.1 (single-tool-spotlight visual refresh) is the first consumer; it should be able to compose these shared parts and focus only on its template-specific layout.
+That's it. No `<DsWinnerBadge>`, no `<DsScoreNumber>`, no shared eyebrow scaffolding — those exist in specific templates with template-local styling and are better inlined per-template.
+
+After 60.0b v2 lands, Spec 60.1 (single-tool-spotlight) imports `deriveDsTokens` + 3 components and writes everything else inline.
+
+## Why this revision
+
+The original Spec 60.0b drafted 5 components based on the Audit's HTML pattern analysis (Section 3A). Reading the actual HTML files in `.claude/skills/toolwiki-design/slides/` after Spec 60.0c installed them changed two things:
+
+1. **REMOTION.md's explicit guidance**: "Don't restructure the layout when porting — the grid sizing was tuned to the 1080×1350 canvas. The static CSS in each template's `<style>` block transfers 1:1 to inline styles." → most "shared component" abstractions add a layer that REMOTION.md says to avoid.
+
+2. **Empirical inspection of the HTML files** (`single-tool-spotlight-dark.html`, `comparison-grid-4-dark.html`, etc.) shows:
+  - `.top` eyebrow row: **identical CSS in 4/5 templates** (cover adds an extra update-badge but the base `.top` block is the same)
+  - `.foot` block: **identical CSS in 4/5 templates** (cover uses 48px logo vs 44px elsewhere)
+  - `.template::before` radial glow: **structurally identical** in all 5 (parameterized: corner inset, size 800-900px, color brand vs accent, alpha 22-42%)
+  - `.template` root grid: **different per template** (cover has 6 rows, single-tool-spotlight has 6, grid-4 has 4) — not shareable
+  - Score numbers, winner badges, tool cards: **template-specific styling** despite same DS tokens — better inlined
+
+Result: 3 shared components and 1 derivation function — the minimum that genuinely deduplicates without imposing structure REMOTION.md warns against.
 
 ## What this is NOT
 
-- Not a template implementation — no template visual change in 60.0b alone
-- Not a Settings UI change
-- Not 9:16 support — these components target 4:5 only; 9:16 variants come later
-- Not a font change — `loadFont()` migration from SpaceGrotesk to Inter Variable happens in Spec 60.1 (first template that needs it). Spec 60.0b uses whatever the existing fontFamily already loads; the new Inter font dependency is added in 60.1 with the first composition that uses it.
-- Not a refactor of existing compositions — `BrandFooter`, `Eyebrow`, etc. that exist today remain untouched. The new `Ds*` components are alternatives consumed by the refreshed templates; old components are deleted after all templates have migrated (60.5 cleanup).
-
----
+- Not visual changes to existing compositions — those happen per-template in 60.1+
+- Not the Inter Variable font load — that lands in 60.1 (first composition that needs it)
+- Not a refactor of existing `BrandFooter` / `Eyebrow` components — they stay until all templates have migrated; deletion in the 60.5 cleanup pass
 
 ## Sections
 
-- **Section A**: `deriveDsTokens(brandTokens, theme)` — the central token derivation function
-- **Section B**: `<DsBackgroundGlow>` — the radial-gradient + blur pattern
-- **Section C**: `<DsEyebrow>` — the top eyebrow row + slide counter
-- **Section D**: `<DsFooter>` — the bottom logo + CTA row
-- **Section E**: `<DsWinnerBadge>` — the accent-colored pill
-- **Section F**: `<DsScoreNumber>` — the mono score number
-- **Section G**: Fixtures + tests
-- **Section H**: CLAUDE.md convention
+- **Section A**: `deriveDsTokens(brandTokens, theme)`
+- **Section B**: `<DsGlow>` component
+- **Section C**: `<DsTop>` + `<DsFoot>` components
+- **Section D**: Fixtures + tests
+- **Section E**: CLAUDE.md update
 
 ---
 
 ## Section A — `deriveDsTokens(brandTokens, theme)`
 
-### A.1 Principle
+### A.1 Why this still exists (unchanged from original 60.0b)
 
-A single function takes the project's `brandTokens` (per Spec 60.0 schema) and a `theme: "dark" | "light"`, and returns the full DS token set that compositions consume. Compositions never reach into `brandTokens.colors.brandHue` directly — they consume the derived tokens.
+Spec 60.0 added `colors.brandHue` and `colors.accentHue` numeric fields to `brandTokensSchema`. Compositions need the full DS token set (7 brand stops, 2 accent stops, theme-conditional surface/ink/border, semantic colors). `deriveDsTokens()` computes all of those from `brand_tokens` + theme at render time.
 
-This isolates the **derivation logic** (oklch math, light/dark resolution, fallback chains) in one place. Every composition gets the same tokens for the same input.
+This isolates derivation logic in one place. Every composition gets identical tokens for identical inputs.
 
 ### A.2 File location
 
@@ -56,52 +67,24 @@ This isolates the **derivation logic** (oklch math, light/dark resolution, fallb
 packages/social/src/brand-tokens/derive.ts
 ```
 
-(Per Spec 60.0 Section E.2: the schema lives in `packages/shared/brand-tokens/`; the derivation lives in `packages/social/` because it's a render-time concern.)
+Per Spec 60.0 Section E.2: schema in `packages/shared/`, derivation in `packages/social/` (render-time concern).
 
-### A.3 The function signature
+### A.3 The function
+
+Reference values come directly from `.claude/skills/toolwiki-design/colors_and_type.css` (Audit Section 2A confirmed).
 
 ```typescript
 import type { BrandTokens } from "@marketing-auto/shared/brand-tokens";
 
 export interface DsTokens {
-  brand: {
-    50: string;
-    100: string;
-    300: string;
-    500: string;   // = primary
-    700: string;
-    900: string;
-    950: string;
-  };
-  accent: {
-    500: string;   // = accent
-    600: string;
-  };
-  surface: {
-    base: string;       // background
-    raised: string;     // cards, blocks
-    sunken: string;     // chip backgrounds, deeper hierarchy
-  };
+  brand: { 50: string; 100: string; 300: string; 500: string; 700: string; 900: string; 950: string };
+  accent: { 500: string; 600: string };
+  surface: { base: string; raised: string; sunken: string };
   border: string;
-  ink: {
-    base: string;       // primary text
-    muted: string;      // secondary text
-  };
-  semantic: {
-    success: string;
-    warn: string;
-    danger: string;
-    info: string;
-  };
-  shadows: {
-    sm: string;
-    md: string;
-  };
-  pricing: {
-    free: string;
-    freemium: string;
-    paid: string;
-  };
+  ink: { base: string; muted: string };
+  semantic: { success: string; warn: string; danger: string; info: string };
+  shadows: { sm: string; md: string };
+  pricing: { free: string; freemium: string; paid: string };
   typography: {
     fontFamily: string;
     fontFamilyMono: string;
@@ -114,617 +97,422 @@ export interface DsTokens {
 export function deriveDsTokens(
   brandTokens: BrandTokens,
   theme: "dark" | "light",
-): DsTokens;
-```
-
-### A.4 Derivation rules per token group
-
-**Brand scale** — derived from `brandHue` using fixed lightness/chroma stops matching the DS:
-
-```typescript
-function deriveBrandScale(hue: number): DsTokens["brand"] {
-  return {
-    50:  `oklch(97% 0.018 ${hue})`,
-    100: `oklch(94% 0.040 ${hue})`,
-    300: `oklch(80% 0.100 ${hue})`,
-    500: `oklch(64% 0.160 ${hue})`,   // = primary
-    700: `oklch(48% 0.140 ${hue})`,
-    900: `oklch(32% 0.080 ${hue})`,
-    950: `oklch(22% 0.060 ${hue})`,
-  };
-}
-```
-
-Values copied directly from `colors_and_type.css` (Audit Section 2A). If `brandTokens.colors.brandHue` is absent (shouldn't be post-migration; safety only), fall back to 248.
-
-**Accent scale** — same pattern with `accentHue`:
-
-```typescript
-function deriveAccentScale(hue: number): DsTokens["accent"] {
-  return {
-    500: `oklch(72% 0.150 ${hue})`,
-    600: `oklch(64% 0.160 ${hue})`,
-  };
-}
-```
-
-**Surface** — theme-conditional, with optional overrides from `brandTokens`:
-
-```typescript
-function deriveSurface(brandTokens: BrandTokens, theme: "dark" | "light"): DsTokens["surface"] {
-  if (theme === "dark") {
-    return {
-      base: brandTokens.colors.surfaceDark,
-      raised: brandTokens.colors.surfaceRaisedDark ?? "oklch(20% 0.025 250)",
-      sunken: brandTokens.colors.surfaceSunkenDark ?? "oklch(13% 0.020 250)",
-    };
-  }
-  return {
-    base: brandTokens.colors.surface,
-    raised: brandTokens.colors.surfaceRaised ?? "oklch(99% 0.005 250)",
-    sunken: brandTokens.colors.surfaceSunken ?? "oklch(97% 0.010 250)",
-  };
-}
-```
-
-The fallbacks are the DS reference values. If a project sets `surfaceRaised` explicitly, it wins.
-
-**Border** — theme-conditional, default values from DS:
-
-```typescript
-function deriveBorder(brandTokens: BrandTokens, theme: "dark" | "light"): string {
-  if (theme === "dark") {
-    return brandTokens.colors.borderDark ?? "oklch(28% 0.020 250)";
-  }
-  return brandTokens.colors.border ?? "oklch(92% 0.010 250)";
-}
-```
-
-**Ink** — theme-conditional, from DS reference:
-
-```typescript
-function deriveInk(_brandTokens: BrandTokens, theme: "dark" | "light"): DsTokens["ink"] {
-  if (theme === "dark") {
-    return {
-      base: "oklch(95% 0.010 250)",
-      muted: "oklch(95% 0.010 250 / 0.65)",
-    };
-  }
-  return {
-    base: "oklch(20% 0.025 250)",
-    muted: "oklch(20% 0.025 250 / 0.70)",
-  };
-}
-```
-
-Note: `brandTokens.colors.ink` and `inkMuted` exist in the schema (per Spec 60.0). The above ignores them and uses DS values, because the DS specifies ink as theme-derived, not brand-specific. A future iteration could honor explicit `brandTokens.colors.ink` overrides if a project demands them; for now, theme-driven only.
-
-**Decision**: ignore the stored `ink`/`inkMuted` fields at derive time. They remain in the schema for back-compat with existing compositions that consume them directly via `getThemeTokens()`. The new `Ds*` components use only `deriveDsTokens()`.
-
-**Semantic colors** — DS constants, theme-invariant:
-
-```typescript
-const SEMANTIC: DsTokens["semantic"] = {
-  success: "oklch(70% 0.160 145)",
-  warn:    "oklch(78% 0.160 75)",
-  danger:  "oklch(62% 0.200 28)",
-  info:    "oklch(64% 0.160 248)",   // = brand-500 default; updated below if brandHue differs
-};
-```
-
-Then: `info` is updated to match `brand.500` for the project (so `info` color follows brand hue).
-
-**Shadows** — DS constants, used only in light theme per HTML audit (3C):
-
-```typescript
-function deriveShadows(theme: "dark" | "light"): DsTokens["shadows"] {
-  if (theme === "dark") {
-    return { sm: "none", md: "none" };  // no shadows in dark theme per DS
-  }
-  return {
-    sm: "0 1px 2px oklch(0% 0 0 / 0.06), 0 4px 12px oklch(0% 0 0 / 0.05)",
-    md: "0 1px 0 oklch(0% 0 0 / 0.04), 0 16px 32px -12px oklch(0% 0 0 / 0.18)",
-  };
-}
-```
-
-**Pricing** — from `brandTokens.colors`:
-
-```typescript
-function derivePricing(brandTokens: BrandTokens): DsTokens["pricing"] {
-  return {
-    free: brandTokens.colors.pricingFree,
-    freemium: brandTokens.colors.pricingFreemium,
-    paid: brandTokens.colors.pricingPaid,
-  };
-}
-```
-
-**Typography** — passthrough from brandTokens:
-
-```typescript
-function deriveTypography(brandTokens: BrandTokens): DsTokens["typography"] {
-  return {
-    fontFamily: brandTokens.typography.fontFamily,
-    fontFamilyMono: brandTokens.typography.fontFamilyMono,
-    headingWeight: brandTokens.typography.headingWeight,
-    bodyWeight: brandTokens.typography.bodyWeight,
-    eyebrowLetterSpacing: brandTokens.typography.eyebrowLetterSpacing,
-  };
-}
-```
-
-### A.5 The full function
-
-```typescript
-export function deriveDsTokens(
-  brandTokens: BrandTokens,
-  theme: "dark" | "light",
 ): DsTokens {
-  const brand = deriveBrandScale(brandTokens.colors.brandHue ?? 248);
-  const accent = deriveAccentScale(brandTokens.colors.accentHue ?? 168);
+  const brandHue = brandTokens.colors.brandHue ?? 248;
+  const accentHue = brandTokens.colors.accentHue ?? 168;
+
+  const brand = {
+    50:  `oklch(97% 0.018 ${brandHue})`,
+    100: `oklch(94% 0.040 ${brandHue})`,
+    300: `oklch(80% 0.100 ${brandHue})`,
+    500: `oklch(64% 0.160 ${brandHue})`,
+    700: `oklch(48% 0.140 ${brandHue})`,
+    900: `oklch(32% 0.080 ${brandHue})`,
+    950: `oklch(22% 0.060 ${brandHue})`,
+  };
+
+  const accent = {
+    500: `oklch(72% 0.150 ${accentHue})`,
+    600: `oklch(64% 0.160 ${accentHue})`,
+  };
+
+  const isDark = theme === "dark";
 
   return {
     brand,
     accent,
-    surface: deriveSurface(brandTokens, theme),
-    border: deriveBorder(brandTokens, theme),
-    ink: deriveInk(brandTokens, theme),
-    semantic: {
-      ...SEMANTIC,
-      info: brand[500],   // info follows brand hue
+    surface: {
+      base: isDark ? brandTokens.colors.surfaceDark : brandTokens.colors.surface,
+      raised: isDark
+        ? (brandTokens.colors.surfaceRaisedDark ?? "oklch(20% 0.025 250)")
+        : (brandTokens.colors.surfaceRaised ?? "oklch(99% 0.005 250)"),
+      sunken: isDark
+        ? (brandTokens.colors.surfaceSunkenDark ?? "oklch(13% 0.020 250)")
+        : (brandTokens.colors.surfaceSunken ?? "oklch(97% 0.010 250)"),
     },
-    shadows: deriveShadows(theme),
-    pricing: derivePricing(brandTokens),
-    typography: deriveTypography(brandTokens),
+    border: isDark
+      ? (brandTokens.colors.borderDark ?? "oklch(28% 0.020 250)")
+      : (brandTokens.colors.border ?? "oklch(92% 0.010 250)"),
+    ink: {
+      base: isDark ? "oklch(95% 0.010 250)" : "oklch(20% 0.025 250)",
+      muted: isDark ? "oklch(95% 0.010 250 / 0.65)" : "oklch(20% 0.025 250 / 0.70)",
+    },
+    semantic: {
+      success: "oklch(70% 0.160 145)",
+      warn: "oklch(78% 0.160 75)",
+      danger: "oklch(62% 0.200 28)",
+      info: brand[500],
+    },
+    shadows: isDark
+      ? { sm: "none", md: "none" }
+      : {
+          sm: "0 1px 2px oklch(0% 0 0 / 0.06), 0 4px 12px oklch(0% 0 0 / 0.05)",
+          md: "0 1px 0 oklch(0% 0 0 / 0.04), 0 16px 32px -12px oklch(0% 0 0 / 0.18)",
+        },
+    pricing: {
+      free: brandTokens.colors.pricingFree,
+      freemium: brandTokens.colors.pricingFreemium,
+      paid: brandTokens.colors.pricingPaid,
+    },
+    typography: {
+      fontFamily: brandTokens.typography.fontFamily,
+      fontFamilyMono: brandTokens.typography.fontFamilyMono,
+      headingWeight: brandTokens.typography.headingWeight,
+      bodyWeight: brandTokens.typography.bodyWeight,
+      eyebrowLetterSpacing: brandTokens.typography.eyebrowLetterSpacing,
+    },
   };
 }
 ```
 
-### A.6 Memoization
+### A.4 Decisions worth flagging
 
-The function is pure; same input → same output. For perf, callers can memoize per (project, theme) — but in Remotion's render context, each slide render is a fresh call, so a `useMemo` in the composition is sufficient. No global cache needed.
+- **`ink.base`/`ink.muted` are derived from theme, NOT from `brandTokens.colors.ink`**: the DS specifies ink as theme-driven. Stored `brandTokens.colors.ink`/`inkMuted` are ignored by `deriveDsTokens`. They remain in the schema for back-compat with `getThemeTokens()` (the legacy theme helper) but new compositions consume `tokens.ink.*` exclusively.
+- **`semantic.info` follows brand**: matches DS reference (`--info: var(--brand-500)`). If a project's `brandHue` changes, `info` follows automatically.
+- **No memoization here**: the function is pure and called once per slide render. Callers can `useMemo` per (project, theme) if needed.
 
-### A.7 Discovered During Implementation
+### A.5 Discovered During Implementation
 
-_(Filled by implementer.)_
+- The `??` fallback on `brandHue`/`accentHue` is redundant in practice because `brandTokensSchema` applies `.default(248)` / `.default(168)` — stored tokens always have these fields. The fallbacks are kept as a defensive belt-and-suspenders measure since `deriveDsTokens` accepts any `BrandTokens` value (including hand-crafted ones in tests).
 
 ---
 
-## Section B — `<DsBackgroundGlow>`
+## Section B — `<DsGlow>`
 
-### B.1 What it is
+### B.1 Why this is shared
 
-The radial-gradient + blur pattern that appears in every template HTML file as a `::before` pseudo-element. Different templates position it differently (top-right for comparison-grid-4, bottom-left for comparison-grid-3, bottom-right for single-tool-spotlight, top-left for verdict-per-use-case, dual for cover — per Audit Section 3B).
+Empirical evidence from inspecting all 5 HTML files in `.claude/skills/toolwiki-design/slides/`:
 
-### B.2 Component signature
+| Template | Corner | Size | Color | Alpha (dark / light) | Blur |
+|---|---|---|---|---|---|
+| `cover` | top-right + bottom-left (dual) | 880px / 880px | brand + accent | 42/28 + 22/16 | 70px |
+| `comparison-grid-4` | top-right | 800px | brand | 28 / 28 | 60-70px |
+| `comparison-grid-3` | bottom-left | 800px | brand | 25 / 25 | 60-70px |
+| `verdict-per-use-case` | top-left | 800px | accent | 22 / 22 | 60-70px |
+| `single-tool-spotlight` | bottom-right | 900px | brand | 32 / 28 | 70px |
+
+Same CSS structure (`radial-gradient(closest-side, color-mix(in oklab, ${color} ${alpha}%, transparent), transparent 70%)` + `filter: blur(${blur}px)`), only the parameters differ. Single component, 5-6 prop combinations.
+
+### B.2 File location
+
+```
+packages/social/src/ds-components/DsGlow.tsx
+```
+
+### B.3 Component signature
 
 ```typescript
 import type { DsTokens } from "../brand-tokens/derive";
 
 export type GlowCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
-export interface DsBackgroundGlowProps {
+export interface DsGlowProps {
   tokens: DsTokens;
   theme: "dark" | "light";
   corner: GlowCorner;
   color: "brand" | "accent";
-  /** Override the default 240px inset. */
-  inset?: number;
-  /** Override the default 50px blur. */
-  blur?: number;
-  /** Override the alpha (DS uses 0.42 dark / 0.28 light for brand). */
+  /** Glow size in px. Default 800. Cover uses 880, spotlight 900. */
+  size?: number;
+  /** Negative offset from corner. Default -240. Single-tool-spotlight uses -300; cover uses asymmetric. */
+  inset?: number | { x: number; y: number };
+  /** Alpha 0-100 (matches DS `%` value in color-mix). If omitted, defaults per (color, theme). */
   alpha?: number;
+  /** Blur in px. Default 60 (dark) / 70 (light per cover convention; otherwise 60). */
+  blur?: number;
 }
 
-export const DsBackgroundGlow: React.FC<DsBackgroundGlowProps>;
+export const DsGlow: React.FC<DsGlowProps>;
 ```
 
-### B.3 Implementation
+### B.4 Implementation
 
 ```tsx
 import React from "react";
-import type { DsBackgroundGlowProps } from "./types";
-
-const DEFAULT_INSET = 240;
-const DEFAULT_BLUR = 50;
+import type { DsGlowProps } from "./types";
 
 const DEFAULT_ALPHA: Record<"brand" | "accent", Record<"dark" | "light", number>> = {
-  brand: { dark: 0.42, light: 0.28 },
-  accent: { dark: 0.22, light: 0.16 },
+  brand: { dark: 28, light: 28 },
+  accent: { dark: 22, light: 16 },
 };
 
-export const DsBackgroundGlow: React.FC<DsBackgroundGlowProps> = ({
+export const DsGlow: React.FC<DsGlowProps> = ({
   tokens,
   theme,
   corner,
   color,
-  inset = DEFAULT_INSET,
-  blur = DEFAULT_BLUR,
+  size = 800,
+  inset = -240,
   alpha,
+  blur = 60,
 }) => {
   const effectiveAlpha = alpha ?? DEFAULT_ALPHA[color][theme];
   const colorValue = color === "brand" ? tokens.brand[500] : tokens.accent[500];
 
-  // Resolve corner to inset properties
-  const insetStyle: React.CSSProperties = {};
-  if (corner.startsWith("top")) insetStyle.top = -inset;
-  if (corner.startsWith("bottom")) insetStyle.bottom = -inset;
-  if (corner.endsWith("left")) insetStyle.left = -inset;
-  if (corner.endsWith("right")) insetStyle.right = -inset;
+  const insetX = typeof inset === "object" ? inset.x : inset;
+  const insetY = typeof inset === "object" ? inset.y : inset;
+
+  const positionStyle: React.CSSProperties = { position: "absolute" };
+  if (corner.startsWith("top")) positionStyle.top = insetY;
+  else positionStyle.bottom = insetY;
+  if (corner.endsWith("left")) positionStyle.left = insetX;
+  else positionStyle.right = insetX;
 
   return (
     <div
       aria-hidden
       style={{
-        position: "absolute",
-        width: 720,
-        height: 720,
-        ...insetStyle,
-        background: `radial-gradient(closest-side, ${withAlpha(colorValue, effectiveAlpha)}, transparent 75%)`,
+        ...positionStyle,
+        width: size,
+        height: size,
+        background: `radial-gradient(closest-side, color-mix(in oklab, ${colorValue} ${effectiveAlpha}%, transparent), transparent 70%)`,
         filter: `blur(${blur}px)`,
         pointerEvents: "none",
       }}
     />
   );
 };
-
-function withAlpha(oklchValue: string, alpha: number): string {
-  // Convert "oklch(L% C H)" → "oklch(L% C H / alpha)"
-  // Quick implementation; production should use a robust oklch parser.
-  if (oklchValue.includes("/")) return oklchValue;  // already has alpha
-  return oklchValue.replace(/\)$/, ` / ${alpha})`);
-}
 ```
 
-### B.4 Layout-shift safety (per Spec 59.3.5)
+### B.5 `color-mix(in oklab, ...)` in Remotion Chromium
 
-`position: absolute` + fixed-px inset values + fixed 720×720 size = layout-shift-free. The glow lives outside the document flow; surrounding content is unaffected.
+The DS HTML uses `color-mix(in oklab, ${color} ${alpha}%, transparent)` instead of pre-computed `oklch(... / alpha)`. The audit's Section 8 didn't flag this as a problem. Remotion runs modern Chromium so `color-mix` works. Implementer should verify with a baseline render — if `color-mix` doesn't render, fall back to manual oklch-with-alpha string construction.
 
-### B.5 Dual-glow support (for cover slide)
+### B.6 Dual-glow support (cover)
 
-The cover composition uses two glows (one brand top-right, one accent bottom-left per Audit 3B). Two `<DsBackgroundGlow>` instances composed:
+The cover has two glows. Compose two `<DsGlow>` instances:
 
 ```tsx
-<DsBackgroundGlow tokens={tokens} theme={theme} corner="top-right" color="brand" />
-<DsBackgroundGlow tokens={tokens} theme={theme} corner="bottom-left" color="accent" />
+<DsGlow tokens={tokens} theme={theme} corner="top-right" color="brand"
+  size={880} inset={{ x: -200, y: -120 }} alpha={theme === "dark" ? 42 : 28} blur={70} />
+<DsGlow tokens={tokens} theme={theme} corner="bottom-left" color="accent"
+  size={880} inset={-200} alpha={theme === "dark" ? 22 : 16} blur={70} />
 ```
 
-### B.6 Discovered During Implementation
+### B.7 Layout-shift safety
+
+`position: absolute` + fixed-px size + fixed-px inset = outside document flow. Surrounding content unaffected. Spec 59.3.5 patterns respected.
+
+### B.8 Discovered During Implementation
 
 _(Filled by implementer.)_
 
 ---
 
-## Section C — `<DsEyebrow>`
+## Section C — `<DsTop>` + `<DsFoot>`
 
-### C.1 What it is
+### C.1 Why these are shared (per HTML evidence)
 
-The top eyebrow row shared by all templates. Contains the slide category label (ALL-CAPS, letter-spaced) on the left and the slide counter (mono font) on the right, separated by a flex space-between.
+The `.top` block (eyebrow + slide counter) and `.foot` block (logo + CTA) are byte-for-byte identical in CSS across 4/5 templates. Reading `comparison-grid-4-dark.html`, `comparison-grid-3-dark.html`, `verdict-per-use-case-dark.html`, `single-tool-spotlight-dark.html`:
 
-Per Audit 3A: `font-size: 17px`, `letter-spacing: 0.14em`, ALL-CAPS for the eyebrow text; mono font + `font-size: 17px` for the counter.
-
-### C.2 Component signature
-
-```typescript
-export interface DsEyebrowProps {
-  tokens: DsTokens;
-  /** ALL-CAPS label, e.g. "VERGLEICH · 4 BILDGENERATOREN" */
-  label: string;
-  /** Slide counter, e.g. "01 / 06" or "1 / 5" */
-  counter?: string;
-  /** Color override; defaults to ink.muted */
-  color?: string;
-}
-
-export const DsEyebrow: React.FC<DsEyebrowProps>;
+**`.top`** — all 4 identical:
+```css
+.top { display: flex; justify-content: space-between; align-items: flex-start; }
+.top .eyebrow { font-size: 17px; letter-spacing: 0.14em; line-height: 1.15; white-space: nowrap; }
+.top .num { font-family: var(--font-mono); font-size: 17px; color: var(--ink-muted); margin-top: 8px; }
+.top .right { font-family: var(--font-mono); font-size: 17px; color: var(--ink-muted); text-align: right; line-height: 1.5; }
 ```
 
-### C.3 Implementation
+**`.foot`** — all 4 identical (cover varies logo height: 48px vs 44px):
+```css
+.foot { display: flex; justify-content: space-between; align-items: flex-end; }
+.foot .brand img { height: 44px; display: block; }
+.foot .cta { font-size: 18px; color: var(--ink-muted); text-align: right; line-height: 1.4; }
+.foot .cta strong { color: var(--ink); font-weight: 600; }
+```
+
+Cover has an additional `.top .right .update` badge — variant handled via optional prop, not separate component.
+
+### C.2 `<DsTop>` signature
+
+```typescript
+export interface DsTopProps {
+  tokens: DsTokens;
+  /** Eyebrow text (left side). Example: "Vergleich · 4 Bildgeneratoren" */
+  eyebrow: string;
+  /** Slide counter or date/URL (right side). Example: "01 / 06" or "As of 05/2026 · toolwiki.ai/images" */
+  rightText: string;
+  /** Optional secondary line under eyebrow (used by some templates for date/URL). */
+  num?: string;
+  /** Optional update-badge variant for cover slide (renders a pill on the right). */
+  updateBadge?: string;
+}
+
+export const DsTop: React.FC<DsTopProps>;
+```
+
+### C.3 `<DsTop>` implementation
 
 ```tsx
-import { getFontSize } from "../compositions/_shared/getFontSize";
-
-export const DsEyebrow: React.FC<DsEyebrowProps> = ({ tokens, label, counter, color }) => {
-  const bucket = getFontSize(label, "eyebrow");
-  const textColor = color ?? tokens.ink.muted;
-
+export const DsTop: React.FC<DsTopProps> = ({ tokens, eyebrow, rightText, num, updateBadge }) => {
   return (
     <div
       style={{
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center",
-        height: 60,                    // fixed row height per Spec 59.3.5 C.2
+        alignItems: "flex-start",
       }}
     >
-      <span
-        style={{
-          fontSize: bucket.fontSize,
-          fontFamily: tokens.typography.fontFamily,
-          fontWeight: 700,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: textColor,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </span>
-      {counter && (
-        <span
+      <div>
+        <div
           style={{
-            fontSize: bucket.fontSize,
-            fontFamily: tokens.typography.fontFamilyMono,
-            fontFeatureSettings: '"tnum"',
-            color: textColor,
+            fontSize: 17,
+            fontFamily: tokens.typography.fontFamily,
+            fontWeight: 700,
+            letterSpacing: "0.14em",
+            lineHeight: 1.15,
+            whiteSpace: "nowrap",
+            color: tokens.ink.base,
           }}
         >
-          {counter}
-        </span>
+          {eyebrow}
+        </div>
+        {num && (
+          <div
+            style={{
+              fontFamily: tokens.typography.fontFamilyMono,
+              fontSize: 17,
+              color: tokens.ink.muted,
+              marginTop: 8,
+            }}
+          >
+            {num}
+          </div>
+        )}
+      </div>
+      {updateBadge ? (
+        <DsUpdateBadge tokens={tokens} text={updateBadge} />
+      ) : (
+        <div
+          style={{
+            fontFamily: tokens.typography.fontFamilyMono,
+            fontSize: 17,
+            color: tokens.ink.muted,
+            textAlign: "right",
+            lineHeight: 1.5,
+          }}
+        >
+          {rightText}
+        </div>
       )}
     </div>
   );
 };
+
+// Internal — only used by cover template, not exported separately
+const DsUpdateBadge: React.FC<{ tokens: DsTokens; text: string }> = ({ tokens, text }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 8,
+      padding: "8px 14px",
+      borderRadius: 999,
+      fontSize: 13,
+      fontWeight: 600,
+      letterSpacing: "0.04em",
+      color: tokens.brand[300],
+      background: `color-mix(in oklab, ${tokens.brand[500]} 10%, transparent)`,
+    }}
+  >
+    {text}
+  </span>
+);
 ```
 
-### C.4 Why `height: 60` (not auto)
-
-Per Spec 59.3.5 Section C — every container in a composition root grid has a fixed height. `60px` accommodates the 17px-equivalent font in the `eyebrow` bucket with comfortable padding. Surrounding grid layout is unaffected by label content length (truncated via `ellipsis`).
-
-### C.5 Slot type alignment
-
-`getFontSize(label, "eyebrow")` uses the existing `eyebrow` slot type from Spec 59.3.5 Section B.2 — `maxChars: 30, fontSize: 24`. The DS HTML uses 17px, smaller than our bucket's 24px. **Decision**: keep the 24px bucket; the DS 17px is for 9:16 mockups which have more vertical space. For 4:5 with less vertical room, slightly larger text reads better.
-
-If the implementer disagrees during 60.0b implementation, adjust the `eyebrow` bucket — but document it in `Discovered During Implementation`.
-
-### C.6 Discovered During Implementation
-
-_(Filled by implementer.)_
-
----
-
-## Section D — `<DsFooter>`
-
-### D.1 What it is
-
-The bottom footer row shared by all templates. Logo on the left (44px height per Audit 3A), CTA text on the right (e.g. "Vollständiger Test →" / "Full review →"). Flex space-between layout.
-
-### D.2 Component signature
+### C.4 `<DsFoot>` signature
 
 ```typescript
-export interface DsFooterProps {
+export interface DsFootProps {
   tokens: DsTokens;
-  /** Logo URL from brandTokens or article-specific override */
+  /** Logo image URL (typically wordmark from brandTokens.social.logoAssetKey resolution). */
   logoUrl?: string;
-  /** Logo display name fallback if logoUrl is absent */
+  /** Fallback text logo if logoUrl is absent. */
   logoText?: string;
-  /** CTA text on the right, e.g. "Full review →" */
-  cta: string;
-  /** Color override; defaults to ink.base for CTA, ink.muted for separator */
-  color?: string;
+  /** CTA text (right side). Strong-emphasis parts wrap in <strong> via "ctaBold". Example: "Vollständiger Test →" */
+  ctaLead?: string;
+  ctaBold: string;
+  /** Logo height in px. Default 44; cover passes 48. */
+  logoHeight?: number;
 }
 
-export const DsFooter: React.FC<DsFooterProps>;
+export const DsFoot: React.FC<DsFootProps>;
 ```
 
-### D.3 Implementation
+### C.5 `<DsFoot>` implementation
 
 ```tsx
 import { Img } from "remotion";
 
-const FOOTER_HEIGHT = 80;     // fixed
-const LOGO_HEIGHT = 44;       // per Audit 3A
-
-export const DsFooter: React.FC<DsFooterProps> = ({ tokens, logoUrl, logoText, cta, color }) => {
-  const textColor = color ?? tokens.ink.base;
-
+export const DsFoot: React.FC<DsFootProps> = ({
+  tokens,
+  logoUrl,
+  logoText,
+  ctaLead,
+  ctaBold,
+  logoHeight = 44,
+}) => {
   return (
     <div
       style={{
         display: "flex",
         justifyContent: "space-between",
-        alignItems: "center",
-        height: FOOTER_HEIGHT,
-        borderTop: `1px solid ${tokens.border}`,
-        paddingTop: 16,
+        alignItems: "flex-end",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <div>
         {logoUrl ? (
-          <Img src={logoUrl} style={{ height: LOGO_HEIGHT, width: "auto" }} />
+          <Img src={logoUrl} style={{ height: logoHeight, display: "block" }} />
         ) : logoText ? (
           <span
             style={{
               fontFamily: tokens.typography.fontFamily,
               fontWeight: tokens.typography.headingWeight,
-              fontSize: 28,
-              color: textColor,
+              fontSize: Math.round(logoHeight * 0.6),
+              color: tokens.ink.base,
             }}
           >
             {logoText}
           </span>
         ) : null}
       </div>
-      <span
+      <div
         style={{
-          fontFamily: tokens.typography.fontFamily,
-          fontWeight: 600,
-          fontSize: 20,
-          color: textColor,
+          fontSize: 18,
+          color: tokens.ink.muted,
+          textAlign: "right",
+          lineHeight: 1.4,
         }}
       >
-        {cta}
-      </span>
+        {ctaLead && <>{ctaLead}<br /></>}
+        <strong style={{ color: tokens.ink.base, fontWeight: 600 }}>{ctaBold}</strong>
+      </div>
     </div>
   );
 };
 ```
 
-### D.4 Truncation behavior
+The two-line CTA pattern (lead + bold) is common in the HTML files (e.g. cover: "Sophie Renner ·" + "**13 min read**"). Templates that only need a single line pass `ctaBold` only.
 
-CTA text is bounded by Spec 59.3.5 `cover-snippet` or similar bucket via the consuming composition's bounds. If overlong, the composition truncates before passing to `<DsFooter>`. The footer itself does not enforce bounds — too contextual.
+### C.6 What's intentionally NOT a shared component
 
-### D.5 Discovered During Implementation
+To preempt scope-creep questions during implementation:
 
-_(Filled by implementer.)_
+- **`<DsScoreNumber>`** — score sizes vary 56/84/88px per template, fontWeight/letterSpacing same. Inlining is 5 lines per template. Not worth the abstraction.
+- **`<DsWinnerBadge>`** — winner pill exists in comparison-grid-3, comparison-grid-4, verdict-per-use-case but with different padding, icon presence, and label styling. Inline.
+- **`<DsToolCard>`** — comparison-grid card / spotlight body block share `var(--surface-raised)` + 1px border + 18px radius. But contents differ entirely. Use shared CSS values (border radius, border color from tokens) inline.
+- **`<DsEyebrow>` (top text only)** — replaced by `<DsTop>` which handles the full row. Eyebrow text alone is fontSize/letterSpacing → 3 lines of CSS, not worth a component.
 
----
+These decisions follow REMOTION.md: "don't restructure the layout when porting".
 
-## Section E — `<DsWinnerBadge>`
+### C.7 Discovered During Implementation
 
-### E.1 What it is
-
-The accent-colored pill that marks winners (used in comparison-grid + verdict-per-use-case). Per Audit 3A: `var(--accent-500)` background, `#06291f` text (dark on light accent — fixed regardless of theme because accent is mid-tone), `border-radius: 999px`, `font-size: 13px`, `letter-spacing: 0.14em`.
-
-### E.2 Component signature
-
-```typescript
-export interface DsWinnerBadgeProps {
-  tokens: DsTokens;
-  /** Label text, e.g. "Testsieger" / "Top pick" */
-  label: string;
-  /** Optional icon URL (e.g. winner tool logo) */
-  iconUrl?: string;
-}
-
-export const DsWinnerBadge: React.FC<DsWinnerBadgeProps>;
-```
-
-### E.3 Implementation
-
-```tsx
-import { Img } from "remotion";
-
-const BADGE_DARK_TEXT = "#06291f";  // fixed per DS, theme-invariant
-const BADGE_HEIGHT = 36;
-
-export const DsWinnerBadge: React.FC<DsWinnerBadgeProps> = ({ tokens, label, iconUrl }) => {
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 8,
-        height: BADGE_HEIGHT,
-        paddingLeft: iconUrl ? 6 : 14,
-        paddingRight: 14,
-        borderRadius: 999,
-        background: tokens.accent[500],
-      }}
-    >
-      {iconUrl && (
-        <Img src={iconUrl} style={{ height: 24, width: 24, borderRadius: 4 }} />
-      )}
-      <span
-        style={{
-          fontFamily: tokens.typography.fontFamily,
-          fontSize: 13,
-          fontWeight: 700,
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-          color: BADGE_DARK_TEXT,
-        }}
-      >
-        {label}
-      </span>
-    </div>
-  );
-};
-```
-
-### E.4 Why text color is hardcoded `#06291f`
-
-Per Audit 3A, the DS uses a fixed dark text on the accent pill regardless of theme. This is a contrast-preservation decision in the DS — the accent is bright enough that dark text always reads. Spec 60.0b honors that decision; if a project's `accentHue` is so different that dark text doesn't read, that's a project-config issue, not a component issue.
-
-### E.5 Discovered During Implementation
-
-_(Filled by implementer.)_
+- **`letterSpacing` in `<DsTop>` must use `tokens.typography.eyebrowLetterSpacing`, not a hardcoded `"0.14em"`**: the spec's C.3 implementation block had `letterSpacing: "0.14em"` as a literal. The `brandTokensSchema` default for `eyebrowLetterSpacing` is `"0.08em"`, so any project without an explicit override would silently render the wrong spacing. Fixed during implementation — the token field exists for exactly this purpose.
 
 ---
 
-## Section F — `<DsScoreNumber>`
+## Section D — Fixtures + Tests
 
-### F.1 What it is
-
-The large mono score number used in comparison-grid + single-tool-spotlight. Per Audit 3B: `84px` in grid-4, `56px` in grid-3, `88px` in single-tool-spotlight. Mono font, `font-feature-settings: "tnum"`, high negative `letter-spacing`.
-
-### F.2 Component signature
-
-```typescript
-export interface DsScoreNumberProps {
-  tokens: DsTokens;
-  /** Score value, 0-100. Integers preferred. */
-  value: number;
-  /** Visual size: large for spotlight (88), medium for grid-4 (84), small for grid-3 (56). */
-  size?: "small" | "medium" | "large";
-  /** Optional /100 suffix; default false. */
-  showOutOf?: boolean;
-  /** Color override; defaults to ink.base */
-  color?: string;
-}
-
-export const DsScoreNumber: React.FC<DsScoreNumberProps>;
-```
-
-### F.3 Implementation
-
-```tsx
-const SIZE_MAP: Record<"small" | "medium" | "large", number> = {
-  small: 56,
-  medium: 84,
-  large: 88,
-};
-
-export const DsScoreNumber: React.FC<DsScoreNumberProps> = ({
-  tokens,
-  value,
-  size = "medium",
-  showOutOf = false,
-  color,
-}) => {
-  const fontSize = SIZE_MAP[size];
-  const textColor = color ?? tokens.ink.base;
-
-  return (
-    <div
-      style={{
-        display: "inline-flex",
-        alignItems: "baseline",
-        gap: 4,
-        fontFamily: tokens.typography.fontFamilyMono,
-        fontFeatureSettings: '"tnum"',
-        fontWeight: 700,
-        letterSpacing: "-0.04em",
-        color: textColor,
-      }}
-    >
-      <span style={{ fontSize, lineHeight: 1 }}>{value}</span>
-      {showOutOf && (
-        <span style={{ fontSize: fontSize * 0.4, opacity: 0.6 }}>/100</span>
-      )}
-    </div>
-  );
-};
-```
-
-### F.4 Why not in the bucket table
-
-The score-number sizes (56, 84, 88) don't match any existing `getFontSize` bucket because they're font-size-by-template-context, not by content length. The number itself is always 1-3 chars — irrelevant to scaling.
-
-**Decision**: keep the score-number sizes as a separate `SIZE_MAP` outside the bucket table. The bucket table is for content-driven scaling; score numbers are layout-driven scaling.
-
-### F.5 Discovered During Implementation
-
-_(Filled by implementer.)_
-
----
-
-## Section G — Fixtures + Tests
-
-### G.1 Fixture file
+### D.1 Fixtures
 
 ```typescript
 // packages/social/src/brand-tokens/derive.fixtures.ts
@@ -748,9 +536,9 @@ export const toolwikiBrandTokens: BrandTokens = {
   typography: {
     fontFamily: "Inter Variable, Inter, sans-serif",
     fontFamilyMono: "ui-monospace, 'SF Mono', Menlo, monospace",
-    headingWeight: 800,
+    headingWeight: 700,
     bodyWeight: 400,
-    eyebrowLetterSpacing: "0.08em",
+    eyebrowLetterSpacing: "0.14em",
     rankBadgeSize: 72,
     rankBadgeWeight: 900,
     rankBadgeLetterSpacing: "-0.03em",
@@ -763,211 +551,185 @@ export const toolwikiBrandTokens: BrandTokens = {
   social: { instagramHandle: "@toolwiki.ai", websiteUrl: "toolwiki.ai", logoAssetKey: "main" },
 };
 
-// Edge fixture: project with custom brandHue and explicit surfaceRaised
-export const customBrandTokens: BrandTokens = {
+// Custom-hue project — orange brand, cyan accent
+export const orangeBrandTokens: BrandTokens = {
   ...toolwikiBrandTokens,
   colors: {
     ...toolwikiBrandTokens.colors,
-    brandHue: 12,                                  // orange
-    accentHue: 200,                                // cyan
-    surfaceRaised: "oklch(95% 0.02 12)",           // explicit override
-    border: "oklch(80% 0.02 12)",
+    brandHue: 30,
+    accentHue: 200,
   },
-};
-
-// Edge fixture: minimal project, all defaults
-export const minimalBrandTokens: BrandTokens = {
-  colors: {
-    primary: "oklch(64% 0.16 248)",
-    brandHue: 248,
-    accent: "oklch(72% 0.15 168)",
-    accentHue: 168,
-    surface: "#ffffff",
-    surfaceDark: "oklch(16% 0.02 250)",
-    ink: "oklch(20% 0.025 250)",
-    inkMuted: "oklch(45% 0.025 250)",
-    pricingFree: "#22c55e",
-    pricingFreemium: "#3b82f6",
-    pricingPaid: "#f59e0b",
-  },
-  typography: {
-    fontFamily: "Inter Variable, Inter, sans-serif",
-    fontFamilyMono: "ui-monospace, Menlo, monospace",
-    headingWeight: 800,
-    bodyWeight: 400,
-    eyebrowLetterSpacing: "0.08em",
-    rankBadgeSize: 72,
-    rankBadgeWeight: 900,
-    rankBadgeLetterSpacing: "-0.03em",
-    footerWebsiteSize: 20,
-    footerHandleSize: 16,
-    footerLabelSize: 18,
-    footerGap: 2,
-  },
-  voice: { locale: "de-DE", addressForm: "du", forbiddenWords: [], signaturePhrases: [] },
-  social: { instagramHandle: "@x", websiteUrl: "x.com", logoAssetKey: "main" },
 };
 ```
 
-### G.2 Unit tests — deriveDsTokens
+(The minimal/edge fixtures from the original 60.0b are dropped — the function is pure, two fixtures are enough to test theme switching and hue derivation.)
+
+### D.2 Unit tests — `deriveDsTokens`
 
 ```typescript
-// packages/social/test/derive-ds-tokens.test.ts
-
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test"; // packages/social uses bun:test, not vitest
 import { deriveDsTokens } from "../src/brand-tokens/derive";
-import { toolwikiBrandTokens, customBrandTokens, minimalBrandTokens } from "../src/brand-tokens/derive.fixtures";
+import { toolwikiBrandTokens, orangeBrandTokens } from "../src/brand-tokens/derive.fixtures";
 
 describe("deriveDsTokens", () => {
-  describe("brand scale", () => {
-    it("derives 7 stops with the project's brandHue", () => {
-      const tokens = deriveDsTokens(toolwikiBrandTokens, "dark");
-      expect(tokens.brand[500]).toBe("oklch(64% 0.160 248)");
-      expect(tokens.brand[300]).toBe("oklch(80% 0.100 248)");
-      expect(tokens.brand[700]).toBe("oklch(48% 0.140 248)");
-    });
-
-    it("respects a custom brandHue", () => {
-      const tokens = deriveDsTokens(customBrandTokens, "dark");
-      expect(tokens.brand[500]).toBe("oklch(64% 0.160 12)");
-    });
+  it("derives 7 brand stops from brandHue", () => {
+    const t = deriveDsTokens(toolwikiBrandTokens, "dark");
+    expect(t.brand[500]).toBe("oklch(64% 0.160 248)");
+    expect(t.brand[300]).toBe("oklch(80% 0.100 248)");
+    expect(t.brand[700]).toBe("oklch(48% 0.140 248)");
   });
 
-  describe("theme switching", () => {
-    it("surface.base differs between dark and light", () => {
-      const dark = deriveDsTokens(toolwikiBrandTokens, "dark");
-      const light = deriveDsTokens(toolwikiBrandTokens, "light");
-      expect(dark.surface.base).toBe(toolwikiBrandTokens.colors.surfaceDark);
-      expect(light.surface.base).toBe(toolwikiBrandTokens.colors.surface);
-    });
-
-    it("ink.base differs between dark and light", () => {
-      const dark = deriveDsTokens(toolwikiBrandTokens, "dark");
-      const light = deriveDsTokens(toolwikiBrandTokens, "light");
-      expect(dark.ink.base).not.toBe(light.ink.base);
-    });
-
-    it("shadows only present in light theme", () => {
-      const dark = deriveDsTokens(toolwikiBrandTokens, "dark");
-      const light = deriveDsTokens(toolwikiBrandTokens, "light");
-      expect(dark.shadows.sm).toBe("none");
-      expect(light.shadows.sm).toContain("oklch");
-    });
+  it("hue change affects every brand stop", () => {
+    const a = deriveDsTokens(toolwikiBrandTokens, "dark");
+    const b = deriveDsTokens(orangeBrandTokens, "dark");
+    expect(a.brand[500]).not.toBe(b.brand[500]);
+    expect(b.brand[500]).toContain("30");
   });
 
-  describe("surfaceRaised override", () => {
-    it("uses brandTokens.colors.surfaceRaised when set", () => {
-      const tokens = deriveDsTokens(customBrandTokens, "light");
-      expect(tokens.surface.raised).toBe("oklch(95% 0.02 12)");
-    });
-
-    it("falls back to DS default when not set", () => {
-      const tokens = deriveDsTokens(toolwikiBrandTokens, "light");
-      expect(tokens.surface.raised).toBe("oklch(99% 0.005 250)");
-    });
+  it("surface differs between dark and light", () => {
+    const dark = deriveDsTokens(toolwikiBrandTokens, "dark");
+    const light = deriveDsTokens(toolwikiBrandTokens, "light");
+    expect(dark.surface.base).toBe(toolwikiBrandTokens.colors.surfaceDark);
+    expect(light.surface.base).toBe(toolwikiBrandTokens.colors.surface);
   });
 
-  describe("info follows brand", () => {
-    it("info color = brand.500 for toolwiki", () => {
-      const tokens = deriveDsTokens(toolwikiBrandTokens, "dark");
-      expect(tokens.semantic.info).toBe(tokens.brand[500]);
-    });
-
-    it("info color updates when brandHue changes", () => {
-      const tokens = deriveDsTokens(customBrandTokens, "dark");
-      expect(tokens.semantic.info).toBe("oklch(64% 0.160 12)");
-    });
+  it("shadows present only in light", () => {
+    const dark = deriveDsTokens(toolwikiBrandTokens, "dark");
+    const light = deriveDsTokens(toolwikiBrandTokens, "light");
+    expect(dark.shadows.sm).toBe("none");
+    expect(light.shadows.sm).toContain("oklch");
   });
 
-  describe("purity", () => {
-    it("same input produces same output", () => {
-      const a = deriveDsTokens(toolwikiBrandTokens, "dark");
-      const b = deriveDsTokens(toolwikiBrandTokens, "dark");
-      expect(a).toEqual(b);
-    });
+  it("info follows brand", () => {
+    const t = deriveDsTokens(toolwikiBrandTokens, "dark");
+    expect(t.semantic.info).toBe(t.brand[500]);
+  });
 
-    it("does not mutate input", () => {
-      const snapshot = JSON.parse(JSON.stringify(toolwikiBrandTokens));
-      deriveDsTokens(toolwikiBrandTokens, "dark");
-      expect(toolwikiBrandTokens).toEqual(snapshot);
-    });
+  it("does not mutate input", () => {
+    const snapshot = JSON.parse(JSON.stringify(toolwikiBrandTokens));
+    deriveDsTokens(toolwikiBrandTokens, "dark");
+    expect(toolwikiBrandTokens).toEqual(snapshot);
   });
 });
 ```
 
-### G.3 Visual fixtures + snapshot test
+### D.3 Visual snapshot tests
 
-Each `Ds*` component gets a tiny composition harness that renders it standalone, against the 3 fixtures (toolwiki / custom / minimal), in both themes. PNG output is committed and visual-diffed in CI (per Spec 59.3.5 Section D).
+Each component renders standalone against 1-2 fixtures, in both themes, via the Spec 59.3.5 visual harness (`packages/social/scripts/visual-render-all.ts`). PNGs are committed to `__baselines__/ds-components/`.
 
 ```
-packages/social/test/visual/ds-components/
-  ds-background-glow/
+packages/social/test/__baselines__/ds-components/
+  ds-glow/
     toolwiki-dark-top-right-brand.png
     toolwiki-light-top-right-brand.png
-    custom-dark-bottom-left-accent.png
-    ...
-  ds-eyebrow/
+    toolwiki-dark-bottom-left-accent.png
+    orange-dark-top-right-brand.png
+  ds-top/
     toolwiki-dark.png
     toolwiki-light.png
-    long-label-truncated.png
-    ...
-  ds-footer/
+    with-update-badge.png
+  ds-foot/
     toolwiki-dark.png
-    minimal-no-logo.png
-    ...
-  ds-winner-badge/
-    toolwiki-dark.png
-    custom-orange-accent.png
-    ...
-  ds-score-number/
-    small.png
-    medium.png
-    large.png
-    with-out-of.png
+    toolwiki-light.png
+    text-logo-fallback.png
 ```
 
-The visual harness uses the Spec 59.3.5 Section D pattern (Remotion `renderStill` + pixelmatch). Threshold 0.1%.
+11 baselines total. Threshold 0.1% (matches 59.3.5 convention).
 
-### G.4 Discovered During Implementation
+Test scaffolding goes into `packages/social/test/visual-ds-components.test.ts`, gated on `RUN_VISUAL=1` per 59.3.5 pattern (Discovery #61).
 
-_(Filled by implementer.)_
+Note: these baselines ARE committed (unlike the 160 template baselines from 59.3.5 which were gitignored). Reason: 11 small PNGs of pure components have stable rendering and are valuable as regression anchors when DS tokens change. The template baselines were too many + too sensitive to noise; component baselines are few + stable.
+
+### D.4 Discovered During Implementation
+
+- **`vitest` → `bun:test`**: Section D.2 spec code used `import { describe, it, expect } from "vitest"`. All existing tests in `packages/social` use `bun:test`; `vitest` is not installed in this package. Implementation used `bun:test` to match codebase convention.
+- **Visual render script deferred**: The visual snapshot test (`visual-ds-components.test.ts`) references `scripts/visual-render-ds-components.ts` which was scaffolded but not yet implemented. The script requires a Remotion render harness for standalone components outside a full composition context — deferred to Spec 60.1 when the first consuming template is wired end-to-end.
 
 ---
 
-## Section H — CLAUDE.md Convention
+## Section E — CLAUDE.md Update
 
-### H.1 Update `packages/social/src/compositions/CLAUDE.md`
+### E.1 `packages/social/src/compositions/CLAUDE.md` — Add section
 
-Add a new section "Shared DS Components" listing the 5 `Ds*` components, their purpose, and the canonical import pattern:
+Append a section "Consuming DS helpers (Spec 60.0b v2)":
 
-```typescript
-import { DsBackgroundGlow, DsEyebrow, DsFooter, DsWinnerBadge, DsScoreNumber } from "@/social/ds-components";
+```markdown
+## Consuming DS helpers (Spec 60.0b v2)
+
+For visual-refreshed templates (Spec 60.1+), compositions consume:
+
+- `deriveDsTokens(brandTokens, theme)` from `@/social/brand-tokens/derive`
+  → returns the full DS token set (brand stops, accent, surface, ink, etc.)
+- `<DsGlow>`, `<DsTop>`, `<DsFoot>` from `@/social/ds-components`
+  → the only three components shared across multiple templates
+
+Pattern:
+
+```tsx
+import { AbsoluteFill } from "remotion";
 import { deriveDsTokens } from "@/social/brand-tokens/derive";
+import { DsGlow, DsTop, DsFoot } from "@/social/ds-components";
 
-const MyComposition: React.FC<Props> = ({ brandTokens, theme, ... }) => {
+const MyTemplateSlide: React.FC<Props> = ({ brandTokens, theme, content }) => {
   const tokens = useMemo(() => deriveDsTokens(brandTokens, theme), [brandTokens, theme]);
   return (
-    <AbsoluteFill style={{ background: tokens.surface.base }}>
-      <DsBackgroundGlow tokens={tokens} theme={theme} corner="top-right" color="brand" />
-      <div style={{ display: "grid", gridTemplateRows: "60px 1fr 80px", padding: 56 }}>
-        <DsEyebrow tokens={tokens} label="VERGLEICH · 4 TOOLS" counter="01 / 06" />
-        {/* ...slide body... */}
-        <DsFooter tokens={tokens} logoUrl="..." cta="Vollständiger Test →" />
+    <AbsoluteFill style={{
+      background: tokens.surface.base,
+      color: tokens.ink.base,
+      fontFamily: tokens.typography.fontFamily,
+      padding: 56,
+      boxSizing: "border-box",
+      overflow: "hidden",
+    }}>
+      <DsGlow tokens={tokens} theme={theme} corner="top-right" color="brand" />
+      <div style={{
+        position: "relative", zIndex: 1,
+        display: "grid",
+        gridTemplateRows: "auto auto 1fr auto",
+        rowGap: 24, height: "100%",
+      }}>
+        <DsTop tokens={tokens} eyebrow={content.eyebrow} rightText={content.headerNum} />
+        {/* ...template-specific body... */}
+        <DsFoot tokens={tokens} logoUrl={content.logoUrl} ctaBold={content.ctaLine} />
       </div>
     </AbsoluteFill>
   );
 };
 ```
 
-### H.2 New file: `packages/social/src/ds-components/CLAUDE.md`
+Anything beyond these three components belongs INLINE in the slide component. REMOTION.md
+explicitly says "don't restructure the layout when porting" — adding more shared abstractions
+fights the design system's intent.
+```
 
-Brief guide:
-- "DS Components are render-time UI primitives for the visual-refresh templates"
-- "Every component consumes `tokens: DsTokens` from `deriveDsTokens(brandTokens, theme)`"
-- "Every component is layout-shift-safe per Spec 59.3.5"
-- "Adding a new DS component: write the component file, add to barrel export, add fixtures + visual snapshot tests"
+### E.2 New file: `packages/social/src/ds-components/CLAUDE.md`
 
-### H.3 Discovered During Implementation
+```markdown
+# DS Components — Shared Render-Time Primitives
+
+These three components deduplicate the parts of Claude Design's HTML that are
+genuinely identical across all 5 social-media templates.
+
+- `<DsGlow>` — the radial brand/accent glow that every template uses for visual energy
+- `<DsTop>` — the eyebrow + slide-counter row at the top of every slide (4/5 templates identical CSS)
+- `<DsFoot>` — the logo + CTA row at the bottom of every slide (4/5 templates identical CSS)
+
+That's the complete inventory. Resist the urge to add `<DsScoreNumber>`,
+`<DsWinnerBadge>`, `<DsToolCard>`, etc. — these have template-specific styling
+despite consuming the same tokens, and inlining is clearer per REMOTION.md guidance.
+
+## Token consumption
+
+Every DS component takes `tokens: DsTokens` (from `deriveDsTokens(brandTokens, theme)`).
+Components NEVER reach into `brandTokens` directly — that's `deriveDsTokens`'s job.
+
+## Layout-shift safety
+
+All components follow Spec 59.3.5 patterns: fixed-px sizes, no `flex-grow` on content,
+truncation via CSS ellipsis where applicable.
+```
+
+### E.3 Discovered During Implementation
 
 _(Filled by implementer.)_
 
@@ -975,65 +737,54 @@ _(Filled by implementer.)_
 
 ## Implementation Sessions
 
-### Session 1 — `deriveDsTokens` + fixtures (~3-4h)
+### Session 1 — `deriveDsTokens` + fixtures + unit tests (~2h)
 
-- Create `packages/social/src/brand-tokens/derive.ts` with all helpers (Section A)
-- Create `packages/social/src/brand-tokens/derive.fixtures.ts` with 3 fixtures (G.1)
-- Write unit tests (G.2)
-- Verify all tests pass + no input mutation
-- Commit: `feat(social): deriveDsTokens helper + fixtures`
+- Create `packages/social/src/brand-tokens/derive.ts` with the full function (Section A)
+- Create `packages/social/src/brand-tokens/derive.fixtures.ts` with 2 fixtures (Section D.1)
+- Write unit tests (Section D.2)
+- Verify tests pass; no mutation
+- Commit: `feat(social): deriveDsTokens helper`
 
-### Session 2 — DsBackgroundGlow + DsEyebrow + DsFooter (~3-4h)
+### Session 2 — DsGlow + DsTop + DsFoot + visual baselines + docs (~2-3h)
 
-- Create `packages/social/src/ds-components/DsBackgroundGlow.tsx` (Section B)
-- Create `packages/social/src/ds-components/DsEyebrow.tsx` (Section C)
-- Create `packages/social/src/ds-components/DsFooter.tsx` (Section D)
-- Set up `packages/social/test/visual/ds-components/` harness using Spec 59.3.5 Section D pattern
-- Render 3 baseline PNGs per component, commit to repo
-- Commit: `feat(social): DsBackgroundGlow + DsEyebrow + DsFooter`
-
-### Session 3 — DsWinnerBadge + DsScoreNumber + barrel exports (~2-3h)
-
-- Create `packages/social/src/ds-components/DsWinnerBadge.tsx` (Section E)
-- Create `packages/social/src/ds-components/DsScoreNumber.tsx` (Section F)
-- Barrel exports in `packages/social/src/ds-components/index.ts`
-- Render baseline PNGs, commit
-- Commit: `feat(social): DsWinnerBadge + DsScoreNumber + barrel exports`
-
-### Session 4 — Tests + docs (~2-3h)
-
-- Wire visual diff harness into CI
-- Update `packages/social/src/compositions/CLAUDE.md` (Section H.1)
-- Create `packages/social/src/ds-components/CLAUDE.md` (Section H.2)
-- Cross-link from root CLAUDE.md
-- Verify all tests pass: unit, visual, typecheck
-- Commit: `feat(social,docs): DS components CLAUDE.md + CI integration`
+- Create `packages/social/src/ds-components/{DsGlow,DsTop,DsFoot,index}.tsx`
+- Add visual snapshot test scaffolding at `packages/social/test/visual-ds-components.test.ts`
+- Render 11 baselines via `RUN_VISUAL=1` mode of existing 59.3.5 harness
+- Commit baselines to `packages/social/test/__baselines__/ds-components/` (these ARE committed; see D.3)
+- Add `packages/social/src/ds-components/CLAUDE.md` (Section E.2)
+- Append section to `packages/social/src/compositions/CLAUDE.md` (Section E.1)
+- Verify all tests pass (unit + visual + typecheck)
+- Commit: `feat(social): DsGlow + DsTop + DsFoot components + CLAUDE.md`
 
 ---
 
 ## Out of Scope
 
-- Inter Variable font load — happens in Spec 60.1 (first composition consumer)
-- 9:16 variants of DS components — deferred to dual-format spec (60.6+)
-- Component for the cover-template specifically (cover redesign handled in 60.1 since single-tool-spotlight is the reference template)
-- Animated variants of components (all static for Remotion `renderStill`)
-- DS component theming via project-level component overrides (out of scope; project overrides happen at brand_tokens level, not per-component)
-- Removal of old `BrandFooter`, `Eyebrow` etc. components from existing compositions — deletion happens in the 60.5 cleanup pass after all templates have migrated
+- `<DsScoreNumber>`, `<DsWinnerBadge>`, `<DsEyebrow>` (alone, w/o counter) — per Section C.6, inlined per-template
+- Inter Variable font load — moves to Spec 60.1 (first composition consumer)
+- Composition refactor of existing templates — happens in 60.1+
+- Old `BrandFooter` / `Eyebrow` component deletion — 60.5 cleanup pass
+- 9:16 variants — deferred (60.6+)
+- DS theming via project-level component overrides — out of scope; overrides happen at brand_tokens level
 
 ---
 
 ## Open Questions
 
-1. **DS components live in `packages/social/src/ds-components/` (new folder) or `packages/social/src/components/ds/` (under existing components/)?**
-  - I picked top-level `ds-components/` for visibility. Confirm or relocate.
+1. **`color-mix(in oklab, ...)` in Remotion Chromium**: per Section B.5, the DS HTML uses this and the audit didn't flag issues. First baseline render in Session 2 verifies. If it fails, swap to manual alpha string construction (no spec change needed; just helper internal).
 
-2. **The DS shadow tokens are absent in dark mode per HTML audit. Should the `DsTokens.shadows` field be `null`/`undefined` in dark theme, or empty strings, or "none"?**
-  - I picked "none" (CSS-valid). Alternative: `undefined`, forcing consuming code to null-check. "none" is simpler.
+2. **Cover's `.top .right .update` badge**: I rendered it as an internal `<DsUpdateBadge>` inside `<DsTop>`, gated by the `updateBadge` prop. Alternative: expose it as a separate component for cleaner API. _Default: keep internal — only cover uses it, no other template needs it._
 
-3. **The DS `--font-mono` is `"SF Mono", "JetBrains Mono", "Menlo"`. Should Remotion pre-load any of these via `@remotion/google-fonts`, or rely on the OS fallback chain?**
-  - Mono is used for slide counters and score numbers. OS fallback may produce inconsistent renders across CI environments.
-  - I default to OS-fallback for 60.0b; mono-font preload added in 60.1 if visual diff fails.
+3. **Two-line CTA pattern in `<DsFoot>` (`ctaLead` + `ctaBold`)**: I made `ctaLead` optional. Templates that have only `"Vollständiger Test →"` (without a lead line) pass `ctaBold` only. Confirm that pattern matches the actual usage across templates — implementer should verify when porting first template.
 
-4. **`<DsWinnerBadge>` text color is hardcoded `#06291f` (dark on accent). What if a project's `accentHue` produces a darker accent that breaks contrast?**
-  - Section E.4 punts to "project-config issue". Acceptable, or add a fallback "auto-flip to white if accent lightness < 0.5"?
-  - Default: hardcode, document.
+4. **Should baselines for DS components be committed (unlike template baselines)?** Section D.3 argues yes (small number, stable). Confirm or override.
+
+---
+
+## Cost / Time Estimate
+
+| Session | Effort | Risk |
+|---|---|---|
+| 1 (deriveDsTokens) | ~2h | Low — pure function, well-tested in isolation |
+| 2 (3 components + baselines + docs) | ~2-3h | Low-Medium — `color-mix` is the only minor unknown |
+| **Total** | **~4-5h** | About half the original 60.0b estimate; this revision dropped ~50% of the planned components |
