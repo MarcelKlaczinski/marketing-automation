@@ -462,6 +462,101 @@
                 </div>
               </div>
             </template>
+
+            <!-- pro-con-verdict -->
+            <template v-else-if="selectedKey === 'pro-con-verdict'">
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.coverEyebrowLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.coverEyebrow.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.coverEyebrow.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.prosHeaderLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.prosHeader.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.prosHeader.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.consHeaderLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.consHeader.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.consHeader.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.verdictEyebrowLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.verdictEyebrow.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.verdictEyebrow.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.whenToUseLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.whenToUseLabel.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.whenToUseLabel.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.whenToSkipLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.whenToSkipLabel.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.whenToSkipLabel.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+              <div class="copy-field-row">
+                <span class="copy-field-label">{{ $t("social.templateOverrides.copy.endCtaTextLabel") }}</span>
+                <div class="locale-inputs">
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.deLabel") }}</span>
+                    <input v-model="form.copy.endCtaText.de" class="text-input" autocomplete="off" />
+                  </div>
+                  <div class="locale-input-wrap">
+                    <span class="locale-tag">{{ $t("social.templateOverrides.enLabel") }}</span>
+                    <input v-model="form.copy.endCtaText.en" class="text-input" autocomplete="off" />
+                  </div>
+                </div>
+              </div>
+            </template>
           </div>
 
           <!-- Layout section -->
@@ -500,6 +595,34 @@
                 <input type="checkbox" v-model="form.layout[field]" class="toggle-check" />
                 <span>{{ $t(`social.templateOverrides.layout.${field}`) as string }}</span>
               </label>
+            </template>
+
+            <!-- pro-con-verdict -->
+            <template v-else-if="selectedKey === 'pro-con-verdict'">
+              <label
+                v-for="field in proConVerdictLayoutFields"
+                :key="field"
+                class="toggle-row"
+              >
+                <input type="checkbox" v-model="form.layout[field]" class="toggle-check" />
+                <span>{{ $t(`social.templateOverrides.layout.${field}`) as string }}</span>
+              </label>
+              <div class="eligibility-row">
+                <label class="eligibility-label">{{ $t("social.templateOverrides.layout.coverSplitDirection") }}</label>
+                <select v-model="form.layout.coverSplitDirection" class="select-input">
+                  <option value="diagonal">{{ $t("social.templateOverrides.layout.splitDiagonal") }}</option>
+                  <option value="vertical">{{ $t("social.templateOverrides.layout.splitVertical") }}</option>
+                  <option value="horizontal">{{ $t("social.templateOverrides.layout.splitHorizontal") }}</option>
+                </select>
+              </div>
+              <div class="eligibility-row">
+                <label class="eligibility-label">{{ $t("social.templateOverrides.layout.backgroundIntensity") }}</label>
+                <select v-model="form.layout.backgroundIntensity" class="select-input">
+                  <option value="subtle">{{ $t("social.templateOverrides.layout.intensitySubtle") }}</option>
+                  <option value="medium">{{ $t("social.templateOverrides.layout.intensityMedium") }}</option>
+                  <option value="strong">{{ $t("social.templateOverrides.layout.intensityStrong") }}</option>
+                </select>
+              </div>
             </template>
           </div>
 
@@ -551,6 +674,49 @@
                   class="number-input"
                   min="2"
                   max="10"
+                />
+              </div>
+            </template>
+
+            <template v-else-if="selectedKey === 'pro-con-verdict'">
+              <div class="eligibility-row">
+                <label class="eligibility-label">{{ $t("social.templateOverrides.eligibility.minProsCount") }}</label>
+                <input
+                  type="number"
+                  v-model.number="form.eligibility.minPros"
+                  class="number-input"
+                  min="2"
+                  max="8"
+                />
+              </div>
+              <div class="eligibility-row">
+                <label class="eligibility-label">{{ $t("social.templateOverrides.eligibility.maxProsCount") }}</label>
+                <input
+                  type="number"
+                  v-model.number="form.eligibility.maxPros"
+                  class="number-input"
+                  min="3"
+                  max="8"
+                />
+              </div>
+              <div class="eligibility-row">
+                <label class="eligibility-label">{{ $t("social.templateOverrides.eligibility.minConsCount") }}</label>
+                <input
+                  type="number"
+                  v-model.number="form.eligibility.minCons"
+                  class="number-input"
+                  min="2"
+                  max="8"
+                />
+              </div>
+              <div class="eligibility-row">
+                <label class="eligibility-label">{{ $t("social.templateOverrides.eligibility.maxConsCount") }}</label>
+                <input
+                  type="number"
+                  v-model.number="form.eligibility.maxCons"
+                  class="number-input"
+                  min="3"
+                  max="8"
                 />
               </div>
             </template>
@@ -607,7 +773,8 @@ export default defineComponent({
     form: {
       // biome-ignore lint/suspicious/noExplicitAny: form shape is template-key-dependent; validated at save time
       copy: {} as Record<string, any>,
-      layout: {} as Record<string, boolean>,
+      // biome-ignore lint/suspicious/noExplicitAny: enum-valued layout fields (e.g. coverSplitDirection) need string; boolean toggles stay boolean
+      layout: {} as Record<string, any>,
       eligibility: {} as Record<string, number>,
     },
     activeSection: "layout" as "copy" | "layout" | "eligibility",
@@ -633,6 +800,11 @@ export default defineComponent({
       "showSavePrompt",
       "showFollowCTA",
       "showArticleLink",
+    ] as string[],
+    proConVerdictLayoutFields: [
+      "includeEndSlide",
+      "showToolLogoOnCover",
+      "showToolLogoOnVerdict",
     ] as string[],
   }),
 
@@ -743,8 +915,7 @@ export default defineComponent({
             useCaseSlideThreshold: typeof elig.useCaseSlideThreshold === "number" ? elig.useCaseSlideThreshold : 3,
           },
         };
-      } else {
-        // verdict-per-use-case
+      } else if (key === "verdict-per-use-case") {
         const copy = (values.copy ?? {}) as Record<string, unknown>;
         const coverSlide = (copy.coverSlide ?? {}) as Record<string, unknown>;
         const verdictSlide = (copy.verdictSlide ?? {}) as Record<string, unknown>;
@@ -776,6 +947,34 @@ export default defineComponent({
             minVerdictsCount: typeof elig.minVerdictsCount === "number" ? elig.minVerdictsCount : 3,
           },
         };
+      } else if (key === "pro-con-verdict") {
+        const copy = (values.copy ?? {}) as Record<string, unknown>;
+        const layout = (values.layout ?? {}) as Record<string, unknown>;
+        const elig = (values.eligibility ?? {}) as Record<string, unknown>;
+        form = {
+          copy: {
+            coverEyebrow: this.loc(copy.coverEyebrow, "BEWERTUNG", "REVIEW"),
+            prosHeader: this.loc(copy.prosHeader, "VORTEILE", "PROS"),
+            consHeader: this.loc(copy.consHeader, "NACHTEILE", "CONS"),
+            verdictEyebrow: this.loc(copy.verdictEyebrow, "VERDIKT", "VERDICT"),
+            whenToUseLabel: this.loc(copy.whenToUseLabel, "WANN NUTZEN", "WHEN TO USE"),
+            whenToSkipLabel: this.loc(copy.whenToSkipLabel, "WANN NICHT", "WHEN TO SKIP"),
+            endCtaText: this.loc(copy.endCtaText, "Mehr im Artikel", "Read the full article"),
+          },
+          layout: {
+            ...this.bools(values.layout, ["includeEndSlide", "showToolLogoOnCover", "showToolLogoOnVerdict"], true),
+            coverSplitDirection: typeof layout.coverSplitDirection === "string" ? layout.coverSplitDirection : "diagonal",
+            backgroundIntensity: typeof layout.backgroundIntensity === "string" ? layout.backgroundIntensity : "medium",
+          },
+          eligibility: {
+            minPros: typeof elig.minPros === "number" ? elig.minPros : 3,
+            maxPros: typeof elig.maxPros === "number" ? elig.maxPros : 5,
+            minCons: typeof elig.minCons === "number" ? elig.minCons : 3,
+            maxCons: typeof elig.maxCons === "number" ? elig.maxCons : 5,
+          },
+        };
+      } else {
+        form = { copy: {}, layout: {}, eligibility: {} };
       }
 
       this.form = form;
@@ -1141,6 +1340,16 @@ export default defineComponent({
   color: var(--text-primary);
   font-size: 13px;
   text-align: right;
+}
+
+.select-input {
+  padding: 5px 8px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  min-width: 120px;
 }
 
 .eligibility-empty {
