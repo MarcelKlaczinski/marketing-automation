@@ -1,0 +1,95 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`buildConstraintBlock — spotlight body bounds formats DE correctly (snapshot) 1`] = `
+"ZEICHENLIMITS (strikt einhalten):
+- eyebrow: 12–28 Zeichen
+- headerNum: 16–44 Zeichen
+- tool:
+  - name: 4–14 Zeichen
+  - version: 6–34 Zeichen
+- verdictQuote: 40–120 Zeichen
+- scoreLabel: 6–18 Zeichen
+- facts: exakt 4
+  - key: 4–14 Zeichen
+  - value: 4–20 Zeichen
+- strengths: 3–4 Einträge, jeder 30–70 Zeichen
+- weaknesses: 3–4 Einträge, jeder 30–70 Zeichen
+- footer:
+  - ctaLine: 8–24 Zeichen
+  - url: 12–32 Zeichen
+- pros: max 5, max 80 Zeichen pro Eintrag
+- cons: max 4, max 80 Zeichen pro Eintrag
+- features: max 6, max 80 Zeichen pro Eintrag
+- useCases: max 4, max 80 Zeichen pro Eintrag
+- captionBody: 20–1800 Zeichen
+- hashtags: max 10, max 24 Zeichen pro Eintrag"
+`;
+
+exports[`buildConstraintBlock — spotlight body bounds formats EN correctly (snapshot) 1`] = `
+"CHARACTER LIMITS (must be respected):
+- eyebrow: 12–28 chars
+- headerNum: 16–44 chars
+- tool:
+  - name: 4–14 chars
+  - version: 6–34 chars
+- verdictQuote: 40–120 chars
+- scoreLabel: 6–18 chars
+- facts: exactly 4
+  - key: 4–14 chars
+  - value: 4–20 chars
+- strengths: 3–4 items, each 30–70 chars
+- weaknesses: 3–4 items, each 30–70 chars
+- footer:
+  - ctaLine: 8–24 chars
+  - url: 12–32 chars
+- pros: max 5, max 80 chars each
+- cons: max 4, max 80 chars each
+- features: max 6, max 80 chars each
+- useCases: max 4, max 80 chars each
+- captionBody: 20–1800 chars
+- hashtags: max 10, max 24 chars each"
+`;
+
+exports[`buildConstraintBlock — cover bounds formats cover DE correctly (snapshot) 1`] = `
+"ZEICHENLIMITS (strikt einhalten):
+- eyebrow: 8–28 Zeichen
+- headerNum: 12–56 Zeichen
+- updateBadge: 8–28 Zeichen
+- heroTitle: 6–22 Zeichen
+- kicker: 40–130 Zeichen
+- toolLogosCount: 3–6 Zeichen
+- toolsMoreText: 4–14 Zeichen
+- stats: exakt 3
+  - value: 1–4 Zeichen
+  - label: 8–24 Zeichen
+- byline:
+  - name: 4–22 Zeichen
+  - role: 10–32 Zeichen
+  - readTime: 5–14 Zeichen
+- swipeText: 12–28 Zeichen
+- footer:
+  - ctaLine: 6–22 Zeichen
+  - url: 12–32 Zeichen"
+`;
+
+exports[`buildConstraintBlock — cover bounds formats cover EN correctly (snapshot) 1`] = `
+"CHARACTER LIMITS (must be respected):
+- eyebrow: 8–28 chars
+- headerNum: 12–56 chars
+- updateBadge: 8–28 chars
+- heroTitle: 6–22 chars
+- kicker: 40–130 chars
+- toolLogosCount: 3–6 chars
+- toolsMoreText: 4–14 chars
+- stats: exactly 3
+  - value: 1–4 chars
+  - label: 8–24 chars
+- byline:
+  - name: 4–22 chars
+  - role: 10–32 chars
+  - readTime: 5–14 chars
+- swipeText: 12–28 chars
+- footer:
+  - ctaLine: 6–22 chars
+  - url: 12–32 chars"
+`;
