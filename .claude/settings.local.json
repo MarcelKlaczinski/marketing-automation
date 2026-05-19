@@ -939,7 +939,12 @@
       "Bash(bun --filter \"@marketing-auto/web\" run typecheck)",
       "Bash(grep -v '$t\\\\|labelKey\\\\|//')",
       "Bash(grep -v '$t\\\\|//')",
-      "Bash(bun --filter \"@marketing-auto/api\" test --testPathPattern=\"signal-sources|projects-github-cron\")"
+      "Bash(bun --filter \"@marketing-auto/api\" test --testPathPattern=\"signal-sources|projects-github-cron\")",
+      "Bash(bun --filter @marketing-auto/api test -- apps/api/test/lib/divergence.test.ts)",
+      "Bash(bun --filter @marketing-auto/pipelines test -- packages/pipelines/test/article/translation/sibling.test.ts)",
+      "Bash(bun --filter @marketing-auto/pipelines test -- 'packages/pipelines/test/article/translation/sibling.test.ts')",
+      "Bash(bun --filter @marketing-auto/api test -- 'apps/api/test/routes/articles-translate.test.ts')",
+      "Bash(git worktree *)"
     ]
   }
 }
