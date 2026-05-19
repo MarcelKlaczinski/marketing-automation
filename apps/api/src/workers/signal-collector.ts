@@ -98,6 +98,27 @@ export function startSignalCollectorWorker() {
         return;
       }
 
+      // Per-project HackerNews cron dispatched by cron-orchestrator
+      if (name.startsWith("signal_collector_hackernews:")) {
+        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
+        await handleCollectAdapter(projectId, "hackernews");
+        return;
+      }
+
+      // Per-project ProductHunt cron dispatched by cron-orchestrator
+      if (name.startsWith("signal_collector_producthunt:")) {
+        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
+        await handleCollectAdapter(projectId, "producthunt");
+        return;
+      }
+
+      // Per-project Vendor-RSS cron dispatched by cron-orchestrator
+      if (name.startsWith("signal_collector_vendor_rss:")) {
+        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
+        await handleCollectAdapter(projectId, "vendor_rss");
+        return;
+      }
+
       throw new Error(`Unknown signal-collector job name: ${name}`);
     },
     {
@@ -187,12 +208,13 @@ async function handleCollectAdapter(
         log.warn({ projectId }, "vendor_rss: no active config, skipping");
         return;
       }
-      const feeds = config.signalSources.vendor_rss.feeds;
-      if (feeds.length === 0) {
-        log.warn({ projectId }, "vendor_rss: enabled but no feeds configured");
+      const allFeeds = config.signalSources.vendor_rss.feeds;
+      const activeFeeds = allFeeds.filter((f) => f.enabled).map((f) => f.url);
+      if (activeFeeds.length === 0) {
+        log.warn({ projectId }, "vendor_rss: enabled but no active feeds configured");
         return;
       }
-      signals = await new VendorRssSignalSource().fetch({ feeds, maxAgeDays: 14 }, ctx);
+      signals = await new VendorRssSignalSource().fetch({ feeds: activeFeeds, maxAgeDays: 14 }, ctx);
       break;
     }
     case "reddit": {

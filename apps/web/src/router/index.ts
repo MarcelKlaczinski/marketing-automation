@@ -117,6 +117,11 @@ const routes = [
             name: "settings-credentials",
             component: () => import("src/pages/settings/SettingsCredentialsPage.vue"),
           },
+          {
+            path: "signal-sources",
+            name: "settings-signal-sources",
+            component: () => import("src/pages/settings/SettingsSignalSourcesPage.vue"),
+          },
           // Redirect bare /settings to /settings/project
           {
             path: "",

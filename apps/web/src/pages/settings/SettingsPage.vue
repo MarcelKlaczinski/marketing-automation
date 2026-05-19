@@ -37,6 +37,7 @@ export default defineComponent({
         { key: "brand-tokens" },
         { key: "brand-assets" },
         { key: "credentials" },
+        { key: "signal-sources" },
       ];
     },
   },

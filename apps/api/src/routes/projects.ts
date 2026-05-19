@@ -167,6 +167,14 @@ projectRoutes.get("/:slug", async (c) => {
       autoPublish: proj.autoPublish,
       targetLocales: proj.targetLocales,
       socialAutoRenderLocales: proj.socialAutoRenderLocales,
+      trendsCronEnabled: proj.trendsCronEnabled,
+      refreshCronEnabled: proj.refreshCronEnabled,
+      qualityAnalysisCronEnabled: proj.qualityAnalysisCronEnabled,
+      redditSignalCronEnabled: proj.redditSignalCronEnabled,
+      githubSignalCronEnabled: proj.githubSignalCronEnabled,
+      hackernewsSignalCronEnabled: proj.hackernewsSignalCronEnabled,
+      producthuntSignalCronEnabled: proj.producthuntSignalCronEnabled,
+      vendorRssSignalCronEnabled: proj.vendorRssSignalCronEnabled,
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),
@@ -297,9 +305,14 @@ const updateProjectSchema = z.object({
   trendsCronEnabled: z.boolean().optional(),
   refreshCronEnabled: z.boolean().optional(),
   qualityAnalysisCronEnabled: z.boolean().optional(),
-  redditSignalCronEnabled: z.boolean().optional(),
   autoApproveGaps: z.boolean().optional(),
   refreshStalenessThresholdDays: z.number().int().min(7).max(365).optional(),
+  // Signal source cron toggles (Spec 59.1c)
+  redditSignalCronEnabled: z.boolean().optional(),
+  githubSignalCronEnabled: z.boolean().optional(),
+  hackernewsSignalCronEnabled: z.boolean().optional(),
+  producthuntSignalCronEnabled: z.boolean().optional(),
+  vendorRssSignalCronEnabled: z.boolean().optional(),
 });
 
 projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c) => {
@@ -338,6 +351,11 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
   if (input.autoApproveGaps !== undefined) setFields.autoApproveGaps = input.autoApproveGaps;
   if (input.refreshStalenessThresholdDays !== undefined)
     setFields.refreshStalenessThresholdDays = input.refreshStalenessThresholdDays;
+  if (input.redditSignalCronEnabled !== undefined) setFields.redditSignalCronEnabled = input.redditSignalCronEnabled;
+  if (input.githubSignalCronEnabled !== undefined) setFields.githubSignalCronEnabled = input.githubSignalCronEnabled;
+  if (input.hackernewsSignalCronEnabled !== undefined) setFields.hackernewsSignalCronEnabled = input.hackernewsSignalCronEnabled;
+  if (input.producthuntSignalCronEnabled !== undefined) setFields.producthuntSignalCronEnabled = input.producthuntSignalCronEnabled;
+  if (input.vendorRssSignalCronEnabled !== undefined) setFields.vendorRssSignalCronEnabled = input.vendorRssSignalCronEnabled;
 
   await db
     .update(projects)
@@ -346,7 +364,8 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     .where(eq(projects.id, existing.id));
 
   // Sync cron_state rows when cron flags change so orchestrator picks up changes within seconds
-  const cronChanges: Array<{ jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit"; isActive: boolean }> = [];
+  type CronJobType = "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit" | "signal_collector_github" | "signal_collector_hackernews" | "signal_collector_producthunt" | "signal_collector_vendor_rss";
+  const cronChanges: Array<{ jobType: CronJobType; isActive: boolean }> = [];
   if (input.trendsCronEnabled !== undefined)
     cronChanges.push({ jobType: "trends_synthesizer", isActive: input.trendsCronEnabled });
   if (input.refreshCronEnabled !== undefined)
@@ -355,13 +374,25 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     cronChanges.push({ jobType: "quality_analysis", isActive: input.qualityAnalysisCronEnabled });
   if (input.redditSignalCronEnabled !== undefined)
     cronChanges.push({ jobType: "signal_collector_reddit", isActive: input.redditSignalCronEnabled });
+  if (input.githubSignalCronEnabled !== undefined)
+    cronChanges.push({ jobType: "signal_collector_github", isActive: input.githubSignalCronEnabled });
+  if (input.hackernewsSignalCronEnabled !== undefined)
+    cronChanges.push({ jobType: "signal_collector_hackernews", isActive: input.hackernewsSignalCronEnabled });
+  if (input.producthuntSignalCronEnabled !== undefined)
+    cronChanges.push({ jobType: "signal_collector_producthunt", isActive: input.producthuntSignalCronEnabled });
+  if (input.vendorRssSignalCronEnabled !== undefined)
+    cronChanges.push({ jobType: "signal_collector_vendor_rss", isActive: input.vendorRssSignalCronEnabled });
 
   if (cronChanges.length > 0) {
-    const defaultPatterns: Record<string, string> = {
+    const defaultPatterns: Record<CronJobType, string> = {
       trends_synthesizer: "30 1 * * *",
       refresh_detector: "0 2 * * *",
       quality_analysis: "0 3 * * *",
       signal_collector_reddit: "30 2 * * *",
+      signal_collector_github: "0 3 * * *",
+      signal_collector_hackernews: "0 4 * * *",
+      signal_collector_producthunt: "30 4 * * *",
+      signal_collector_vendor_rss: "0 5 * * *",
     };
     for (const { jobType, isActive } of cronChanges) {
       await db

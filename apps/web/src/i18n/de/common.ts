@@ -34,6 +34,7 @@ export default {
   continue: "Weiter",
   other: "Sonstiges",
   notSet: "Nicht angegeben",
+  add: "Hinzufügen",
   remove: "Entfernen",
   addKeyword: "Keyword hinzufügen",
 };

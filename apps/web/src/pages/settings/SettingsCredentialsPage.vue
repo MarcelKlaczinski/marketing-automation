@@ -3,6 +3,13 @@
     <h1 class="page-title">{{ $t("settings.credentials.title") as string }}</h1>
     <p class="page-description">{{ $t("settings.credentials.description") as string }}</p>
 
+    <div class="cross-ref-banner glass-card-subtle">
+      <p class="cross-ref-text">{{ $t("settings.credentials.signalSourcesNote") as string }}</p>
+      <router-link :to="`/projects/${$route.params.slug}/settings/signal-sources`" class="cross-ref-link">
+        {{ $t("settings.credentials.signalSourcesLink") as string }} →
+      </router-link>
+    </div>
+
     <div class="credential-cards">
       <CredentialCard
         v-for="adapter in adapters"
@@ -69,6 +76,30 @@ export default defineComponent({
         name: "Replicate",
         keys: [{ key: "api_token", labelKey: "settings.credentials.keys.apiToken" }],
       },
+      {
+        id: "producthunt",
+        name: "Product Hunt",
+        keys: [
+          { key: "api_key", labelKey: "settings.credentials.keys.apiKey" },
+          { key: "api_secret", labelKey: "settings.credentials.keys.apiSecret" },
+        ],
+      },
+      {
+        id: "reddit",
+        name: "Reddit",
+        keys: [
+          { key: "client_id", labelKey: "settings.credentials.keys.clientId" },
+          { key: "client_secret", labelKey: "settings.credentials.keys.clientSecret" },
+          { key: "user_agent", labelKey: "settings.credentials.keys.userAgent" },
+        ],
+      },
+      {
+        id: "github",
+        name: "GitHub Trending",
+        keys: [
+          { key: "personal_access_token", labelKey: "settings.credentials.keys.personalAccessToken" },
+        ],
+      },
     ],
   }),
 
@@ -98,6 +129,31 @@ export default defineComponent({
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0;
+}
+
+.cross-ref-banner {
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--glass-bg, rgba(255,255,255,0.06)) 100%, transparent);
+  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.cross-ref-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  flex: 1;
+}
+
+.cross-ref-link {
+  font-size: 13px;
+  color: var(--brand, #6366f1);
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .credential-cards {

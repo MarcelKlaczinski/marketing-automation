@@ -934,7 +934,12 @@
       "Bash(grep -n \"DO NOT use \\\\`bun add\\\\|DO NOT pass a bare\\\\|DO NOT write a partial\\\\|DO NOT make discriminator\\\\|DO NOT run \\\\`drizzle-kit\\\\|DO NOT rely on CASCADE\\\\|DO NOT add a new Cold-Start\\\\|DO NOT set \\\\`article\\\\|DO NOT assume an Astro\\\\|DO NOT pass \\\\`frontmatterSchema\\\\|DO NOT use \\\\`sql.*!=\\\\|DO NOT query by \\\\`translation\\\\|DO NOT pass \\\\`pipelineRunId\\\\|DO NOT use \\\\`field.*T\\\\` in local\\\\|DO NOT assign the result\\\\|DO NOT cast \\\\`Array.isArray\\\\|DO NOT write LLM prompts\\\\|DO NOT expect pipeline-generated\\\\|DO NOT use \\\\`jsonMode\\\\|DO NOT use \\\\`claude-opus\\\\|DO NOT forget that \\\\`pricing\\\\|DO NOT add transparency\\\\|DO NOT implement custom ZIP\\\\|DO NOT import \\\\`drizzle-orm\\\\|DO NOT import from \\\\`packages\\\\/pipelines\\\\|DO NOT pass a JS \\\\`number\\\\|DO NOT pass \\\\`toolCategory\\\\|DO NOT use \\\\`\\\\/\\\\^\\\\#\\\\\\\\\\\\w\\\\|DO NOT add locale-aware\\\\|DO NOT add a \\\\`PUT\\\\`-method\\\\|DO NOT use a single \\\\`JobData\\\\|DO NOT define a BullMQ queue\\\\|DO NOT use bare \\\\`\\\\.max\\\\|DO NOT add an explicit slug\\\\|DO NOT hardcode numeric\\\\|DO NOT use \\\\`system:\\\\|DO NOT add transparency\" /Users/marcelklaczinski/WebstormProjects/marketing-automation/CLAUDE.md)",
       "Bash(bun --filter @marketing-auto/adapter-reddit typecheck)",
       "Bash(bun --filter @marketing-auto/adapter-reddit test)",
-      "Bash(bun --filter @marketing-auto/adapter-github-trending typecheck)"
+      "Bash(bun --filter @marketing-auto/adapter-github-trending typecheck)",
+      "Bash(python3 -c \"import json,sys; j=json.load\\(sys.stdin\\); last=j['entries'][-1]; print\\(f'idx={last[\\\\\"idx\\\\\"]}, when={last[\\\\\"when\\\\\"]}'\\)\")",
+      "Bash(bun --filter \"@marketing-auto/web\" run typecheck)",
+      "Bash(grep -v '$t\\\\|labelKey\\\\|//')",
+      "Bash(grep -v '$t\\\\|//')",
+      "Bash(bun --filter \"@marketing-auto/api\" test --testPathPattern=\"signal-sources|projects-github-cron\")"
     ]
   }
 }

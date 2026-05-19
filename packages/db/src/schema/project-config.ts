@@ -57,26 +57,32 @@ export const TopicScopeSchema = z
   .default({ languages: ["de", "en"], exclusions: [] });
 export type TopicScope = z.infer<typeof TopicScopeSchema>;
 
-// Algolia HN silently returns 0 hits for queries with 7+ OR terms.
-// Split into multiple short queries (≤5 terms each); adapter fans them out in parallel.
-const HN_DEFAULT_QUERIES = [
-  'ai OR llm OR gpt OR claude OR gemini',
-  'midjourney OR "stable diffusion" OR flux OR sora OR runway',
-  'cursor OR copilot OR devin OR codeium',
-  'openai OR anthropic OR huggingface OR replicate',
-];
-
 export const SignalSourcesSchema = z
   .object({
     producthunt: z.boolean().default(false),
     hackernews: z
       .object({
         enabled:     z.boolean().default(false),
-        queries:     z.array(z.string().min(1)).default(HN_DEFAULT_QUERIES),
+        queries:     z.array(z.string().min(1)).default([
+          "ai OR llm OR gpt OR claude OR gemini",
+          'midjourney OR "stable diffusion" OR flux OR sora OR runway',
+          "cursor OR copilot OR devin OR codeium",
+          "openai OR anthropic OR huggingface OR replicate",
+        ]),
         hitsPerPage: z.number().int().min(1).max(100).default(50),
         minPoints:   z.number().int().min(0).default(5),
       })
-      .default({ enabled: false, queries: HN_DEFAULT_QUERIES, hitsPerPage: 50, minPoints: 5 }),
+      .default({
+        enabled: false,
+        queries: [
+          "ai OR llm OR gpt OR claude OR gemini",
+          'midjourney OR "stable diffusion" OR flux OR sora OR runway',
+          "cursor OR copilot OR devin OR codeium",
+          "openai OR anthropic OR huggingface OR replicate",
+        ],
+        hitsPerPage: 50,
+        minPoints: 5,
+      }),
     reddit: z
       .object({
         enabled: z.boolean().default(false),
@@ -143,14 +149,35 @@ export const SignalSourcesSchema = z
     vendor_rss: z
       .object({
         enabled: z.boolean().default(false),
-        feeds: z.array(z.string().url()).default([]),
+        feeds: z
+          .array(
+            z.object({
+              id: z.string().uuid(),
+              url: z.string().url(),
+              label: z.string().min(1).max(100),
+              enabled: z.boolean().default(true),
+              addedAt: z.string().datetime(),
+              lastVerifiedAt: z.string().datetime().nullable().default(null),
+            }),
+          )
+          .default([]),
       })
       .default({ enabled: false, feeds: [] }),
     dataforseo_trends: z.boolean().default(false),
   })
   .default({
     producthunt: false,
-    hackernews: { enabled: false, queries: HN_DEFAULT_QUERIES, hitsPerPage: 50, minPoints: 5 },
+    hackernews: {
+      enabled: false,
+      queries: [
+        "ai OR llm OR gpt OR claude OR gemini",
+        'midjourney OR "stable diffusion" OR flux OR sora OR runway',
+        "cursor OR copilot OR devin OR codeium",
+        "openai OR anthropic OR huggingface OR replicate",
+      ],
+      hitsPerPage: 50,
+      minPoints: 5,
+    },
     reddit: { enabled: false, subreddits: [], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" },
     github: {
       enabled: false,
@@ -176,6 +203,7 @@ export const SignalSourcesSchema = z
     dataforseo_trends: false,
   });
 export type SignalSources = z.infer<typeof SignalSourcesSchema>;
+export type VendorRssFeed = SignalSources["vendor_rss"]["feeds"][number];
 
 // intentionally untyped in 54.2 — Phase 2 future
 export const AutomationRulesSchema = z.array(z.unknown()).default([]);

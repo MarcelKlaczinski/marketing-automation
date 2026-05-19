@@ -36,11 +36,14 @@ export function getCronOrchestratorQueue(): Queue {
 
 // ─── Queue registry ───────────────────────────────────────────────────────────
 
-function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit" | "signal_collector_github"): Queue {
+function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit" | "signal_collector_github" | "signal_collector_hackernews" | "signal_collector_producthunt" | "signal_collector_vendor_rss"): Queue {
   if (jobType === "trends_synthesizer") return getTrendSynthesizerQueue();
   if (jobType === "quality_analysis") return getArticleQualityAnalysisQueue();
   if (jobType === "signal_collector_reddit") return getSignalCollectorQueue();
   if (jobType === "signal_collector_github") return getSignalCollectorQueue();
+  if (jobType === "signal_collector_hackernews") return getSignalCollectorQueue();
+  if (jobType === "signal_collector_producthunt") return getSignalCollectorQueue();
+  if (jobType === "signal_collector_vendor_rss") return getSignalCollectorQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -81,7 +84,10 @@ export async function syncCronJobs(): Promise<void> {
         repeat.name.startsWith("refresh_detector:") ||
         repeat.name.startsWith("quality_analysis:") ||
         repeat.name.startsWith("signal_collector_reddit:") ||
-        repeat.name.startsWith("signal_collector_github:");
+        repeat.name.startsWith("signal_collector_github:") ||
+        repeat.name.startsWith("signal_collector_hackernews:") ||
+        repeat.name.startsWith("signal_collector_producthunt:") ||
+        repeat.name.startsWith("signal_collector_vendor_rss:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

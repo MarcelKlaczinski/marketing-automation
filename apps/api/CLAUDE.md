@@ -3,6 +3,7 @@
 ## Structure
 - `src/server.ts`         Hono server entrypoint, middleware setup
 - `src/routes/`           HTTP endpoints, thin glue layer
+  - `src/routes/projects/signal-sources.ts`  Signal source CRUD + per-source config + manual trigger (Spec 59.1c)
 - `src/workers/`          BullMQ workers (added in Spec 05)
 - `src/webhooks/`         Inbound webhooks (added later)
 - `src/middleware/`       Custom Hono middleware (auth, cost-context)

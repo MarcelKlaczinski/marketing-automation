@@ -34,6 +34,7 @@ export default {
   continue: "Continue",
   other: "Other",
   notSet: "Not set",
+  add: "Add",
   remove: "Remove",
   addKeyword: "Add keyword",
 };

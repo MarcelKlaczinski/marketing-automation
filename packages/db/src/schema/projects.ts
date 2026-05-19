@@ -86,6 +86,13 @@ export const projects = pgTable(
     autoApproveGaps: boolean("auto_approve_gaps").notNull().default(false),
     refreshStalenessThresholdDays: integer("refresh_staleness_threshold_days").notNull().default(90),
 
+    // Spec 59.1c: Signal source cron toggles (mirrored to cron_state on PATCH)
+    redditSignalCronEnabled: boolean("reddit_signal_cron_enabled").notNull().default(false),
+    githubSignalCronEnabled: boolean("github_signal_cron_enabled").notNull().default(false),
+    hackernewsSignalCronEnabled: boolean("hackernews_signal_cron_enabled").notNull().default(false),
+    producthuntSignalCronEnabled: boolean("producthunt_signal_cron_enabled").notNull().default(false),
+    vendorRssSignalCronEnabled: boolean("vendor_rss_signal_cron_enabled").notNull().default(false),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

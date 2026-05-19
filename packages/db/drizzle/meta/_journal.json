@@ -407,6 +407,27 @@
       "when": 1783500000000,
       "tag": "0057_github_signal_source",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1783600000000,
+      "tag": "0058_signal_cron_enum_values",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1783700000000,
+      "tag": "0059_projects_signal_cron_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1783800000000,
+      "tag": "0060_vendor_rss_feeds_to_objects",
+      "breakpoints": true
     }
   ]
 }

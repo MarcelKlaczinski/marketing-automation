@@ -31,6 +31,7 @@ import { pipelineEventsRoutes } from "./routes/projects/pipeline-events.ts";
 import { projectCronRoutes } from "./routes/projects/cron.ts";
 import { projectRefreshRoutes } from "./routes/projects/refresh.ts";
 import { templateOverrideRoutes } from "./routes/projects/template-overrides.ts";
+import { signalSourcesRoutes } from "./routes/projects/signal-sources.ts";
 import { scopedArticleRoutes } from "./routes/projects/articles.ts";
 import { scopedBriefRoutes } from "./routes/projects/briefs.ts";
 import { scopedPillarRoutes } from "./routes/projects/pillars.ts";
@@ -111,6 +112,7 @@ app.route("/api/projects", articleStandaloneRoutes);
 app.route("/api/projects", projectCronRoutes);
 app.route("/api/projects", projectRefreshRoutes);
 app.route("/api/projects", templateOverrideRoutes);
+app.route("/api/projects", signalSourcesRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 
