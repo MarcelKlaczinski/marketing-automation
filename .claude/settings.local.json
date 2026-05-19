@@ -986,7 +986,29 @@
       "Bash(bun --env-file /Users/marcelklaczinski/WebstormProjects/marketing-automation/.env /tmp/audit-fetch-social.ts)",
       "Bash(bun --env-file .env /tmp/audit-runner.ts)",
       "Bash(cp /tmp/audit-runner.ts /Users/marcelklaczinski/WebstormProjects/marketing-automation/apps/api/src/scripts/audit-runner.ts)",
-      "Bash(bun --env-file .env apps/api/src/scripts/audit-runner.ts)"
+      "Bash(bun --env-file .env apps/api/src/scripts/audit-runner.ts)",
+      "Bash(grep -iE '\\\\.\\(png|jpg|jpeg|gif|webp|bmp\\)$')",
+      "Bash(grep -iE '\\\\.\\(png|jpg|jpeg|gif|webp|bmp|tiff\\)$')",
+      "Bash(gh auth *)",
+      "Bash(xargs -I{} git ls-tree -r --long {})",
+      "Bash(sort -k4 -rn)",
+      "Bash(grep -iE '\\\\.\\(env|key|pem|secret|token|credential\\)$|\\\\.env')",
+      "Bash(grep -iE '\"\\(url|endpoint|key|token|secret|password|auth\\)\":\\\\s*\"[^\"]{10,}\"')",
+      "Bash(grep -iE '^\\\\+\\(.*\\)\\(token|key|secret|auth|bearer|api_key\\).*[A-Za-z0-9]{20,}')",
+      "Bash(grep -oE '\\(ghp_|gho_|ghu_|ghs_|ghr_|github_pat_\\)[A-Za-z0-9_]{20,}|sk-ant-[A-Za-z0-9\\\\-_]{20,}|sk-[A-Za-z0-9]{20,}|AIza[A-Za-z0-9_\\\\-]{35}|AKIA[A-Z0-9]{16}')",
+      "Bash(xargs rm -v)",
+      "Bash(grep -oE \"[A-Za-z0-9+/]{40,}={0,2}\")",
+      "Bash(awk 'length > 40')",
+      "Bash(grep -E \"[A-Za-z0-9/+]{32,}={0,2}\")",
+      "Bash(grep -E \"[A-Za-z0-9+/]{30,}={0,2}\")",
+      "Bash(grep -oiE \"\\(vapid|r2|cloudflare|anthropic|replicate|voyage|redis\\).*[A-Za-z0-9+/]{20,}\")",
+      "Bash(grep -oE \"[A-Za-z0-9_-]{86,88}\")",
+      "Bash(grep -oE \"data:[^;]+;base64,[A-Za-z0-9+/=]{50,}\")",
+      "Bash(GIT_CURL_VERBOSE=1 git push)",
+      "Bash(brew list *)",
+      "Bash(rm .git/filter-repo/already_ran)",
+      "Bash(git filter-repo *)",
+      "Bash(git remote *)"
     ]
   }
 }
