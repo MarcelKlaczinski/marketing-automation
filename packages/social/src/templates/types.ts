@@ -1,6 +1,8 @@
 import type { Article } from "@marketing-auto/db";
 import type { ArticleDiscovery } from "@marketing-auto/db";
 import type { BrandTokens, HookOutput } from "../compositions/list-carousel/types.ts";
+import type { SlotType } from "../compositions/_shared/getFontSize.ts";
+import type { z } from "zod";
 
 /**
  * Dependency-injected LLM caller passed by the runner (discoveryWorker / preview API).
@@ -89,6 +91,31 @@ export interface MockFixture<TInput = unknown> {
 
 export type MockFixtureMap = Record<string, MockFixture>;
 
+/**
+ * Declared character-length bounds for a single LLM-produced field.
+ * The LLM prompt references these values; the Zod schema enforces them.
+ * Keeping both in sync prevents "prompt says X, schema accepts Y" drift.
+ */
+export interface FieldBound {
+  min: number;
+  max: number;
+}
+
+/**
+ * Bounds for list/array fields — bounded by count AND per-item length.
+ */
+export interface ListBound {
+  max: number;
+  perItemMaxChars: number;
+}
+
+/**
+ * All LLM-produced field bounds for a template.
+ * Keys must match the field names in the template's generatedSchema.
+ * Values are either FieldBound (single string) or ListBound (array).
+ */
+export type ContentBounds = Record<string, FieldBound | ListBound>;
+
 export interface TemplateDefinition<TInput = unknown> {
   key: TemplateKey;
   displayName: string;
@@ -100,6 +127,27 @@ export interface TemplateDefinition<TInput = unknown> {
   compatibleChannels: Channel[];
   generationClass: GenerationClass;
   plannerMeta: TemplatePlannerMeta;
+
+  /**
+   * Hard bounds on all LLM-produced fields for this template.
+   * Used by the unit test in bounds-bucket-alignment.test.ts.
+   * Optional until all templates are migrated (Sessions 2–4 of Spec 59.3.5).
+   */
+  bounds?: ContentBounds;
+
+  /**
+   * Maps each LLM-produced field name to its SlotType for bucket-alignment tests.
+   * Fields not rendered in the composition (e.g. captionBody) are omitted.
+   * Optional until all templates are migrated.
+   */
+  slotMap?: Partial<Record<string, SlotType>>;
+
+  /**
+   * Zod schema for the template's LLM-generated content fields.
+   * Used by validateAndReprompt() and fixture validation tests.
+   * Optional until all templates are migrated.
+   */
+  generatedSchema?: z.ZodType<unknown>;
 
   eligibility: EligibilityPredicate;
 
