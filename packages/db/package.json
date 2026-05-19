@@ -16,7 +16,9 @@
     "check": "drizzle-kit check --env-file ../../.env",
     "test": "cd ../.. && bun test packages/db/test",
     "typecheck": "tsc --noEmit",
-    "seed-platform": "bun --env-file ../../.env src/scripts/seed-platform.ts"
+    "seed-platform": "bun --env-file ../../.env src/scripts/seed-platform.ts",
+    "migrate:custom": "bun --env-file ../../.env",
+    "verify:brand-tokens-schema": "bun --env-file ../../.env migrations/scripts/verify-brand-tokens-schema.ts"
   },
   "dependencies": {
     "@marketing-auto/shared": "workspace:*",

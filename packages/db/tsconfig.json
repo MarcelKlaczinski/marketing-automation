@@ -10,5 +10,5 @@
       "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"]
     }
   },
-  "include": ["src/**/*", "drizzle.config.ts"]
+  "include": ["src/**/*", "drizzle.config.ts", "test/**/*", "migrations/**/*"]
 }
