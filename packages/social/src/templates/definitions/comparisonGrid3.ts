@@ -1,272 +1,159 @@
-import { z } from "zod";
 import type { TemplateDefinition, ContentBounds } from "../types.ts";
-import { getComparisonContext, type ComparisonContext } from "../adapters/comparison.ts";
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
+import { comparisonGrid3OverridesSchema } from "../overrides/comparison-grid-3.overrides.ts";
 import { COMPARISON_GRID_3_FIXTURES } from "./fixtures/comparisonGrid3.fixtures.ts";
+import {
+  comparisonGrid3GeneratedSchema,
+  comparisonGrid3Bounds as _compositionBounds,
+  scoreTier,
+  type ComparisonGrid3Input,
+  type ComparisonGrid3GeneratedSchema,
+} from "../../compositions/comparison-grid-3/types.ts";
 // @marketing-auto/core imported lazily inside generateContent() to avoid
 // triggering getEnv() at module evaluation time (breaks unit tests without env vars).
 
-// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — Grid3Props
-export const comparisonGrid3Bounds = {
-  // Slide header (REMOTION.md Grid3Props)
-  eyebrow:   { min: 14, max: 30 },
-  headerNum: { min: 14, max: 44 },
-  heroTitle: { min: 14, max: 40 },
-  heroSub:   { min: 60, max: 160 },
-  // Per-tool slots — EXACTLY 3 entries
-  tools: {
-    count:      3,
-    name:       { min: 4,  max: 18 },
-    meta:       { min: 12, max: 32 },
-    priceLabel: { min: 4,  max: 22 },
-    bullets: {
-      pros: { count: 2, each: { min: 14, max: 50 } }, // EXACTLY 2 pros per tool
-      cons: { count: 2, each: { min: 14, max: 50 } }, // EXACTLY 2 cons per tool
-    },
-    flagText: { min: 6, max: 16 },
-    // score is 0-99 (numeric, not character-bound)
-  },
-  footer: {
-    ctaLine: { min: 8,  max: 24 },
-    url:     { min: 12, max: 32 },
-  },
-  // Internal render fields not in REMOTION.md — kept for render-code compatibility
-  strengths: { max: 3, perItemMaxChars: 60 },
-  // Caption/hashtag fields (not rendered on slide)
-  captionBody: { min: 20, max: 1800 },
-  hashtags: { max: 10, perItemMaxChars: 24 },
-} as const satisfies ContentBounds;
+// ─── Grid3Context — input type for this template ─────────────────────────────
 
-export const comparisonGrid3GeneratedSchema = z.object({
-  caption: z.string().min(comparisonGrid3Bounds.captionBody.min).max(comparisonGrid3Bounds.captionBody.max),
-  hashtags: z.array(z.string().max(comparisonGrid3Bounds.hashtags.perItemMaxChars)).max(comparisonGrid3Bounds.hashtags.max),
-});
-export type ComparisonGrid3Generated = z.infer<typeof comparisonGrid3GeneratedSchema>;
+export interface Grid3Tool {
+  slug: string;
+  name: string;
+  score: number;
+  meta: string;
+  pricingTier?: "free" | "freemium" | "paid" | "enterprise";
+  priceFrom?: number;
+  isWinner?: boolean;
+  winnerFlagText?: string;
+  pros?: [string, string];
+  cons?: [string, string];
+  iconSvg?: string;
+  iconInitials?: string;
+  iconHue?: number;
+}
+
+export interface Grid3Context {
+  tools: Grid3Tool[];
+  winner?: string;
+}
+
+// ─── Bounds (proxy to composition bounds) ─────────────────────────────────────
+
+export const comparisonGrid3DefinitionBounds: ContentBounds = _compositionBounds;
+export const comparisonGrid3Bounds: ContentBounds = _compositionBounds;
+
+// ─── Generated schema (for fixture tests) ─────────────────────────────────────
+
+export { comparisonGrid3GeneratedSchema };
+export type { ComparisonGrid3GeneratedSchema as ComparisonGrid3Generated };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
 
-export const comparisonGrid3Template: TemplateDefinition<ComparisonContext> = {
-  key: "comparison-grid-3",
-  displayName: "3-Tool-Vergleich (Stunning)",
-  description:
-    "Cover mit Hook, drei Tool-Spotlights, Verdict-Closer. Für Triple-Vergleiche wie Cursor vs. Windsurf vs. Codeium.",
-  defaultSlideCount: 5,
-  estimatedCostUsd: 0.01,
-
-  outputFormat: "carousel",
-  compatibleChannels: ["instagram", "tiktok"],
-  generationClass: "frontmatter-derived",
-  plannerMeta: {
-    contentType: "comparison",
-    estimatedEngagementTier: "high",
-    recycleableFromExistingArticle: true,
-    requiresLiveData: false,
-  },
-
-  bounds: comparisonGrid3Bounds,
-  generatedSchema: comparisonGrid3GeneratedSchema,
-  slotMap: {},
-
-  eligibility: (article, _discovery) => {
-    if (article.collection !== "comparisons") {
-      return { eligible: false, reason: "Nur für comparisons-Collection" };
-    }
-
-    const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[]; verdict?: string };
-    const toolCount = extras.toolSlugs?.length ?? 0;
-
-    if (toolCount !== 3) {
-      return {
-        eligible: false,
-        reason: "Benötigt exakt 3 Tools",
-        requirements: ["frontmatter.toolSlugs.length === 3"],
-      };
-    }
-    if (!extras.verdict) {
-      return {
-        eligible: false,
-        reason: "Verdict-Feld fehlt",
-        requirements: ["frontmatter.verdict"],
-      };
-    }
-    return { eligible: true };
-  },
-
-  generateContent: async (article, input, locale, llmCaller) => {
-    const { generateContentWithGate, inferArticleType, selectPattern } = await import("@marketing-auto/core");
-    const ctx = input as ComparisonContext;
-    const toolNames = ctx.tools.map((t) => t.name);
-    const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
-    const pattern = selectPattern(article.id, articleType);
-    // Derive tool category from first tool's primaryCategory so the hook is domain-specific
-    // e.g. "KI-Code-Editor" instead of the generic fallback "KI-Tools"
-    const toolCategory = ctx.tools[0]?.primaryCategory ?? undefined;
-    return generateContentWithGate(
-      { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
-      pattern,
-      {
-        articleTitle: article.title ?? article.slug,
-        toolNames,
-        primaryKeyword: toolNames.join(" vs. "),
-        locale,
-        articleSlug: article.slug,
-        contentType: "comparison",
-        ...(toolCategory !== undefined && { toolCategory }),
-      },
-      llmCaller,
-    );
-  },
-
-  buildInput: async (article, _discovery) => {
-    const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[] };
-    const locale = (article.locale ?? "de") as "de" | "en";
-    const toolLookup = await buildToolLookup(extras.toolSlugs ?? [], locale, article.projectId);
-    return getComparisonContext(article, toolLookup);
-  },
-
-  render: async (context) => {
-    const { article, input, locale, theme } = context;
-    const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
-
-    const toolNamesStr = input.tools.map((t) => t.name).join(" vs. ");
-    const year = new Date().getFullYear();
-    const eyebrow =
-      locale === "de"
-        ? `TOOL-VERGLEICH · ${year}`
-        : `TOOL COMPARISON · ${year}`;
-
-    const hook = context.generatedContent?.hookOutput ?? {
-      pattern: "superlative_question" as const,
-      leadPhrase: locale === "de" ? "Welches Tool" : "Which tool",
-      highlightWord: locale === "de" ? "gewinnt wirklich?" : "really wins?",
-      trailPhrase: "",
-      fullText: locale === "de" ? "Welches Tool gewinnt wirklich?" : "Which tool really wins?",
-      promiseBlock: {
-        line1: locale === "de" ? `${toolNamesStr} im Praxistest.` : `${toolNamesStr} put to the test.`,
-        line2: locale === "de" ? "Kein Hype. Echte Ergebnisse." : "No hype. Real results.",
-      },
-    };
-
-    const resolvedTools = input.tools.map((t, i) => {
-      const wonVerdicts = input.useCaseVerdicts.filter((v) => v.winner === t.slug);
-      const isOverallWinner = input.winner === t.slug;
-
-      const tagline = (
-        wonVerdicts[0]?.reason?.slice(0, 120)
-        ?? (isOverallWinner
-          ? (locale === "de" ? "Unser Testsieger im Dreier-Vergleich." : "Our top pick in the three-way test.")
-          : t.primaryCategory
-            ? (locale === "de" ? `Stark bei: ${t.primaryCategory}` : `Strong at: ${t.primaryCategory}`)
-            : input.verdict.slice(0, 80))
-      );
-
-      // Zod requires min(2) — pad with a category fallback if only 1 win.
-      const wonUseCases = wonVerdicts.map((v) => v.useCase).slice(0, 3);
-      const fallbackStrength = locale === "de"
-        ? (t.primaryCategory ?? "Im Test bewertet")
-        : (t.primaryCategory ?? "Evaluated in test");
-      const strengths: string[] = wonUseCases.length >= 2
-        ? wonUseCases
-        : wonUseCases.length === 1
-          ? [wonUseCases[0]!, fallbackStrength]
-          : [fallbackStrength, locale === "de" ? "Im Vergleich getestet" : "Compared head-to-head"];
-
-      const bestFor = wonVerdicts[0]?.useCase?.slice(0, 40)
-        ?? (isOverallWinner ? (locale === "de" ? "Testsieger" : "Top pick") : undefined);
-
-      return {
-        slug: t.slug,
-        rank: i + 1,
-        name: t.name,
-        domain: t.slug + ".com",
-        eyebrow: `${String(i + 1).padStart(2, "0")} · ${(t.primaryCategory ?? "KI-TOOL").toUpperCase()}`,
-        tagline,
-        strengths,
-        ...(bestFor !== undefined && { bestFor }),
-        ...(wonVerdicts[0]?.reason !== undefined && { starStrength: wonVerdicts[0].useCase }),
-        pricing: {
-          tier: (t.pricingTier === "enterprise" ? "paid" : (t.pricingTier ?? "freemium")) as "free" | "freemium" | "paid",
-          label: t.priceFrom === 0 ? "ab 0€" : t.priceFrom ? `ab ${t.priceFrom}€/Monat` : "Preis auf Anfrage",
-        },
-        ...(t.iconSvg !== undefined && { iconSvg: t.iconSvg }),
-        ...(t.iconInitials !== undefined && { iconInitials: t.iconInitials }),
-        ...(t.iconHue !== undefined && { iconHue: t.iconHue }),
-        ...(t.endSlideToken !== undefined && { endSlideToken: t.endSlideToken }),
-      };
-    });
-
-    const carouselInput = {
-      theme,
-      variant: "stunning" as const,
-      brandTokens,
-      slideIndex: 0,
-      cover: {
-        eyebrow,
-        headlineLead: hook.leadPhrase,
-        headlineHighlight: hook.highlightWord,
-        hookOutput: hook,
-      },
-      tools: resolvedTools,
-      end: {
-        headline: locale === "de" ? "Mehr Reviews," : "More reviews,",
-        headlineHighlight: locale === "de" ? "ehrlich getestet." : "honestly tested.",
-        articleUrl: `toolwiki.ai/${article.slug}`,
-        toolRecap: resolvedTools.map((t) => t.slug),
-        ...(input.winner !== undefined && {
-          closer: {
-            pattern: "verdict_recap" as const,
-            line1: {
-              leadText: input.winner === "depends"
-                ? (locale === "de" ? "Unser Fazit:" : "Our verdict:")
-                : (locale === "de" ? "Unser Sieger:" : "Our winner:"),
-              highlightText: input.winner === "depends"
-                ? (locale === "de" ? "kommt drauf an" : "depends")
-                : (input.tools.find((t) => t.slug === input.winner)?.name ?? input.winner),
-              trailText: ".",
-            },
-            line2: {
-              leadText: locale === "de" ? "Speichere für" : "Save for",
-              highlightText: locale === "de" ? "später" : "later",
-              trailText: ".",
-            },
-            fullText: input.winner,
-          },
-        }),
-      },
-    };
-
-    const socialModule = await import("../../../render-server.ts") as unknown as {
-      renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
-    };
-    const { slides: buffers } = await socialModule.renderComparisonGrid(carouselInput as unknown as Record<string, unknown>);
-
-    const slideOutputs = await writeSlides(
-      buffers,
-      article.id,
-      "comparison-grid-3",
-      locale,
-      theme,
-      { width: SLIDE_W, height: SLIDE_H },
-    );
-
+function buildPriceComponents(
+  tool: Grid3Tool,
+  locale: "de" | "en",
+): { pricePrefix: string; priceAmount: string } {
+  if (tool.pricingTier === "free" || tool.priceFrom === 0) {
+    return { pricePrefix: "", priceAmount: locale === "de" ? "Kostenlos" : "Free" };
+  }
+  if (tool.priceFrom) {
     return {
-      slides: slideOutputs,
-      caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
-      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
-      metadata: { estimatedCostUsd: 0.01, templateKey: "comparison-grid-3" },
+      pricePrefix: locale === "de" ? "Ab" : "From",
+      priceAmount: `${tool.priceFrom} $/Mo`,
     };
-  },
+  }
+  return { pricePrefix: "", priceAmount: locale === "de" ? "Preis auf Anfrage" : "Contact" };
+}
 
-  mockFixtures: COMPARISON_GRID_3_FIXTURES,
-};
+function buildFallbackPros(tool: Grid3Tool, locale: "de" | "en"): [string, string] {
+  const cat = tool.meta || tool.slug;
+  return locale === "de"
+    ? [`Stark bei: ${cat.slice(0, 28)}`, "Aktiv entwickelt"]
+    : [`Strong at: ${cat.slice(0, 28)}`, "Actively developed"];
+}
 
-function fallbackCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
-  const toolNames = input.tools.map((t) => t.name).join(" vs. ");
+function buildFallbackCons(locale: "de" | "en"): [string, string] {
+  return locale === "de"
+    ? ["Lernkurve für Einsteiger", "Weniger Integrationen"]
+    : ["Learning curve for beginners", "Fewer integrations"];
+}
+
+function buildGenerated(
+  context: Grid3Context,
+  articleTitle: string | null,
+  articleSlug: string,
+  locale: "de" | "en",
+  overridesValues: ReturnType<typeof comparisonGrid3OverridesSchema.parse>,
+): ComparisonGrid3Input["generated"] {
+  const { tools, winner } = context;
+  const month = String(new Date().getMonth() + 1).padStart(2, "0");
+  const year = new Date().getFullYear();
+
+  const titleParts = (articleTitle ?? articleSlug).split(/[–—:]/);
+  const headline = (titleParts[0]?.trim() ?? articleSlug).slice(0, 40);
+  const headlineEm = (titleParts[1]?.trim() ?? (locale === "de" ? "im Vergleich" : "compared")).slice(0, 22);
+
+  const eyebrowPrefix = locale === "de"
+    ? overridesValues.copy.eyebrowPrefix.de
+    : overridesValues.copy.eyebrowPrefix.en;
+  const ctaLine1 = locale === "de"
+    ? overridesValues.copy.ctaPrefix.de
+    : overridesValues.copy.ctaPrefix.en;
+  const winnerFlagDefault = locale === "de"
+    ? overridesValues.copy.winnerFlagText.de
+    : overridesValues.copy.winnerFlagText.en;
+
+  const gridTools = tools.map((t): ComparisonGrid3Input["generated"]["tools"][number] => {
+    const isWinner = t.isWinner ?? (winner !== undefined && winner === t.slug);
+    const flagText = t.winnerFlagText ?? (isWinner ? winnerFlagDefault : undefined);
+    const { pricePrefix, priceAmount } = buildPriceComponents(t, locale);
+    const pros = t.pros ?? buildFallbackPros(t, locale);
+    const cons = t.cons ?? buildFallbackCons(locale);
+
+    const base: ComparisonGrid3Input["generated"]["tools"][number] = {
+      name: t.name.slice(0, 18),
+      meta: t.meta.slice(0, 32),
+      score: t.score,
+      scoreTier: scoreTier(t.score),
+      pricePrefix,
+      priceAmount,
+      isWinner,
+      pros,
+      cons,
+    };
+
+    if (flagText !== undefined) base.winnerFlagText = flagText;
+    if (t.iconSvg !== undefined) base.iconSvg = t.iconSvg;
+    if (t.iconInitials !== undefined) base.iconInitials = t.iconInitials;
+    if (t.iconHue !== undefined) base.iconHue = t.iconHue;
+
+    return base;
+  });
+
+  return {
+    headline,
+    headlineEm,
+    subline: locale === "de"
+      ? `${tools.length} Tools im Direktvergleich — Pros, Cons und wer für welchen Job gewinnt.`
+      : `${tools.length} tools compared head-to-head — pros, cons, and who wins for which job.`,
+    eyebrow: `${eyebrowPrefix} ${tools.length} Tools`,
+    slideNum: "01 / 01",
+    ctaLine1,
+    ctaLine2: `toolwiki.ai/${articleSlug}`,
+    dateLabel: locale === "de"
+      ? `Stand ${month}/${year} · toolwiki.ai/${articleSlug}`
+      : `As of ${month}/${year} · toolwiki.ai/${articleSlug}`,
+    tools: gridTools,
+  };
+}
+
+function fallbackCaption(tools: Grid3Tool[], locale: "de" | "en", slug: string): string {
+  const toolNames = tools.map((t) => t.name).join(" vs. ");
   if (locale === "de") {
     return `${toolNames}: Drei Tools, ein ehrliches Fazit — welches passt zu deinem Workflow?\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/${slug}`;
   }
@@ -279,3 +166,176 @@ function fallbackHashtags(locale: "de" | "en"): string[] {
   }
   return ["#AITools", "#AIComparison", "#AIForBusiness", "#SoftwareReview", "#Productivity", "#DigitalTools", "#TechTools"];
 }
+
+// ─── Template definition ──────────────────────────────────────────────────────
+
+export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
+  key: "comparison-grid-3",
+  displayName: "3-Tool-Vergleich (Grid)",
+  description:
+    "Drei Tool-Karten mit Score, Preis, Pros und Cons in einem auto-height Grid-Stack. Einzelne Still-PNG pro Artikel.",
+  defaultSlideCount: 1,
+  estimatedCostUsd: 0.005,
+
+  outputFormat: "carousel",
+  compatibleChannels: ["instagram"],
+  generationClass: "frontmatter-derived",
+  plannerMeta: {
+    contentType: "comparison",
+    estimatedEngagementTier: "high",
+    recycleableFromExistingArticle: true,
+    requiresLiveData: false,
+  },
+
+  bounds: comparisonGrid3DefinitionBounds,
+  generatedSchema: comparisonGrid3GeneratedSchema,
+  slotMap: {},
+
+  eligibility: (article, _discovery) => {
+    if (article.collection !== "comparisons") {
+      return { eligible: false, reason: "Nur für comparisons-Collection" };
+    }
+
+    const extras = (article.frontmatterExtras ?? {}) as {
+      toolSlugs?: string[];
+      tools?: Array<{ slug: string; score?: number }>;
+    };
+
+    const toolCount = extras.tools?.length ?? extras.toolSlugs?.length ?? 0;
+
+    if (toolCount < 3) {
+      return {
+        eligible: false,
+        reason: "Benötigt mindestens 3 Tools",
+        requirements: ["frontmatterExtras.tools.length >= 3"],
+      };
+    }
+
+    return { eligible: true };
+  },
+
+  generateContent: async (article, input, locale, llmCaller) => {
+    const { generateContentWithGate, inferArticleType, selectPattern } = await import("@marketing-auto/core");
+    const ctx = input as Grid3Context;
+    const toolNames = ctx.tools.map((t) => t.name);
+    const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
+    const pattern = selectPattern(article.id, articleType);
+    const firstCategory = ctx.tools[0]?.meta.split("·")[0]?.trim() ?? undefined;
+    return generateContentWithGate(
+      { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
+      pattern,
+      {
+        articleTitle: article.title ?? article.slug,
+        toolNames,
+        primaryKeyword: toolNames.join(" vs. "),
+        locale,
+        articleSlug: article.slug,
+        contentType: "comparison",
+        ...(firstCategory !== undefined && { toolCategory: firstCategory }),
+      },
+      llmCaller,
+    );
+  },
+
+  buildInput: async (article, _discovery) => {
+    type RawToolEntry = {
+      slug?: string;
+      name?: string;
+      score?: number;
+      meta?: string;
+      pricingTier?: string;
+      priceFrom?: number;
+      isWinner?: boolean;
+      winnerFlagText?: string;
+      pros?: [string, string];
+      cons?: [string, string];
+    };
+
+    const extras = (article.frontmatterExtras ?? {}) as {
+      toolSlugs?: string[];
+      tools?: RawToolEntry[];
+      winner?: string;
+    };
+
+    const rawTools: RawToolEntry[] = extras.tools ?? [];
+    const slugsForLookup = rawTools
+      .map((t) => t.slug)
+      .filter((s): s is string => typeof s === "string");
+
+    const locale = (article.locale ?? "de") as "de" | "en";
+    const toolLookup = await buildToolLookup(slugsForLookup, locale, article.projectId);
+
+    const tools: Grid3Tool[] = rawTools.slice(0, 3).map((raw): Grid3Tool => {
+      const slug = raw.slug ?? "";
+      const resolved = toolLookup.get(slug);
+      const base: Grid3Tool = {
+        slug,
+        name: raw.name ?? resolved?.name ?? slug,
+        score: raw.score ?? 70,
+        meta: raw.meta ?? (resolved as { primaryCategory?: string } | undefined)?.primaryCategory ?? slug,
+      };
+      if (raw.pricingTier !== undefined) base.pricingTier = raw.pricingTier as Grid3Tool["pricingTier"];
+      if (raw.priceFrom !== undefined) base.priceFrom = raw.priceFrom;
+      if (raw.isWinner !== undefined) base.isWinner = raw.isWinner;
+      if (raw.winnerFlagText !== undefined) base.winnerFlagText = raw.winnerFlagText;
+      if (raw.pros !== undefined) base.pros = raw.pros;
+      if (raw.cons !== undefined) base.cons = raw.cons;
+      if (resolved?.iconSvg !== undefined) base.iconSvg = resolved.iconSvg;
+      if (resolved?.iconInitials !== undefined) base.iconInitials = resolved.iconInitials;
+      if (resolved?.iconHue !== undefined) base.iconHue = resolved.iconHue;
+      return base;
+    });
+
+    return {
+      tools,
+      ...(extras.winner !== undefined && { winner: extras.winner }),
+    };
+  },
+
+  render: async (context) => {
+    const { article, input, locale, theme, overrides } = context;
+    const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
+
+    const overridesValues = comparisonGrid3OverridesSchema.parse(overrides ?? {});
+
+    const generated = buildGenerated(
+      input,
+      article.title,
+      article.slug,
+      locale,
+      overridesValues,
+    );
+
+    const compositionInput: ComparisonGrid3Input = {
+      slideIndex: 0,
+      locale,
+      theme,
+      generated,
+      brandTokens,
+      ...(overrides !== undefined && { overrides }),
+    };
+
+    const socialModule = await import("../../../render-server.ts") as unknown as {
+      renderComparisonGrid3: (input: ComparisonGrid3Input) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    };
+    const { slides: buffers } = await socialModule.renderComparisonGrid3(compositionInput);
+
+    const slideOutputs = await writeSlides(
+      buffers,
+      article.id,
+      "comparison-grid-3",
+      locale,
+      theme,
+      { width: SLIDE_W, height: SLIDE_H },
+    );
+
+    return {
+      slides: slideOutputs,
+      caption: context.generatedContent?.caption ?? fallbackCaption(input.tools, locale, article.slug),
+      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
+      metadata: { estimatedCostUsd: 0.005, templateKey: "comparison-grid-3" },
+    };
+  },
+
+  mockFixtures: COMPARISON_GRID_3_FIXTURES,
+};

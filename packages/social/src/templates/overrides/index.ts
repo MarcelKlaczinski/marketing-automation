@@ -4,6 +4,10 @@ import {
   type ComparisonGridOverrides,
 } from "./comparisonGrid.overrides.ts";
 import {
+  comparisonGrid3OverridesSchema,
+  type ComparisonGrid3Overrides,
+} from "./comparison-grid-3.overrides.ts";
+import {
   comparisonGrid4OverridesSchema,
   type ComparisonGrid4Overrides,
 } from "./comparison-grid-4.overrides.ts";
@@ -24,6 +28,8 @@ import type { TemplateKey } from "../types.ts";
 export {
   comparisonGridOverridesSchema,
   type ComparisonGridOverrides,
+  comparisonGrid3OverridesSchema,
+  type ComparisonGrid3Overrides,
   comparisonGrid4OverridesSchema,
   type ComparisonGrid4Overrides,
   singleToolSpotlightOverridesSchema,
@@ -47,7 +53,7 @@ export type OverrideTemplateKey = (typeof OVERRIDE_TEMPLATE_KEYS)[number];
 
 export type TemplateOverrides =
   | { templateKey: "comparison-grid-4"; values: ComparisonGrid4Overrides }
-  | { templateKey: "comparison-grid-3"; values: ComparisonGridOverrides }
+  | { templateKey: "comparison-grid-3"; values: ComparisonGrid3Overrides }
   | { templateKey: "single-tool-spotlight"; values: SingleToolSpotlightOverrides }
   | { templateKey: "verdict-per-use-case"; values: VerdictCardsOverrides }
   | { templateKey: "pro-con-verdict"; values: ProConVerdictOverrides };
@@ -57,7 +63,7 @@ export function getOverrideSchema(templateKey: OverrideTemplateKey): z.ZodObject
     case "comparison-grid-4":
       return comparisonGrid4OverridesSchema;
     case "comparison-grid-3":
-      return comparisonGridOverridesSchema;
+      return comparisonGrid3OverridesSchema;
     case "single-tool-spotlight":
       return singleToolSpotlightOverridesSchema;
     case "verdict-per-use-case":
