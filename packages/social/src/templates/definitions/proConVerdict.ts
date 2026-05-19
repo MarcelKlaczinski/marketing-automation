@@ -1,9 +1,48 @@
-import type { TemplateDefinition, GeneratedContent } from "../types.ts";
+import type { TemplateDefinition, GeneratedContent, ContentBounds } from "../types.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { PRO_CON_VERDICT_FIXTURES } from "./fixtures/proConVerdict.fixtures.ts";
 import { buildHashtagInstructions } from "@marketing-auto/core";
+import { validateAndReprompt } from "../validateGenerated.ts";
 import { z } from "zod";
+
+// ---------------------------------------------------------------------------
+// Section A — Constraint-Based Content (Spec 59.3.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Hard bounds for all LLM-produced fields.
+ * Numbers are referenced by the LLM prompt AND enforced by the Zod schema below.
+ * Single source of truth: edit here, not in the prompt strings.
+ */
+export const proConVerdictBounds = {
+  verdictSnippet: { min: 20, max: 80 },   // Cover snippet, cover-snippet bucket @ fontSize 44
+  whenToUse:      { min: 30, max: 280 },  // Verdict slide, slot-body bucket @ fontSize 32
+  whenToSkip:     { min: 30, max: 280 },  // Verdict slide, slot-body bucket @ fontSize 32
+  captionBody:    { min: 20, max: 1800 }, // Instagram caption, not rendered in slide
+  hashtags:       { max: 10, perItemMaxChars: 24 },
+  prosVisible:    { max: 5,  perItemMaxChars: 80 }, // list-item bucket @ fontSize 28
+  consVisible:    { max: 5,  perItemMaxChars: 80 },
+} as const satisfies ContentBounds;
+
+/**
+ * Zod schema for the LLM-generated verdict-specific fields.
+ * Used by validateAndReprompt() in generateContent() and by the
+ * fixtures-respect-bounds test to validate fixture.generatedContent.
+ */
+export const proConVerdictGeneratedSchema = z.object({
+  verdictSnippet: z.string()
+    .min(proConVerdictBounds.verdictSnippet.min)
+    .max(proConVerdictBounds.verdictSnippet.max),
+  whenToUse: z.string()
+    .min(proConVerdictBounds.whenToUse.min)
+    .max(proConVerdictBounds.whenToUse.max),
+  whenToSkip: z.string()
+    .min(proConVerdictBounds.whenToSkip.min)
+    .max(proConVerdictBounds.whenToSkip.max),
+});
+
+export type ProConVerdictGenerated = z.infer<typeof proConVerdictGeneratedSchema>;
 
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
@@ -38,13 +77,23 @@ const hookSchema = z.object({
   }),
 });
 
+// Full LLM response schema — used by validateAndReprompt inside generateContent().
+// Bounds for verdict fields are sourced from proConVerdictBounds (single source of truth).
 const llmResponseSchema = z.object({
   hook: hookSchema,
-  caption_body: z.string().min(20),
+  caption_body: z.string()
+    .min(proConVerdictBounds.captionBody.min)
+    .max(proConVerdictBounds.captionBody.max),
   hashtags: z.array(z.string().regex(/^#[^\s\-#]+$/u)).min(5).max(10),
-  verdict_snippet: z.string().min(20).max(120),
-  when_to_use: z.string().min(30).max(280),
-  when_to_skip: z.string().min(30).max(280),
+  verdict_snippet: z.string()
+    .min(proConVerdictBounds.verdictSnippet.min)
+    .max(proConVerdictBounds.verdictSnippet.max),
+  when_to_use: z.string()
+    .min(proConVerdictBounds.whenToUse.min)
+    .max(proConVerdictBounds.whenToUse.max),
+  when_to_skip: z.string()
+    .min(proConVerdictBounds.whenToSkip.min)
+    .max(proConVerdictBounds.whenToSkip.max),
 });
 
 export const proConVerdictTemplate: TemplateDefinition<ProConVerdictContext> = {
@@ -63,6 +112,14 @@ export const proConVerdictTemplate: TemplateDefinition<ProConVerdictContext> = {
     estimatedEngagementTier: "medium",
     recycleableFromExistingArticle: true,
     requiresLiveData: false,
+  },
+
+  bounds: proConVerdictBounds,
+  generatedSchema: proConVerdictGeneratedSchema,
+  slotMap: {
+    verdictSnippet: "cover-snippet",
+    whenToUse: "slot-body",
+    whenToSkip: "slot-body",
   },
 
   eligibility: (article, _discovery) => {
@@ -142,23 +199,36 @@ Return a JSON object with this exact shape (no other keys):
   },
   "caption_body": "<Instagram caption, 3-5 sentences, end with CTA to save>",
   "hashtags": ["#Tag1", "#Tag2"],
-  "verdict_snippet": "<15-20 word honest verdict on ${toolName}>",
-  "when_to_use": "<2-3 sentences: when ${toolName} is the right choice>",
-  "when_to_skip": "<2-3 sentences: when to avoid ${toolName} and what to use instead>"
+  "verdict_snippet": "<honest verdict on ${toolName}, ${proConVerdictBounds.verdictSnippet.min}–${proConVerdictBounds.verdictSnippet.max} chars>",
+  "when_to_use": "<when ${toolName} is the right choice, ${proConVerdictBounds.whenToUse.min}–${proConVerdictBounds.whenToUse.max} chars>",
+  "when_to_skip": "<when to avoid ${toolName} and what to use instead, ${proConVerdictBounds.whenToSkip.min}–${proConVerdictBounds.whenToSkip.max} chars>"
 }`;
 
     const raw = await llmCaller(systemPrompt, userPrompt);
     if (!raw) return buildFallbackContent(ctx, locale, article.slug);
 
-    const start = raw.indexOf("{");
-    const end = raw.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) {
-      return buildFallbackContent(ctx, locale, article.slug);
-    }
+    const extractJson = (text: string): unknown | null => {
+      const start = text.indexOf("{");
+      const end = text.lastIndexOf("}");
+      if (start === -1 || end === -1 || end <= start) return null;
+      try { return JSON.parse(text.slice(start, end + 1)); } catch { return null; }
+    };
+
+    const initialJson = extractJson(raw);
+    if (!initialJson) return buildFallbackContent(ctx, locale, article.slug);
 
     let parsed: z.infer<typeof llmResponseSchema>;
     try {
-      parsed = llmResponseSchema.parse(JSON.parse(raw.slice(start, end + 1)));
+      parsed = await validateAndReprompt(
+        initialJson,
+        async (hints) => {
+          const hintBlock = hints.map((h) => `- ${h}`).join("\n");
+          const retryPrompt = `${userPrompt}\n\nPREVIOUS ATTEMPT FAILED VALIDATION:\n${hintBlock}\n\nFix the issues above and return only the corrected JSON.`;
+          const retryRaw = await llmCaller(systemPrompt, retryPrompt);
+          return retryRaw ? (extractJson(retryRaw) ?? {}) : {};
+        },
+        { schema: llmResponseSchema, maxReprompts: 1, locale },
+      );
     } catch {
       return buildFallbackContent(ctx, locale, article.slug);
     }

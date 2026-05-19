@@ -1,5 +1,5 @@
 import type { MockFixtureMap } from "../../types.ts";
-import type { ProConVerdictContext } from "../proConVerdict.ts";
+import type { ProConVerdictContext, ProConVerdictGenerated } from "../proConVerdict.ts";
 
 export const PRO_CON_VERDICT_FIXTURES: MockFixtureMap = {
   characteristic: {
@@ -22,6 +22,11 @@ export const PRO_CON_VERDICT_FIXTURES: MockFixtureMap = {
         "Video-Qualität sinkt bei schlechter Verbindung",
       ],
     } satisfies ProConVerdictContext,
+    generatedContent: {
+      verdictSnippet: "Loom ist ideal für async Kommunikation — aber kein Studio-Ersatz.",
+      whenToUse: "Wenn du schnelle Video-Erklärungen ohne Meeting brauchst und dein Team in Slack oder Notion arbeitet.",
+      whenToSkip: "Wenn du professionelle Video-Tutorials produzierst oder ein großes Team über 10 Personen hast.",
+    } satisfies ProConVerdictGenerated,
   },
 
   "edge-min": {
@@ -40,6 +45,11 @@ export const PRO_CON_VERDICT_FIXTURES: MockFixtureMap = {
         "Con three here",
       ],
     } satisfies ProConVerdictContext,
+    generatedContent: {
+      verdictSnippet: "Tool X works for basic use cases.",
+      whenToUse: "Use it when you need a simple solution for small teams.",
+      whenToSkip: "Skip it when you need advanced features or scale beyond basics.",
+    } satisfies ProConVerdictGenerated,
   },
 
   "edge-max": {
@@ -62,5 +72,12 @@ export const PRO_CON_VERDICT_FIXTURES: MockFixtureMap = {
         "Fifth con at maximum allowed character count — testing wrapping at the upper bound",
       ],
     } satisfies ProConVerdictContext,
+    generatedContent: {
+      // Max 80 chars for verdictSnippet — exactly at the bound (80 chars)
+      verdictSnippet: "Maximum Length Tool has all features packed in but costs a lot for teams.",
+      // Max 280 chars each — realistic long paragraphs at the upper bound
+      whenToUse: "When you need the absolute maximum feature set and budget is no constraint for your enterprise team. It excels at handling large-scale workflows with complex requirements and deep integrations across many platforms.",
+      whenToSkip: "When you are a solo developer or small team on a tight budget looking for a simpler workflow. There are leaner alternatives that cover 80% of the features at a fraction of the cost and complexity.",
+    } satisfies ProConVerdictGenerated,
   },
 };

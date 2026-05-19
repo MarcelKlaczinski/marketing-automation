@@ -87,6 +87,12 @@ export interface MockFixture<TInput = unknown> {
   name: string;
   description: string;
   input: TInput;
+  /**
+   * LLM-generated content fields for this fixture.
+   * When set, fixtures-respect-bounds.test.ts validates it against template.generatedSchema.
+   * Optional — populate as each template is migrated per Spec 59.3.5.
+   */
+  generatedContent?: unknown;
 }
 
 export type MockFixtureMap = Record<string, MockFixture>;

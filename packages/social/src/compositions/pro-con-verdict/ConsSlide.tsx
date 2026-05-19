@@ -6,6 +6,7 @@ import { CAROUSEL_SAFE_ZONES as SZ } from "../list-carousel/safeZones.ts";
 import { ProConIcon } from "./shared/ProConIcon.tsx";
 import { resolveConsColor } from "./colors.ts";
 import { proConVerdictOverridesSchema } from "../../templates/overrides/proConVerdict.overrides.ts";
+import { getFontSize } from "../_shared/getFontSize.ts";
 import type { ProConVerdictInput } from "./types.ts";
 
 const FONT = "Space Grotesk, sans-serif";
@@ -105,16 +106,23 @@ export function ConsSlide({ input, slideNumber, totalSlides }: Props) {
               <div style={{ flexShrink: 0 }}>
                 <ProConIcon type="con" color={consColor} size={40} />
               </div>
-              <div
-                style={{
-                  fontFamily: FONT,
-                  fontSize: 28,
-                  fontWeight: i === 0 ? 700 : 500,
-                  color: i === 0 ? theme.ink : theme.inkMuted,
-                  lineHeight: 1.3,
-                }}
-              >
-                {con}
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <div
+                  style={{
+                    fontFamily: FONT,
+                    fontSize: getFontSize(con, "list-item").fontSize,
+                    lineHeight: getFontSize(con, "list-item").lineHeight,
+                    fontWeight: i === 0 ? 700 : 500,
+                    color: i === 0 ? theme.ink : theme.inkMuted,
+                    overflow: "hidden",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: "vertical",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {con}
+                </div>
               </div>
             </div>
           ))}

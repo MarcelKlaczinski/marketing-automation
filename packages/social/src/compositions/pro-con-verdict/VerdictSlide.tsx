@@ -5,6 +5,7 @@ import { getThemeTokens } from "../../lib/theme.ts";
 import { CAROUSEL_SAFE_ZONES as SZ } from "../list-carousel/safeZones.ts";
 import { resolveProsColor, resolveConsColor } from "./colors.ts";
 import { proConVerdictOverridesSchema } from "../../templates/overrides/proConVerdict.overrides.ts";
+import { getFontSize } from "../_shared/getFontSize.ts";
 import type { ProConVerdictInput } from "./types.ts";
 
 const FONT = "Space Grotesk, sans-serif";
@@ -101,16 +102,23 @@ export function VerdictSlide({ input, slideNumber, totalSlides }: Props) {
               marginBottom: 16,
             }}
           />
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: 26,
-              fontWeight: 500,
-              color: theme.ink,
-              lineHeight: 1.45,
-            }}
-          >
-            {whenToUse}
+          <div style={{ overflow: "hidden" }}>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: getFontSize(whenToUse, "slot-body").fontSize,
+                lineHeight: getFontSize(whenToUse, "slot-body").lineHeight,
+                fontWeight: 500,
+                color: theme.ink,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 4,
+                WebkitBoxOrient: "vertical",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {whenToUse}
+            </div>
           </div>
         </div>
 
@@ -143,16 +151,23 @@ export function VerdictSlide({ input, slideNumber, totalSlides }: Props) {
               marginBottom: 16,
             }}
           />
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: 26,
-              fontWeight: 500,
-              color: theme.ink,
-              lineHeight: 1.45,
-            }}
-          >
-            {whenToSkip}
+          <div style={{ overflow: "hidden" }}>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: getFontSize(whenToSkip, "slot-body").fontSize,
+                lineHeight: getFontSize(whenToSkip, "slot-body").lineHeight,
+                fontWeight: 500,
+                color: theme.ink,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 4,
+                WebkitBoxOrient: "vertical",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {whenToSkip}
+            </div>
           </div>
         </div>
       </div>

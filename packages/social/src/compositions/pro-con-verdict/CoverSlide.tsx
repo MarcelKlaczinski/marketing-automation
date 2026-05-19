@@ -7,6 +7,7 @@ import { DiagonalSplit } from "./shared/DiagonalSplit.tsx";
 import { ProConIcon } from "./shared/ProConIcon.tsx";
 import { resolveProsColor, resolveConsColor } from "./colors.ts";
 import { proConVerdictOverridesSchema } from "../../templates/overrides/proConVerdict.overrides.ts";
+import { getFontSize } from "../_shared/getFontSize.ts";
 import type { ProConVerdictInput } from "./types.ts";
 
 const FONT = "Space Grotesk, sans-serif";
@@ -262,20 +263,24 @@ export function CoverSlide({ input, totalSlides }: Props) {
         </div>
 
         {snippetText && (
-          <div
-            style={{
-              fontFamily: FONT,
-              fontSize: 25,
-              fontWeight: 400,
-              fontStyle: "italic",
-              color: theme.inkMuted,
-              marginTop: 14,
-              textAlign: "center",
-              maxWidth: SZ.CANVAS_W - SZ.PAD_X * 2,
-              lineHeight: 1.4,
-            }}
-          >
-            {snippetText}
+          <div style={{ marginTop: 14, maxWidth: SZ.CANVAS_W - SZ.PAD_X * 2, textAlign: "center" }}>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: getFontSize(snippetText, "cover-snippet").fontSize,
+                lineHeight: getFontSize(snippetText, "cover-snippet").lineHeight,
+                fontWeight: 400,
+                fontStyle: "italic",
+                color: theme.inkMuted,
+                overflow: "hidden",
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {snippetText}
+            </div>
           </div>
         )}
       </div>
