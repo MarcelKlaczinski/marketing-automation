@@ -1,11 +1,13 @@
 /**
- * TranslationBodyStep: generates the EN article body.
+ * TranslationBodyStep: generates the target-locale article body.
  *
- * literal path  — one Sonnet call that translates the DE body directly
- * adaptive path — two Sonnet calls: EN outline first, then EN draft
+ * Works bidirectionally: DE→EN and EN→DE.
  *
- * Both paths share the same COST_OPS for outline (REFRESH_OUTLINE) and
- * draft (REFRESH_DRAFT) on the adaptive path, and TRANSLATE_DRAFT for literal.
+ * literal path  — one Sonnet call that translates the source body directly
+ * adaptive path — two Sonnet calls: target-locale outline first, then draft
+ *
+ * Both paths share the same COST_OPS: REFRESH_OUTLINE / REFRESH_DRAFT for adaptive,
+ * TRANSLATE_DRAFT for literal.
  */
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
@@ -31,23 +33,25 @@ const VoiceReferenceSchema = z.object({
 });
 
 const InputSchema = z.object({
-  articleId:        z.string().uuid(),   // EN article ID
-  projectId:        z.string().uuid(),
-  decision:         z.enum(["literal", "adaptive"]),
-  deBodyMd:         z.string().min(100),
-  deTitle:          z.string(),
-  primaryKeyword:   z.string(),
+  articleId:          z.string().uuid(),   // target article ID
+  projectId:          z.string().uuid(),
+  decision:           z.enum(["literal", "adaptive"]),
+  sourceBodyMd:       z.string().min(100),
+  sourceTitle:        z.string(),
+  primaryKeyword:     z.string(),
   cornerstoneKeyword: z.string(),
-  voiceReferences:  z.array(VoiceReferenceSchema),
-  projectSlug:      z.string(),
+  voiceReferences:    z.array(VoiceReferenceSchema),
+  projectSlug:        z.string(),
+  sourceLocale:       z.enum(["de", "en"]),
+  targetLocale:       z.enum(["de", "en"]),
 });
 
 const OutputSchema = z.object({
-  bodyMd:            z.string().min(200),
-  wordCount:         z.number().int().min(50),
-  enTitle:           z.string(),
-  enMetaDescription: z.string(),
-  enTags:            z.array(z.string()),
+  bodyMd:               z.string().min(200),
+  wordCount:            z.number().int().min(50),
+  targetTitle:          z.string(),
+  targetMetaDescription: z.string(),
+  targetTags:           z.array(z.string()),
 });
 
 function countWords(text: string): number {
@@ -65,12 +69,35 @@ function parseTagsBlock(text: string): string[] {
   return raw.split(",").map((t) => t.trim().toLowerCase().replace(/\s+/g, "-")).filter(Boolean);
 }
 
-function buildVoiceBlock(refs: VoiceReference[]): string {
-  if (refs.length === 0) return "(no existing EN articles available as voice reference)";
+function buildVoiceBlock(refs: VoiceReference[], targetLocale: "de" | "en"): string {
+  if (refs.length === 0) {
+    const localeName = targetLocale === "de" ? "German" : "English";
+    return `(no existing ${localeName} articles available as voice reference)`;
+  }
   return refs
     .map((r, i) => `--- Reference ${i + 1}: "${r.title}" ---\n${r.bodyMdExcerpt}`)
     .join("\n\n");
 }
+
+const DE_STYLE_NOTES = `
+**German-specific style:**
+- Use "Sie" form for B2B audiences
+- Convert "$" pricing to "€" with realistic German market pricing where appropriate
+- Replace "GDPR" with "DSGVO"
+- Replace US-only references (SSN, US ZIP code) with German equivalents or generalize
+- German headlines: more descriptive, less clickbaity than English
+- Output locale: de-DE
+`.trim();
+
+const EN_STYLE_NOTES = `
+**English-specific style:**
+- Convert "€" to "$" where pricing context is universal (SaaS subscriptions)
+- Replace "DSGVO" with "GDPR"
+- Generalize DACH-specific examples to "European" or international where natural
+- Use active voice more aggressively than the German source
+- Tighter sentences than typical German source
+- Output locale: en-US
+`.trim();
 
 export class TranslationBodyStep extends BaseStep<
   z.infer<typeof InputSchema>,
@@ -85,7 +112,7 @@ export class TranslationBodyStep extends BaseStep<
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {
-    const voiceBlock = buildVoiceBlock(input.voiceReferences as VoiceReference[]);
+    const voiceBlock = buildVoiceBlock(input.voiceReferences as VoiceReference[], input.targetLocale);
 
     if (input.decision === "literal") {
       return this.#runLiteralPath(input, ctx, voiceBlock);
@@ -99,45 +126,49 @@ export class TranslationBodyStep extends BaseStep<
     ctx: StepContext,
     voiceBlock: string,
   ): Promise<z.infer<typeof OutputSchema>> {
-    const userMessage = `You are translating a German blog article into idiomatic English for an international audience.
+    const sourceLocaleName = input.sourceLocale === "de" ? "German" : "English";
+    const targetLocaleName = input.targetLocale === "de" ? "German" : "English";
+    const targetAudience = input.targetLocale === "de"
+      ? "a German-speaking DACH audience (Germany, Austria, Switzerland)"
+      : "an international English-speaking audience";
+    const styleNotes = input.targetLocale === "de" ? DE_STYLE_NOTES : EN_STYLE_NOTES;
+    const tagLanguageNote = input.targetLocale === "de"
+      ? "4-8 German kebab-case tags (no English words). Include the primary keyword and relevant DE tags."
+      : "4-8 English-only kebab-case tags (no German words). Include the primary keyword and 3-7 relevant EN tags.";
 
-VOICE REFERENCES (existing English articles in the same content space — match their tone):
+    const userMessage = `You are translating a ${sourceLocaleName} blog article into idiomatic ${targetLocaleName} for ${targetAudience}.
+
+VOICE REFERENCES (existing ${targetLocaleName} articles in the same content space — match their tone):
 ${voiceBlock}
 
 ---
 
-GERMAN ARTICLE TO TRANSLATE:
-Title: ${input.deTitle}
+${sourceLocaleName.toUpperCase()} ARTICLE TO TRANSLATE:
+Title: ${input.sourceTitle}
 Primary keyword: ${input.primaryKeyword}
 
-${input.deBodyMd}
+${input.sourceBodyMd}
 
 ---
 
 TRANSLATION REQUIREMENTS:
 - Preserve the article's narrative structure exactly (keep all sections, headings, and subheadings in the same order)
-- Use idiomatic English — not literal word-for-word translation
+- Use idiomatic ${targetLocaleName} — not literal word-for-word translation
 - Match the voice and tone of the reference articles: concrete, anti-hype, pragmatic, direct
-- Tool names stay in their canonical English form (e.g. "ChatGPT", "Midjourney")
-- Adapt German-specific references for an international audience:
-  - "wir Deutschen" / "in Deutschland" → "users" / "globally"
-  - "DSGVO" → "GDPR"
-  - EUR-only pricing → mention both EUR and USD where relevant
-  - German regulatory context (BaFin, etc.) → generic equivalent or omit
-- Avoid German sentence structure, loanwords, or overly formal phrasing
+- Tool names stay in their canonical form (e.g. "ChatGPT", "Midjourney")
 - Keep markdown formatting intact (headings, bold, lists, code blocks, links)
 - Do NOT add any preamble, commentary, or "Here is the translation:" prefix
+
+${styleNotes}
 
 OUTPUT FORMAT:
 First output the translated article body in markdown, then append these tagged blocks at the very end:
 
-<TITLE>SEO-optimized English article title (max 70 chars, include primary keyword)</TITLE>
-<META_DESCRIPTION>English meta description (140-155 chars, include primary keyword, no clickbait)</META_DESCRIPTION>
+<TITLE>SEO-optimized ${targetLocaleName} article title (max 70 chars, include primary keyword)</TITLE>
+<META_DESCRIPTION>${targetLocaleName} meta description (140-155 chars, include primary keyword, no clickbait)</META_DESCRIPTION>
 <TAGS>tag-one,tag-two,tag-three</TAGS>
 
-For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primary keyword and 3-7 relevant EN tags.
-
-Output locale: en-US.`;
+For TAGS: ${tagLanguageNote}`;
 
     const result = await anthropic.messages({
       projectId:        ctx.projectId,
@@ -145,7 +176,7 @@ Output locale: en-US.`;
       articleId:        input.articleId,
       operation:        COST_OPS.TRANSLATE_DRAFT,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     "You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native English writing.",
+      systemPrefix:     `You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native ${targetLocaleName} writing.`,
       systemSuffix:     "",
       userMessage,
       maxTokens:        8192,
@@ -154,10 +185,9 @@ Output locale: en-US.`;
     });
 
     const raw = result.raw.trim();
-    const enTitle = parseBlock(raw, "TITLE") ?? input.deTitle;
-    const enMetaDescription = parseBlock(raw, "META_DESCRIPTION") ?? "";
-    const enTags = parseTagsBlock(raw);
-    // Strip the tagged blocks from the body, then strip any leading code fence
+    const targetTitle = parseBlock(raw, "TITLE") ?? input.sourceTitle;
+    const targetMetaDescription = parseBlock(raw, "META_DESCRIPTION") ?? "";
+    const targetTags = parseTagsBlock(raw);
     const bodyMd = stripCodeFence(
       raw
         .replace(/<TITLE>[\s\S]*?<\/TITLE>/i, "")
@@ -168,7 +198,7 @@ Output locale: en-US.`;
     if (!bodyMd || bodyMd.length < 200) {
       throw new ArticlePipelineError("Literal translation returned insufficient content", "translation-body");
     }
-    return { bodyMd, wordCount: countWords(bodyMd), enTitle, enMetaDescription, enTags };
+    return { bodyMd, wordCount: countWords(bodyMd), targetTitle, targetMetaDescription, targetTags };
   }
 
   async #runAdaptivePath(
@@ -176,33 +206,43 @@ Output locale: en-US.`;
     ctx: StepContext,
     voiceBlock: string,
   ): Promise<z.infer<typeof OutputSchema>> {
-    // Load the EN article to check if it has a title yet (needed for adaptive draft)
-    const [enArticle] = await db
+    const sourceLocaleName = input.sourceLocale === "de" ? "German" : "English";
+    const targetLocaleName = input.targetLocale === "de" ? "German" : "English";
+    const targetAudience = input.targetLocale === "de"
+      ? "a DACH German-speaking audience (Germany, Austria, Switzerland)"
+      : "an international English-speaking audience (US/UK/global)";
+    const styleNotes = input.targetLocale === "de" ? DE_STYLE_NOTES : EN_STYLE_NOTES;
+    const tagLanguageNote = input.targetLocale === "de"
+      ? "4-8 German kebab-case tags. Include the primary keyword and relevant DE tags."
+      : "4-8 English-only kebab-case tags. Include the primary keyword and 3-7 relevant EN tags.";
+
+    // Load the target article to check its intentType (needed for adaptive draft)
+    const [targetArticle] = await db
       .select({ title: articles.title, intentType: articles.intentType })
       .from(articles)
       .where(eq(articles.id, input.articleId))
       .limit(1);
 
-    // Step 1: Generate EN-specific outline
-    const outlineUserMessage = `You are writing a new English blog article outline. The original German article covered this topic, but the EN version needs to be framed for an international English-speaking audience.
+    // Step 1: Generate target-locale-specific outline
+    const outlineUserMessage = `You are writing a new ${targetLocaleName} blog article outline. The original ${sourceLocaleName} article covered this topic, but the ${targetLocaleName} version needs to be framed for ${targetAudience}.
 
-Original DE article title: ${input.deTitle}
-Primary keyword: ${input.primaryKeyword} (EN-focused variant)
+Original ${sourceLocaleName} article title: ${input.sourceTitle}
+Primary keyword: ${input.primaryKeyword}
 
-DE article body (for context — do NOT translate directly, re-frame for EN audience):
-${input.deBodyMd.substring(0, 3000)}
+${sourceLocaleName} article body (for context — do NOT translate directly, re-frame for ${targetLocaleName} audience):
+${input.sourceBodyMd.substring(0, 3000)}
 
-VOICE REFERENCES (existing English articles — match their structure and depth):
+VOICE REFERENCES (existing ${targetLocaleName} articles — match their structure and depth):
 ${voiceBlock}
 
 ---
 
-Create a detailed English article outline:
-- Use the same overall topic but frame it for an international (primarily US/UK) audience
-- Replace German-specific examples with international or US examples
-- Replace EUR/DSGVO/BaFin references with USD/GDPR/generic regulatory context
-- Keep the same depth and section count as the DE article
-- Output locale: en-US
+Create a detailed ${targetLocaleName} article outline:
+- Use the same overall topic but frame it for ${targetAudience}
+- Replace locale-specific examples with examples relevant to the target audience
+- Keep the same depth and section count as the source article
+
+${styleNotes}
 
 Output: A structured markdown outline with H2/H3 headings and brief section descriptions. No other text.`;
 
@@ -212,7 +252,7 @@ Output: A structured markdown outline with H2/H3 headings and brief section desc
       articleId:        input.articleId,
       operation:        COST_OPS.REFRESH_OUTLINE,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     "You are a content strategist specializing in international AI and software content.",
+      systemPrefix:     `You are a content strategist specializing in ${targetLocaleName} AI and software content.`,
       systemSuffix:     "",
       userMessage:      outlineUserMessage,
       maxTokens:        2000,
@@ -222,8 +262,8 @@ Output: A structured markdown outline with H2/H3 headings and brief section desc
 
     const outline = outlineResult.raw.trim();
 
-    // Step 2: Generate EN draft from EN outline
-    const draftUserMessage = `You are writing an English blog article for an international audience.
+    // Step 2: Generate target-locale draft from target-locale outline
+    const draftUserMessage = `You are writing a ${targetLocaleName} blog article for ${targetAudience}.
 
 VOICE REFERENCES (match their tone — anti-hype, concrete, pragmatic):
 ${voiceBlock}
@@ -236,26 +276,26 @@ ${outline}
 ---
 
 Primary keyword: ${input.primaryKeyword}
-Intent: ${enArticle?.intentType ?? "general"}
+Intent: ${targetArticle?.intentType ?? "general"}
 
 REQUIREMENTS:
 - Follow the outline structure exactly (same H2/H3 headings)
-- Write for an international English-speaking audience (US/UK/global)
+- Write for ${targetAudience}
 - Match the tone of the voice references: direct, concrete, no fluff
-- Include practical examples relevant to US/international market
-- Keep tool names in their canonical English form
+- Include practical examples relevant to the target market
+- Keep tool names in their canonical form
 - Include the primary keyword naturally (not stuffed)
-- Do NOT mention Germany, German regulations, or DSGVO unless they are globally relevant
-- Output locale: en-US
+
+${styleNotes}
 
 OUTPUT FORMAT:
 Output the complete article body in markdown, then append at the very end:
 
-<TITLE>SEO-optimized English article title (max 70 chars, include primary keyword)</TITLE>
-<META_DESCRIPTION>English meta description (140-155 chars, include primary keyword, no clickbait)</META_DESCRIPTION>
+<TITLE>SEO-optimized ${targetLocaleName} article title (max 70 chars, include primary keyword)</TITLE>
+<META_DESCRIPTION>${targetLocaleName} meta description (140-155 chars, include primary keyword, no clickbait)</META_DESCRIPTION>
 <TAGS>tag-one,tag-two,tag-three</TAGS>
 
-For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primary keyword and 3-7 relevant EN tags.`;
+For TAGS: ${tagLanguageNote}`;
 
     const draftResult = await anthropic.messages({
       projectId:        ctx.projectId,
@@ -263,7 +303,7 @@ For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primar
       articleId:        input.articleId,
       operation:        COST_OPS.REFRESH_DRAFT,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     "You are an expert AI content writer creating high-quality English articles for an international tech audience.",
+      systemPrefix:     `You are an expert AI content writer creating high-quality ${targetLocaleName} articles for ${targetAudience}.`,
       systemSuffix:     "",
       userMessage:      draftUserMessage,
       maxTokens:        8192,
@@ -272,9 +312,9 @@ For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primar
     });
 
     const rawDraft = draftResult.raw.trim();
-    const enTitle = parseBlock(rawDraft, "TITLE") ?? input.deTitle;
-    const enMetaDescription = parseBlock(rawDraft, "META_DESCRIPTION") ?? "";
-    const enTags = parseTagsBlock(rawDraft);
+    const targetTitle = parseBlock(rawDraft, "TITLE") ?? input.sourceTitle;
+    const targetMetaDescription = parseBlock(rawDraft, "META_DESCRIPTION") ?? "";
+    const targetTags = parseTagsBlock(rawDraft);
     const bodyMd = stripCodeFence(
       rawDraft
         .replace(/<TITLE>[\s\S]*?<\/TITLE>/i, "")
@@ -285,6 +325,6 @@ For TAGS: 4-8 English-only kebab-case tags (no German words). Include the primar
     if (!bodyMd || bodyMd.length < 200) {
       throw new ArticlePipelineError("Adaptive translation draft returned insufficient content", "translation-body");
     }
-    return { bodyMd, wordCount: countWords(bodyMd), enTitle, enMetaDescription, enTags };
+    return { bodyMd, wordCount: countWords(bodyMd), targetTitle, targetMetaDescription, targetTags };
   }
 }

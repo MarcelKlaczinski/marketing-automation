@@ -4,13 +4,15 @@ import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 
 const InputSchema = z.object({
-  articleId:   z.string().uuid(),
-  projectId:   z.string().uuid(),
-  deTitle:     z.string(),
-  deBodyExcerpt: z.string(),  // first 2000 chars of DE body
-  primaryKeyword: z.string(),
-  intentType:  z.string().nullable(),
-  briefSource: z.string(),
+  articleId:        z.string().uuid(),
+  projectId:        z.string().uuid(),
+  sourceTitle:      z.string(),
+  sourceBodyExcerpt: z.string(),   // first 2000 chars of source body
+  primaryKeyword:   z.string(),
+  intentType:       z.string().nullable(),
+  briefSource:      z.string(),
+  sourceLocale:     z.enum(["de", "en"]),
+  targetLocale:     z.enum(["de", "en"]),
 });
 
 const OutputSchema = z.object({
@@ -20,10 +22,32 @@ const OutputSchema = z.object({
 
 export type TranslationDecision = z.infer<typeof OutputSchema>;
 
+const DE_TO_EN_ADAPTIVE_MARKERS = `
+- German-specific pricing (EUR only, no USD reference)
+- DSGVO/BaFin/Mittelstand emphasis
+- "Made in Germany" framing
+- DACH-only market data (Statista DE, Bitkom)
+- German legal context (UWG, BDSG)
+- German B2B sales norms (very formal, Sie-form heavy)
+`.trim();
+
+const EN_TO_DE_ADAPTIVE_MARKERS = `
+- US-centric pricing (USD only, no EUR equivalent for SaaS)
+- US-specific regulatory framing (HIPAA, SOC 2 emphasis without GDPR mention)
+- "Silicon Valley" or US-startup-culture framing
+- US market data (Gartner US, Forrester US-only)
+- English idioms that don't translate (e.g. "move fast and break things")
+- US legal context (CCPA, but not GDPR/DSGVO)
+- US-only consumer contexts (assumes SSN, US ZIP code, US tax IDs)
+- Imperial units without metric equivalents
+`.trim();
+
 /**
- * Haiku call to decide whether the EN translation should be:
- * - "literal": translate DE body directly (preserving structure, ~cheaper)
- * - "adaptive": generate a new outline for the EN audience (when DE content is too Germany-specific)
+ * Haiku call to decide whether the translation should be:
+ * - "literal": translate source body directly (preserving structure, cheaper)
+ * - "adaptive": generate a new target-locale outline (when source content is too locale-specific)
+ *
+ * Works bidirectionally: DE→EN and EN→DE.
  */
 export class TranslationDecisionStep extends BaseStep<
   z.infer<typeof InputSchema>,
@@ -36,11 +60,15 @@ export class TranslationDecisionStep extends BaseStep<
   override estimatedCostEur() { return 0.005; }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<TranslationDecision> {
-    const prompt = `You are evaluating whether a German blog article needs an English-audience-specific outline adaptation or can be translated directly.
+    const sourceLocaleName = input.sourceLocale === "de" ? "German" : "English";
+    const targetLocaleName = input.targetLocale === "de" ? "German" : "English";
+    const adaptiveMarkers = input.sourceLocale === "de" ? DE_TO_EN_ADAPTIVE_MARKERS : EN_TO_DE_ADAPTIVE_MARKERS;
 
-DE Article Title: ${input.deTitle}
-DE Article Body (first 2000 chars):
-${input.deBodyExcerpt}
+    const prompt = `You are evaluating whether a ${sourceLocaleName} blog article needs a ${targetLocaleName}-audience-specific outline adaptation, or can be translated directly.
+
+Source article title: ${input.sourceTitle}
+Source article body (first 2000 chars):
+${input.sourceBodyExcerpt}
 
 Brief context:
 - Primary keyword: ${input.primaryKeyword}
@@ -48,8 +76,11 @@ Brief context:
 - Source: ${input.briefSource}
 
 Evaluate whether the article should be:
-- "literal": EN version preserves DE outline; only language changes. The content is universally relevant with no German-specific context that needs reframing.
-- "adaptive": EN audience needs different angles. Examples: German-specific pricing (EUR only, no USD), DSGVO/BaFin/German regulatory emphasis, "Made in Germany" framing, Mittelstand-specific examples, German market data only, German tool alternatives.
+- "literal": ${targetLocaleName} version preserves source outline; only language changes. Content is universally relevant with no source-locale-specific context that needs reframing.
+- "adaptive": ${targetLocaleName} audience needs different angles.
+
+Examples that justify "adaptive" for ${sourceLocaleName} → ${targetLocaleName}:
+${adaptiveMarkers}
 
 When in doubt, prefer "literal" — it's faster and cheaper, and the LLM translation handles minor contextual adjustments.
 
@@ -87,7 +118,10 @@ Respond in JSON only:
       return { decision: "literal", reasoning: "Fallback: schema mismatch" };
     }
 
-    ctx.log.info({ decision: parsed.data.decision, reasoning: parsed.data.reasoning }, "Translation decision made");
+    ctx.log.info(
+      { decision: parsed.data.decision, reasoning: parsed.data.reasoning, sourceLocale: input.sourceLocale, targetLocale: input.targetLocale },
+      "Translation decision made",
+    );
     return parsed.data;
   }
 }

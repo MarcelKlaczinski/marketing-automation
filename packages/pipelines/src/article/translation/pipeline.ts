@@ -1,22 +1,24 @@
 /**
  * article:translation pipeline
  *
- * Generates an EN sibling article from an existing DE article.
+ * Generates a target-locale sibling article from an existing source article.
+ * Works bidirectionally: DE→EN and EN→DE.
  *
- * Two modes:
- *   fresh_translation  — DE article just completed; creates EN stub and generates body
- *   refresh_propagation — DE article was refreshed; re-translates existing EN sibling
+ * Three modes:
+ *   fresh_translation   — source article just completed; creates target stub and generates body
+ *   refresh_propagation — source article was refreshed; re-translates existing target sibling
+ *   manual_resync       — user triggered re-sync; re-translates existing target sibling
  *
  * Decision call (Haiku) picks:
- *   literal  — translate DE body directly (faster, cheaper)
- *   adaptive — generate EN-specific outline + draft (when DE content is too Germany-specific)
+ *   literal  — translate source body directly (faster, cheaper)
+ *   adaptive — generate target-locale-specific outline + draft (when source content is too locale-specific)
  *
  * Steps:
- *   1. TranslationSetupStep   — load DE article, create/find EN stub, load voice refs
+ *   1. TranslationSetupStep   — load source article, create/find target stub, load voice refs
  *   2. TranslationDecisionStep — Haiku: literal vs adaptive
- *   3. TranslationBodyStep    — generate EN body (literal or adaptive path)
+ *   3. TranslationBodyStep    — generate target body (literal or adaptive path)
  *   4. PersistBodyStep        — checkpoint: save body
- *   5. ToolLinkerStep         — linkify EN tool mentions (/en/tools/slug)
+ *   5. ToolLinkerStep         — linkify tool mentions in target locale
  *   6. SelfReviewStep         — quality classification (Haiku 4.5)
  *   7. PersistArticleStep     — final persist, status → final_review
  */
@@ -40,17 +42,17 @@ const log = createLogger("pipelines:translation");
 // ─── Input / Output ───────────────────────────────────────────────────────────
 
 type TranslationPipelineInput = {
-  sourceArticleId: string;               // DE article
-  targetArticleId?: string;              // EN article (refresh_propagation only)
+  sourceArticleId: string;
+  targetArticleId?: string;
   projectId: string;
-  mode: "fresh_translation" | "refresh_propagation";
+  mode: "fresh_translation" | "refresh_propagation" | "manual_resync";
 };
 
 const TranslationPipelineInputSchema = z.object({
   sourceArticleId: z.string().uuid(),
   targetArticleId: z.string().uuid().optional(),
   projectId:       z.string().uuid(),
-  mode:            z.enum(["fresh_translation", "refresh_propagation"]),
+  mode:            z.enum(["fresh_translation", "refresh_propagation", "manual_resync"]),
 }) as z.ZodType<TranslationPipelineInput>;
 
 // Must match PersistArticleStep.outputSchema — the runner uses the last step's output
@@ -64,10 +66,18 @@ const TranslationPipelineOutputSchema = z.object({
 // ─── Bridge helper types ──────────────────────────────────────────────────────
 
 type DecisionOutput  = { decision: "literal" | "adaptive"; reasoning: string };
-type BodyOutput      = { bodyMd: string; wordCount: number; enTitle: string; enMetaDescription: string; enTags: string[] };
+type BodyOutput      = { bodyMd: string; wordCount: number; targetTitle: string; targetMetaDescription: string; targetTags: string[] };
 type PersistBody     = { articleId: string; bodyMd: string; wordCount: number };
 type ToolLinkerOutput = { bodyMd: string; linksAdded: number; linkedTools: string[] };
 type SelfReviewOutput = { score: number; issues: unknown[]; shouldBlock: boolean; summary: string };
+
+// Language-neutral extras copied from source → target (locale-independent fields)
+const LANG_INDEPENDENT_EXTRAS = [
+  "intentType", "bottomLinksVariant", "primaryTool",
+  "pricingTier", "priceFrom", "rating", "features", "pros", "cons",
+  "useCases", "toolSlugs", "winner", "verdict", "listicleType",
+  "authorPickStrategy",
+] as const;
 
 // ─── TranslationPipeline ──────────────────────────────────────────────────────
 
@@ -80,11 +90,11 @@ export class TranslationPipeline extends Pipeline<
   readonly outputSchema = TranslationPipelineOutputSchema;
 
   readonly steps = [
-    new TranslationSetupStep(),     // 1. Load DE, create/find EN, load voice refs
+    new TranslationSetupStep(),     // 1. Load source, create/find target, load voice refs
     new TranslationDecisionStep(),  // 2. Haiku: literal vs adaptive
-    new TranslationBodyStep(),      // 3. Generate EN body
+    new TranslationBodyStep(),      // 3. Generate target body
     new PersistBodyStep(),          // 4. Checkpoint
-    new ToolLinkerStep(),           // 5. Linkify EN tools
+    new ToolLinkerStep(),           // 5. Linkify target locale tools
     new SelfReviewStep(),           // 6. Quality check
     new PersistArticleStep(),       // 7. Final persist
   ] as const;
@@ -102,13 +112,15 @@ export class TranslationPipeline extends Pipeline<
     if (fromStep.name === "translation-setup" && toStep.name === "translation-decision") {
       const s = output as TranslationSetupOutput;
       return {
-        articleId:      s.enArticleId,
-        projectId:      pipelineInput.projectId,
-        deTitle:        s.deTitle,
-        deBodyExcerpt:  s.deBodyExcerpt,
-        primaryKeyword: s.primaryKeyword,
-        intentType:     s.intentType,
-        briefSource:    s.briefSource,
+        articleId:         s.targetArticleId,
+        projectId:         pipelineInput.projectId,
+        sourceTitle:       s.sourceTitle,
+        sourceBodyExcerpt: s.sourceBodyExcerpt,
+        primaryKeyword:    s.primaryKeyword,
+        intentType:        s.intentType,
+        briefSource:       s.briefSource,
+        sourceLocale:      s.sourceLocale,
+        targetLocale:      s.targetLocale,
       };
     }
 
@@ -117,15 +129,17 @@ export class TranslationPipeline extends Pipeline<
       const s = setup()!;
       const d = output as DecisionOutput;
       return {
-        articleId:          s.enArticleId,
+        articleId:          s.targetArticleId,
         projectId:          pipelineInput.projectId,
         decision:           d.decision,
-        deBodyMd:           s.deBodyMd,
-        deTitle:            s.deTitle,
+        sourceBodyMd:       s.sourceBodyMd,
+        sourceTitle:        s.sourceTitle,
         primaryKeyword:     s.primaryKeyword,
         cornerstoneKeyword: s.cornerstoneKeyword,
         voiceReferences:    s.voiceReferences,
         projectSlug:        s.projectSlug,
+        sourceLocale:       s.sourceLocale,
+        targetLocale:       s.targetLocale,
       };
     }
 
@@ -134,7 +148,7 @@ export class TranslationPipeline extends Pipeline<
       const s = setup()!;
       const b = output as BodyOutput;
       return {
-        articleId: s.enArticleId,
+        articleId: s.targetArticleId,
         bodyMd:    b.bodyMd,
         wordCount: b.wordCount,
       };
@@ -145,9 +159,9 @@ export class TranslationPipeline extends Pipeline<
       const s = setup()!;
       const p = output as PersistBody;
       return {
-        articleId: s.enArticleId,
+        articleId: s.targetArticleId,
         projectId: pipelineInput.projectId,
-        locale:    "en",
+        locale:    s.targetLocale,
         bodyMd:    p.bodyMd,
       };
     }
@@ -158,7 +172,7 @@ export class TranslationPipeline extends Pipeline<
       const linked = output as ToolLinkerOutput;
       const body = getStepOutput<BodyOutput>("translation-body")!;
       return {
-        articleId:          s.enArticleId,
+        articleId:          s.targetArticleId,
         bodyMd:             linked.bodyMd,
         wordCount:          body.wordCount,
         cornerstoneKeyword: s.cornerstoneKeyword,
@@ -173,55 +187,46 @@ export class TranslationPipeline extends Pipeline<
       const body = getStepOutput<BodyOutput>("translation-body")!;
       const sr = output as SelfReviewOutput;
 
-      // Title + metaDescription come from TranslationBodyStep (LLM-generated in EN).
-      // Falls back to DE values when the LLM omitted the tagged blocks.
-      const enTitle = body.enTitle || s.deTitle || undefined;
-      const enMetaDescription = body.enMetaDescription || s.deMetaDescription || undefined;
-      // Derive English slug from the LLM-generated EN title so EN articles get a proper
-      // English URL instead of the placeholder "{de-slug}-en" stub from TranslationSetupStep.
-      const enSlug = enTitle ? slugify(enTitle) : undefined;
+      // Title + metaDescription come from TranslationBodyStep (LLM-generated in target locale).
+      // Falls back to source values when the LLM omitted the tagged blocks.
+      const targetTitle = body.targetTitle || s.sourceTitle || undefined;
+      const targetMetaDescription = body.targetMetaDescription || s.sourceMetaDescription || undefined;
+      // Derive target slug from LLM-generated title so articles get a proper locale URL.
+      const targetSlug = targetTitle ? slugify(targetTitle) : undefined;
 
-      // Find the Article entry from DE schema to update its headline for EN
-      const deArticleSchema = s.deSchemaJsonLd.find((e) => e["@type"] === "Article") ?? {};
-      const enArticleSchema = enTitle
-        ? { ...deArticleSchema, headline: enTitle }
-        : deArticleSchema;
+      // Update the Article JSON-LD entry with the target-locale headline.
+      const sourceArticleSchema = s.sourceSchemaJsonLd.find((e) => e["@type"] === "Article") ?? {};
+      const targetArticleSchema = targetTitle
+        ? { ...sourceArticleSchema, headline: targetTitle }
+        : sourceArticleSchema;
 
-      // Build EN frontmatterExtras from DE: copy language-independent fields,
-      // skip DE-language fields (faq, excerpt, seoTitle, seoDescription are in EN already via body/meta).
-      // NOTE: "category" and "subcategory" are human-readable strings (e.g. "Praxis & Use Cases")
-      // that may be in German — do NOT copy them; leave them blank for EN articles.
-      const LANG_INDEPENDENT_EXTRAS = [
-        "intentType", "bottomLinksVariant", "primaryTool",
-        "pricingTier", "priceFrom", "rating", "features", "pros", "cons",
-        "useCases", "toolSlugs", "winner", "verdict", "listicleType",
-        "authorPickStrategy",
-      ] as const;
-      const deExtras = s.deFrontmatterExtras ?? {};
-      const enExtras: Record<string, unknown> = {};
+      // Build target frontmatterExtras from source: copy language-independent fields,
+      // skip language-specific strings (category, subcategory, excerpt, seoTitle, etc.)
+      const sourceExtras = s.sourceFrontmatterExtras ?? {};
+      const targetExtras: Record<string, unknown> = {};
       for (const key of LANG_INDEPENDENT_EXTRAS) {
-        if (key in deExtras) enExtras[key] = deExtras[key];
+        if (key in sourceExtras) targetExtras[key] = sourceExtras[key];
       }
-      // Set excerpt from the LLM-generated EN meta description (language-correct)
-      if (enMetaDescription) enExtras.excerpt = enMetaDescription;
-      // Store the English slug in extras so buildFrontmatter() can emit it in the MDX frontmatter
-      if (enSlug) enExtras.slug = enSlug;
+      // Set excerpt from LLM-generated target meta description (language-correct)
+      if (targetMetaDescription) targetExtras.excerpt = targetMetaDescription;
+      // Store the target slug in extras so buildFrontmatter() can emit it in MDX frontmatter
+      if (targetSlug) targetExtras.slug = targetSlug;
 
       return {
-        articleId:        s.enArticleId,
+        articleId:        s.targetArticleId,
         bodyMd:           linked.bodyMd,
         wordCount:        body.wordCount,
-        heroR2Key:        s.deHeroR2Key ?? "",
-        heroPublicUrl:    s.deHeroPublicUrl ?? "",
-        heroAltText:      s.deHeroAltText ?? "",
+        heroR2Key:        s.sourceHeroR2Key ?? "",
+        heroPublicUrl:    s.sourceHeroPublicUrl ?? "",
+        heroAltText:      s.sourceHeroAltText ?? "",
         selfReviewScore:  sr.score,
         selfReviewIssues: sr.issues,
-        schemaJsonLd:     enArticleSchema,
-        ...(enTitle ? { title: enTitle } : {}),
-        ...(enSlug ? { slug: enSlug } : {}),
-        ...(enMetaDescription ? { metaDescription: enMetaDescription } : {}),
-        ...(body.enTags.length > 0 ? { tags: body.enTags } : {}),
-        ...(Object.keys(enExtras).length > 0 ? { frontmatterExtras: enExtras } : {}),
+        schemaJsonLd:     targetArticleSchema,
+        ...(targetTitle ? { title: targetTitle } : {}),
+        ...(targetSlug ? { slug: targetSlug } : {}),
+        ...(targetMetaDescription ? { metaDescription: targetMetaDescription } : {}),
+        ...(body.targetTags.length > 0 ? { tags: body.targetTags } : {}),
+        ...(Object.keys(targetExtras).length > 0 ? { frontmatterExtras: targetExtras } : {}),
       };
     }
 
@@ -232,7 +237,7 @@ export class TranslationPipeline extends Pipeline<
     output: z.infer<typeof TranslationPipelineOutputSchema>,
     pipelineInput: TranslationPipelineInput,
   ): Promise<void> {
-    // output.articleId = EN article (from PersistArticleStep)
+    // output.articleId = target article (from PersistArticleStep)
     try {
       await enqueueSchemaExtension({
         articleId: output.articleId,
@@ -242,9 +247,9 @@ export class TranslationPipeline extends Pipeline<
       log.warn({ err: e, articleId: output.articleId }, "Schema extension enqueue failed after translation");
     }
 
-    // Check cluster completion — needed because the cluster waits for both DE + EN articles.
-    // The blog pipeline fires this check after DE completes (count < expected at that point),
-    // so we must re-check after each EN translation completes.
+    // Check cluster completion — clusters wait for both DE + EN articles.
+    // The blog pipeline fires this check after the source article completes (count < expected),
+    // so we must re-check after each target translation completes.
     try {
       const [src] = await db
         .select({ clusterGenerationId: articles.clusterGenerationId })

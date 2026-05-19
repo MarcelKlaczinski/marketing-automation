@@ -14,36 +14,37 @@ const VoiceReferenceSchema = z.object({
 });
 
 const InputSchema = z.object({
-  sourceArticleId: z.string().uuid(),           // DE article
-  targetArticleId: z.string().uuid().optional(), // EN article (refresh_propagation only)
+  sourceArticleId: z.string().uuid(),
+  targetArticleId: z.string().uuid().optional(),
   projectId:       z.string().uuid(),
-  mode:            z.enum(["fresh_translation", "refresh_propagation"]),
+  mode:            z.enum(["fresh_translation", "refresh_propagation", "manual_resync"]),
 });
 
 const OutputSchema = z.object({
-  enArticleId:        z.string().uuid(),
-  deBodyMd:           z.string(),
-  deTitle:            z.string(),
-  deMetaDescription:  z.string().nullable(),
-  deBodyExcerpt:      z.string(),  // first 2000 chars for decision step
-  primaryKeyword:     z.string(),
-  intentType:         z.string().nullable(),
-  briefSource:        z.string(),  // source from the DE article's brief
-  voiceReferences:    z.array(VoiceReferenceSchema),
-  projectSlug:        z.string(),
-  cornerstoneKeyword: z.string(),
-  translationKey:     z.string(),
-  // Hero image fields copied from DE article — EN article shares the same hero
-  deHeroR2Key:        z.string().nullable(),
-  deHeroPublicUrl:    z.string().nullable(),
-  deHeroAltText:      z.string().nullable(),
-  // Base schema from DE article to carry forward into EN
-  deSchemaJsonLd:     z.array(z.record(z.unknown())),
-  // DE taxonomy — category/subcategory are language-specific strings so not forwarded;
-  // deFrontmatterExtras carried for language-neutral extras (intentType, primaryTool, etc.)
-  deCategory:         z.string().nullable(),
-  deSubcategory:      z.string().nullable(),
-  deFrontmatterExtras: z.record(z.unknown()).nullable(),
+  targetArticleId:      z.string().uuid(),
+  sourceBodyMd:         z.string(),
+  sourceTitle:          z.string(),
+  sourceMetaDescription: z.string().nullable(),
+  sourceBodyExcerpt:    z.string(),   // first 2000 chars for decision step
+  primaryKeyword:       z.string(),
+  intentType:           z.string().nullable(),
+  briefSource:          z.string(),
+  voiceReferences:      z.array(VoiceReferenceSchema),
+  projectSlug:          z.string(),
+  cornerstoneKeyword:   z.string(),
+  translationKey:       z.string(),
+  sourceLocale:         z.enum(["de", "en"]),
+  targetLocale:         z.enum(["de", "en"]),
+  // Hero image fields — target article shares the same hero as source
+  sourceHeroR2Key:      z.string().nullable(),
+  sourceHeroPublicUrl:  z.string().nullable(),
+  sourceHeroAltText:    z.string().nullable(),
+  // Base schema from source article carried forward
+  sourceSchemaJsonLd:   z.array(z.record(z.unknown())),
+  // Taxonomy — category/subcategory are language-specific, not forwarded
+  sourceCategory:       z.string().nullable(),
+  sourceSubcategory:    z.string().nullable(),
+  sourceFrontmatterExtras: z.record(z.unknown()).nullable(),
 });
 
 export type TranslationSetupOutput = z.infer<typeof OutputSchema>;
@@ -63,8 +64,8 @@ export class TranslationSetupStep extends BaseStep<
   override estimatedCostEur(): number { return 0; }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<TranslationSetupOutput> {
-    // Load DE article
-    const [deArticle] = await db
+    // Load source article
+    const [sourceArticle] = await db
       .select()
       .from(articles)
       .where(and(
@@ -72,83 +73,86 @@ export class TranslationSetupStep extends BaseStep<
         eq(articles.projectId, input.projectId),
       ))
       .limit(1);
-    if (!deArticle) throw new ArticlePipelineError(`Source article ${input.sourceArticleId} not found`, "translation-setup");
-    if (!deArticle.bodyMd) throw new ArticlePipelineError("Source article has no body — cannot translate", "translation-setup");
+    if (!sourceArticle) throw new ArticlePipelineError(`Source article ${input.sourceArticleId} not found`, "translation-setup");
+    if (!sourceArticle.bodyMd) throw new ArticlePipelineError("Source article has no body — cannot translate", "translation-setup");
 
-    // Resolve translationKey — generate + back-apply to DE if missing
-    let translationKey = deArticle.translationKey;
+    const sourceLocale = (sourceArticle.locale ?? "de") as "de" | "en";
+    const targetLocale: "de" | "en" = sourceLocale === "de" ? "en" : "de";
+
+    // Resolve translationKey — generate + back-apply to source if missing
+    let translationKey = sourceArticle.translationKey;
     if (!translationKey) {
       translationKey = generateTranslationKey();
       await db.update(articles)
         .set({ translationKey })
-        .where(eq(articles.id, deArticle.id));
-      ctx.log.info({ articleId: deArticle.id, translationKey }, "[translation-setup] generated new translationKey for DE article");
+        .where(eq(articles.id, sourceArticle.id));
+      ctx.log.info({ articleId: sourceArticle.id, translationKey, sourceLocale }, "[translation-setup] generated new translationKey for source article");
     }
 
-    let enArticleId: string;
+    let targetArticleId: string;
 
     if (input.mode === "fresh_translation") {
-      // Idempotent: if an EN sibling already exists (re-run after downstream failure), reuse it
+      // Idempotent: if a target sibling already exists (re-run after downstream failure), reuse it
       const [existing] = await db
         .select({ id: articles.id })
         .from(articles)
         .where(and(
           eq(articles.projectId, input.projectId),
           eq(articles.translationKey, translationKey),
-          eq(articles.locale, "en"),
+          eq(articles.locale, targetLocale),
         ))
         .limit(1);
 
       if (existing) {
-        enArticleId = existing.id;
-        ctx.log.info({ enArticleId, translationKey }, "[translation-setup] reusing existing EN article (idempotent re-run)");
+        targetArticleId = existing.id;
+        ctx.log.info({ targetArticleId, targetLocale, translationKey }, "[translation-setup] reusing existing target article (idempotent re-run)");
       } else {
-        // Create EN article stub — slug is placeholder, will be updated after body generation
-        const enSlug = `${deArticle.slug}-en`;
-        const [enArticle] = await db.insert(articles).values({
+        // Create target article stub — slug is placeholder, updated after body generation
+        const targetSlug = `${sourceArticle.slug}-${targetLocale}`;
+        const [targetArticle] = await db.insert(articles).values({
           projectId:          input.projectId,
-          clusterId:          deArticle.clusterId,
+          clusterId:          sourceArticle.clusterId,
           source:             "generated",
-          collection:         deArticle.collection,
-          locale:             "en",
+          collection:         sourceArticle.collection,
+          locale:             targetLocale,
           translationKey,
-          slug:               enSlug,
-          cornerstoneKeyword: deArticle.cornerstoneKeyword ?? "",
-          intentType:         deArticle.intentType,
-          author:             deArticle.author,
+          slug:               targetSlug,
+          cornerstoneKeyword: sourceArticle.cornerstoneKeyword ?? "",
+          intentType:         sourceArticle.intentType,
+          author:             sourceArticle.author,
           status:             "proposed",
-          approvalMode:       deArticle.approvalMode,
+          approvalMode:       sourceArticle.approvalMode,
         }).returning({ id: articles.id });
-        if (!enArticle) throw new ArticlePipelineError("Failed to create EN article stub", "translation-setup");
-        enArticleId = enArticle.id;
-        ctx.log.info({ enArticleId, translationKey }, "[translation-setup] EN article stub created");
+        if (!targetArticle) throw new ArticlePipelineError(`Failed to create ${targetLocale} article stub`, "translation-setup");
+        targetArticleId = targetArticle.id;
+        ctx.log.info({ targetArticleId, targetLocale, translationKey }, "[translation-setup] target article stub created");
       }
     } else {
-      // refresh_propagation: EN article already exists
-      if (!input.targetArticleId) throw new ArticlePipelineError("targetArticleId required for refresh_propagation", "translation-setup");
-      enArticleId = input.targetArticleId;
+      // refresh_propagation / manual_resync: target article already exists
+      if (!input.targetArticleId) throw new ArticlePipelineError(`targetArticleId required for ${input.mode}`, "translation-setup");
+      targetArticleId = input.targetArticleId;
     }
 
-    // Find the DE article's brief for briefSource (used by decision step)
+    // Find the source article's brief for briefSource (used by decision step)
     let briefSource = "unknown";
     try {
       const [brief] = await db
         .select({ source: topicBriefs.source })
         .from(topicBriefs)
-        .where(eq(topicBriefs.routedArticleId, deArticle.id))
+        .where(eq(topicBriefs.routedArticleId, sourceArticle.id))
         .limit(1);
       if (brief) briefSource = brief.source;
     } catch {
-      ctx.log.warn({ articleId: deArticle.id }, "[translation-setup] could not find brief for DE article — using 'unknown'");
+      ctx.log.warn({ articleId: sourceArticle.id }, "[translation-setup] could not find brief for source article — using 'unknown'");
     }
 
-    // Load EN voice references from same cluster
+    // Load voice references in TARGET locale from same cluster
     const voiceRefs = await loadVoiceReferences({
-      projectId:         input.projectId,
-      clusterId:         deArticle.clusterId,
-      locale:            "en",
-      excludeArticleId:  input.mode === "refresh_propagation" ? enArticleId : null,
-      limit:             3,
+      projectId:        input.projectId,
+      clusterId:        sourceArticle.clusterId,
+      locale:           targetLocale,
+      excludeArticleId: input.mode !== "fresh_translation" ? targetArticleId : null,
+      limit:            3,
     });
 
     // Get projectSlug for prompt builder
@@ -159,28 +163,30 @@ export class TranslationSetupStep extends BaseStep<
       .limit(1);
     const projectSlug = proj?.slug ?? input.projectId;
 
-    const deBodyMd = deArticle.bodyMd ?? "";
+    const sourceBodyMd = sourceArticle.bodyMd ?? "";
 
     return {
-      enArticleId,
-      deBodyMd,
-      deTitle:            deArticle.title ?? "",
-      deMetaDescription:  deArticle.metaDescription ?? null,
-      deBodyExcerpt:      deBodyMd.substring(0, 2000),
-      primaryKeyword:     deArticle.cornerstoneKeyword ?? "",
-      intentType:         deArticle.intentType,
+      targetArticleId,
+      sourceBodyMd,
+      sourceTitle:            sourceArticle.title ?? "",
+      sourceMetaDescription:  sourceArticle.metaDescription ?? null,
+      sourceBodyExcerpt:      sourceBodyMd.substring(0, 2000),
+      primaryKeyword:         sourceArticle.cornerstoneKeyword ?? "",
+      intentType:             sourceArticle.intentType,
       briefSource,
-      voiceReferences:    voiceRefs as VoiceReference[],
+      voiceReferences:        voiceRefs as VoiceReference[],
       projectSlug,
-      cornerstoneKeyword: deArticle.cornerstoneKeyword ?? "",
+      cornerstoneKeyword:     sourceArticle.cornerstoneKeyword ?? "",
       translationKey,
-      deHeroR2Key:        deArticle.heroImageR2Key ?? null,
-      deHeroPublicUrl:    deArticle.heroImagePublicUrl ?? null,
-      deHeroAltText:      deArticle.heroImageAltText ?? null,
-      deSchemaJsonLd:     (deArticle.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
-      deCategory:         deArticle.category ?? null,
-      deSubcategory:      deArticle.subcategory ?? null,
-      deFrontmatterExtras: (deArticle.frontmatterExtras as Record<string, unknown> | null) ?? null,
+      sourceLocale,
+      targetLocale,
+      sourceHeroR2Key:        sourceArticle.heroImageR2Key ?? null,
+      sourceHeroPublicUrl:    sourceArticle.heroImagePublicUrl ?? null,
+      sourceHeroAltText:      sourceArticle.heroImageAltText ?? null,
+      sourceSchemaJsonLd:     (sourceArticle.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
+      sourceCategory:         sourceArticle.category ?? null,
+      sourceSubcategory:      sourceArticle.subcategory ?? null,
+      sourceFrontmatterExtras: (sourceArticle.frontmatterExtras as Record<string, unknown> | null) ?? null,
     };
   }
 }

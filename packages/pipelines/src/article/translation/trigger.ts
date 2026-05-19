@@ -1,6 +1,6 @@
 import { enqueuePipeline } from "../../engine/queue.ts";
 
-export type TranslationMode = "fresh_translation" | "refresh_propagation";
+export type TranslationMode = "fresh_translation" | "refresh_propagation" | "manual_resync";
 
 export type EnqueueTranslationInput = {
   sourceArticleId: string;
