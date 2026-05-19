@@ -269,6 +269,21 @@ generatedContent: {
 } satisfies MyTemplateGenerated,
 ```
 
+**Templates using `generateContentWithGate()` — different wiring:** These templates (comparison-grid-4/3, verdict-per-use-case, single-tool-spotlight) already validate hook output internally. Do NOT add `validateAndReprompt` — it would double-validate. Instead:
+- `bounds` + `generatedSchema` + `slotMap: {}` are still declared (documentation + fixture testing)
+- `generatedSchema` validates only `{ caption, hashtags }` (the LLM slice the fixture tests care about)
+- `slotMap` stays empty `{}` until `getFontSize` is actually applied in the composition
+
+**`slotMap: {}` is valid** — the alignment test skips templates with empty slotMap. Bounds serve as documentation even when no getFontSize assertions fire.
+
+**ToolSlideStunning hardcoded font sizes don't map to any getFontSize bucket:** tagline=36px, starStrength=38px, regularStrengths=30px are design constants that fall between bucket entries. Applying getFontSize would change pixel output and violate the "no visual change" constraint for retroactive patches. To add getFontSize coverage for these slots, add matching bucket entries to `getFontSize.ts` first, then apply.
+
+**Each template needs its own fixture file** — never share a fixture file between two templates. Previously comparison-grid-3 imported from comparison-grid-4's fixture file (which had 2-tool data, making the 3-tool grid untestable). Each fixture file must contain data shaped for exactly its template's eligibility constraints.
+
+**Fixture keys must be `characteristic` / `edge-min` / `edge-max`** — named slugs like `"recraft-vs-ideogram-de"` prevent the fixture tests from finding the right fixture by key. Always use the three canonical key names.
+
+**Deprecated alias dead code:** Don't leave `@deprecated` export aliases in fixture files after a rename. If nothing imports the old name, delete it in the same PR — lingering aliases confuse `grep` and future refactors.
+
 **Gotchas:**
 - `bootstrapTemplates()` must be called explicitly in test files — importing `bootstrap.ts` as a side effect does not register templates.
 - `validateAndReprompt`'s `onValidationFailure: "truncate"` does not silently truncate — it still throws (with a note). Actual in-slide truncation is `WebkitLineClamp`. Don't conflate the two.

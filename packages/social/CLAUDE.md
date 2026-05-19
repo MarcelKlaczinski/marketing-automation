@@ -98,6 +98,20 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 
 - **`plannerMeta.contentType` vs `buildHashtagInstructions` ContentType are different enums** — `plannerMeta.contentType` (in `TemplateDefinition`) accepts `"comparison" | "tool-spotlight" | "use-case" | "news" | "concept"`. The `ContentType` argument to `buildHashtagInstructions()` (in `packages/core`) accepts `"comparison" | "review" | "general"`. These are entirely separate. Use `contentType: "review"` in `buildHashtagInstructions()` for single-tool evaluation templates; use `contentType: "tool-spotlight"` in `plannerMeta`.
 
+- **`fileURLToPath` is in `node:url`, not `node:path` in Bun** — Bun throws `SyntaxError: Export named 'fileURLToPath' not found in module 'node:path'` if you import it from `node:path`. Always: `import { fileURLToPath } from "node:url"`.
+
+- **Heterogeneous `TemplateDefinition<T>[]` arrays need an explicit cast** — TypeScript infers a union like `TemplateDefinition<A> | TemplateDefinition<B>` from a mixed array, which breaks generic calls (`register<T>(t)`, `assertFixtures(t)`). Cast the whole array once: `const templates = [...] as unknown as TemplateDefinition<unknown>[];`. Add a comment justifying the cast (e.g. "only reads non-generic fields").
+
+## Visual test harness (Spec 59.3.5)
+
+```bash
+bun run test:visual          # diff renders against baselines in test/__baselines__/; exit 1 on >0.1% diff
+bun run test:visual:update   # re-render all and overwrite baselines
+RUN_VISUAL=1 bun test packages/social/test/visual.test.ts  # same via bun:test (CI gate)
+```
+
+The harness script (`scripts/visual-render-all.ts`) renders all 5 templates × 3 fixtures × 2 themes directly via `render-server.ts` functions (not `template.render()`) to avoid needing mock `Article` DB rows. 160 slide PNGs total. Baselines are gitignored (`/packages/social/test/__baselines__/`) — generated on first run by `test:visual`.
+
 ## Composition structure
 
 ```

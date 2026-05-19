@@ -1,4 +1,5 @@
-import type { TemplateDefinition } from "../types.ts";
+import { z } from "zod";
+import type { TemplateDefinition, ContentBounds } from "../types.ts";
 import { getComparisonContext, type ComparisonContext } from "../adapters/comparison.ts";
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
@@ -10,6 +11,20 @@ import {
   inferArticleType,
   selectPattern,
 } from "@marketing-auto/core";
+
+export const verdictPerUseCaseBounds = {
+  useCase: { min: 5, max: 50 },
+  reason: { min: 10, max: 160 },
+  verdicts: { max: 7, perItemMaxChars: 160 },
+  captionBody: { min: 20, max: 1800 },
+  hashtags: { max: 10, perItemMaxChars: 24 },
+} as const satisfies ContentBounds;
+
+export const verdictPerUseCaseGeneratedSchema = z.object({
+  caption: z.string().min(verdictPerUseCaseBounds.captionBody.min).max(verdictPerUseCaseBounds.captionBody.max),
+  hashtags: z.array(z.string().max(verdictPerUseCaseBounds.hashtags.perItemMaxChars)).max(verdictPerUseCaseBounds.hashtags.max),
+});
+export type VerdictPerUseCaseGenerated = z.infer<typeof verdictPerUseCaseGeneratedSchema>;
 
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
@@ -33,6 +48,10 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<ComparisonContext> = 
     recycleableFromExistingArticle: true,
     requiresLiveData: false,
   },
+
+  bounds: verdictPerUseCaseBounds,
+  generatedSchema: verdictPerUseCaseGeneratedSchema,
+  slotMap: {},
 
   eligibility: (article, _discovery) => {
     if (article.collection !== "comparisons") {

@@ -1,8 +1,9 @@
 import type { MockFixtureMap } from "../../types.ts";
 import type { ComparisonContext } from "../../adapters/comparison.ts";
+import type { ComparisonGrid4Generated } from "../comparisonGrid4.ts";
 
-export const COMPARISON_STUNNING_FIXTURES: MockFixtureMap = {
-  "recraft-vs-ideogram-de": {
+export const COMPARISON_GRID_4_FIXTURES: MockFixtureMap = {
+  characteristic: {
     name: "Recraft vs. Ideogram (DE)",
     description: "2-Tool AI image generator comparison with useCaseVerdicts, German",
     input: {
@@ -36,10 +37,14 @@ export const COMPARISON_STUNNING_FIXTURES: MockFixtureMap = {
         { useCase: "Produktbilder", winner: "recraft", reason: "Sauberere Hintergründe, isolierte Objekte." },
       ],
     } satisfies ComparisonContext,
+    generatedContent: {
+      caption: "Recraft vs. Ideogram: Wir haben beide Tools getestet — hier ist unser ehrliches Fazit für KI-Bild-Generierung.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/recraft-vs-ideogram",
+      hashtags: ["#KITools", "#AITools", "#KIVergleich", "#AIComparison", "#KIFürBusiness", "#AIForBusiness", "#SoftwareTest"],
+    } satisfies ComparisonGrid4Generated,
   },
-  "chatgpt-vs-claude-de": {
-    name: "ChatGPT vs. Claude (DE)",
-    description: "2-Tool LLM comparison without useCaseVerdicts",
+  "edge-min": {
+    name: "ChatGPT vs. Claude (DE, no verdicts)",
+    description: "2-Tool LLM comparison without useCaseVerdicts — exercises fallback strengths path",
     input: {
       tools: [
         {
@@ -64,5 +69,58 @@ export const COMPARISON_STUNNING_FIXTURES: MockFixtureMap = {
       verdict: "Beide sind stark — ChatGPT für Breite, Claude für Tiefe und Präzision.",
       useCaseVerdicts: [],
     } satisfies ComparisonContext,
+    generatedContent: {
+      caption: "ChatGPT vs. Claude: Wir haben beide getestet.\n\n→ toolwiki.ai/chatgpt-vs-claude",
+      hashtags: ["#KITools", "#AITools", "#KIVergleich", "#AIComparison", "#KIFürBusiness", "#AIForBusiness", "#SoftwareTest"],
+    } satisfies ComparisonGrid4Generated,
+  },
+  "edge-max": {
+    name: "Gemini vs. Perplexity (DE, long texts)",
+    description: "2-Tool comparison with maximum-length text strings — proves no overflow/clipping",
+    input: {
+      tools: [
+        {
+          slug: "gemini",
+          name: "Gemini",
+          pricingTier: "freemium",
+          priceFrom: 0,
+          primaryCategory: "KI-Assistent",
+          iconInitials: "GE",
+          iconHue: 210,
+        },
+        {
+          slug: "perplexity",
+          name: "Perplexity",
+          pricingTier: "freemium",
+          priceFrom: 20,
+          primaryCategory: "KI-Assistent",
+          iconInitials: "PP",
+          iconHue: 260,
+        },
+      ],
+      verdict: "Gemini überzeugt durch Google-Integration und Multimodalität, während Perplexity mit Echtzeit-Websuche und präzisen Quellen punktet — je nach Anwendungsfall klar unterschiedliche Stärken.",
+      winner: "gemini",
+      useCaseVerdicts: [
+        {
+          useCase: "Echtzeit-Webrecherche mit Quellenangaben",
+          winner: "perplexity",
+          reason: "Perplexity liefert aktuelle Informationen mit verifizierbaren Links — deutlich besser als Gemini bei zeitkritischen Fragen.",
+        },
+        {
+          useCase: "Multimodale Bildanalyse",
+          winner: "gemini",
+          reason: "Gemini Ultra erkennt Diagramme, Tabellen und handgeschriebene Notizen präzise — Perplexity hat diese Fähigkeit nicht.",
+        },
+        {
+          useCase: "Google Workspace Integration",
+          winner: "gemini",
+          reason: "Nahtlose Einbindung in Gmail, Docs und Drive — kein Setup, sofort produktiv im bestehenden Workflow.",
+        },
+      ],
+    } satisfies ComparisonContext,
+    generatedContent: {
+      caption: "Gemini vs. Perplexity: Wir haben beide KI-Assistenten ausführlich getestet — in Recherche, Multimodalität und Alltagsintegration. Hier ist unser detailliertes, ehrliches Fazit nach Wochen im Echtbetrieb.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/gemini-vs-perplexity",
+      hashtags: ["#KITools", "#AITools", "#KIVergleich", "#AIComparison", "#KIFürBusiness", "#AIForBusiness", "#SoftwareTest"],
+    } satisfies ComparisonGrid4Generated,
   },
 };

@@ -1,5 +1,6 @@
 import type { MockFixtureMap } from "../../types.ts";
 import type { ToolContext } from "../../adapters/tool.ts";
+import type { SingleToolSpotlightGenerated } from "../singleToolSpotlight.ts";
 
 export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
   // Full tool with all fields — proves 5-slide layout with use-case slide
@@ -45,6 +46,10 @@ export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
       iconInitials: "GP",
       iconHue: 160,
     } satisfies ToolContext,
+    generatedContent: {
+      caption: "ChatGPT: Der bekannteste KI-Assistent im ehrlichen Test — Stärken, Schwächen und für wen er sich wirklich lohnt.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/chatgpt",
+      hashtags: ["#KITools", "#AITools", "#ChatGPT", "#KIAssistent", "#KIFürBusiness", "#AIForBusiness", "#SoftwareTest"],
+    } satisfies SingleToolSpotlightGenerated,
   },
 
   // Minimal input — proves 4-slide layout stays clean with little content
@@ -65,6 +70,10 @@ export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
       iconInitials: "ST",
       iconHue: 190,
     } satisfies ToolContext,
+    generatedContent: {
+      caption: "SimpleTool: Kostenlos und ohne Registrierung nutzbar.\n\n→ toolwiki.ai/simple-tool",
+      hashtags: ["#KITools", "#AITools", "#KostenlosKI", "#KIFürBusiness", "#AIForBusiness", "#FreeTools", "#SoftwareTest"],
+    } satisfies SingleToolSpotlightGenerated,
   },
 
   // Maximum content — proves constraints hold, no overflow
@@ -111,5 +120,9 @@ export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
       iconInitials: "MP",
       iconHue: 280,
     } satisfies ToolContext,
+    generatedContent: {
+      caption: "MegaTool Pro: Enterprise-Automatisierung mit KI im ausführlichen Test — 5 Pros, 4 Cons, für wen lohnt sich der Preis wirklich?\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/megatool-pro",
+      hashtags: ["#KITools", "#AITools", "#Enterprise", "#KIFürBusiness", "#AIForBusiness", "#WorkflowAutomation", "#SoftwareTest"],
+    } satisfies SingleToolSpotlightGenerated,
   },
 };

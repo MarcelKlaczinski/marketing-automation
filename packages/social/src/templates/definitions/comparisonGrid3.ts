@@ -1,14 +1,28 @@
-import type { TemplateDefinition } from "../types.ts";
+import { z } from "zod";
+import type { TemplateDefinition, ContentBounds } from "../types.ts";
 import { getComparisonContext, type ComparisonContext } from "../adapters/comparison.ts";
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
-import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonGrid4.fixtures.ts";
+import { COMPARISON_GRID_3_FIXTURES } from "./fixtures/comparisonGrid3.fixtures.ts";
 import {
   generateContentWithGate,
   inferArticleType,
   selectPattern,
 } from "@marketing-auto/core";
+
+export const comparisonGrid3Bounds = {
+  tagline: { min: 10, max: 120 },
+  strengths: { max: 3, perItemMaxChars: 60 },
+  captionBody: { min: 20, max: 1800 },
+  hashtags: { max: 10, perItemMaxChars: 24 },
+} as const satisfies ContentBounds;
+
+export const comparisonGrid3GeneratedSchema = z.object({
+  caption: z.string().min(comparisonGrid3Bounds.captionBody.min).max(comparisonGrid3Bounds.captionBody.max),
+  hashtags: z.array(z.string().max(comparisonGrid3Bounds.hashtags.perItemMaxChars)).max(comparisonGrid3Bounds.hashtags.max),
+});
+export type ComparisonGrid3Generated = z.infer<typeof comparisonGrid3GeneratedSchema>;
 
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
@@ -32,6 +46,10 @@ export const comparisonGrid3Template: TemplateDefinition<ComparisonContext> = {
     recycleableFromExistingArticle: true,
     requiresLiveData: false,
   },
+
+  bounds: comparisonGrid3Bounds,
+  generatedSchema: comparisonGrid3GeneratedSchema,
+  slotMap: {},
 
   eligibility: (article, _discovery) => {
     if (article.collection !== "comparisons") {
@@ -222,7 +240,7 @@ export const comparisonGrid3Template: TemplateDefinition<ComparisonContext> = {
     };
   },
 
-  mockFixtures: COMPARISON_STUNNING_FIXTURES,
+  mockFixtures: COMPARISON_GRID_3_FIXTURES,
 };
 
 function fallbackCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {

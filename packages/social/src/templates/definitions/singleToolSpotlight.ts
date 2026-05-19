@@ -1,4 +1,5 @@
-import type { TemplateDefinition } from "../types.ts";
+import { z } from "zod";
+import type { TemplateDefinition, ContentBounds } from "../types.ts";
 import { getToolContext, type ToolContext } from "../adapters/tool.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
@@ -9,6 +10,21 @@ import {
   inferArticleType,
   selectPattern,
 } from "@marketing-auto/core";
+
+export const singleToolSpotlightBounds = {
+  pros: { max: 5, perItemMaxChars: 80 },
+  cons: { max: 4, perItemMaxChars: 80 },
+  features: { max: 6, perItemMaxChars: 80 },
+  useCases: { max: 4, perItemMaxChars: 80 },
+  captionBody: { min: 20, max: 1800 },
+  hashtags: { max: 10, perItemMaxChars: 24 },
+} as const satisfies ContentBounds;
+
+export const singleToolSpotlightGeneratedSchema = z.object({
+  caption: z.string().min(singleToolSpotlightBounds.captionBody.min).max(singleToolSpotlightBounds.captionBody.max),
+  hashtags: z.array(z.string().max(singleToolSpotlightBounds.hashtags.perItemMaxChars)).max(singleToolSpotlightBounds.hashtags.max),
+});
+export type SingleToolSpotlightGenerated = z.infer<typeof singleToolSpotlightGeneratedSchema>;
 
 // Parsed default ensures brandTokens.social.* are never undefined in single-tool renders
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
@@ -47,6 +63,10 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
     recycleableFromExistingArticle: true,
     requiresLiveData: false,
   },
+
+  bounds: singleToolSpotlightBounds,
+  generatedSchema: singleToolSpotlightGeneratedSchema,
+  slotMap: {},
 
   eligibility: (article, _discovery) => {
     if (article.collection !== "tools") {

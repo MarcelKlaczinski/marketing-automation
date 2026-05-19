@@ -4,17 +4,39 @@ import { comparisonGrid3Template } from "./definitions/comparisonGrid3.ts";
 import { verdictPerUseCaseTemplate } from "./definitions/verdictPerUseCase.ts";
 import { singleToolSpotlightTemplate } from "./definitions/singleToolSpotlight.ts";
 import { proConVerdictTemplate } from "./definitions/proConVerdict.ts";
+import type { TemplateDefinition } from "./types.ts";
+
+const REQUIRED_FIXTURE_KEYS = ["characteristic", "edge-min", "edge-max"] as const;
+
+function assertFixtures(t: TemplateDefinition<unknown>): void {
+  if (!t.mockFixtures) {
+    throw new Error(`[Templates] ${t.key}: mockFixtures missing`);
+  }
+  for (const key of REQUIRED_FIXTURE_KEYS) {
+    if (!(key in t.mockFixtures)) {
+      throw new Error(`[Templates] ${t.key}: mockFixtures missing required key "${key}"`);
+    }
+  }
+}
 
 let bootstrapped = false;
 
 export function bootstrapTemplates(): void {
   if (bootstrapped) return;
 
-  templateRegistry.register(comparisonGrid4Template);
-  templateRegistry.register(comparisonGrid3Template);
-  templateRegistry.register(verdictPerUseCaseTemplate);
-  templateRegistry.register(singleToolSpotlightTemplate);
-  templateRegistry.register(proConVerdictTemplate);
+  // Cast to unknown[] so the generic register<T> resolves cleanly for each element.
+  const templates = [
+    comparisonGrid4Template,
+    comparisonGrid3Template,
+    verdictPerUseCaseTemplate,
+    singleToolSpotlightTemplate,
+    proConVerdictTemplate,
+  ] as unknown as TemplateDefinition<unknown>[];
+
+  for (const t of templates) {
+    assertFixtures(t);
+    templateRegistry.register(t);
+  }
 
   // Future templates registered here:
   // templateRegistry.register(newsSlideTemplate);             // Spec 54g

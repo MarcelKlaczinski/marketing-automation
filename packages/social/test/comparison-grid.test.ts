@@ -138,11 +138,11 @@ describe("listCarouselInputSchema — stunning variant", () => {
     expect(result.success).toBe(true);
   });
 
-  it("defaults variant to 'editorial' when omitted", () => {
+  it("defaults variant to 'stunning' when omitted", () => {
     const { variant: _v, ...withoutVariant } = comparisonInput;
     const result = listCarouselInputSchema.safeParse(withoutVariant);
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.variant).toBe("editorial");
+    if (result.success) expect(result.data.variant).toBe("stunning");
   });
 
   it("rejects an invalid hook pattern", () => {

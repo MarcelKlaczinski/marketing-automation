@@ -53,3 +53,5 @@ apps/api/uploads/
 /renders/mock-characteristic/single-tool-spotlight/de-light/slide-05.png
 /renders/mock-edge-max/single-tool-spotlight/de-dark/slide-05.png
 /renders/mock-edge-max/single-tool-spotlight/de-light/slide-05.png
+/social/
+/packages/social/test/__baselines__/

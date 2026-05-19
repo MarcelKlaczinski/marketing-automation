@@ -13,7 +13,9 @@
   "scripts": {
     "studio": "remotion studio src/index.tsx",
     "render": "remotion render src/index.tsx ListCarousel",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:visual": "bun scripts/visual-render-all.ts",
+    "test:visual:update": "bun scripts/visual-render-all.ts --update"
   },
   "dependencies": {
     "@lobehub/icons-static-png": "^1.90.0",
@@ -23,12 +25,15 @@
     "@remotion/renderer": "^4.0.290",
     "culori": "^4.0.2",
     "drizzle-orm": "^0.45.2",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "remotion": "^4.0.290",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/pngjs": "^6.0.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "typescript": "^5.4.5"
