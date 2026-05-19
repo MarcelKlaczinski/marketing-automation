@@ -1,0 +1,1159 @@
+{
+  "meta": {
+    "auditDate": "2026-05-19",
+    "projectId": "3fad7929-b06d-47ce-b6a1-8ac134362c42",
+    "projectName": "toolwiki.ai",
+    "articlesSampled": 20,
+    "socialPostsSampled": 20,
+    "durationMs": 53223
+  },
+  "summary": {
+    "articles": {
+      "avgScore": 71,
+      "passRate": 0.6,
+      "passCount": 12,
+      "totalCount": 20,
+      "criticalFailures": 21,
+      "warnings": 54,
+      "topIssues": [
+        "word_count (20x)",
+        "hero_image (20x)",
+        "self_review (20x)",
+        "intent_type (9x)",
+        "category (9x)"
+      ]
+    },
+    "socialPosts": {
+      "avgScore": 70,
+      "passRate": 0.25,
+      "passCount": 5,
+      "totalCount": 20,
+      "criticalFailures": 20,
+      "warnings": 35,
+      "topIssues": [
+        "slide_urls (20x)",
+        "cost_tracking (20x)",
+        "template_key (15x)"
+      ]
+    }
+  },
+  "articles": [
+    {
+      "id": "25086230-9f44-4641-b638-010c688a1d66",
+      "title": "E-Commerce & Handel",
+      "locale": "de",
+      "status": "published",
+      "score": 70,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "de7f86fb-2e44-4cc7-91e3-b3a2cd826cec",
+      "title": "Everyday & Productivity",
+      "locale": "en",
+      "status": "published",
+      "score": 70,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "80670746-7c53-4151-8347-76133dd00741",
+      "title": "Midjourney",
+      "locale": "en",
+      "status": "published",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Tone leans promotional with 'impressive result' and 'premium quality' claims rather than neutral evaluation; GDPR section feels advisory rather than descriptive."
+        }
+      ]
+    },
+    {
+      "id": "343f8dff-87b4-4fd1-9115-0bfcaf817a1a",
+      "title": "Udio",
+      "locale": "de",
+      "status": "published",
+      "score": 76,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        }
+      ]
+    },
+    {
+      "id": "8fe877bc-eb0c-448c-bb83-05b35139c0df",
+      "title": "Runway vs. Kling 2026: Which video AI for which job?",
+      "locale": "en",
+      "status": "published",
+      "score": 67,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "ab8519a2-1422-4c4f-a81a-ff7fe4a99dc9",
+      "title": "Reverso",
+      "locale": "de",
+      "status": "published",
+      "score": 76,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        }
+      ]
+    },
+    {
+      "id": "66eb6700-2b64-4b78-8699-869d8126ce10",
+      "title": "Hedra",
+      "locale": "en",
+      "status": "published",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Tone leans toward promotional language ('unbeatable', 'specialist') rather than neutral analysis; some vague claims lack concrete evidence."
+        }
+      ]
+    },
+    {
+      "id": "687ca7c5-ecfa-4e51-a4cf-028384bec045",
+      "title": "KI-Tools für Business & Produktivität 2026: Vergleich & Auswahl",
+      "locale": "de",
+      "status": "published",
+      "score": 67,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "2f92a41a-f2f1-446b-af1b-193c946a17c7",
+      "title": "KI-Audio- & Musik-Tools 2026: TTS, Spracherkennung & Voice-Cloning",
+      "locale": "de",
+      "status": "published",
+      "score": 65,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Article cuts off mid-sentence and lacks detailed use-case comparisons or real-world implementation examples to substantiate tool recommendations."
+        }
+      ]
+    },
+    {
+      "id": "6daff090-6fe3-42c9-970e-94db8146b954",
+      "title": "Gemini Live",
+      "locale": "en",
+      "status": "published",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Tone leans promotional despite 'auditor' framing; claims like 'most exciting voice AI in 2026' lack substantiation."
+        }
+      ]
+    },
+    {
+      "id": "1712d2e0-186b-433e-8589-3471bdb83238",
+      "title": "Cursor vs. Windsurf vs. Codeium 2026: Which AI coder for which workflow?",
+      "locale": "en",
+      "status": "published",
+      "score": 67,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "91ae591f-e773-46e6-bd87-1db13b5653ff",
+      "title": "Stable Diffusion Local Setup 2026: The Beginner's Guide",
+      "locale": "en",
+      "status": "published",
+      "score": 64,
+      "issues": [
+        {
+          "criterion": "meta_description",
+          "severity": "critical",
+          "finding": "Missing meta_description"
+        },
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        }
+      ]
+    },
+    {
+      "id": "c4c58666-8079-413c-afc3-74812f05419c",
+      "title": "Writesonic",
+      "locale": "en",
+      "status": "published",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Claims about output quality variance and UI clutter lack specific examples or metrics to substantiate assertions."
+        }
+      ]
+    },
+    {
+      "id": "660127b5-255a-4923-8a00-e7a094bf8d44",
+      "title": "Phind",
+      "locale": "en",
+      "status": "published",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Claims about Phind outperforming ChatGPT/Perplexity lack supporting evidence or benchmarks"
+        }
+      ]
+    },
+    {
+      "id": "ef936fe8-3832-4026-9c21-4aa1d8fe300e",
+      "title": "AI Tools for Marketing & SEO 2026: Comparison, Use Cases & Selection",
+      "locale": "en",
+      "status": "published",
+      "score": 65,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Article cuts off mid-sentence at end; contains some marketing-leaning claims (e.g., '60-80% of speed') lacking supporting data."
+        }
+      ]
+    },
+    {
+      "id": "14fb2bb6-6328-49a0-b599-c89e54de3d25",
+      "title": "Gamma",
+      "locale": "en",
+      "status": "published",
+      "score": 73,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "faq",
+          "severity": "info",
+          "finding": "FAQ only has 2 entries (ideal: 4+)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Claims like '60-80% time reduction' lack supporting methodology or source citations, reducing credibility."
+        }
+      ]
+    },
+    {
+      "id": "eb54125f-a47a-49d1-b946-ad06085601e1",
+      "title": "Gamma vs. Tome 2026: Welches KI-Präsentationstool ist 2026 noch Pflicht?",
+      "locale": "de",
+      "status": "published",
+      "score": 67,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "0e8f7369-e91a-4b44-b60c-1c7767563feb",
+      "title": "Udio",
+      "locale": "en",
+      "status": "published",
+      "score": 76,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        }
+      ]
+    },
+    {
+      "id": "3e6d277f-6e27-4122-8ee3-bccabd388b39",
+      "title": "Midjourney vs. DALL·E 3 2026: Welches Bild-KI-Tool für welchen Job?",
+      "locale": "de",
+      "status": "published",
+      "score": 67,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "intent_type",
+          "severity": "warning",
+          "finding": "intent_type not set — template eligibility checks may fail"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "tags",
+          "severity": "warning",
+          "finding": "No tags set"
+        },
+        {
+          "criterion": "category",
+          "severity": "warning",
+          "finding": "No category set"
+        }
+      ]
+    },
+    {
+      "id": "c9d20321-0de0-45f6-9b81-77e02598a9cf",
+      "title": "Pika",
+      "locale": "de",
+      "status": "published",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "word_count",
+          "severity": "warning",
+          "finding": "word_count not tracked (pipeline didn't record it)"
+        },
+        {
+          "criterion": "hero_image",
+          "severity": "critical",
+          "finding": "No hero image (hero_image_public_url is null)"
+        },
+        {
+          "criterion": "self_review",
+          "severity": "info",
+          "finding": "No self-review score (self-review step may not have run)"
+        },
+        {
+          "criterion": "content_quality",
+          "severity": "warning",
+          "finding": "LLM eval (72/100): Some claims lack supporting evidence (e.g., 'fastest tool in market'), and compliance concerns are mentioned but not adequately explained."
+        }
+      ]
+    }
+  ],
+  "socialPosts": [
+    {
+      "id": "3c1cf040-8e8d-44c0-a36b-51b1d7285d3a",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "2678c443-45e6-4bdd-bde6-3529297c7b0e",
+      "article_title": "ChatGPT Preise 2026: Kosten, Pläne und Pricing-Vergleich",
+      "template_key": "comparison-grid-4",
+      "locale": "en-US",
+      "score": 71,
+      "issues": [
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "9cf72223-3d2b-4fdd-93cf-d6d6ed99e20d",
+      "article_title": "Code-Assistenten 2026: Die 4 Typen und welcher zu dir passt",
+      "template_key": "comparison-grid-4",
+      "locale": "en-US",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "820b7f30-940f-40a6-9826-99fa581d6b0b",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "0757c765-6a9b-49ac-a9ba-6e05b1b7a805",
+      "article_title": "Cursor vs. Windsurf vs. Codeium 2026: Which AI coder for which workflow?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "12025489-64df-409d-b50d-1b6922dfc97a",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "8795f94b-c3c7-49b5-85ae-e2ebeecf2abe",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "7d5f0e63-354e-4b8d-a2ba-01e37ec6e9f6",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "c8c070b6-84cc-4a7e-8e6c-f199d711bb75",
+      "article_title": "ChatGPT Preise 2026: Kosten, Pläne und Pricing-Vergleich",
+      "template_key": "comparison-grid-4",
+      "locale": "en-US",
+      "score": 74,
+      "issues": [
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "44b55520-62fe-44ff-bcfb-0fb0c9499241",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "78ae9fe4-50c4-4077-8fd7-2f1a0bfdd955",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "b64d114c-a7a4-44fd-b370-8abbd9ff383a",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "541316ef-4743-4214-ab6e-77f0539dfde8",
+      "article_title": "Code-Assistenten 2026: Die 4 Typen und welcher zu dir passt",
+      "template_key": "comparison-grid-4",
+      "locale": "en-US",
+      "score": 71,
+      "issues": [
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "3798f52a-15c4-46bf-ba60-fd71a9f34e60",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "5ff61614-7b6b-4b5a-8223-d0c36c2dbf42",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "a295ca41-6368-4778-abd4-5b382ae8acb0",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "cfc1d32b-439a-41fc-9d7e-f151dc2d563a",
+      "article_title": "ChatGPT Preise 2026: Kosten, Pläne und Pricing-Vergleich",
+      "template_key": "comparison-grid-4",
+      "locale": "de-DE",
+      "score": 76,
+      "issues": [
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "41f1fd9c-d70e-4dce-8c99-44beb0d7b2d5",
+      "article_title": "Recraft vs. Ideogram 2026: Welche Bild-KI für Logos und Typografie?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "6e54cec6-a809-4b87-bf05-e93f0fad6b8f",
+      "article_title": "Cursor vs. Windsurf vs. Codeium 2026: Which AI coder for which workflow?",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    },
+    {
+      "id": "92607dc1-2e40-4b1b-9deb-b44399b74a8b",
+      "article_title": "Alltag & Produktivität",
+      "template_key": null,
+      "locale": "de-DE",
+      "score": 69,
+      "issues": [
+        {
+          "criterion": "template_key",
+          "severity": "warning",
+          "finding": "template_key is null — post predates Spec 54k template metadata"
+        },
+        {
+          "criterion": "slide_urls",
+          "severity": "critical",
+          "finding": "Slide imageUrls point to localhost — dev renders, not production R2 URLs"
+        },
+        {
+          "criterion": "cost_tracking",
+          "severity": "warning",
+          "finding": "cost_eur = 0.00 — caption generation cost not tracked in social render worker"
+        }
+      ]
+    }
+  ]
+}
