@@ -1,221 +1,109 @@
-import { z } from "zod";
-import type { TemplateDefinition, ContentBounds } from "../types.ts";
-import { getComparisonContext, type ComparisonContext } from "../adapters/comparison.ts";
+import type { TemplateDefinition } from "../types.ts";
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
+import { verdictPerUseCaseOverridesSchema } from "../overrides/verdict-per-use-case.overrides.ts";
 import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/verdictPerUseCase.fixtures.ts";
-import type { UseCaseVerdictItem } from "../../compositions/verdict-cards/types.ts";
+import {
+  verdictPerUseCaseBounds,
+  verdictPerUseCaseGeneratedSchema,
+  type VerdictPerUseCaseInput,
+  type VerdictPerUseCaseGenerated,
+} from "../../compositions/verdict-per-use-case/types.ts";
 // @marketing-auto/core imported lazily inside generateContent() to avoid
 // triggering getEnv() at module evaluation time (breaks unit tests without env vars).
 
-// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — VerdictProps
-export const verdictPerUseCaseBounds = {
-  // Slide header (REMOTION.md VerdictProps)
-  eyebrow:   { min: 10, max: 28 },
-  headerNum: { min: 18, max: 56 },
-  heroTitle: { min: 10, max: 32 },
-  heroSub:   { min: 50, max: 180 },
-  // Per-row slots — 5 to 7 entries (7 is the layout sweet spot per REMOTION.md)
-  rows: {
-    countMin: 5,
-    countMax: 7, // HARD upper bound — more than 7 rows breaks layout
-    label:      { min: 8, max: 28 },
-    winnerName: { min: 3, max: 16 }, // tool name in pill; longer wraps
-  },
-  footer: {
-    ctaLine: { min: 8,  max: 24 },
-    url:     { min: 12, max: 32 },
-  },
-  // Internal render fields retained for render-code compatibility
-  useCase:  { min: 5,  max: 50 },
-  reason:   { min: 10, max: 160 },
-  verdicts: { max: 7, perItemMaxChars: 160 },
-  // Caption/hashtag fields (not rendered on slide)
-  captionBody: { min: 20, max: 1800 },
-  hashtags: { max: 10, perItemMaxChars: 24 },
-} as const satisfies ContentBounds;
+// ─── VerdictContext — buildInput output type ───────────────────────────────────
 
-export const verdictPerUseCaseGeneratedSchema = z.object({
-  caption: z.string().min(verdictPerUseCaseBounds.captionBody.min).max(verdictPerUseCaseBounds.captionBody.max),
-  hashtags: z.array(z.string().max(verdictPerUseCaseBounds.hashtags.perItemMaxChars)).max(verdictPerUseCaseBounds.hashtags.max),
-});
-export type VerdictPerUseCaseGenerated = z.infer<typeof verdictPerUseCaseGeneratedSchema>;
+export interface VerdictUseCaseItem {
+  label: string;       // use case label (from frontmatter useCaseVerdicts[].useCase)
+  winnerSlug: string;  // tool slug for icon resolution
+  winnerName: string;  // display name for the pill
+  iconSvg?: string;
+  iconInitials?: string;
+  iconHue?: number;
+}
+
+export interface VerdictContext {
+  useCases: VerdictUseCaseItem[];  // 5–7 items (capped in buildInput)
+  toolNames: string[];             // for generateContent toolNames
+}
+
+// ─── Re-export bounds + generatedSchema for consumers ────────────────────────
+
+export { verdictPerUseCaseBounds, verdictPerUseCaseGeneratedSchema };
+export type { VerdictPerUseCaseGenerated };
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
 
-export const verdictPerUseCaseTemplate: TemplateDefinition<ComparisonContext> = {
-  key: "verdict-per-use-case",
-  displayName: "Use-Case-Verdict pro Tool",
-  description:
-    "Pro Use-Case eine Slide mit Gewinner-Tool und Begründung. Schließt mit Recap-Tally.",
-  defaultSlideCount: 7,
-  estimatedCostUsd: 0.008,
+function buildGenerated(
+  ctx: VerdictContext,
+  articleTitle: string | null,
+  articleSlug: string,
+  locale: "de" | "en",
+  overridesValues: ReturnType<typeof verdictPerUseCaseOverridesSchema.parse>,
+): VerdictPerUseCaseGenerated {
+  const month = String(new Date().getMonth() + 1).padStart(2, "0");
+  const year = new Date().getFullYear();
 
-  outputFormat: "carousel",
-  compatibleChannels: ["instagram", "tiktok"],
-  generationClass: "frontmatter-derived",
-  plannerMeta: {
-    contentType: "use-case",
-    estimatedEngagementTier: "medium",
-    recycleableFromExistingArticle: true,
-    requiresLiveData: false,
-  },
+  const titleParts = (articleTitle ?? articleSlug).split(/[–—:]/);
+  const headline = (titleParts[0]?.trim() ?? articleSlug).slice(0, 40);
+  const headlineEm = (
+    titleParts[1]?.trim() ??
+    (locale === "de" ? "im Vergleich" : "compared")
+  ).slice(0, 20);
 
-  bounds: verdictPerUseCaseBounds,
-  generatedSchema: verdictPerUseCaseGeneratedSchema,
-  slotMap: {},
+  const eyebrow = locale === "de"
+    ? overridesValues.copy.eyebrow.de
+    : overridesValues.copy.eyebrow.en;
+  const ctaLine1 = locale === "de"
+    ? overridesValues.copy.ctaPrefix.de
+    : overridesValues.copy.ctaPrefix.en;
 
-  eligibility: (article, _discovery) => {
-    if (article.collection !== "comparisons") {
-      return { eligible: false, reason: "Nur für comparisons-Collection" };
-    }
+  const subline = locale === "de"
+    ? `${ctx.useCases.length} Use Cases. ${ctx.useCases.length} klare Empfehlungen — keine "kommt drauf an"-Antworten.`
+    : `${ctx.useCases.length} use cases. ${ctx.useCases.length} clear recommendations — no "it depends" answers.`;
 
-    const extras = (article.frontmatterExtras ?? {}) as { useCaseVerdicts?: UseCaseVerdictItem[] };
-    const verdicts = extras.useCaseVerdicts ?? [];
-
-    if (verdicts.length < 3) {
-      return {
-        eligible: false,
-        reason: "Benötigt mindestens 3 Use-Case-Verdicts",
-        requirements: ["frontmatter.useCaseVerdicts.length >= 3"],
+  return {
+    headline,
+    headlineEm,
+    subline,
+    eyebrow,
+    slideNum: "01 / 01",
+    ctaLine1,
+    ctaLine2: `toolwiki.ai/${articleSlug}`,
+    dateLabel: locale === "de"
+      ? `${ctx.useCases.length} Use Cases · Stand ${month}/${year}`
+      : `${ctx.useCases.length} use cases · as of ${month}/${year}`,
+    useCases: ctx.useCases.map((uc) => {
+      const base: VerdictPerUseCaseGenerated["useCases"][number] = {
+        label: uc.label.slice(0, 32),
+        winnerName: uc.winnerName.slice(0, 22),
       };
-    }
-
-
-    const incomplete = verdicts.filter((v) => !v.winner || !v.reason);
-    if (incomplete.length > 0) {
-      return {
-        eligible: false,
-        reason: `${incomplete.length} Verdicts ohne winner/reason`,
-        requirements: ["frontmatter.useCaseVerdicts[*].winner", "frontmatter.useCaseVerdicts[*].reason"],
-      };
-    }
-
-    return { eligible: true };
-  },
-
-  generateContent: async (article, input, locale, llmCaller) => {
-    const { generateContentWithGate, inferArticleType, selectPattern } = await import("@marketing-auto/core");
-    const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
-    const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
-    const pattern = selectPattern(article.id, articleType);
-    return generateContentWithGate(
-      { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
-      pattern,
-      {
-        articleTitle: article.title ?? article.slug,
-        toolNames,
-        primaryKeyword: toolNames.join(" vs. "),
-        locale,
-        articleSlug: article.slug,
-        contentType: "use-case",
-      },
-      llmCaller,
-    );
-  },
-
-  buildInput: async (article, _discovery) => {
-    const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[]; useCaseVerdicts?: UseCaseVerdictItem[] };
-    const locale = (article.locale ?? "de") as "de" | "en";
-    const toolLookup = await buildToolLookup(extras.toolSlugs ?? [], locale, article.projectId);
-    const ctx = getComparisonContext(article, toolLookup);
-    // Cap at 7 — 1 cover + 7 verdicts + 2 (tally + recap) = 10 ≤ Instagram carousel limit
-    return { ...ctx, useCaseVerdicts: ctx.useCaseVerdicts.slice(0, 7) };
-  },
-
-  render: async (context) => {
-    const { article, input, locale, theme } = context;
-    const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
-
-    const resolvedTools = input.tools.map((t) => ({
-      slug: t.slug,
-      name: t.name,
-      ...(t.iconSvg !== undefined && { iconSvg: t.iconSvg }),
-      ...(t.iconInitials !== undefined && { iconInitials: t.iconInitials }),
-      ...(t.iconHue !== undefined && { iconHue: t.iconHue }),
-    }));
-
-    const verdicts = input.useCaseVerdicts.map((v) => ({
-      useCase: v.useCase,
-      winner: v.winner,
-      reason: v.reason,
-      ...(v.score !== undefined && { score: v.score }),
-    }));
-
-    const carouselInput = {
-      theme,
-      locale,
-      slideIndex: 0,
-      websiteUrl: brandTokens.social.websiteUrl ?? "toolwiki.ai",
-      instagramHandle: brandTokens.social.instagramHandle ?? "@toolwiki.ai",
-      articleSlug: article.slug,
-      tools: resolvedTools,
-      verdicts,
-    };
-
-    // Dynamic import — avoids bundling Remotion into non-render contexts
-    const socialModule = await import("../../../render-server.ts") as unknown as {
-      renderVerdictPerUseCase: (
-        input: Record<string, unknown>,
-      ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
-    };
-
-    const { slides: buffers } = await socialModule.renderVerdictPerUseCase(
-      carouselInput as unknown as Record<string, unknown>,
-    );
-
-    const slideOutputs = await writeSlides(
-      buffers,
-      article.id,
-      "verdict-per-use-case",
-      locale,
-      theme,
-      { width: SLIDE_W, height: SLIDE_H },
-    );
-
-    return {
-      slides: slideOutputs,
-      caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
-      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
-      metadata: { estimatedCostUsd: 0.008, templateKey: "verdict-per-use-case" },
-    };
-  },
-
-  mockFixtures: USE_CASE_VERDICT_FIXTURES,
-};
-
-function computeTally(verdicts: UseCaseVerdictItem[]): Array<{ slug: string; count: number }> {
-  const counts = new Map<string, number>();
-  for (const v of verdicts) {
-    counts.set(v.winner, (counts.get(v.winner) ?? 0) + 1);
-  }
-  return Array.from(counts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([slug, count]) => ({ slug, count }));
+      if (uc.iconSvg !== undefined) base.iconSvg = uc.iconSvg;
+      if (uc.iconInitials !== undefined) base.iconInitials = uc.iconInitials;
+      if (uc.iconHue !== undefined) base.iconHue = uc.iconHue;
+      return base;
+    }),
+  };
 }
 
-function fallbackCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
-  const toolNames = input.tools.map((t) => t.name).join(" vs. ");
-  const tally = computeTally(input.useCaseVerdicts);
-  const topSlug = tally[0]?.slug ?? "";
-  const winner = input.tools.find((t) => t.slug === topSlug)?.name ?? topSlug;
-  const count = tally[0]?.count ?? 0;
-
+function fallbackCaption(ctx: VerdictContext, locale: "de" | "en", slug: string): string {
+  const toolNames = ctx.toolNames.join(" vs. ");
   if (locale === "de") {
     return (
-      `${toolNames}: ${input.useCaseVerdicts.length} Use-Cases, ${input.useCaseVerdicts.length} ehrliche Empfehlungen.\n\n` +
-      `${winner} gewinnt ${count} von ${input.useCaseVerdicts.length} Use-Cases.\n\n` +
+      `${toolNames}: ${ctx.useCases.length} Use-Cases, ${ctx.useCases.length} ehrliche Empfehlungen.\n\n` +
       `Speicher diesen Post für deine nächste Tool-Entscheidung.\n\n` +
       `→ toolwiki.ai/${slug}`
     );
   }
   return (
-    `${toolNames}: ${input.useCaseVerdicts.length} use cases, ${input.useCaseVerdicts.length} honest recommendations.\n\n` +
-    `${winner} wins ${count} of ${input.useCaseVerdicts.length} use cases.\n\n` +
+    `${toolNames}: ${ctx.useCases.length} use cases, ${ctx.useCases.length} honest recommendations.\n\n` +
     `Save this post for your next tool decision.\n\n` +
     `→ toolwiki.ai/${slug}`
   );
@@ -243,3 +131,187 @@ function fallbackHashtags(locale: "de" | "en"): string[] {
     "#DigitalTools",
   ];
 }
+
+// ─── Template definition ──────────────────────────────────────────────────────
+
+export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
+  key: "verdict-per-use-case",
+  displayName: "Use-Case-Verdikt",
+  description:
+    "Einzelne Still-PNG: 5–7 Use-Case-Zeilen mit Index, Label und Winner-Pill (Tool-Icon + Name). Kein Score, keine Cards — saubere Rows getrennt durch border-top.",
+  defaultSlideCount: 1,
+  estimatedCostUsd: 0.005,
+
+  outputFormat: "carousel",
+  compatibleChannels: ["instagram"],
+  generationClass: "frontmatter-derived",
+  plannerMeta: {
+    contentType: "use-case",
+    estimatedEngagementTier: "medium",
+    recycleableFromExistingArticle: true,
+    requiresLiveData: false,
+  },
+
+  bounds: verdictPerUseCaseBounds,
+  generatedSchema: verdictPerUseCaseGeneratedSchema,
+  slotMap: {},
+
+  eligibility: (article, _discovery) => {
+    if (article.collection !== "comparisons") {
+      return { eligible: false, reason: "Nur für comparisons-Collection" };
+    }
+
+    const extras = (article.frontmatterExtras ?? {}) as {
+      tools?: Array<{ slug?: string }>;
+      toolSlugs?: string[];
+      useCaseVerdicts?: Array<{ useCase?: string; winner?: string }>;
+    };
+
+    const toolCount = extras.tools?.length ?? extras.toolSlugs?.length ?? 0;
+    if (toolCount < 3) {
+      return {
+        eligible: false,
+        reason: "Benötigt mindestens 3 Tools für sinnvolle Use-Case-Verdicts",
+        requirements: ["frontmatterExtras.tools.length >= 3"],
+      };
+    }
+
+    const verdicts = extras.useCaseVerdicts ?? [];
+    if (verdicts.length < 5) {
+      return {
+        eligible: false,
+        reason: "Benötigt mindestens 5 Use-Case-Verdicts",
+        requirements: ["frontmatterExtras.useCaseVerdicts.length >= 5"],
+      };
+    }
+
+    return { eligible: true };
+  },
+
+  generateContent: async (article, input, locale, llmCaller) => {
+    const { generateContentWithGate, inferArticleType, selectPattern } = await import("@marketing-auto/core");
+    const ctx = input as VerdictContext;
+    const toolNames = ctx.toolNames;
+    const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
+    const pattern = selectPattern(article.id, articleType);
+    return generateContentWithGate(
+      { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
+      pattern,
+      {
+        articleTitle: article.title ?? article.slug,
+        toolNames,
+        primaryKeyword: toolNames.join(" vs. "),
+        locale,
+        articleSlug: article.slug,
+        contentType: "comparison",
+      },
+      llmCaller,
+    );
+  },
+
+  buildInput: async (article, _discovery) => {
+    type RawUseCaseVerdict = {
+      useCase?: string;
+      winner?: string;        // tool slug
+      reason?: string;
+    };
+    type RawTool = {
+      slug?: string;
+      name?: string;
+    };
+
+    const extras = (article.frontmatterExtras ?? {}) as {
+      tools?: RawTool[];
+      toolSlugs?: string[];
+      useCaseVerdicts?: RawUseCaseVerdict[];
+    };
+
+    const locale = (article.locale ?? "de") as "de" | "en";
+    const rawVerdicts = (extras.useCaseVerdicts ?? []).slice(0, 7);
+
+    // Collect all relevant slugs (verdict winners + article tools) for icon lookup
+    const winnerSlugs = rawVerdicts
+      .map((v) => v.winner)
+      .filter((s): s is string => typeof s === "string");
+    const toolSlugs = (extras.tools ?? [])
+      .map((t) => t.slug)
+      .filter((s): s is string => typeof s === "string");
+    const allSlugs = Array.from(new Set([...winnerSlugs, ...toolSlugs]));
+
+    const toolLookup = await buildToolLookup(allSlugs, locale, article.projectId);
+
+    // Build tool names list for generateContent
+    const toolNames = (extras.tools ?? [])
+      .slice(0, 10)
+      .map((t) => {
+        const slug = t.slug ?? "";
+        return t.name ?? toolLookup.get(slug)?.name ?? slug;
+      })
+      .filter(Boolean);
+
+    const useCases: VerdictUseCaseItem[] = rawVerdicts
+      .filter((v) => v.useCase && v.winner)
+      .map((v): VerdictUseCaseItem => {
+        const slug = v.winner!;
+        const resolved = toolLookup.get(slug);
+        const base: VerdictUseCaseItem = {
+          label: (v.useCase ?? slug).slice(0, 32),
+          winnerSlug: slug,
+          winnerName: (resolved?.name ?? slug).slice(0, 22),
+        };
+        if (resolved?.iconSvg !== undefined) base.iconSvg = resolved.iconSvg;
+        if (resolved?.iconInitials !== undefined) base.iconInitials = resolved.iconInitials;
+        if (resolved?.iconHue !== undefined) base.iconHue = resolved.iconHue;
+        return base;
+      });
+
+    return { useCases, toolNames };
+  },
+
+  render: async (context) => {
+    const { article, input, locale, theme, overrides } = context;
+    const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
+
+    const overridesValues = verdictPerUseCaseOverridesSchema.parse(overrides ?? {});
+
+    const generated = buildGenerated(
+      input,
+      article.title,
+      article.slug,
+      locale,
+      overridesValues,
+    );
+
+    const compositionInput: VerdictPerUseCaseInput = {
+      slideIndex: 0,
+      locale,
+      theme,
+      generated,
+      brandTokens,
+      ...(overrides !== undefined && { overrides }),
+    };
+
+    const socialModule = await import("../../../render-server.ts") as unknown as {
+      renderVerdictPerUseCase: (input: VerdictPerUseCaseInput) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    };
+    const { slides: buffers } = await socialModule.renderVerdictPerUseCase(compositionInput);
+
+    const slideOutputs = await writeSlides(
+      buffers,
+      article.id,
+      "verdict-per-use-case",
+      locale,
+      theme,
+      { width: SLIDE_W, height: SLIDE_H },
+    );
+
+    return {
+      slides: slideOutputs,
+      caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
+      hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
+      metadata: { estimatedCostUsd: 0.005, templateKey: "verdict-per-use-case" },
+    };
+  },
+
+  mockFixtures: USE_CASE_VERDICT_FIXTURES,
+};
