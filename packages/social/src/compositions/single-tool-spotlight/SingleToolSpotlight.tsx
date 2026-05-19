@@ -1,10 +1,9 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
 import type { SingleToolSpotlightInput } from "./types.ts";
+import "./loadFonts.ts"; // Side-effect: registers Inter Variable with Remotion
 
 // Sessions 4-5 (Spec 60.1): Replace with CoverSlide, BodySlide, EndSlide implementations.
-// Session 2: Inter Variable font will be loaded here via loadFonts.ts.
-// This stub compiles cleanly with the new schema and renders a placeholder.
 
 export function SingleToolSpotlight(props: SingleToolSpotlightInput) {
   const slides = computeSlideOrder(props);
