@@ -5,16 +5,20 @@ type Props = {
   consColor: string;
   width: number;
   height: number;
-  tintAlpha?: number; // percentage 0-100, default 12
+  tintAlpha?: number;
+  strokeColor?: string;
 };
 
-export function DiagonalSplit({ prosColor, consColor, width, height, tintAlpha = 12 }: Props) {
-  const splitTopX = width * 0.56;
-  const splitBottomX = width * 0.44;
+// 58% at top → 42% at bottom gives a clean lean with enough safe zone in each half.
+const SPLIT_RATIO_TOP = 0.58;
+const SPLIT_RATIO_BOTTOM = 0.42;
+
+export function DiagonalSplit({ prosColor, consColor, width, height, tintAlpha = 12, strokeColor = "oklch(60% 0.02 250)" }: Props) {
+  const splitTopX = width * SPLIT_RATIO_TOP;
+  const splitBottomX = width * SPLIT_RATIO_BOTTOM;
 
   return (
     <>
-      {/* Left half (pros) - green tint */}
       <div
         style={{
           position: "absolute",
@@ -23,7 +27,6 @@ export function DiagonalSplit({ prosColor, consColor, width, height, tintAlpha =
           clipPath: `polygon(0 0, ${splitTopX}px 0, ${splitBottomX}px ${height}px, 0 ${height}px)`,
         }}
       />
-      {/* Right half (cons) - red tint */}
       <div
         style={{
           position: "absolute",
@@ -32,7 +35,6 @@ export function DiagonalSplit({ prosColor, consColor, width, height, tintAlpha =
           clipPath: `polygon(${splitTopX}px 0, ${width}px 0, ${width}px ${height}px, ${splitBottomX}px ${height}px)`,
         }}
       />
-      {/* Diagonal divider line */}
       <svg
         style={{ position: "absolute", inset: 0, overflow: "visible" }}
         width={width}
@@ -43,9 +45,9 @@ export function DiagonalSplit({ prosColor, consColor, width, height, tintAlpha =
           y1={0}
           x2={splitBottomX}
           y2={height}
-          stroke="oklch(80% 0.02 250)"
+          stroke={strokeColor}
           strokeWidth={1.5}
-          opacity={0.25}
+          opacity={0.2}
         />
       </svg>
     </>

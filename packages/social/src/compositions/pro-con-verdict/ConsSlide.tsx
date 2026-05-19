@@ -5,6 +5,7 @@ import { getThemeTokens } from "../../lib/theme.ts";
 import { CAROUSEL_SAFE_ZONES as SZ } from "../list-carousel/safeZones.ts";
 import { ProConIcon } from "./shared/ProConIcon.tsx";
 import { resolveConsColor } from "./colors.ts";
+import { proConVerdictOverridesSchema } from "../../templates/overrides/proConVerdict.overrides.ts";
 import type { ProConVerdictInput } from "./types.ts";
 
 const FONT = "Space Grotesk, sans-serif";
@@ -16,9 +17,11 @@ export function ConsSlide({ input, slideNumber, totalSlides }: Props) {
   const theme = getThemeTokens(brandTokens, themeMode);
   const consColor = resolveConsColor(brandTokens);
   const isDE = locale === "de";
+  const ov = proConVerdictOverridesSchema.parse(input.overrides ?? {});
 
-  const eyebrowText = isDE ? "NACHTEILE" : "CONS";
-  const headerText = isDE ? "Das spricht dagegen" : "What speaks against it";
+  const eyebrowText = isDE ? ov.copy.consHeader.de : ov.copy.consHeader.en;
+  const subhead = isDE ? "Das spricht dagegen" : "What speaks against it";
+  const countLabel = `${cons.length} ${isDE ? "Nachteile" : "Cons"}`;
 
   return (
     <div
@@ -35,66 +38,72 @@ export function ConsSlide({ input, slideNumber, totalSlides }: Props) {
         boxSizing: "border-box",
       }}
     >
-      {/* Subtle cons color tint on background */}
+      {/* Cons tint background + glow */}
+      <div style={{ position: "absolute", inset: 0, background: `color-mix(in oklch, ${consColor} 5%, transparent)` }} />
       <div
         style={{
           position: "absolute",
           inset: 0,
-          background: `color-mix(in oklch, ${consColor} 6%, transparent)`,
-        }}
-      />
-      {/* Accent glow bottom-right */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: `radial-gradient(ellipse 70% 50% at 110% 110%, color-mix(in oklch, ${consColor} 12%, transparent), transparent 60%)`,
+          background: `radial-gradient(ellipse 80% 60% at 110% 110%, color-mix(in oklch, ${consColor} 14%, transparent), transparent 55%)`,
         }}
       />
 
       <div style={{ position: "relative", flex: 1, display: "flex", flexDirection: "column" }}>
         <Eyebrow text={eyebrowText} theme={{ ...theme, eyebrowColor: consColor }} fontFamily={FONT} letterSpacing="0.1em" />
 
-        {/* Header */}
-        <div
-          style={{
-            fontFamily: FONT,
-            fontSize: 72,
-            fontWeight: 900,
-            lineHeight: 1.05,
-            color: theme.ink,
-            marginTop: 32,
-            marginBottom: 8,
-          }}
-        >
-          {tool.name}
-        </div>
-        <div
-          style={{
-            fontFamily: FONT,
-            fontSize: 30,
-            fontWeight: 600,
-            color: consColor,
-            marginBottom: 48,
-          }}
-        >
-          {headerText}
+        {/* Tool name + subhead header block */}
+        <div style={{ marginTop: 28, marginBottom: 36 }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontSize: 64,
+              fontWeight: 900,
+              lineHeight: 1.0,
+              color: theme.ink,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            {tool.name}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
+            <div style={{ fontFamily: FONT, fontSize: 26, fontWeight: 600, color: consColor }}>
+              {subhead}
+            </div>
+            <div
+              style={{
+                fontFamily: FONT,
+                fontSize: 18,
+                fontWeight: 700,
+                color: consColor,
+                background: `color-mix(in oklch, ${consColor} 18%, transparent)`,
+                border: `1px solid color-mix(in oklch, ${consColor} 35%, transparent)`,
+                borderRadius: 24,
+                padding: "4px 14px",
+              }}
+            >
+              {countLabel}
+            </div>
+          </div>
         </div>
 
-        {/* Cons list */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Cons cards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {cons.map((con, i) => (
             <div
               key={i}
               style={{
                 display: "flex",
-                alignItems: "flex-start",
+                alignItems: "center",
                 gap: 20,
-                opacity: Math.max(0.7, 1 - i * 0.06),
+                padding: "18px 24px",
+                borderRadius: 14,
+                background: `color-mix(in oklch, ${consColor} ${i === 0 ? 12 : 7}%, transparent)`,
+                border: `1px solid color-mix(in oklch, ${consColor} ${i === 0 ? 35 : 20}%, transparent)`,
+                opacity: Math.max(0.72, 1 - i * 0.07),
               }}
             >
-              <div style={{ flexShrink: 0, marginTop: 2 }}>
-                <ProConIcon type="con" color={consColor} size={38} />
+              <div style={{ flexShrink: 0 }}>
+                <ProConIcon type="con" color={consColor} size={40} />
               </div>
               <div
                 style={{
@@ -102,7 +111,7 @@ export function ConsSlide({ input, slideNumber, totalSlides }: Props) {
                   fontSize: 28,
                   fontWeight: i === 0 ? 700 : 500,
                   color: i === 0 ? theme.ink : theme.inkMuted,
-                  lineHeight: 1.35,
+                  lineHeight: 1.3,
                 }}
               >
                 {con}
@@ -112,7 +121,6 @@ export function ConsSlide({ input, slideNumber, totalSlides }: Props) {
         </div>
       </div>
 
-      {/* Footer */}
       <div style={{ position: "absolute", bottom: 72, left: SZ.PAD_X, right: SZ.PAD_X }}>
         <BrandFooter
           websiteUrl={brandTokens.social.websiteUrl}

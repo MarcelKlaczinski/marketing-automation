@@ -119,6 +119,7 @@ export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput)
 }
 
 export async function renderProConVerdict(input: ProConVerdictInput): Promise<RenderResult> {
+  // overrides arrives as Record<string,unknown> from Zod boundary; structural narrowing needed to read layout flag.
   const overrides = input.overrides as { layout?: { includeEndSlide?: boolean } } | undefined;
   const includeEndSlide = overrides?.layout?.includeEndSlide ?? true;
   const totalSlides = includeEndSlide ? 5 : 4;

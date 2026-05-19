@@ -75,7 +75,7 @@ export function EndSlide({ input, slideNumber, totalSlides }: Props) {
             style={{
               padding: "24px 28px",
               borderRadius: 16,
-              background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
+              background: theme.surface,
               border: `1px solid color-mix(in oklch, ${theme.brand} 20%, transparent)`,
               display: "flex",
               flexDirection: "column",
@@ -95,7 +95,7 @@ export function EndSlide({ input, slideNumber, totalSlides }: Props) {
             style={{
               padding: "24px 28px",
               borderRadius: 16,
-              background: themeMode === "dark" ? "oklch(20% 0.025 250)" : "oklch(95% 0.01 250)",
+              background: theme.surface,
               border: `1px solid color-mix(in oklch, ${theme.inkMuted} 15%, transparent)`,
               display: "flex",
               flexDirection: "column",

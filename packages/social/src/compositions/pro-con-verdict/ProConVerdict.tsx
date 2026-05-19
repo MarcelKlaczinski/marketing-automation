@@ -12,6 +12,7 @@ loadFont();
 export function ProConVerdictComposition(props: ProConVerdictInput) {
   const { slideIndex, overrides } = props;
 
+  // overrides arrives as Record<string,unknown> from the Zod boundary; structural narrowing needed to read the layout flag.
   const includeEndSlide = (overrides as { layout?: { includeEndSlide?: boolean } } | undefined)?.layout?.includeEndSlide ?? true;
   const totalSlides = includeEndSlide ? 5 : 4;
 

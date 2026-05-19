@@ -4,6 +4,7 @@ import { BrandFooter } from "../../shared/BrandLogo.tsx";
 import { getThemeTokens } from "../../lib/theme.ts";
 import { CAROUSEL_SAFE_ZONES as SZ } from "../list-carousel/safeZones.ts";
 import { resolveProsColor, resolveConsColor } from "./colors.ts";
+import { proConVerdictOverridesSchema } from "../../templates/overrides/proConVerdict.overrides.ts";
 import type { ProConVerdictInput } from "./types.ts";
 
 const FONT = "Space Grotesk, sans-serif";
@@ -16,10 +17,11 @@ export function VerdictSlide({ input, slideNumber, totalSlides }: Props) {
   const prosColor = resolveProsColor(brandTokens);
   const consColor = resolveConsColor(brandTokens);
   const isDE = locale === "de";
+  const ov = proConVerdictOverridesSchema.parse(input.overrides ?? {});
 
-  const eyebrowText = isDE ? "VERDIKT" : "VERDICT";
-  const whenToUseLabel = isDE ? "WANN NUTZEN" : "WHEN TO USE";
-  const whenToSkipLabel = isDE ? "WANN NICHT" : "WHEN TO SKIP";
+  const eyebrowText = isDE ? ov.copy.verdictEyebrow.de : ov.copy.verdictEyebrow.en;
+  const whenToUseLabel = isDE ? ov.copy.whenToUseLabel.de : ov.copy.whenToUseLabel.en;
+  const whenToSkipLabel = isDE ? ov.copy.whenToSkipLabel.de : ov.copy.whenToSkipLabel.en;
 
   const whenToUse = verdict?.whenToUse ?? "";
   const whenToSkip = verdict?.whenToSkip ?? "";
