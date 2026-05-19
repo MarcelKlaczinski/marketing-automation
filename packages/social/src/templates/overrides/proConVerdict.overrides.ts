@@ -4,67 +4,36 @@ export const proConVerdictOverridesSchema = z
   .object({
     copy: z
       .object({
-        coverEyebrow: z
+        eyebrow: z
           .object({
-            de: z.string().default("BEWERTUNG"),
-            en: z.string().default("REVIEW"),
+            de: z.string().default("Pro & Contra · Tool-Verdict"),
+            en: z.string().default("Pros & Cons · Tool Verdict"),
           })
           .default({}),
         prosHeader: z
           .object({
-            de: z.string().default("VORTEILE"),
-            en: z.string().default("PROS"),
+            de: z.string().default("Stärken"),
+            en: z.string().default("Strengths"),
           })
           .default({}),
         consHeader: z
           .object({
-            de: z.string().default("NACHTEILE"),
-            en: z.string().default("CONS"),
+            de: z.string().default("Schwächen"),
+            en: z.string().default("Weaknesses"),
           })
           .default({}),
-        verdictEyebrow: z
+        ctaPrefix: z
           .object({
-            de: z.string().default("VERDIKT"),
-            en: z.string().default("VERDICT"),
-          })
-          .default({}),
-        whenToUseLabel: z
-          .object({
-            de: z.string().default("WANN NUTZEN"),
-            en: z.string().default("WHEN TO USE"),
-          })
-          .default({}),
-        whenToSkipLabel: z
-          .object({
-            de: z.string().default("WANN NICHT"),
-            en: z.string().default("WHEN TO SKIP"),
-          })
-          .default({}),
-        endCtaText: z
-          .object({
-            de: z.string().default("Mehr im Artikel"),
-            en: z.string().default("Read the full article"),
+            de: z.string().default("Vollständiger Test →"),
+            en: z.string().default("Full review →"),
           })
           .default({}),
       })
       .default({}),
-    layout: z
-      .object({
-        includeEndSlide: z.boolean().default(true),
-        showToolLogoOnCover: z.boolean().default(true),
-        showToolLogoOnVerdict: z.boolean().default(true),
-        coverSplitDirection: z
-          .enum(["diagonal", "vertical", "horizontal"])
-          .default("diagonal"),
-        backgroundIntensity: z.enum(["subtle", "medium", "strong"]).default("medium"),
-      })
-      .default({}),
+    layout: z.object({}).default({}),
     eligibility: z
       .object({
-        minPros: z.number().int().min(2).max(8).default(3),
-        maxPros: z.number().int().min(3).max(8).default(5),
-        minCons: z.number().int().min(2).max(8).default(3),
-        maxCons: z.number().int().min(3).max(8).default(5),
+        minToolCount: z.number().int().min(1).default(1),
       })
       .default({}),
   })
