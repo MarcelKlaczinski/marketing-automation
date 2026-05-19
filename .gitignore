@@ -56,3 +56,9 @@ apps/api/uploads/
 /social/
 # Template visual baselines are gitignored (generated locally by test:visual).
 /packages/social/test/__baselines__/
+
+# Local Claude Code skills (machine-specific, not for version control)
+/.claude/skills/
+
+# Design reference bundle (local copy, not for version control)
+/packages/social/design-reference/bundle/
