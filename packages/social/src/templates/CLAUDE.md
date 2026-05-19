@@ -220,3 +220,56 @@ If `edge-min` looks sparse or `edge-max` clips text, the layout is not productio
 **`HookOutput.pattern` enum values are not what you'd guess:** the actual valid values are `"superlative_question" | "number_promise" | "negative_frame" | "identity_frame" | "curiosity_gap"` (defined in `packages/social/src/compositions/list-carousel/types.ts`). Values like `"question"`, `"bold-claim"`, `"contrast"`, `"number-stat"`, `"you-hook"` are wrong and cause a Zod parse error at runtime. When writing a custom `generateContent()` that bypasses `generateContentWithGate`, validate the hook response against the Zod schema from `list-carousel/types.ts` so mismatches are caught early rather than at render time. Your fallback hookOutput must also use a valid pattern value — `"negative_frame"` is a safe default.
 
 **Zod silently strips fields not in the composition schema:** If your template's `render()` passes a computed field (e.g. `pricingLabel`) to the composition input but that field is not declared in the composition's Zod schema, Zod strips it silently at parse time. No compile error, no runtime error. Each slide then has to recompute it from first principles — wasted computation and inconsistent logic. Rule: either declare the field in the schema AND pass it from render(), OR don't pass it and have slides compute it locally. Never half-do it.
+
+---
+
+## 8. Layout-Shift-Free Convention (Spec 59.3.5)
+
+Every new template must declare three things alongside its `TemplateDefinition`. See the full convention in [specs/59.3.5-layout-shift-free-templates.md](/specs/59.3.5-layout-shift-free-templates.md).
+
+**The triple: `bounds` + `generatedSchema` + `slotMap`**
+
+```ts
+export const myTemplateBounds = {
+  headline: { min: 10, max: 60 },     // FieldBound — rendered slot
+  captionBody: { min: 20, max: 1800 }, // FieldBound — not rendered
+  items: { max: 5, perItemMaxChars: 80 }, // ListBound
+} as const satisfies ContentBounds;
+
+export const myTemplateGeneratedSchema = z.object({
+  headline: z.string().min(myTemplateBounds.headline.min).max(myTemplateBounds.headline.max),
+  // ...
+});
+
+// In TemplateDefinition:
+bounds: myTemplateBounds,
+generatedSchema: myTemplateGeneratedSchema,
+slotMap: { headline: "cover-headline" }, // only rendered fields
+```
+
+**Dual-schema rule**: `validateAndReprompt()` inside `generateContent()` validates the **raw LLM JSON** (snake_case if the prompt uses it) with the full `llmResponseSchema`. The `generatedSchema` on `TemplateDefinition` validates the **camelCase-transformed** verdict fields and is used only by fixture tests. Never swap them.
+
+**`validateAndReprompt` wiring:**
+```ts
+parsed = await validateAndReprompt(
+  extractedJson,
+  async (hints) => {
+    const retryRaw = await llmCaller(system, `${user}\n\nFix:\n${hints.map(h => `- ${h}`).join("\n")}`);
+    return retryRaw ? extractJson(retryRaw) ?? {} : {};
+  },
+  { schema: llmResponseSchema, maxReprompts: 1, locale },
+);
+// On catch: return buildFallbackContent(...)
+```
+
+**Fixtures must include `generatedContent`** once `generatedSchema` is set — otherwise `fixtures-respect-bounds.test.ts` skips them silently:
+```ts
+generatedContent: {
+  headline: "...", // must satisfy generatedSchema bounds
+} satisfies MyTemplateGenerated,
+```
+
+**Gotchas:**
+- `bootstrapTemplates()` must be called explicitly in test files — importing `bootstrap.ts` as a side effect does not register templates.
+- `validateAndReprompt`'s `onValidationFailure: "truncate"` does not silently truncate — it still throws (with a note). Actual in-slide truncation is `WebkitLineClamp`. Don't conflate the two.
+- Bucket boundaries (`slot-body` last entry = `maxChars: 280`) must match the corresponding `bounds.max`. Verify alignment after every bounds change — the `bounds-bucket-alignment.test.ts` will catch mismatches automatically once `slotMap` is set.
