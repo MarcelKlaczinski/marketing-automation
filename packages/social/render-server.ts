@@ -14,6 +14,7 @@ import type { UseCaseVerdictInput } from "./src/compositions/verdict-cards/types
 import type { SingleToolSpotlightInput } from "./src/compositions/single-tool-spotlight/types.ts";
 import type { ProConVerdictInput } from "./src/compositions/pro-con-verdict/types.ts";
 import type { ComparisonGrid4Input } from "./src/compositions/comparison-grid-4/types.ts";
+import type { ComparisonGrid3Input } from "./src/compositions/comparison-grid-3/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -174,6 +175,37 @@ export async function renderComparisonGrid4(input: ComparisonGrid4Input): Promis
   if (!baseComposition) throw new Error("comparison-grid-4 composition not found in bundle");
 
   const outDir = resolve(tmpdir(), `social-render-cg4-${Date.now()}`);
+  await mkdir(outDir, { recursive: true });
+
+  const slides: Buffer[] = [];
+  try {
+    const outPath = resolve(outDir, "slide-0.png");
+    const slideProps = { ...input, slideIndex: 0 } as Record<string, unknown>;
+
+    await renderStill({
+      composition: { ...baseComposition, props: slideProps },
+      serveUrl,
+      output: outPath,
+      frame: 0,
+      imageFormat: "png",
+    });
+
+    const buf = await readFile(outPath);
+    slides.push(buf);
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+
+  return { slides, sequenceCount: 1 };
+}
+
+export async function renderComparisonGrid3(input: ComparisonGrid3Input): Promise<RenderResult> {
+  const serveUrl = await getBundle();
+  const compositions = await getCompositions(serveUrl);
+  const baseComposition = compositions.find((c) => c.id === "comparison-grid-3");
+  if (!baseComposition) throw new Error("comparison-grid-3 composition not found in bundle");
+
+  const outDir = resolve(tmpdir(), `social-render-cg3-${Date.now()}`);
   await mkdir(outDir, { recursive: true });
 
   const slides: Buffer[] = [];

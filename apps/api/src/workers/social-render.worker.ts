@@ -50,6 +50,7 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
   // Import from the /render-server subpath (pure .ts, no JSX) so the API tsconfig doesn't need --jsx.
   const renderServer = (await import("@marketing-auto/social/render-server")) as unknown as {
     renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderComparisonGrid3: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderComparisonGrid4: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderVerdictPerUseCase: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderSingleToolSpotlight: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
@@ -82,32 +83,27 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
     const result = await renderServer.renderComparisonGrid4(fullInput);
     slides = result.slides;
   } else if (templateKey === "comparison-grid-3") {
-    const toolRecap = (data.resolvedTools as Array<{ slug: string }>).map((t) => t.slug);
-    const carouselInput = {
-      theme: data.theme,
-      variant: data.variant,
-      locale,
+    // comparison-grid-3 uses the renderInput snapshot pattern (Spec 60.3).
+    // The full ComparisonGrid3Input is stored in social_posts.content.renderInput at INSERT time.
+    const [post] = await db
+      .select({ content: socialPosts.content })
+      .from(socialPosts)
+      .where(eq(socialPosts.id, data.socialPostId));
+
+    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
+    const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
+    if (!snapshot) {
+      throw new Error(
+        `No renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: comparison-grid-3)`,
+      );
+    }
+
+    const fullInput: Record<string, unknown> = {
+      ...snapshot,
       brandTokens: data.brandTokens,
-      slideIndex: 0,
       overrides: data.overrides,
-      cover: {
-        eyebrow: data.coverEyebrow,
-        headlineLead: data.coverHeadlineLead,
-        headlineHighlight: data.coverHeadlineHighlight,
-        ...(data.coverHeadlineTrail !== undefined && { headlineTrail: data.coverHeadlineTrail }),
-        ...(data.coverSubhead !== undefined && { subhead: data.coverSubhead }),
-        ...(data.coverHookOutput !== undefined && { hookOutput: data.coverHookOutput }),
-      },
-      tools: data.resolvedTools,
-      end: {
-        headline: data.endHeadline,
-        headlineHighlight: data.endHeadlineHighlight,
-        articleUrl: data.articleUrl,
-        ...(data.endCloser !== undefined && { closer: data.endCloser }),
-        toolRecap,
-      },
     };
-    const result = await renderServer.renderComparisonGrid(carouselInput as Record<string, unknown>);
+    const result = await renderServer.renderComparisonGrid3(fullInput);
     slides = result.slides;
   } else if (
     templateKey === "verdict-per-use-case" ||
