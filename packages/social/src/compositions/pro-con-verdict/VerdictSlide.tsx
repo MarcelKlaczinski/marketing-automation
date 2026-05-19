@@ -26,6 +26,8 @@ export function VerdictSlide({ input, slideNumber, totalSlides }: Props) {
 
   const whenToUse = verdict?.whenToUse ?? "";
   const whenToSkip = verdict?.whenToSkip ?? "";
+  const whenToUseBucket = getFontSize(whenToUse, "slot-body");
+  const whenToSkipBucket = getFontSize(whenToSkip, "slot-body");
 
   return (
     <div
@@ -106,8 +108,8 @@ export function VerdictSlide({ input, slideNumber, totalSlides }: Props) {
             <div
               style={{
                 fontFamily: FONT,
-                fontSize: getFontSize(whenToUse, "slot-body").fontSize,
-                lineHeight: getFontSize(whenToUse, "slot-body").lineHeight,
+                fontSize: whenToUseBucket.fontSize,
+                lineHeight: whenToUseBucket.lineHeight,
                 fontWeight: 500,
                 color: theme.ink,
                 overflow: "hidden",
@@ -155,8 +157,8 @@ export function VerdictSlide({ input, slideNumber, totalSlides }: Props) {
             <div
               style={{
                 fontFamily: FONT,
-                fontSize: getFontSize(whenToSkip, "slot-body").fontSize,
-                lineHeight: getFontSize(whenToSkip, "slot-body").lineHeight,
+                fontSize: whenToSkipBucket.fontSize,
+                lineHeight: whenToSkipBucket.lineHeight,
                 fontWeight: 500,
                 color: theme.ink,
                 overflow: "hidden",

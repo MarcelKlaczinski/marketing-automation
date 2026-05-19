@@ -89,43 +89,46 @@ export function ProsSlide({ input, slideNumber, totalSlides }: Props) {
 
         {/* Pros cards */}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {pros.map((pro, i) => (
-            <div
-              key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 20,
-                padding: "18px 24px",
-                borderRadius: 14,
-                background: `color-mix(in oklch, ${prosColor} ${i === 0 ? 12 : 7}%, transparent)`,
-                border: `1px solid color-mix(in oklch, ${prosColor} ${i === 0 ? 35 : 20}%, transparent)`,
-                opacity: Math.max(0.72, 1 - i * 0.07),
-              }}
-            >
-              <div style={{ flexShrink: 0 }}>
-                <ProConIcon type="pro" color={prosColor} size={40} />
-              </div>
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <div
-                  style={{
-                    fontFamily: FONT,
-                    fontSize: getFontSize(pro, "list-item").fontSize,
-                    lineHeight: getFontSize(pro, "list-item").lineHeight,
-                    fontWeight: i === 0 ? 700 : 500,
-                    color: i === 0 ? theme.ink : theme.inkMuted,
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {pro}
+          {pros.map((pro, i) => {
+            const b = getFontSize(pro, "list-item");
+            return (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 20,
+                  padding: "18px 24px",
+                  borderRadius: 14,
+                  background: `color-mix(in oklch, ${prosColor} ${i === 0 ? 12 : 7}%, transparent)`,
+                  border: `1px solid color-mix(in oklch, ${prosColor} ${i === 0 ? 35 : 20}%, transparent)`,
+                  opacity: Math.max(0.72, 1 - i * 0.07),
+                }}
+              >
+                <div style={{ flexShrink: 0 }}>
+                  <ProConIcon type="pro" color={prosColor} size={40} />
+                </div>
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <div
+                    style={{
+                      fontFamily: FONT,
+                      fontSize: b.fontSize,
+                      lineHeight: b.lineHeight,
+                      fontWeight: i === 0 ? 700 : 500,
+                      color: i === 0 ? theme.ink : theme.inkMuted,
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {pro}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
