@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { readFile, rm, mkdir } from "node:fs/promises";
 import type { ListCarouselInput } from "./src/compositions/list-carousel/types.ts";
-import type { UseCaseVerdictInput } from "./src/compositions/verdict-cards/types.ts";
+import type { VerdictPerUseCaseInput } from "./src/compositions/verdict-per-use-case/types.ts";
 import type { SingleToolSpotlightInput } from "./src/compositions/single-tool-spotlight/types.ts";
 import type { ProConVerdictInput } from "./src/compositions/pro-con-verdict/types.ts";
 import type { ComparisonGrid4Input } from "./src/compositions/comparison-grid-4/types.ts";
@@ -230,37 +230,33 @@ export async function renderComparisonGrid3(input: ComparisonGrid3Input): Promis
   return { slides, sequenceCount: 1 };
 }
 
-export async function renderVerdictPerUseCase(input: UseCaseVerdictInput): Promise<RenderResult> {
-  const totalSlides = 1 + input.verdicts.length + 2;
-  // Override the generic renderComposition loop since slide count is dynamic
+export async function renderVerdictPerUseCase(input: VerdictPerUseCaseInput): Promise<RenderResult> {
   const serveUrl = await getBundle();
   const compositions = await getCompositions(serveUrl);
-  const baseComposition = compositions.find((c) => c.id === "VerdictPerUseCase");
-  if (!baseComposition) throw new Error("VerdictPerUseCase composition not found in bundle");
+  const baseComposition = compositions.find((c) => c.id === "verdict-per-use-case");
+  if (!baseComposition) throw new Error("verdict-per-use-case composition not found in bundle");
 
-  const outDir = resolve(tmpdir(), `social-render-ucv-${Date.now()}`);
+  const outDir = resolve(tmpdir(), `social-render-vpc-${Date.now()}`);
   await mkdir(outDir, { recursive: true });
 
   const slides: Buffer[] = [];
   try {
-    for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
-      const outPath = resolve(outDir, `slide-${slideIndex}.png`);
-      const slideProps = { ...input, slideIndex } as Record<string, unknown>;
+    const outPath = resolve(outDir, "slide-0.png");
+    const slideProps = { ...input, slideIndex: 0 } as Record<string, unknown>;
 
-      await renderStill({
-        composition: { ...baseComposition, props: slideProps },
-        serveUrl,
-        output: outPath,
-        frame: 0,
-        imageFormat: "png",
-      });
+    await renderStill({
+      composition: { ...baseComposition, props: slideProps },
+      serveUrl,
+      output: outPath,
+      frame: 0,
+      imageFormat: "png",
+    });
 
-      const buf = await readFile(outPath);
-      slides.push(buf);
-    }
+    const buf = await readFile(outPath);
+    slides.push(buf);
   } finally {
     await rm(outDir, { recursive: true, force: true });
   }
 
-  return { slides, sequenceCount: totalSlides };
+  return { slides, sequenceCount: 1 };
 }

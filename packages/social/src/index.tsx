@@ -1,8 +1,8 @@
 import { Composition, registerRoot } from "remotion";
 import { ListCarouselStunning } from "./compositions/list-carousel/ListCarouselStunning.tsx";
 import { listCarouselInputSchema } from "./compositions/list-carousel/types.ts";
-import { UseCaseVerdictComposition } from "./compositions/verdict-cards/UseCaseVerdictComposition.tsx";
-import { useCaseVerdictInputSchema } from "./compositions/verdict-cards/types.ts";
+import { VerdictPerUseCase } from "./compositions/verdict-per-use-case/VerdictPerUseCase.tsx";
+import { verdictPerUseCaseInputSchema } from "./compositions/verdict-per-use-case/types.ts";
 import { SingleToolSpotlight } from "./compositions/single-tool-spotlight/SingleToolSpotlight.tsx";
 import { singleToolSpotlightInputSchema } from "./compositions/single-tool-spotlight/types.ts";
 import { ProConVerdictComposition } from "./compositions/pro-con-verdict/ProConVerdict.tsx";
@@ -97,29 +97,34 @@ export function RemotionRoot() {
         defaultProps={stunningDefaultProps}
       />
       <Composition
-        id="VerdictPerUseCase"
-        component={UseCaseVerdictComposition}
+        id="verdict-per-use-case"
+        component={VerdictPerUseCase}
         durationInFrames={1}
         fps={30}
         width={1080}
         height={1350}
-        schema={useCaseVerdictInputSchema}
-        defaultProps={useCaseVerdictInputSchema.parse({
+        schema={verdictPerUseCaseInputSchema}
+        defaultProps={verdictPerUseCaseInputSchema.parse({
           theme: "dark",
           locale: "de",
           slideIndex: 0,
-          websiteUrl: "toolwiki.ai",
-          instagramHandle: "@toolwiki.ai",
-          articleSlug: "recraft-vs-ideogram",
-          tools: [
-            { slug: "recraft", name: "Recraft", iconInitials: "RC", iconHue: 220 },
-            { slug: "ideogram", name: "Ideogram", iconInitials: "ID", iconHue: 280 },
-          ],
-          verdicts: [
-            { useCase: "Logo-Design", winner: "recraft", reason: "Präziser Vektor-Export." },
-            { useCase: "Text im Bild", winner: "ideogram", reason: "Lesbarere Schrift." },
-            { useCase: "Social Posts", winner: "recraft", reason: "Mehr Templates." },
-          ],
+          generated: {
+            headline: "Ein Tool reicht",
+            headlineEm: "nicht mehr.",
+            subline: "7 Use Cases. 7 klare Empfehlungen. Keine Kompromisse.",
+            eyebrow: "Bestes Tool für …",
+            slideNum: "03 / 04",
+            ctaLine1: "Vollständige Matrix →",
+            ctaLine2: "toolwiki.ai/ki-bilder",
+            dateLabel: "7 Use Cases · KI-Bildgenerierung 2026",
+            useCases: [
+              { label: "Marketing-Visuals", winnerName: "Midjourney v7", iconInitials: "MJ", iconHue: 260 },
+              { label: "Photoshop-Workflow", winnerName: "Adobe Firefly 3", iconInitials: "FF", iconHue: 20 },
+              { label: "Produktfotos", winnerName: "Flux 1.2 Pro", iconInitials: "FL", iconHue: 200 },
+              { label: "Typografie & Logos", winnerName: "Ideogram v3", iconInitials: "ID", iconHue: 300 },
+              { label: "Konsistente Chars", winnerName: "SD + LoRA", iconInitials: "SD", iconHue: 160 },
+            ],
+          },
         })}
       />
       <Composition
