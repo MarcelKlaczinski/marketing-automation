@@ -690,8 +690,7 @@ export class GenerateComparisonGrid4Step extends BaseStep<
 
     const toolsContext = input.resolvedTools
       .map((t) => {
-        const rt = t as { slug: string; name: string };
-        const raw = rawToolMap[rt.slug] ?? {};
+        const raw = rawToolMap[t.slug] ?? {};
         const score = raw.score ?? 70;
         const priceStr =
           raw.pricingTier === "free"
@@ -699,7 +698,7 @@ export class GenerateComparisonGrid4Step extends BaseStep<
             : raw.priceFrom != null
               ? (isDE ? `Ab ${raw.priceFrom} $/Mo` : `From $${raw.priceFrom}/mo`)
               : (isDE ? "Preis auf Anfrage" : "Contact for pricing");
-        return `- ${rt.name} (slug: ${rt.slug}, score: ${score}, price: ${priceStr})`;
+        return `- ${t.name} (slug: ${t.slug}, score: ${score}, price: ${priceStr})`;
       })
       .join("\n");
 
@@ -709,61 +708,48 @@ export class GenerateComparisonGrid4Step extends BaseStep<
 
     const ctaDefault = isDE ? "Vollständiger Test →" : "Full review →";
     const winnerFlagDefault = isDE ? "Testsieger" : "Top pick";
+    const outputLocale = isDE ? "German (de), du-form" : "English (en)";
     const slug = input.articleSlug;
 
-    const prompt = isDE
-      ? `Du bist Redakteur für toolwiki.ai. Erstelle den Content für eine Instagram-Slide im Format comparison-grid-4. Alle Ausgaben auf DEUTSCH.
+    const prompt = `You are an editor for toolwiki.ai. Create content for a comparison-grid-4 Instagram slide.
+Output locale: ${outputLocale}
 
-Artikel-Kontext:
-- Titel: ${input.articleTitle}
+Article context:
+- Title: ${input.articleTitle}
 - Slug: ${slug}
-- Tools im Artikel:
+- Tools (with scores and prices):
 ${toolsContext}
 
-Format-Anforderungen (strikt einhalten):
+Format requirements (strictly follow):
 ${constraintBlock}
 
-Ausgabe: Exakt ein JSON-Objekt, kein Markdown, keine Erklärung.
+Output: Exactly one valid JSON object, no markdown, no explanation.
 
-{
-  "headline": "<Haupttitel, max 44 Zeichen>",
-  "headline_em": "<hervorgehobenes Keyword, max 22 Zeichen>",
-  "subline": "<Beschreibung, 60–180 Zeichen>",
-  "eyebrow": "<z.B. 'Vergleich · 4 KI-Tools', max 32 Zeichen>",
+${isDE ? `{
+  "headline": "<main title in German, max 44 chars>",
+  "headline_em": "<highlighted keyword in German, max 22 chars>",
+  "subline": "<description in German, 60–180 chars>",
+  "eyebrow": "<e.g. 'Vergleich · 4 KI-Tools', max 32 chars>",
   "slide_num": "01 / 01",
   "cta_line1": "${ctaDefault}",
   "cta_line2": "toolwiki.ai/${slug}",
   "date_label": "Stand ${month}/${year} · toolwiki.ai/${slug}",
   "tools": [
     {
-      "name": "<Tool-Name, max 16 Zeichen>",
-      "verdict_strong": "<fetter Beginn des Fazits, max 44 Zeichen>",
-      "verdict_rest": "<Rest des Fazits, max 52 Zeichen>",
-      "score": <Zahl aus Kontext>,
-      "price_label": "<Preis-Label, max 22 Zeichen>",
-      "logo_slug": "<slug aus Kontext>",
-      "is_winner": <true für höchsten Score, sonst false>,
+      "name": "<tool name, max 16 chars>",
+      "verdict_strong": "<bold start of German verdict, max 44 chars>",
+      "verdict_rest": "<rest of German verdict, max 52 chars>",
+      "score": <number from context>,
+      "price_label": "<price label in German, max 22 chars>",
+      "logo_slug": "<slug from context>",
+      "is_winner": <true for highest score, else false>,
       "winner_flag_text": "${winnerFlagDefault}"
     }
   ]
-}`
-      : `You are an editor for toolwiki.ai. Create the content for an Instagram slide in comparison-grid-4 format. All output in ENGLISH.
-
-Article Context:
-- Title: ${input.articleTitle}
-- Slug: ${slug}
-- Tools in article:
-${toolsContext}
-
-Format requirements (strictly follow):
-${constraintBlock}
-
-Output: Exactly one JSON object, no markdown, no explanation.
-
-{
-  "headline": "<main title, max 44 chars>",
-  "headline_em": "<highlighted keyword, max 22 chars>",
-  "subline": "<description, 60–180 chars>",
+}` : `{
+  "headline": "<main title in English, max 44 chars>",
+  "headline_em": "<highlighted keyword in English, max 22 chars>",
+  "subline": "<description in English, 60–180 chars>",
   "eyebrow": "<e.g. 'Comparison · 4 AI Tools', max 32 chars>",
   "slide_num": "01 / 01",
   "cta_line1": "${ctaDefault}",
@@ -772,16 +758,16 @@ Output: Exactly one JSON object, no markdown, no explanation.
   "tools": [
     {
       "name": "<tool name, max 16 chars>",
-      "verdict_strong": "<bold start of verdict, max 44 chars>",
-      "verdict_rest": "<rest of verdict, max 52 chars>",
+      "verdict_strong": "<bold start of English verdict, max 44 chars>",
+      "verdict_rest": "<rest of English verdict, max 52 chars>",
       "score": <number from context>,
-      "price_label": "<price label, max 22 chars>",
+      "price_label": "<price label in English, max 22 chars>",
       "logo_slug": "<slug from context>",
       "is_winner": <true for highest score, else false>,
       "winner_flag_text": "${winnerFlagDefault}"
     }
   ]
-}`;
+}`}`;
 
     const tryGenerate = async () => {
       const response = await anthropic.messages({
