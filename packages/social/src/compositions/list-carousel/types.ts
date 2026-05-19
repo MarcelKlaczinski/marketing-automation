@@ -87,7 +87,7 @@ export const listCarouselInputSchema = z.object({
     hookOutput: hookOutputSchema.optional(),
   }),
 
-  tools: z.array(toolSchema).min(2).max(10),
+  tools: z.array(toolSchema).min(3).max(10),
 
   end: z.object({
     headline: z.string().max(40),
