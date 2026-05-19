@@ -116,11 +116,15 @@ export interface ListBound {
 }
 
 /**
- * All LLM-produced field bounds for a template.
- * Keys must match the field names in the template's generatedSchema.
- * Values are either FieldBound (single string) or ListBound (array).
+ * All field-length budgets for a template (character counts per slot).
+ * Flat FieldBound/ListBound for top-level fields; nested ContentBounds for
+ * grouped slots (e.g. tools.name, footer.ctaLine). Numeric values document
+ * exact structural counts (e.g. tools.count = 4). REMOTION.md is the
+ * authoritative source; this object must stay in sync.
  */
-export type ContentBounds = Record<string, FieldBound | ListBound>;
+export interface ContentBounds {
+  [key: string]: FieldBound | ListBound | ContentBounds | number;
+}
 
 export interface TemplateDefinition<TInput = unknown> {
   key: TemplateKey;

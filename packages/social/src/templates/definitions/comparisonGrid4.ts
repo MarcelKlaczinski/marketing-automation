@@ -11,9 +11,29 @@ import {
   selectPattern,
 } from "@marketing-auto/core";
 
+// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — Grid4Props
 export const comparisonGrid4Bounds = {
-  tagline: { min: 10, max: 120 },
+  // Slide header (REMOTION.md Grid4Props)
+  eyebrow:   { min: 14, max: 32 },
+  headerNum: { min: 14, max: 44 },
+  heroTitle: { min: 12, max: 44 },
+  heroSub:   { min: 60, max: 180 },
+  // Per-tool slots — EXACTLY 4 entries
+  tools: {
+    count:    4,
+    name:     { min: 3,  max: 16 },
+    verdict:  { min: 30, max: 80 },
+    price:    { min: 6,  max: 22 },
+    flagText: { min: 6,  max: 14 }, // shown when winner=true
+    // score is 0-99 (numeric, not character-bound)
+  },
+  footer: {
+    ctaLine: { min: 8,  max: 24 },
+    url:     { min: 12, max: 32 },
+  },
+  // Internal render fields not in REMOTION.md — kept for render-code compatibility
   strengths: { max: 3, perItemMaxChars: 60 },
+  // Caption/hashtag fields (not rendered on slide)
   captionBody: { min: 20, max: 1800 },
   hashtags: { max: 10, perItemMaxChars: 24 },
 } as const satisfies ContentBounds;
