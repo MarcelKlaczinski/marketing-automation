@@ -1,5 +1,21 @@
 # packages/social — Remotion Compositions
 
+## Template Naming Convention
+
+Template keys describe **format/structure**, not **aspiration**. Use kebab-case.
+
+Patterns:
+- `<format>-<modifier>` — e.g., `comparison-grid-4`, `news-slide`
+- `<role>-per-<unit>` — e.g., `verdict-per-use-case`
+- `<scope>-<format>` — e.g., `single-tool-spotlight`
+
+Avoid:
+- Aspirational adjectives: stunning, amazing, perfect, beautiful
+- Trend-coupled words: "2024", "modern", "latest"
+- Version numbers in the key (use variants via modifier instead)
+
+Display names (i18n labels) can be human-friendly; keys must be semantic.
+
 ## What this package does
 
 Renders Instagram carousel slides as PNG via Remotion 4 (headless Chrome).

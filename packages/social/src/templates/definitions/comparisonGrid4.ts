@@ -3,7 +3,7 @@ import { getComparisonContext, type ComparisonContext } from "../adapters/compar
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
-import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonStunning.fixtures.ts";
+import { COMPARISON_STUNNING_FIXTURES } from "./fixtures/comparisonGrid4.fixtures.ts";
 import {
   generateContentWithGate,
   inferArticleType,
@@ -15,12 +15,12 @@ const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
 
-export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> = {
-  key: "comparison-stunning-3",
-  displayName: "3-Tool-Vergleich (Stunning)",
+export const comparisonGrid4Template: TemplateDefinition<ComparisonContext> = {
+  key: "comparison-grid-4",
+  displayName: "2-Tool-Vergleich (Stunning)",
   description:
-    "Cover mit Hook, drei Tool-Spotlights, Verdict-Closer. Für Triple-Vergleiche wie Cursor vs. Windsurf vs. Codeium.",
-  defaultSlideCount: 5,
+    "Cover mit Hook, zwei Tool-Spotlights, Verdict-Closer. Optimiert für direkte Head-to-Head-Vergleiche.",
+  defaultSlideCount: 4,
   estimatedCostUsd: 0.01,
 
   outputFormat: "carousel",
@@ -41,11 +41,11 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
     const extras = (article.frontmatterExtras ?? {}) as { toolSlugs?: string[]; verdict?: string };
     const toolCount = extras.toolSlugs?.length ?? 0;
 
-    if (toolCount !== 3) {
+    if (toolCount !== 2) {
       return {
         eligible: false,
-        reason: "Benötigt exakt 3 Tools",
-        requirements: ["frontmatter.toolSlugs.length === 3"],
+        reason: "Benötigt exakt 2 Tools",
+        requirements: ["frontmatter.toolSlugs.length === 2"],
       };
     }
     if (!extras.verdict) {
@@ -63,8 +63,6 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
     const toolNames = ctx.tools.map((t) => t.name);
     const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
     const pattern = selectPattern(article.id, articleType);
-    // Derive tool category from first tool's primaryCategory so the hook is domain-specific
-    // e.g. "KI-Code-Editor" instead of the generic fallback "KI-Tools"
     const toolCategory = ctx.tools[0]?.primaryCategory ?? undefined;
     return generateContentWithGate(
       { id: article.id, title: article.title ?? article.slug, toolCount: toolNames.length, toolNames },
@@ -119,13 +117,12 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
       const tagline = (
         wonVerdicts[0]?.reason?.slice(0, 120)
         ?? (isOverallWinner
-          ? (locale === "de" ? "Unser Testsieger im Dreier-Vergleich." : "Our top pick in the three-way test.")
+          ? (locale === "de" ? "Unser Testsieger im direkten Vergleich." : "Our top pick in the head-to-head test.")
           : t.primaryCategory
             ? (locale === "de" ? `Stark bei: ${t.primaryCategory}` : `Strong at: ${t.primaryCategory}`)
             : input.verdict.slice(0, 80))
       );
 
-      // Zod requires min(2) — pad with a category fallback if only 1 win.
       const wonUseCases = wonVerdicts.map((v) => v.useCase).slice(0, 3);
       const fallbackStrength = locale === "de"
         ? (t.primaryCategory ?? "Im Test bewertet")
@@ -201,14 +198,14 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
     };
 
     const socialModule = await import("../../../render-server.ts") as unknown as {
-      renderListCarouselStunning: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+      renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     };
-    const { slides: buffers } = await socialModule.renderListCarouselStunning(carouselInput as unknown as Record<string, unknown>);
+    const { slides: buffers } = await socialModule.renderComparisonGrid(carouselInput as unknown as Record<string, unknown>);
 
     const slideOutputs = await writeSlides(
       buffers,
       article.id,
-      "comparison-stunning-3",
+      "comparison-grid-4",
       locale,
       theme,
       { width: SLIDE_W, height: SLIDE_H },
@@ -218,7 +215,7 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
       slides: slideOutputs,
       caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
       hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
-      metadata: { estimatedCostUsd: 0.01, templateKey: "comparison-stunning-3" },
+      metadata: { estimatedCostUsd: 0.01, templateKey: "comparison-grid-4" },
     };
   },
 
@@ -228,9 +225,9 @@ export const comparisonStunning3Template: TemplateDefinition<ComparisonContext> 
 function fallbackCaption(input: ComparisonContext, locale: "de" | "en", slug: string): string {
   const toolNames = input.tools.map((t) => t.name).join(" vs. ");
   if (locale === "de") {
-    return `${toolNames}: Drei Tools, ein ehrliches Fazit — welches passt zu deinem Workflow?\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/${slug}`;
+    return `${toolNames}: Wir haben beide Tools getestet — hier ist unser ehrliches Fazit.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/${slug}`;
   }
-  return `${toolNames}: Three tools, one honest verdict — which fits your workflow?\n\nSave this post for your next tool decision.\n\n→ toolwiki.ai/${slug}`;
+  return `${toolNames}: We tested both tools — here's our honest verdict.\n\nSave this post for your next tool decision.\n\n→ toolwiki.ai/${slug}`;
 }
 
 function fallbackHashtags(locale: "de" | "en"): string[] {

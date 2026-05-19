@@ -61,8 +61,8 @@
 
           <!-- Copy section -->
           <div v-if="activeSection === 'copy'" class="override-fields">
-            <!-- comparison-stunning / comparison-stunning-3 -->
-            <template v-if="selectedKey === 'comparison-stunning' || selectedKey === 'comparison-stunning-3'">
+            <!-- comparison-grid-4 / comparison-grid-3 -->
+            <template v-if="selectedKey === 'comparison-grid-4' || selectedKey === 'comparison-grid-3'">
               <div class="copy-field-row">
                 <span class="copy-field-label">{{ $t("social.templateOverrides.copy.coverEyebrowLabel") }}</span>
                 <div class="locale-inputs">
@@ -342,8 +342,8 @@
               </div>
             </template>
 
-            <!-- use-case-verdict-per-tool -->
-            <template v-else-if="selectedKey === 'use-case-verdict-per-tool'">
+            <!-- verdict-per-use-case -->
+            <template v-else-if="selectedKey === 'verdict-per-use-case'">
               <div class="copy-field-row">
                 <span class="copy-field-label">{{ $t("social.templateOverrides.copy.promiseLine1") }}</span>
                 <div class="locale-inputs">
@@ -466,8 +466,8 @@
 
           <!-- Layout section -->
           <div v-if="activeSection === 'layout'" class="override-fields">
-            <!-- comparison-stunning / comparison-stunning-3 -->
-            <template v-if="selectedKey === 'comparison-stunning' || selectedKey === 'comparison-stunning-3'">
+            <!-- comparison-grid-4 / comparison-grid-3 -->
+            <template v-if="selectedKey === 'comparison-grid-4' || selectedKey === 'comparison-grid-3'">
               <label
                 v-for="field in comparisonLayoutFields"
                 :key="field"
@@ -490,8 +490,8 @@
               </label>
             </template>
 
-            <!-- use-case-verdict-per-tool -->
-            <template v-else-if="selectedKey === 'use-case-verdict-per-tool'">
+            <!-- verdict-per-use-case -->
+            <template v-else-if="selectedKey === 'verdict-per-use-case'">
               <label
                 v-for="field in verdictLayoutFields"
                 :key="field"
@@ -505,7 +505,7 @@
 
           <!-- Eligibility section -->
           <div v-if="activeSection === 'eligibility'" class="override-fields">
-            <template v-if="selectedKey === 'comparison-stunning' || selectedKey === 'comparison-stunning-3'">
+            <template v-if="selectedKey === 'comparison-grid-4' || selectedKey === 'comparison-grid-3'">
               <p class="eligibility-empty mono">—</p>
             </template>
 
@@ -542,7 +542,7 @@
               </div>
             </template>
 
-            <template v-else-if="selectedKey === 'use-case-verdict-per-tool'">
+            <template v-else-if="selectedKey === 'verdict-per-use-case'">
               <div class="eligibility-row">
                 <label class="eligibility-label">{{ $t("social.templateOverrides.eligibility.minVerdictsCount") }}</label>
                 <input
@@ -683,7 +683,7 @@ export default defineComponent({
     initForm(key: string, values: Record<string, unknown>): void {
       let form: typeof this.form;
 
-      if (key === "comparison-stunning" || key === "comparison-stunning-3") {
+      if (key === "comparison-grid-4" || key === "comparison-grid-3") {
         const copy = (values.copy ?? {}) as Record<string, unknown>;
         const endSlide = (copy.endSlide ?? {}) as Record<string, unknown>;
         form = {
@@ -744,7 +744,7 @@ export default defineComponent({
           },
         };
       } else {
-        // use-case-verdict-per-tool
+        // verdict-per-use-case
         const copy = (values.copy ?? {}) as Record<string, unknown>;
         const coverSlide = (copy.coverSlide ?? {}) as Record<string, unknown>;
         const verdictSlide = (copy.verdictSlide ?? {}) as Record<string, unknown>;

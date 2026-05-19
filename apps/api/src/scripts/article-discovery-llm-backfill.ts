@@ -146,8 +146,9 @@ function contentHash(bodyMd: string, frontmatterExtras: unknown): string {
 
 const TEMPLATE_DEFINITIONS = `
 Available templates (Spec 54a — use ONLY these keys):
-- comparison-stunning           eligible: comparisons with toolSlugs >= 2 AND verdict
-- use-case-verdict-per-tool     eligible: comparisons with useCaseVerdicts 3..8 (all have winner+reason)
+- comparison-grid-4             eligible: comparisons with toolSlugs == 2 AND verdict
+- comparison-grid-3             eligible: comparisons with toolSlugs == 3 AND verdict
+- verdict-per-use-case          eligible: comparisons with useCaseVerdicts 3..8 (all have winner+reason)
 - single-tool-spotlight         eligible: tools collection OR spotlight from comparison
 - news-slide                    eligible: news-update container form (blog < 60 days old)
 - listicle-carousel             eligible: numbered lists or best-of-list patterns with >= 5 items

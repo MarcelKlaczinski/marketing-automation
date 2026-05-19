@@ -12,8 +12,9 @@ export interface LlmEnrichmentFields {
 
 const TEMPLATE_DEFINITIONS = `
 Available templates (use ONLY these keys):
-- comparison-stunning           eligible: comparisons with toolSlugs >= 2 AND verdict
-- use-case-verdict-per-tool     eligible: comparisons with useCaseVerdicts 3..8 (all have winner+reason)
+- comparison-grid-4             eligible: comparisons with toolSlugs == 2 AND verdict
+- comparison-grid-3             eligible: comparisons with toolSlugs == 3 AND verdict
+- verdict-per-use-case          eligible: comparisons with useCaseVerdicts 3..8 (all have winner+reason)
 - single-tool-spotlight         eligible: tools collection OR spotlight from comparison
 - news-slide                    eligible: news-update container form (blog < 60 days old)
 - concept-explainer-deck        eligible: ki-wissen collection OR concept-explainer container form

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { comparisonStunningOverridesSchema } from "../../templates/overrides/comparisonStunning.overrides.ts";
+import { comparisonGridOverridesSchema } from "../../templates/overrides/comparisonGrid.overrides.ts";
 
 export const brandTokensSchema = z.object({
   colors: z
@@ -148,7 +148,7 @@ export const listCarouselInputSchema = z.object({
     toolRecap: z.array(z.string()).optional(), // tool slugs for recap strip
   }),
   // Spec 57.3 — project-scoped overrides; defaults applied when absent
-  overrides: comparisonStunningOverridesSchema.optional(),
+  overrides: comparisonGridOverridesSchema.optional(),
 });
 
 export type ListCarouselInput = z.infer<typeof listCarouselInputSchema>;

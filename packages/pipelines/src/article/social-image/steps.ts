@@ -782,7 +782,7 @@ export class RenderSlidesStep extends BaseStep<
   override estimatedCostEur(): number { return 0.002; }
 
   async execute(input: z.infer<typeof RenderSlidesInputSchema>, ctx: StepContext): Promise<z.infer<typeof RenderSlidesOutputSchema>> {
-    const templateKey = input.resolvedTools.length === 3 ? "comparison-stunning-3" : "comparison-stunning";
+    const templateKey = input.resolvedTools.length === 3 ? "comparison-grid-3" : "comparison-grid-4";
 
     // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
     const { getOverrideSchema, mergeOverrides } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");

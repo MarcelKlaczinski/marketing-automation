@@ -4,9 +4,9 @@ import { Eyebrow } from "../../shared/Eyebrow.tsx";
 import { ToolIconImage } from "../../shared/ToolIconImage.tsx";
 import type { ThemeTokens } from "../../lib/theme.ts";
 import type { CloserLine, EndCloser, ListCarouselInput } from "./types.ts";
-import { comparisonStunningOverridesSchema } from "../../templates/overrides/comparisonStunning.overrides.ts";
+import { comparisonGridOverridesSchema } from "../../templates/overrides/comparisonGrid.overrides.ts";
 
-const DEFAULT_OVERRIDES = comparisonStunningOverridesSchema.parse({});
+const DEFAULT_OVERRIDES = comparisonGridOverridesSchema.parse({});
 
 type Props = {
   input: ListCarouselInput;

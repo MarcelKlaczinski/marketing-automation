@@ -73,10 +73,10 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
 
   // Dynamic import: avoids Remotion bundling into API startup context (per packages/social CLAUDE.md).
   // Import from the /render-server subpath (pure .ts, no JSX) so the API tsconfig doesn't need --jsx.
-  const { renderListCarouselStunning } = (await import("@marketing-auto/social/render-server")) as unknown as {
-    renderListCarouselStunning: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  const { renderComparisonGrid } = (await import("@marketing-auto/social/render-server")) as unknown as {
+    renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   };
-  const { slides } = await renderListCarouselStunning(carouselInput as Record<string, unknown>);
+  const { slides } = await renderComparisonGrid(carouselInput as Record<string, unknown>);
 
   // Upload each PNG buffer to R2 and collect public URLs
   const timestamp = Date.now();

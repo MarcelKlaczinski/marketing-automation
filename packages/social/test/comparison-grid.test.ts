@@ -8,7 +8,7 @@
  *   4. Live render — RUN_LIVE_SOCIAL=1 gated
  *
  * Run live suite:
- *   RUN_LIVE_SOCIAL=1 bun test packages/social/test/list-carousel-stunning.test.ts
+ *   RUN_LIVE_SOCIAL=1 bun test packages/social/test/comparison-grid.test.ts
  */
 
 import { describe, expect, it } from "bun:test";
@@ -263,14 +263,14 @@ describe("stunning sequenceCount formula", () => {
 
 const LIVE = process.env.RUN_LIVE_SOCIAL === "1";
 
-describe.skipIf(!LIVE)("renderListCarouselStunning (live)", () => {
+describe.skipIf(!LIVE)("renderComparisonGrid (live)", () => {
   it(
     "renders 5 PNG slides for a comparison-pattern stunning carousel",
     async () => {
-      const { renderListCarouselStunning } = await import("../render-server");
+      const { renderComparisonGrid } = await import("../render-server");
 
       const parsed = listCarouselInputSchema.parse(comparisonInput);
-      const result = await renderListCarouselStunning(parsed);
+      const result = await renderComparisonGrid(parsed);
 
       expect(result.sequenceCount).toBe(5);
       expect(result.slides).toHaveLength(5);
@@ -293,10 +293,10 @@ describe.skipIf(!LIVE)("renderListCarouselStunning (live)", () => {
   it(
     "renders 5 PNG slides for a number-promise stunning carousel",
     async () => {
-      const { renderListCarouselStunning } = await import("../render-server");
+      const { renderComparisonGrid } = await import("../render-server");
 
       const parsed = listCarouselInputSchema.parse(numberPromiseInput);
-      const result = await renderListCarouselStunning(parsed);
+      const result = await renderComparisonGrid(parsed);
 
       expect(result.sequenceCount).toBe(5);
       expect(result.slides).toHaveLength(5);
@@ -307,10 +307,10 @@ describe.skipIf(!LIVE)("renderListCarouselStunning (live)", () => {
   it(
     "renders 5 PNG slides for an identity-frame stunning carousel",
     async () => {
-      const { renderListCarouselStunning } = await import("../render-server");
+      const { renderComparisonGrid } = await import("../render-server");
 
       const parsed = listCarouselInputSchema.parse(identityFrameInput);
-      const result = await renderListCarouselStunning(parsed);
+      const result = await renderComparisonGrid(parsed);
 
       expect(result.sequenceCount).toBe(5);
       expect(result.slides).toHaveLength(5);

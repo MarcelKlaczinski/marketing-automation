@@ -13,7 +13,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { renderListCarouselStunning } from "../render-server.ts";
+import { renderComparisonGrid } from "../render-server.ts";
 import { listCarouselInputSchema } from "../src/compositions/list-carousel/types.ts";
 import { iconifyAdapter } from "../../pipelines/src/_lib/icon-sources/iconify.ts";
 import { lobeIconsAdapter } from "../../pipelines/src/_lib/icon-sources/lobe-icons.ts";
@@ -212,7 +212,7 @@ await mkdir(outDir, { recursive: true });
 for (const c of [...cases, lightVariant]) {
   console.log(`[render] ${c.name}…`);  // biome-ignore lint/suspicious/noConsoleLog: script output
   const parsed = listCarouselInputSchema.parse(c.input);
-  const result = await renderListCarouselStunning(parsed);
+  const result = await renderComparisonGrid(parsed);
 
   const coverPath = resolve(outDir, `cover-${c.name}.png`);
   const toolPath = resolve(outDir, `tool-${c.name}.png`);

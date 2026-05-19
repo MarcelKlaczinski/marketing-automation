@@ -1,8 +1,8 @@
 import { Composition, registerRoot } from "remotion";
 import { ListCarouselStunning } from "./compositions/list-carousel/ListCarouselStunning.tsx";
 import { listCarouselInputSchema } from "./compositions/list-carousel/types.ts";
-import { UseCaseVerdictComposition } from "./compositions/use-case-verdict/UseCaseVerdictComposition.tsx";
-import { useCaseVerdictInputSchema } from "./compositions/use-case-verdict/types.ts";
+import { UseCaseVerdictComposition } from "./compositions/verdict-cards/UseCaseVerdictComposition.tsx";
+import { useCaseVerdictInputSchema } from "./compositions/verdict-cards/types.ts";
 import { SingleToolSpotlightComposition } from "./compositions/single-tool-spotlight/SingleToolSpotlightComposition.tsx";
 import { singleToolSpotlightInputSchema } from "./compositions/single-tool-spotlight/types.ts";
 
@@ -81,7 +81,7 @@ export function RemotionRoot() {
   return (
     <>
       <Composition
-        id="ListCarouselStunning"
+        id="ComparisonGrid"
         component={ListCarouselStunning}
         durationInFrames={1}
         fps={30}
@@ -91,7 +91,7 @@ export function RemotionRoot() {
         defaultProps={stunningDefaultProps}
       />
       <Composition
-        id="UseCaseVerdictCarousel"
+        id="VerdictPerUseCase"
         component={UseCaseVerdictComposition}
         durationInFrames={1}
         fps={30}

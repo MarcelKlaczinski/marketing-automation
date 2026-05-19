@@ -1,7 +1,7 @@
 import { templateRegistry } from "./registry.ts";
-import { comparisonStunningTemplate } from "./definitions/comparisonStunning.ts";
-import { comparisonStunning3Template } from "./definitions/comparisonStunning3.ts";
-import { useCaseVerdictPerToolTemplate } from "./definitions/useCaseVerdictPerTool.ts";
+import { comparisonGrid4Template } from "./definitions/comparisonGrid4.ts";
+import { comparisonGrid3Template } from "./definitions/comparisonGrid3.ts";
+import { verdictPerUseCaseTemplate } from "./definitions/verdictPerUseCase.ts";
 import { singleToolSpotlightTemplate } from "./definitions/singleToolSpotlight.ts";
 
 let bootstrapped = false;
@@ -9,9 +9,9 @@ let bootstrapped = false;
 export function bootstrapTemplates(): void {
   if (bootstrapped) return;
 
-  templateRegistry.register(comparisonStunningTemplate);
-  templateRegistry.register(comparisonStunning3Template);
-  templateRegistry.register(useCaseVerdictPerToolTemplate);
+  templateRegistry.register(comparisonGrid4Template);
+  templateRegistry.register(comparisonGrid3Template);
+  templateRegistry.register(verdictPerUseCaseTemplate);
   templateRegistry.register(singleToolSpotlightTemplate);
 
   // Future templates registered here:

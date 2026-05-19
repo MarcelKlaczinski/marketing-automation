@@ -1,52 +1,52 @@
 import { z } from "zod";
 import {
-  comparisonStunningOverridesSchema,
-  type ComparisonStunningOverrides,
-} from "./comparisonStunning.overrides.ts";
+  comparisonGridOverridesSchema,
+  type ComparisonGridOverrides,
+} from "./comparisonGrid.overrides.ts";
 import {
   singleToolSpotlightOverridesSchema,
   type SingleToolSpotlightOverrides,
 } from "./singleToolSpotlight.overrides.ts";
 import {
-  useCaseVerdictOverridesSchema,
-  type UseCaseVerdictOverrides,
-} from "./useCaseVerdict.overrides.ts";
+  verdictCardsOverridesSchema,
+  type VerdictCardsOverrides,
+} from "./verdictCards.overrides.ts";
 import type { TemplateKey } from "../types.ts";
 
 export {
-  comparisonStunningOverridesSchema,
-  type ComparisonStunningOverrides,
+  comparisonGridOverridesSchema,
+  type ComparisonGridOverrides,
   singleToolSpotlightOverridesSchema,
   type SingleToolSpotlightOverrides,
-  useCaseVerdictOverridesSchema,
-  type UseCaseVerdictOverrides,
+  verdictCardsOverridesSchema,
+  type VerdictCardsOverrides,
 };
 
 // Keys with override schemas. Other TemplateKey values are not yet in production.
 export const OVERRIDE_TEMPLATE_KEYS = [
-  "comparison-stunning",
-  "comparison-stunning-3",
+  "comparison-grid-4",
+  "comparison-grid-3",
   "single-tool-spotlight",
-  "use-case-verdict-per-tool",
+  "verdict-per-use-case",
 ] as const satisfies TemplateKey[];
 
 export type OverrideTemplateKey = (typeof OVERRIDE_TEMPLATE_KEYS)[number];
 
 export type TemplateOverrides =
-  | { templateKey: "comparison-stunning"; values: ComparisonStunningOverrides }
-  | { templateKey: "comparison-stunning-3"; values: ComparisonStunningOverrides }
+  | { templateKey: "comparison-grid-4"; values: ComparisonGridOverrides }
+  | { templateKey: "comparison-grid-3"; values: ComparisonGridOverrides }
   | { templateKey: "single-tool-spotlight"; values: SingleToolSpotlightOverrides }
-  | { templateKey: "use-case-verdict-per-tool"; values: UseCaseVerdictOverrides };
+  | { templateKey: "verdict-per-use-case"; values: VerdictCardsOverrides };
 
 export function getOverrideSchema(templateKey: OverrideTemplateKey): z.ZodObject<z.ZodRawShape> {
   switch (templateKey) {
-    case "comparison-stunning":
-    case "comparison-stunning-3":
-      return comparisonStunningOverridesSchema;
+    case "comparison-grid-4":
+    case "comparison-grid-3":
+      return comparisonGridOverridesSchema;
     case "single-tool-spotlight":
       return singleToolSpotlightOverridesSchema;
-    case "use-case-verdict-per-tool":
-      return useCaseVerdictOverridesSchema;
+    case "verdict-per-use-case":
+      return verdictCardsOverridesSchema;
   }
 }
 

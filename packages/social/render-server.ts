@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { readFile, rm, mkdir } from "node:fs/promises";
 import type { ListCarouselInput } from "./src/compositions/list-carousel/types.ts";
-import type { UseCaseVerdictInput } from "./src/compositions/use-case-verdict/types.ts";
+import type { UseCaseVerdictInput } from "./src/compositions/verdict-cards/types.ts";
 import type { SingleToolSpotlightInput } from "./src/compositions/single-tool-spotlight/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
@@ -78,8 +78,8 @@ export async function renderListCarousel(input: ListCarouselInput): Promise<Rend
   return renderComposition("ListCarousel", input);
 }
 
-export async function renderListCarouselStunning(input: ListCarouselInput): Promise<RenderResult> {
-  return renderComposition("ListCarouselStunning", input);
+export async function renderComparisonGrid(input: ListCarouselInput): Promise<RenderResult> {
+  return renderComposition("ComparisonGrid", input);
 }
 
 export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput): Promise<RenderResult> {
@@ -117,13 +117,13 @@ export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput)
   return { slides, sequenceCount: totalSlides };
 }
 
-export async function renderUseCaseVerdictCarousel(input: UseCaseVerdictInput): Promise<RenderResult> {
+export async function renderVerdictPerUseCase(input: UseCaseVerdictInput): Promise<RenderResult> {
   const totalSlides = 1 + input.verdicts.length + 2;
   // Override the generic renderComposition loop since slide count is dynamic
   const serveUrl = await getBundle();
   const compositions = await getCompositions(serveUrl);
-  const baseComposition = compositions.find((c) => c.id === "UseCaseVerdictCarousel");
-  if (!baseComposition) throw new Error("UseCaseVerdictCarousel composition not found in bundle");
+  const baseComposition = compositions.find((c) => c.id === "VerdictPerUseCase");
+  if (!baseComposition) throw new Error("VerdictPerUseCase composition not found in bundle");
 
   const outDir = resolve(tmpdir(), `social-render-ucv-${Date.now()}`);
   await mkdir(outDir, { recursive: true });

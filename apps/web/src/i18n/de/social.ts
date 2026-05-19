@@ -97,10 +97,10 @@ export default {
     customBadge: "Custom",
     noneSelected: "Kein Template ausgewählt.",
     templates: {
-      "comparison-stunning": "Tool-Vergleich (2–4 Tools)",
-      "comparison-stunning-3": "Tool-Vergleich (exakt 3 Tools)",
+      "comparison-grid-4": "Tool-Vergleich (2–4 Tools)",
+      "comparison-grid-3": "Tool-Vergleich (exakt 3 Tools)",
       "single-tool-spotlight": "Einzelnes Tool Spotlight",
-      "use-case-verdict-per-tool": "Use-Case Vergleich",
+      "verdict-per-use-case": "Use-Case Vergleich",
     },
     sections: {
       copy: "Texte",

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const useCaseVerdictOverridesSchema = z
+export const verdictCardsOverridesSchema = z
   .object({
     copy: z
       .object({
@@ -87,4 +87,4 @@ export const useCaseVerdictOverridesSchema = z
   })
   .strip();
 
-export type UseCaseVerdictOverrides = z.infer<typeof useCaseVerdictOverridesSchema>;
+export type VerdictCardsOverrides = z.infer<typeof verdictCardsOverridesSchema>;

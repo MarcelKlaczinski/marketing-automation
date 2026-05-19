@@ -16,9 +16,9 @@ export interface GeneratedContent {
 }
 
 export type TemplateKey =
-  | "comparison-stunning"
-  | "comparison-stunning-3"
-  | "use-case-verdict-per-tool"
+  | "comparison-grid-4"
+  | "comparison-grid-3"
+  | "verdict-per-use-case"
   | "single-tool-spotlight"
   | "news-slide"
   | "concept-explainer-deck"

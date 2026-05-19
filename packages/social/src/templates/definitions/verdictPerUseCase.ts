@@ -3,8 +3,8 @@ import { getComparisonContext, type ComparisonContext } from "../adapters/compar
 import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
-import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/useCaseVerdict.fixtures.ts";
-import type { UseCaseVerdictItem } from "../../compositions/use-case-verdict/types.ts";
+import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/verdictPerUseCase.fixtures.ts";
+import type { UseCaseVerdictItem } from "../../compositions/verdict-cards/types.ts";
 import {
   generateContentWithGate,
   inferArticleType,
@@ -16,8 +16,8 @@ const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
 
-export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext> = {
-  key: "use-case-verdict-per-tool",
+export const verdictPerUseCaseTemplate: TemplateDefinition<ComparisonContext> = {
+  key: "verdict-per-use-case",
   displayName: "Use-Case-Verdict pro Tool",
   description:
     "Pro Use-Case eine Slide mit Gewinner-Tool und Begründung. Schließt mit Recap-Tally.",
@@ -123,19 +123,19 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
 
     // Dynamic import — avoids bundling Remotion into non-render contexts
     const socialModule = await import("../../../render-server.ts") as unknown as {
-      renderUseCaseVerdictCarousel: (
+      renderVerdictPerUseCase: (
         input: Record<string, unknown>,
       ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     };
 
-    const { slides: buffers } = await socialModule.renderUseCaseVerdictCarousel(
+    const { slides: buffers } = await socialModule.renderVerdictPerUseCase(
       carouselInput as unknown as Record<string, unknown>,
     );
 
     const slideOutputs = await writeSlides(
       buffers,
       article.id,
-      "use-case-verdict-per-tool",
+      "verdict-per-use-case",
       locale,
       theme,
       { width: SLIDE_W, height: SLIDE_H },
@@ -145,7 +145,7 @@ export const useCaseVerdictPerToolTemplate: TemplateDefinition<ComparisonContext
       slides: slideOutputs,
       caption: context.generatedContent?.caption ?? fallbackCaption(input, locale, article.slug),
       hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
-      metadata: { estimatedCostUsd: 0.008, templateKey: "use-case-verdict-per-tool" },
+      metadata: { estimatedCostUsd: 0.008, templateKey: "verdict-per-use-case" },
     };
   },
 

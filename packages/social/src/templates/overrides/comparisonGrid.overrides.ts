@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const comparisonStunningOverridesSchema = z
+export const comparisonGridOverridesSchema = z
   .object({
     copy: z
       .object({
@@ -76,4 +76,4 @@ export const comparisonStunningOverridesSchema = z
   })
   .strip();
 
-export type ComparisonStunningOverrides = z.infer<typeof comparisonStunningOverridesSchema>;
+export type ComparisonGridOverrides = z.infer<typeof comparisonGridOverridesSchema>;

@@ -76,7 +76,7 @@ class TemplateRegistry {
       }
     }
 
-    if (key === "use-case-verdict-per-tool") {
+    if (key === "verdict-per-use-case") {
       const { useCaseVerdicts } = discovery as { useCaseVerdicts?: unknown[] };
       const verdictsCount = Array.isArray(useCaseVerdicts) ? useCaseVerdicts.length : 0;
       const { minVerdictsCount } = (resolved as { eligibility: { minVerdictsCount: number } }).eligibility;
