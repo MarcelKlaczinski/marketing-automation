@@ -43,7 +43,6 @@ const socialRenderJobDataSchema = z.object({
 // ─── Remotion render (real impl wired in Session 3) ──────────────────────────
 
 async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ slideUrls: string[] }> {
-  const locale = (data.locale.startsWith("de") ? "de" : "en") as "de" | "en";
   const templateKey = data.templateKey;
 
   // Dynamic import: avoids Remotion bundling into API startup context (per packages/social CLAUDE.md).

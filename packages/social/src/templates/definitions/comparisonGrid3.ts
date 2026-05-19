@@ -274,7 +274,7 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
         score: raw.score ?? 70,
         meta: raw.meta ?? (resolved as { primaryCategory?: string } | undefined)?.primaryCategory ?? slug,
       };
-      if (raw.pricingTier !== undefined) base.pricingTier = raw.pricingTier as Grid3Tool["pricingTier"];
+      if (raw.pricingTier !== undefined) base.pricingTier = raw.pricingTier as "free" | "freemium" | "paid" | "enterprise";
       if (raw.priceFrom !== undefined) base.priceFrom = raw.priceFrom;
       if (raw.isWinner !== undefined) base.isWinner = raw.isWinner;
       if (raw.winnerFlagText !== undefined) base.winnerFlagText = raw.winnerFlagText;
