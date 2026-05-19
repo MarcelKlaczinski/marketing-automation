@@ -85,10 +85,42 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
     };
     const result = await renderServer.renderComparisonGrid(carouselInput as Record<string, unknown>);
     slides = result.slides;
-  } else if (templateKey === "verdict-per-use-case" || templateKey === "single-tool-spotlight" || templateKey === "pro-con-verdict") {
-    // These templates use the renderInput snapshot persisted in social_posts.content (Spec 58.2).
-    // Full input construction from snapshot will be wired in Session 3 (Spec 59.3 Section F).
-    throw new Error(`Template '${templateKey}' render not yet wired in worker — wire in Session 3`);
+  } else if (
+    templateKey === "verdict-per-use-case" ||
+    templateKey === "single-tool-spotlight" ||
+    templateKey === "pro-con-verdict"
+  ) {
+    // Read full composition input from the renderInput snapshot stored in social_posts.content
+    // at INSERT time (Spec 58.2). Fresh brandTokens + overrides come from job data.
+    const [post] = await db
+      .select({ content: socialPosts.content })
+      .from(socialPosts)
+      .where(eq(socialPosts.id, data.socialPostId));
+
+    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
+    const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
+    if (!snapshot) {
+      throw new Error(
+        `No renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: ${templateKey})`,
+      );
+    }
+
+    // Merge snapshot with fresh brand tokens + overrides from job data
+    const fullInput: Record<string, unknown> = {
+      ...snapshot,
+      brandTokens: data.brandTokens,
+      overrides: data.overrides,
+    };
+
+    let result: { slides: Buffer[]; sequenceCount: number };
+    if (templateKey === "verdict-per-use-case") {
+      result = await renderServer.renderVerdictPerUseCase(fullInput);
+    } else if (templateKey === "single-tool-spotlight") {
+      result = await renderServer.renderSingleToolSpotlight(fullInput);
+    } else {
+      result = await renderServer.renderProConVerdict(fullInput);
+    }
+    slides = result.slides;
   } else {
     throw new Error(`Unknown templateKey: ${templateKey}`);
   }

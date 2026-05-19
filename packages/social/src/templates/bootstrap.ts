@@ -3,6 +3,7 @@ import { comparisonGrid4Template } from "./definitions/comparisonGrid4.ts";
 import { comparisonGrid3Template } from "./definitions/comparisonGrid3.ts";
 import { verdictPerUseCaseTemplate } from "./definitions/verdictPerUseCase.ts";
 import { singleToolSpotlightTemplate } from "./definitions/singleToolSpotlight.ts";
+import { proConVerdictTemplate } from "./definitions/proConVerdict.ts";
 
 let bootstrapped = false;
 
@@ -13,6 +14,7 @@ export function bootstrapTemplates(): void {
   templateRegistry.register(comparisonGrid3Template);
   templateRegistry.register(verdictPerUseCaseTemplate);
   templateRegistry.register(singleToolSpotlightTemplate);
+  templateRegistry.register(proConVerdictTemplate);
 
   // Future templates registered here:
   // templateRegistry.register(newsSlideTemplate);             // Spec 54g
