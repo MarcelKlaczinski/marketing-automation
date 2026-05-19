@@ -104,7 +104,7 @@ generateContent: async (article, input, locale, llmCaller) => {
       primaryKeyword: toolNames.join(" vs. "),
       locale,
       articleSlug: article.slug,
-      contentType: "comparison", // or "tool-spotlight" | "use-case"
+      contentType: "comparison", // valid: "comparison" | "review" | "general" — "tool-spotlight" does NOT exist
     },
     llmCaller,
   );
@@ -114,8 +114,25 @@ generateContent: async (article, input, locale, llmCaller) => {
 **Key rules:**
 - `llmCaller` is dependency-injected by the runner — templates never import `@marketing-auto/adapter-anthropic` directly.
 - `article.title` is `string | null` — always use `article.title ?? article.slug` as fallback.
-- `contentType` controls bilingual hashtag rule: `comparison`/`use-case` get `#KIVergleich`; `tool-spotlight` does not.
+- `contentType` valid values: `"comparison" | "review" | "general"`. `"tool-spotlight"` and `"use-case"` do NOT exist on `ContentType` from `buildHashtagInstructions` — using them causes a TypeScript error. `"review"` is the right choice for single-tool evaluation templates.
+- `contentType` controls bilingual hashtag rule: `"comparison"` gets `#KIVergleich`; `"review"` and `"general"` do not.
 - `generateContentWithGate` validates hook (word count 3–7, forbidden words, pattern rules), retries twice, falls back to static captions — never throws.
+
+**Templates needing extra LLM data beyond `GeneratedContent`** (e.g. verdict snippet, whenToUse, whenToSkip): `GeneratedContent` is a fixed shape `{ hookOutput, caption, hashtags }` — it cannot be extended. Use the `_verdict` extension pattern:
+
+```ts
+type VerdictData = { snippet: string; whenToUse: string; whenToSkip: string };
+type GeneratedContentWithVerdict = GeneratedContent & { _verdict: VerdictData | null };
+
+// In generateContent():
+return result as unknown as GeneratedContent; // result is GeneratedContentWithVerdict
+
+// In render():
+const withVerdict = context.generatedContent as (GeneratedContent & { _verdict?: VerdictData | null }) | undefined;
+const verdict = withVerdict?._verdict ?? null;
+```
+
+The `_verdict` prefix (underscore) signals extension data. This pattern is safe because `render()` immediately casts back to the extended type before use.
 
 **In `render()`:** use `context.generatedContent?.caption ?? fallbackCaption(...)` — keep a private `fallbackCaption` function as safety net but never call it as the primary path.
 
@@ -199,5 +216,7 @@ If `edge-min` looks sparse or `edge-max` clips text, the layout is not productio
 **`color-mix` fallback in oklch:** Chromium's headless renderer handles `color-mix(in oklch, ...)` correctly since Chrome 111+. Remotion 4.x ships Chromium 112+, so this is safe.
 
 **`DEFAULT_BRAND_TOKENS` is mandatory in every template `render()`:** Every template that reads `brandTokens` must write `const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;` where `DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({})`. Never use `context.brandTokens?.social.websiteUrl ?? "fallback"` inline — that bypasses the structured token system and was caught as a review violation in Spec 54f.
+
+**`HookOutput.pattern` enum values are not what you'd guess:** the actual valid values are `"superlative_question" | "number_promise" | "negative_frame" | "identity_frame" | "curiosity_gap"` (defined in `packages/social/src/compositions/list-carousel/types.ts`). Values like `"question"`, `"bold-claim"`, `"contrast"`, `"number-stat"`, `"you-hook"` are wrong and cause a Zod parse error at runtime. When writing a custom `generateContent()` that bypasses `generateContentWithGate`, validate the hook response against the Zod schema from `list-carousel/types.ts` so mismatches are caught early rather than at render time. Your fallback hookOutput must also use a valid pattern value — `"negative_frame"` is a safe default.
 
 **Zod silently strips fields not in the composition schema:** If your template's `render()` passes a computed field (e.g. `pricingLabel`) to the composition input but that field is not declared in the composition's Zod schema, Zod strips it silently at parse time. No compile error, no runtime error. Each slide then has to recompute it from first principles — wasted computation and inconsistent logic. Rule: either declare the field in the schema AND pass it from render(), OR don't pass it and have slides compute it locally. Never half-do it.
