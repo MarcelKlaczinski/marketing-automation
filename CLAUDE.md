@@ -229,6 +229,7 @@ Implemented specs (do not re-implement):
 - /specs/59.1a-reddit-adapter.md (class-based RedditSignalSource; OAuth2 token cache; subreddit fan-out; pino.warn per failure; COST_OPS.REDDIT_SIGNAL_COLLECT; signal_collector_reddit cron + cron-orchestrator integration)
 - /specs/59.1b-github-trending-adapter.md (GitHubSignalSource PAT auth; two-query heuristic new-rising+active-established; dedup by full_name; archived filter; verifyGitHub; COST_OPS.GITHUB_SIGNAL_COLLECT; signal_collector_github cron; globalCredentials service="github")
 - /specs/59.1c-signal-settings-ui.md (Sessions 1–4: 5 signal cron columns on projects; vendor-rss feeds schema string[]→object[]; vendor-rss CRUD + per-source PATCH + manual trigger endpoints in signal-sources.ts; SettingsCredentialsPage Reddit/GitHub/ProductHunt entries; SettingsSignalSourcesPage + SignalSourceCard + 5 config editors + StringListEditor + FeedRow; i18n DE+EN)
+- /specs/59.2-bidirectional-translation.md (Sessions 1–2 done: findSibling() bidirectional + findEnSibling alias; locale-neutral step I/O (sourceBodyMd/targetArticleId/targetTitle etc.); DE_TO_EN + EN_TO_DE adaptive markers; DE_STYLE_NOTES / EN_STYLE_NOTES per target locale; manual_resync mode; BlogPipeline + RefreshPipeline afterComplete bidirectional; POST /articles/:id/translate with 409/422 guards; preRunId support in enqueueTranslationPipeline)
 
 ## Project Marketing Contexts
 
