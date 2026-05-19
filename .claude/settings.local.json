@@ -944,7 +944,18 @@
       "Bash(bun --filter @marketing-auto/pipelines test -- packages/pipelines/test/article/translation/sibling.test.ts)",
       "Bash(bun --filter @marketing-auto/pipelines test -- 'packages/pipelines/test/article/translation/sibling.test.ts')",
       "Bash(bun --filter @marketing-auto/api test -- 'apps/api/test/routes/articles-translate.test.ts')",
-      "Bash(git worktree *)"
+      "Bash(git worktree *)",
+      "Bash(git mv *)",
+      "Bash(bun --filter '*social*' run typecheck)",
+      "Bash(git diff *)",
+      "Bash(bun --cwd packages/social run tsc)",
+      "Bash(bun packages/social/scripts/render-pro-con-verdict.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/social/src/compositions/_shared/getFontSize.ts packages/social/src/errors.ts packages/social/src/templates/validateGenerated.ts packages/social/src/templates/types.ts packages/social/test/bounds-bucket-alignment.test.ts packages/social/test/fixtures-respect-bounds.test.ts)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add packages/social/src/compositions/pro-con-verdict/ProsSlide.tsx packages/social/src/compositions/pro-con-verdict/ConsSlide.tsx packages/social/src/compositions/pro-con-verdict/VerdictSlide.tsx)",
+      "Bash(git -C /Users/marcelklaczinski/WebstormProjects/marketing-automation add specs/59.3.5-layout-shift-free-templates.md packages/social/src/templates/CLAUDE.md packages/social/src/compositions/CLAUDE.md)",
+      "Bash(ls /mnt/user-data/uploads/ 2>/dev/null || echo \"UPLOADS DIR NOT FOUND\")",
+      "Bash(bun packages/social/scripts/visual-render-all.ts --update)",
+      "Bash(bun packages/social/scripts/visual-render-all.ts)"
     ]
   }
 }
