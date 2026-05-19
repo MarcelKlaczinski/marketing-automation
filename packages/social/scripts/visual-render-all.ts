@@ -40,6 +40,7 @@ const THEMES = ["dark", "light"] as const;
 
 type RS = {
   renderComparisonGrid: (i: Record<string, unknown>) => Promise<{ slides: Buffer[] }>;
+  renderComparisonGrid3: (i: Record<string, unknown>) => Promise<{ slides: Buffer[] }>;
   renderVerdictPerUseCase: (i: Record<string, unknown>) => Promise<{ slides: Buffer[] }>;
   renderSingleToolSpotlight: (i: Record<string, unknown>) => Promise<{ slides: Buffer[] }>;
   renderProConVerdict: (i: Record<string, unknown>) => Promise<{ slides: Buffer[] }>;
@@ -135,7 +136,10 @@ const suites: { templateKey: string; fixtures: FixtureSuite }[] = [
     ],
   },
 
-  // ── comparison-grid-3 ──────────────────────────────────────────────────
+  // ── comparison-grid-3 (single-still, Spec 60.3) ───────────────────────
+  // Uses renderComparisonGrid3 — NOT renderComparisonGrid (that's the list-carousel renderer).
+  // Input shape: ComparisonGrid3Input { slideIndex, locale, theme, generated, brandTokens }.
+  // Matches canonical fixtures in comparisonGrid3.fixtures.ts exactly.
   {
     templateKey: "comparison-grid-3",
     fixtures: [
@@ -143,66 +147,81 @@ const suites: { templateKey: string; fixtures: FixtureSuite }[] = [
         name: "characteristic",
         slides: async (theme) => {
           const input = {
-            theme, variant: "stunning" as const, brandTokens: DEFAULT_BRAND, slideIndex: 0,
+            slideIndex: 0,
             locale: "de",
-            cover: {
-              eyebrow: "TOOL-VERGLEICH · 2026",
-              headlineLead: "Cursor vs.",
-              headlineHighlight: "Windsurf vs. Codeium",
-              hookOutput: { pattern: "superlative_question" as const, leadPhrase: "Cursor vs.", highlightWord: "Windsurf vs. Codeium", trailPhrase: "", fullText: "Cursor vs. Windsurf vs. Codeium", promiseBlock: { line1: "Drei KI-Code-Editoren im Vergleich.", line2: "Kein Hype. Echte Ergebnisse." } },
+            theme,
+            brandTokens: DEFAULT_BRAND,
+            generated: {
+              headline: "Die",
+              headlineEm: "drei Schulen",
+              subline: "Ästhetik, Prompt-Adhärenz oder Kontrolle — jedes Tool steht für eine andere Philosophie.",
+              eyebrow: "Vergleich · 3 Top-Modelle",
+              slideNum: "01 / 01",
+              ctaLine1: "Workflow-Empfehlungen →",
+              ctaLine2: "toolwiki.ai/bilder",
+              dateLabel: "Stand 05/2026 · toolwiki.ai/bilder",
+              tools: [
+                { name: "Midjourney v7", meta: "Premium-Ästhetik · web + Discord", score: 92, scoreTier: "hi", pricePrefix: "Ab", priceAmount: "10 $/Mo", isWinner: true, winnerFlagText: "Top Aesthetic", pros: ["Hero-Visuals out-of-the-box auf Agentur-Niveau", "--sref & --cref für Marken-Konsistenz"], cons: ["Schwer aus dem MJ-Look auszubrechen", "Text im Bild bleibt schwach"], iconInitials: "MJ", iconHue: 220 },
+                { name: "DALL·E 4", meta: "Prompt-Adhärenz · via ChatGPT", score: 81, scoreTier: "hi", pricePrefix: "Ab", priceAmount: "20 $/Mo", isWinner: false, pros: ["Liefert exakt was du beschreibst", "Text endlich lesbar"], cons: ["Stil oft glatt, austauschbar", "Weniger Stil-Kontrolle"], iconInitials: "DE", iconHue: 160 },
+                { name: "Stable Diffusion", meta: "Maximale Kontrolle · ComfyUI", score: 74, scoreTier: "mid", pricePrefix: "", priceAmount: "Kostenlos", isWinner: false, pros: ["LoRAs für 98% Charakter-Konsistenz", "Kein Abo, keine Quota, lokal"], cons: ["Steile Lernkurve (Hardware + Nodes)", "SD-Default wirkt blass ohne LoRA"], iconInitials: "SD", iconHue: 270 },
+              ],
             },
-            tools: [
-              { slug: "cursor", rank: 1, name: "Cursor", domain: "cursor.sh", eyebrow: "01 · KI-CODE-EDITOR", tagline: "Composer-Mode versteht den vollen Codebase-Kontext für großes Refactoring.", strengths: ["Großes Refactoring", "IDE-Integration", "Team-Kollaboration"], pricing: { tier: "freemium" as const, label: "ab 20 €/Mo" }, starStrength: "Großes Refactoring", bestFor: "Teams", iconInitials: "CU", iconHue: 200 },
-              { slug: "windsurf", rank: 2, name: "Windsurf", domain: "codeium.com/windsurf", eyebrow: "02 · KI-CODE-EDITOR", tagline: "Cascade bleibt über mehrstufige Flow-Schritte kohärent.", strengths: ["Flow-Entwicklung", "Autocomplete"], pricing: { tier: "freemium" as const, label: "ab 15 €/Mo" }, starStrength: "Flow-Entwicklung", bestFor: "Flows", iconInitials: "WS", iconHue: 185 },
-              { slug: "codeium", rank: 3, name: "Codeium", domain: "codeium.com", eyebrow: "03 · KI-CODE-EDITOR", tagline: "Komplett kostenlos ohne Token-Limits für Einsteiger.", strengths: ["Kostenfreier Einstieg", "Ghost-Text-Completions"], pricing: { tier: "free" as const, label: "Kostenlos" }, bestFor: "Einsteiger", iconInitials: "CD", iconHue: 150 },
-            ],
-            end: { headline: "Mehr Reviews,", headlineHighlight: "ehrlich getestet.", articleUrl: "toolwiki.ai/cursor-vs-windsurf-vs-codeium", toolRecap: ["cursor", "windsurf", "codeium"] },
           };
-          return (await rs()).renderComparisonGrid(input as unknown as Record<string, unknown>).then(r => r.slides);
+          return (await rs()).renderComparisonGrid3(input as unknown as Record<string, unknown>).then(r => r.slides);
         },
       },
       {
         name: "edge-min",
         slides: async (theme) => {
           const input = {
-            theme, variant: "stunning" as const, brandTokens: DEFAULT_BRAND, slideIndex: 0,
-            locale: "de",
-            cover: {
-              eyebrow: "TOOL-VERGLEICH · 2026",
-              headlineLead: "Welches Tool",
-              headlineHighlight: "gewinnt?",
-              hookOutput: { pattern: "superlative_question" as const, leadPhrase: "Welches Tool", highlightWord: "gewinnt?", trailPhrase: "", fullText: "Welches Tool gewinnt?", promiseBlock: { line1: "Claude vs. ChatGPT vs. Gemini.", line2: "Kein Hype. Echte Ergebnisse." } },
+            slideIndex: 0,
+            locale: "en",
+            theme,
+            brandTokens: DEFAULT_BRAND,
+            generated: {
+              headline: "Three AI",
+              headlineEm: "writing tools",
+              subline: "GPT-4o, Claude, and Gemini compared head-to-head — pros, cons, and who wins for which job.",
+              eyebrow: "Comparison · 3 tools",
+              slideNum: "01 / 01",
+              ctaLine1: "Workflow recommendations →",
+              ctaLine2: "toolwiki.ai/ai-assistants",
+              dateLabel: "As of 05/2026 · toolwiki.ai/ai-assistants",
+              tools: [
+                { name: "GPT-4o", meta: "Best all-rounder · ChatGPT", score: 91, scoreTier: "hi", pricePrefix: "From", priceAmount: "$20/mo", isWinner: false, pros: ["Best at creative tasks", "Widest plugin ecosystem"], cons: ["No free tier for GPT-4o", "Context window limited"], iconInitials: "GP", iconHue: 120 },
+                { name: "Claude", meta: "Long context · Anthropic", score: 89, scoreTier: "hi", pricePrefix: "From", priceAmount: "$20/mo", isWinner: false, pros: ["200k context window", "Strong at analysis"], cons: ["No image generation", "Fewer integrations"], iconInitials: "CL", iconHue: 200 },
+                { name: "Gemini", meta: "Google Search · native", score: 75, scoreTier: "mid", pricePrefix: "", priceAmount: "Free", isWinner: false, pros: ["Free with Google account", "Live web access"], cons: ["Inconsistent quality", "Limited creative range"], iconInitials: "GM", iconHue: 45 },
+              ],
             },
-            tools: [
-              { slug: "claude", rank: 1, name: "Claude", domain: "claude.ai", eyebrow: "01 · KI-ASSISTENT", tagline: "Tiefe Analyse.", strengths: ["Langer Kontext", "Präzision"], pricing: { tier: "freemium" as const, label: "ab 0 €" }, iconInitials: "CL", iconHue: 200 },
-              { slug: "chatgpt", rank: 2, name: "ChatGPT", domain: "chat.openai.com", eyebrow: "02 · KI-ASSISTENT", tagline: "Breite Anwendung.", strengths: ["Plugins", "Vielseitig"], pricing: { tier: "freemium" as const, label: "ab 0 €" }, iconInitials: "GP", iconHue: 160 },
-              { slug: "gemini", rank: 3, name: "Gemini", domain: "gemini.google.com", eyebrow: "03 · KI-ASSISTENT", tagline: "Google-Integration.", strengths: ["Google-Suite", "Kostenlos"], pricing: { tier: "free" as const, label: "Kostenlos" }, iconInitials: "GE", iconHue: 210 },
-            ],
-            end: { headline: "Mehr Reviews,", headlineHighlight: "ehrlich getestet.", articleUrl: "toolwiki.ai/llm-vergleich", toolRecap: ["claude", "chatgpt", "gemini"] },
           };
-          return (await rs()).renderComparisonGrid(input as unknown as Record<string, unknown>).then(r => r.slides);
+          return (await rs()).renderComparisonGrid3(input as unknown as Record<string, unknown>).then(r => r.slides);
         },
       },
       {
         name: "edge-max",
         slides: async (theme) => {
           const input = {
-            theme, variant: "stunning" as const, brandTokens: DEFAULT_BRAND, slideIndex: 0,
+            slideIndex: 0,
             locale: "de",
-            cover: {
-              eyebrow: "TOOL-VERGLEICH · 2026",
-              headlineLead: "Perplexity vs. You",
-              headlineHighlight: "vs. Phind — KI-Suche",
-              hookOutput: { pattern: "superlative_question" as const, leadPhrase: "Perplexity vs. You", highlightWord: "vs. Phind", trailPhrase: "", fullText: "Perplexity vs. You.com vs. Phind", promiseBlock: { line1: "Drei KI-Suchmaschinen im Direkttest.", line2: "Kein Hype. Echte Ergebnisse." } },
+            theme,
+            brandTokens: DEFAULT_BRAND,
+            generated: {
+              headline: "Video-KI",
+              headlineEm: "im Praxistest",
+              subline: "Drei Monate Praxistest mit 80 echten Produktionsprojekten — von kurzen Reels bis zu 10-Minuten-Explainern. Das sind die Ergebnisse.",
+              eyebrow: "Vergleich · 3 Video-Generatoren",
+              slideNum: "01 / 01",
+              ctaLine1: "Vollständiger Praxistest →",
+              ctaLine2: "toolwiki.ai/video-ki",
+              dateLabel: "Stand 05/2026 · toolwiki.ai/video-ki",
+              tools: [
+                { name: "Runway Gen-4", meta: "Cinematic Quality · Professionals", score: 88, scoreTier: "hi", pricePrefix: "Ab", priceAmount: "15 $/Mo", isWinner: true, winnerFlagText: "Profi-Empfehlung", pros: ["Beste Motion-Konsistenz bei langen Szenen", "Director Mode für präzise Kamera-Kontrolle"], cons: ["Teuerste Option im Vergleich bei hohem Vol.", "Render-Zeiten bei 4K über 5 Minuten/Clip"], iconInitials: "RW", iconHue: 300 },
+                { name: "Kling AI 2.0", meta: "Photorealism · API-first Platform", score: 82, scoreTier: "hi", pricePrefix: "Ab", priceAmount: "0.14 $/Clip", isWinner: false, pros: ["Fotorealistischste Gesichter im Vergleich", "Pay-per-Clip — ideal für kleines Volumen"], cons: ["Kein konsistenter Charakter über Clips", "API-Dokumentation noch lückenhaft"], iconInitials: "KL", iconHue: 180 },
+                { name: "Hailuo MiniMax", meta: "Speed & Cost · High Volume", score: 61, scoreTier: "lo", pricePrefix: "", priceAmount: "Kostenlos (Beta)", isWinner: false, pros: ["Schnellste Generierung im Test (unter 60s)", "Kostenlose Beta ohne Warteliste"], cons: ["Qualität für professionelle Nutzung schwach", "Datenschutz-Bestimmungen unklar (China)"], iconInitials: "HL", iconHue: 60 },
+              ],
             },
-            tools: [
-              { slug: "perplexity", rank: 1, name: "Perplexity", domain: "perplexity.ai", eyebrow: "01 · KI-SUCHMASCHINE", tagline: "Perplexity liefert aktuelle Informationen mit verifizierbaren Links für zeitkritische Recherchen.", strengths: ["Echtzeit-Webrecherche mit Quellenangaben", "Forschungsrecherche", "Faktenprüfung"], pricing: { tier: "freemium" as const, label: "ab 20 €/Mo" }, starStrength: "Echtzeit-Webrecherche mit verifizierbaren Quellen", bestFor: "Recherche", iconInitials: "PP", iconHue: 260 },
-              { slug: "you", rank: 2, name: "You.com", domain: "you.com", eyebrow: "02 · KI-SUCHMASCHINE", tagline: "You.com bietet die stärksten Datenschutz-Einstellungen im Unternehmenseinsatz.", strengths: ["Privacy & Datenschutz", "Personalisierung"], pricing: { tier: "freemium" as const, label: "ab 15 €/Mo" }, bestFor: "Datenschutz", iconInitials: "YC", iconHue: 230 },
-              { slug: "phind", rank: 3, name: "Phind", domain: "phind.com", eyebrow: "03 · KI-SUCHMASCHINE", tagline: "Phind versteht technischen Kontext besser und liefert Code-Snippets die tatsächlich funktionieren.", strengths: ["Code-Debugging", "Entwickler-Fragen"], pricing: { tier: "freemium" as const, label: "ab 0 €" }, bestFor: "Entwickler", iconInitials: "PH", iconHue: 290 },
-            ],
-            end: { headline: "Mehr Reviews,", headlineHighlight: "ehrlich getestet.", articleUrl: "toolwiki.ai/ki-suchmaschinen-vergleich", toolRecap: ["perplexity", "you", "phind"] },
           };
-          return (await rs()).renderComparisonGrid(input as unknown as Record<string, unknown>).then(r => r.slides);
+          return (await rs()).renderComparisonGrid3(input as unknown as Record<string, unknown>).then(r => r.slides);
         },
       },
     ],

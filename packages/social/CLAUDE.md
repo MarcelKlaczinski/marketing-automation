@@ -57,19 +57,19 @@ For new visual-refreshed templates, look at `src/compositions/single-tool-spotli
 
 The `resolveBrandTokens(unknown) → BrandTokens` helper is at `src/lib/brand-tokens.ts` — use it at the top of every slide component to convert the loosely-typed `brandTokens?: unknown` from the input schema into a typed `BrandTokens` before passing to `deriveDsTokens`.
 
-## Template Inventory (as of Spec 60.2)
+## Template Inventory (as of Spec 60.3)
 
 | Key | Slides | Cover Signature | Eligible content |
 |-----|--------|-----------------|-----------------|
 | `comparison-grid-4` | **1 (single still)** | 4-up tool grid, top-right glow, 84px score | comparison articles, **exactly 4 tools**, `frontmatterExtras.tools[].score` required |
-| `comparison-grid-3` | dynamic (1+N+1) | 3-up tool grid | comparison articles, exactly 3 tools |
+| `comparison-grid-3` | **1 (single still)** | 3-up auto-height card stack, bottom-left glow, 56px score, 2×2 pro/con bullets | comparison articles, **exactly 3 tools** (sliced in `buildInput`), `frontmatterExtras.tools` required |
 | `single-tool-spotlight` | 3 (cover/body/end) | hero cover + tool deep-dive body | tools collection, has pros/features |
 | `verdict-per-use-case` | dynamic (1+N+2) | use-case-prominent header | comparison articles with per-use-case verdicts |
 | `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `frontmatterExtras.pros ≥ 3 AND cons ≥ 3` |
 
 **`pro-con-verdict` cover:** Two halves divided by a diagonal SVG clipPath — left half tinted with `prosColor` (default oklch green), right half with `consColor` (default oklch red). Tool name overlays the split at the bottom. This is the only template with a split-screen cover and is visually distinct from all others in the Instagram grid.
 
-**`comparison-grid-4` is a single-still template (Spec 60.2)** — one PNG per article, no dispatcher. `renderComparisonGrid4()` calls `renderStill()` once with `slideIndex: 0`. The worker reads `content.renderInput` snapshot from DB (Spec 58.2 pattern) — NOT the job data. Top-right glow (not bottom-left). Score font-size 84px (not 56px like grid-3). Winner flag is `right: 28px` (not left).
+**Both `comparison-grid-4` and `comparison-grid-3` are single-still templates** — one PNG per article, no dispatcher. Their render functions each call `renderStill()` once with `slideIndex: 0`. Both workers read `content.renderInput` snapshot from DB (Spec 58.2 pattern) — NOT the job data. Key visual differences: grid-4 has top-right glow + 84px score + right-anchored winner flag; grid-3 has bottom-left glow + 56px score + left-anchored winner flag + 2×2 pro/con bullet row per card.
 
 ## Variant History (Spec 57.1)
 
