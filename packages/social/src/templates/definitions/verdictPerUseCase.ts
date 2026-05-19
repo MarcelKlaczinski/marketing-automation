@@ -12,10 +12,29 @@ import {
   selectPattern,
 } from "@marketing-auto/core";
 
+// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — VerdictProps
 export const verdictPerUseCaseBounds = {
-  useCase: { min: 5, max: 50 },
-  reason: { min: 10, max: 160 },
+  // Slide header (REMOTION.md VerdictProps)
+  eyebrow:   { min: 10, max: 28 },
+  headerNum: { min: 18, max: 56 },
+  heroTitle: { min: 10, max: 32 },
+  heroSub:   { min: 50, max: 180 },
+  // Per-row slots — 5 to 7 entries (7 is the layout sweet spot per REMOTION.md)
+  rows: {
+    countMin: 5,
+    countMax: 7, // HARD upper bound — more than 7 rows breaks layout
+    label:      { min: 8, max: 28 },
+    winnerName: { min: 3, max: 16 }, // tool name in pill; longer wraps
+  },
+  footer: {
+    ctaLine: { min: 8,  max: 24 },
+    url:     { min: 12, max: 32 },
+  },
+  // Internal render fields retained for render-code compatibility
+  useCase:  { min: 5,  max: 50 },
+  reason:   { min: 10, max: 160 },
   verdicts: { max: 7, perItemMaxChars: 160 },
+  // Caption/hashtag fields (not rendered on slide)
   captionBody: { min: 20, max: 1800 },
   hashtags: { max: 10, perItemMaxChars: 24 },
 } as const satisfies ContentBounds;
