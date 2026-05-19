@@ -76,6 +76,7 @@ export const COST_OPS = {
   // === Spec 51: Social image generation (Instagram carousel) ===
   SOCIAL_IMAGE_EXTRACT:   "social-image-extract",    // Haiku: extract tools from article
   SOCIAL_IMAGE_CAPTION:   "social-image-caption",    // Sonnet: write Instagram caption + hashtags (merged, Spec 57.4)
+  SOCIAL_IMAGE_GRID4_GENERATE: "social-image-grid4-generate", // Sonnet: generate comparison-grid-4 content (Spec 60.2)
 
   // === Spec 54.5: Trend discovery synthesis ===
   TREND_SYNTHESIS:              "trend-synthesis",              // Opus: daily LLM synthesis of signals into TopicBriefs

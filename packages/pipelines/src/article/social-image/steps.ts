@@ -629,10 +629,221 @@ export class ResolveAssetsStep extends BaseStep<
   }
 }
 
-// ─── Step 4: GenerateCaptionStep ─────────────────────────────────────────────
+// ─── Step 4: GenerateComparisonGrid4Step ────────────────────────────────────
+// Generates ComparisonGrid4Generated content via Sonnet LLM.
+// Only runs for comparison-grid-4 (exactly 4 tools). Returns null for other counts.
+
+const GenerateComparisonGrid4InputSchema = ResolveAssetsOutputSchema;
+const GenerateComparisonGrid4OutputSchema = ResolveAssetsOutputSchema.extend({
+  comparisonGrid4Generated: z.unknown().nullable(),
+});
+
+export class GenerateComparisonGrid4Step extends BaseStep<
+  z.infer<typeof GenerateComparisonGrid4InputSchema>,
+  z.infer<typeof GenerateComparisonGrid4OutputSchema>
+> {
+  readonly name = "generate-comparison-grid-4";
+  readonly inputSchema = GenerateComparisonGrid4InputSchema;
+  readonly outputSchema = GenerateComparisonGrid4OutputSchema;
+
+  override estimatedCostEur(): number { return 0.028; }
+
+  async execute(
+    input: z.infer<typeof GenerateComparisonGrid4InputSchema>,
+    ctx: StepContext,
+  ): Promise<z.infer<typeof GenerateComparisonGrid4OutputSchema>> {
+    if (input.resolvedTools.length !== 4) {
+      return { ...input, comparisonGrid4Generated: null };
+    }
+
+    const [
+      { comparisonGrid4Bounds, comparisonGrid4LlmResponseSchema, transformLlmResponse },
+      { buildConstraintBlock },
+    ] = await Promise.all([
+      import("../../../../social/src/compositions/comparison-grid-4/types.ts") as Promise<
+        typeof import("../../../../social/src/compositions/comparison-grid-4/types.ts")
+      >,
+      import("../../../../social/src/templates/lib/buildConstraintBlock.ts") as Promise<
+        typeof import("../../../../social/src/templates/lib/buildConstraintBlock.ts")
+      >,
+    ]);
+
+    const localePrefix = ((input.locales[0] ?? "de-DE").split("-")[0] ?? "de") as "de" | "en";
+    const isDE = localePrefix !== "en";
+
+    // Query frontmatterExtras to get per-tool scores + prices (not in resolvedTools)
+    const [article] = await db
+      .select({ frontmatterExtras: articles.frontmatterExtras })
+      .from(articles)
+      .where(and(eq(articles.id, input.articleId), eq(articles.projectId, input.projectId)))
+      .limit(1);
+
+    type RawTool = { slug?: string; score?: number; pricingTier?: string; priceFrom?: number };
+    const rawToolMap: Record<string, RawTool> = {};
+    const extras = (article?.frontmatterExtras ?? {}) as { tools?: RawTool[] };
+    for (const t of extras.tools ?? []) {
+      if (t.slug) rawToolMap[t.slug] = t;
+    }
+
+    const month = String(new Date().getMonth() + 1).padStart(2, "0");
+    const year = new Date().getFullYear();
+
+    const toolsContext = input.resolvedTools
+      .map((t) => {
+        const rt = t as { slug: string; name: string };
+        const raw = rawToolMap[rt.slug] ?? {};
+        const score = raw.score ?? 70;
+        const priceStr =
+          raw.pricingTier === "free"
+            ? (isDE ? "Kostenlos" : "Free")
+            : raw.priceFrom != null
+              ? (isDE ? `Ab ${raw.priceFrom} $/Mo` : `From $${raw.priceFrom}/mo`)
+              : (isDE ? "Preis auf Anfrage" : "Contact for pricing");
+        return `- ${rt.name} (slug: ${rt.slug}, score: ${score}, price: ${priceStr})`;
+      })
+      .join("\n");
+
+    const constraintBlock = buildConstraintBlock(comparisonGrid4Bounds, localePrefix, {
+      fields: ["eyebrow", "heroTitle", "heroSub", "tools", "footer"],
+    });
+
+    const ctaDefault = isDE ? "Vollständiger Test →" : "Full review →";
+    const winnerFlagDefault = isDE ? "Testsieger" : "Top pick";
+    const slug = input.articleSlug;
+
+    const prompt = isDE
+      ? `Du bist Redakteur für toolwiki.ai. Erstelle den Content für eine Instagram-Slide im Format comparison-grid-4. Alle Ausgaben auf DEUTSCH.
+
+Artikel-Kontext:
+- Titel: ${input.articleTitle}
+- Slug: ${slug}
+- Tools im Artikel:
+${toolsContext}
+
+Format-Anforderungen (strikt einhalten):
+${constraintBlock}
+
+Ausgabe: Exakt ein JSON-Objekt, kein Markdown, keine Erklärung.
+
+{
+  "headline": "<Haupttitel, max 44 Zeichen>",
+  "headline_em": "<hervorgehobenes Keyword, max 22 Zeichen>",
+  "subline": "<Beschreibung, 60–180 Zeichen>",
+  "eyebrow": "<z.B. 'Vergleich · 4 KI-Tools', max 32 Zeichen>",
+  "slide_num": "01 / 01",
+  "cta_line1": "${ctaDefault}",
+  "cta_line2": "toolwiki.ai/${slug}",
+  "date_label": "Stand ${month}/${year} · toolwiki.ai/${slug}",
+  "tools": [
+    {
+      "name": "<Tool-Name, max 16 Zeichen>",
+      "verdict_strong": "<fetter Beginn des Fazits, max 44 Zeichen>",
+      "verdict_rest": "<Rest des Fazits, max 52 Zeichen>",
+      "score": <Zahl aus Kontext>,
+      "price_label": "<Preis-Label, max 22 Zeichen>",
+      "logo_slug": "<slug aus Kontext>",
+      "is_winner": <true für höchsten Score, sonst false>,
+      "winner_flag_text": "${winnerFlagDefault}"
+    }
+  ]
+}`
+      : `You are an editor for toolwiki.ai. Create the content for an Instagram slide in comparison-grid-4 format. All output in ENGLISH.
+
+Article Context:
+- Title: ${input.articleTitle}
+- Slug: ${slug}
+- Tools in article:
+${toolsContext}
+
+Format requirements (strictly follow):
+${constraintBlock}
+
+Output: Exactly one JSON object, no markdown, no explanation.
+
+{
+  "headline": "<main title, max 44 chars>",
+  "headline_em": "<highlighted keyword, max 22 chars>",
+  "subline": "<description, 60–180 chars>",
+  "eyebrow": "<e.g. 'Comparison · 4 AI Tools', max 32 chars>",
+  "slide_num": "01 / 01",
+  "cta_line1": "${ctaDefault}",
+  "cta_line2": "toolwiki.ai/${slug}",
+  "date_label": "As of ${month}/${year} · toolwiki.ai/${slug}",
+  "tools": [
+    {
+      "name": "<tool name, max 16 chars>",
+      "verdict_strong": "<bold start of verdict, max 44 chars>",
+      "verdict_rest": "<rest of verdict, max 52 chars>",
+      "score": <number from context>,
+      "price_label": "<price label, max 22 chars>",
+      "logo_slug": "<slug from context>",
+      "is_winner": <true for highest score, else false>,
+      "winner_flag_text": "${winnerFlagDefault}"
+    }
+  ]
+}`;
+
+    const tryGenerate = async () => {
+      const response = await anthropic.messages({
+        projectId: ctx.projectId,
+        pipelineRunId: ctx.pipelineRunId,
+        operation: COST_OPS.SOCIAL_IMAGE_GRID4_GENERATE,
+        model: "claude-sonnet-4-6",
+        systemPrefix: "",
+        systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation.",
+        userMessage: prompt,
+        maxTokens: 1200,
+        estimatedCostEur: 0.028,
+      });
+      const raw = response.raw;
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start < 0 || end <= start) throw new Error("No JSON found in LLM response");
+      return comparisonGrid4LlmResponseSchema.parse(JSON.parse(raw.slice(start, end + 1)));
+    };
+
+    let llmResponse: z.infer<typeof comparisonGrid4LlmResponseSchema> | null = null;
+    try {
+      llmResponse = await tryGenerate();
+    } catch (err) {
+      ctx.log.warn({ err: String(err) }, "GenerateComparisonGrid4Step: first attempt failed, retrying");
+      try {
+        llmResponse = await tryGenerate();
+      } catch (err2) {
+        ctx.log.error({ err: String(err2) }, "GenerateComparisonGrid4Step: both attempts failed, falling back to null");
+      }
+    }
+
+    if (!llmResponse) {
+      return { ...input, comparisonGrid4Generated: null };
+    }
+
+    const transformed = transformLlmResponse(llmResponse);
+
+    // Merge icon data from resolvedTools using the logo_slug returned by LLM
+    const toolsWithIcons = transformed.tools.map((t, i) => {
+      const logoSlug = llmResponse.tools[i]?.logo_slug ?? "";
+      const resolved = input.resolvedTools.find(
+        (r) => (r as { slug: string }).slug === logoSlug,
+      ) as Record<string, unknown> | undefined;
+      return {
+        ...t,
+        ...(resolved?.iconSvg !== undefined && { iconSvg: resolved.iconSvg as string }),
+        ...(resolved?.iconInitials !== undefined && { iconInitials: resolved.iconInitials as string }),
+        ...(resolved?.iconHue !== undefined && { iconHue: resolved.iconHue as number }),
+      };
+    });
+
+    ctx.log.info({ locale: localePrefix, toolCount: toolsWithIcons.length }, "GenerateComparisonGrid4Step: content generated");
+
+    return { ...input, comparisonGrid4Generated: { ...transformed, tools: toolsWithIcons } };
+  }
+}
+
+// ─── Step 5: GenerateCaptionStep ─────────────────────────────────────────────
 // Runs before rendering — caption doesn't depend on slide images.
 
-const GenerateCaptionInputSchema = ResolveAssetsOutputSchema;
+const GenerateCaptionInputSchema = GenerateComparisonGrid4OutputSchema;
 
 const perLocaleOutputSchema = z.object({
   locale: z.string(),
@@ -797,17 +1008,87 @@ export class RenderSlidesStep extends BaseStep<
     }
 
     const results: Array<z.infer<typeof socialPostResultSchema>> = [];
+    const isGrid4 = templateKey === "comparison-grid-4" && input.comparisonGrid4Generated != null;
 
     for (const loc of input.perLocaleOutputs) {
-      // Compute locale-specific render inputs BEFORE INSERT so we can persist them as a
-      // renderInput snapshot in content (enables re-render without re-running pipeline steps).
       const localePrefix = (loc.locale.split("-")[0] ?? "de").split("_")[0] ?? "de";
       const localeSibling = input.localeArticles?.[localePrefix];
       const isDeLocale = loc.locale.startsWith("de");
       const localeTitle = localeSibling?.title ?? input.articleTitle;
 
+      // ─── comparison-grid-4: snapshot is ComparisonGrid4Input-shaped (Spec 60.2) ─
+      // The worker reads this snapshot directly and passes it to renderComparisonGrid4().
+      // List-carousel fields (coverEyebrow, resolvedTools, etc.) are not stored or needed.
+      if (isGrid4) {
+        const renderInput: Record<string, unknown> = {
+          slideIndex: 0,
+          locale: localePrefix === "en" ? "en" : "de",
+          theme: input.theme,
+          generated: input.comparisonGrid4Generated,
+        };
+
+        const [post] = await db
+          .insert(socialPosts)
+          .values({
+            projectId: input.projectId,
+            articleId: input.articleId,
+            platform: "instagram",
+            format: "carousel",
+            status: "draft",
+            theme: input.theme,
+            locale: loc.locale,
+            templateKey,
+            totalSlides: 0,
+            content: {
+              kind: "carousel",
+              slides: [],
+              caption: loc.caption,
+              hashtags: loc.hashtags,
+              // comparison-grid-4 renderInput is ComparisonGrid4Input-shaped; JSONB column accepts any shape.
+              // biome-ignore lint/suspicious/noExplicitAny: intentional shape mismatch — worker reads as Record<string, unknown>
+              renderInput: renderInput as unknown as SocialPostRenderInput,
+              ...(loc.warnings ? { warnings: loc.warnings } : {}),
+            },
+            renderStatus: "pending",
+            generatedAt: new Date(),
+          })
+          .returning({ id: socialPosts.id });
+
+        if (!post) throw new Error(`Failed to insert social post for locale ${loc.locale}`);
+
+        // Worker reads renderInput from DB snapshot for grid-4; job data fields beyond these are unused.
+        const jobData: SocialRenderJobData = {
+          socialPostId: post.id,
+          projectId: input.projectId,
+          articleId: input.articleId,
+          brandTokens: input.brandTokens,
+          overrides: resolvedOverrides,
+          templateKey,
+          locale: loc.locale,
+          theme: input.theme,
+          variant: input.variant,
+          articleTitle: localeTitle,
+          articleSlug: localeSibling?.slug ?? input.articleSlug,
+          projectSlug: input.projectSlug,
+          articleUrl: localeSibling?.articleUrl ?? input.articleUrl,
+          // List-carousel fields unused by comparison-grid-4 worker path — worker reads DB snapshot
+          resolvedTools: [],
+          coverEyebrow: "",
+          coverHeadlineLead: "",
+          coverHeadlineHighlight: "",
+          endHeadline: "",
+          endHeadlineHighlight: "",
+        };
+
+        const renderJobId = await enqueueSocialRenderJob(jobData);
+        ctx.log.info({ socialPostId: post.id, renderJobId, locale: loc.locale, templateKey }, "Social post created + render job enqueued");
+        results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: loc.caption, hashtags: loc.hashtags });
+        continue;
+      }
+
+      // ─── All other templates: list-carousel renderInput ──────────────────────
+
       // For non-DE locales: use EN-specific extraction results when available.
-      // Falls back to simple derivation from the article title if the EN extraction failed.
       const localeData = !isDeLocale ? input.localeToolsData?.[localePrefix] : undefined;
 
       const localeCoverEyebrow = isDeLocale
@@ -832,7 +1113,6 @@ export class RenderSlidesStep extends BaseStep<
         ? input.endHeadlineHighlight
         : (localeData?.endHeadlineHighlight ?? input.endHeadlineHighlight);
 
-      // For non-DE locales: merge EN tool text with DE icon data (icons are slug-keyed, same for both locales).
       const resolvedToolsForLocale: Array<Record<string, unknown>> = localeData
         ? localeData.tools.map((enTool) => {
             const deTool = input.resolvedTools.find((dt) => (dt as { slug: string }).slug === enTool.slug);
@@ -849,7 +1129,6 @@ export class RenderSlidesStep extends BaseStep<
               ...(enTool.keyDifferentiator !== undefined && { keyDifferentiator: enTool.keyDifferentiator }),
               ...(enTool.starStrength !== undefined && { starStrength: enTool.starStrength }),
               ...(enTool.identityVerb !== undefined && { identityVerb: enTool.identityVerb }),
-              // Icon fields from DE resolved tools (same slug → same icon)
               ...((deTool as { iconSvg?: string } | undefined)?.iconSvg !== undefined && { iconSvg: (deTool as { iconSvg: string }).iconSvg }),
               ...((deTool as { iconInitials?: string } | undefined)?.iconInitials !== undefined && { iconInitials: (deTool as { iconInitials: string }).iconInitials }),
               ...((deTool as { iconHue?: number } | undefined)?.iconHue !== undefined && { iconHue: (deTool as { iconHue: number }).iconHue }),
@@ -876,12 +1155,10 @@ export class RenderSlidesStep extends BaseStep<
         resolvedTools: resolvedToolsForLocale,
         ...(localeCoverHeadlineTrail !== undefined && { coverHeadlineTrail: localeCoverHeadlineTrail }),
         ...(localeCoverSubhead !== undefined && { coverSubhead: localeCoverSubhead }),
-        // Hook + closer: DE only (EN falls back to editorial headline path)
         ...(isDeLocale && input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
         ...(isDeLocale && input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
       };
 
-      // INSERT social_post row — slides populated by render worker, renderInput snapshot persisted for re-render
       const [post] = await db
         .insert(socialPosts)
         .values({
@@ -919,16 +1196,8 @@ export class RenderSlidesStep extends BaseStep<
       };
 
       const renderJobId = await enqueueSocialRenderJob(jobData);
-
       ctx.log.info({ socialPostId: post.id, renderJobId, locale: loc.locale }, "Social post created + render job enqueued");
-
-      results.push({
-        socialPostId: post.id,
-        locale: loc.locale,
-        renderJobId,
-        caption: loc.caption,
-        hashtags: loc.hashtags,
-      });
+      results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: loc.caption, hashtags: loc.hashtags });
     }
 
     return { socialPosts: results };

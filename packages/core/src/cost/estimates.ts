@@ -57,6 +57,7 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // Spec 51/57.4: Social image pipeline (Anthropic calls)
     [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005, // Haiku: extract tool list from article body
     [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.028, // Sonnet: caption + hashtags (merged, Spec 57.4)
+    [COST_OPS.SOCIAL_IMAGE_GRID4_GENERATE]: 0.028, // Sonnet: comparison-grid-4 content (Spec 60.2)
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,

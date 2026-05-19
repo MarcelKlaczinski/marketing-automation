@@ -4,6 +4,7 @@ import { Pipeline } from "../../engine/pipeline.ts";
 import {
   ExtractToolsStep,
   GenerateCaptionStep,
+  GenerateComparisonGrid4Step,
   LoadArticleStep,
   RenderSlidesStep,
   ResolveAssetsStep,
@@ -60,6 +61,7 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
     new LoadArticleStep(),
     new ExtractToolsStep(),
     new ResolveAssetsStep(),
+    new GenerateComparisonGrid4Step(),
     new GenerateCaptionStep(),
     new RenderSlidesStep(),
   ];
