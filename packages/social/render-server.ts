@@ -5,7 +5,7 @@
 
 import { bundle } from "@remotion/bundler";
 import { getCompositions, renderStill } from "@remotion/renderer";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { readFile, rm, mkdir } from "node:fs/promises";
@@ -15,6 +15,7 @@ import type { SingleToolSpotlightInput } from "./src/compositions/single-tool-sp
 import type { ProConVerdictInput } from "./src/compositions/pro-con-verdict/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
+const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 let bundleUrl: string | null = null;
 
@@ -22,7 +23,17 @@ async function getBundle(): Promise<string> {
   if (bundleUrl) return bundleUrl;
   bundleUrl = await bundle({
     entryPoint: ENTRY_POINT,
-    webpackOverride: (config) => config,
+    webpackOverride: (config) => ({
+      ...config,
+      resolve: {
+        ...config.resolve,
+        alias: {
+          ...(config.resolve?.alias as Record<string, string> | undefined),
+          // Bun workspace packages are not auto-resolved by webpack — add explicit paths.
+          "@marketing-auto/shared": resolve(WORKSPACE_ROOT, "packages/shared/src"),
+        },
+      },
+    }),
   });
   return bundleUrl;
 }
