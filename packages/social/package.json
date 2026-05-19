@@ -26,6 +26,7 @@
     "@remotion/renderer": "^4.0.290",
     "culori": "^4.0.2",
     "drizzle-orm": "^0.45.2",
+    "lucide-react": "^1.16.0",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "react": "^18.3.1",

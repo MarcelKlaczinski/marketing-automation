@@ -57,17 +57,19 @@ For new visual-refreshed templates, look at `src/compositions/single-tool-spotli
 
 The `resolveBrandTokens(unknown) → BrandTokens` helper is at `src/lib/brand-tokens.ts` — use it at the top of every slide component to convert the loosely-typed `brandTokens?: unknown` from the input schema into a typed `BrandTokens` before passing to `deriveDsTokens`.
 
-## Template Inventory (as of Spec 59.3)
+## Template Inventory (as of Spec 60.2)
 
 | Key | Slides | Cover Signature | Eligible content |
 |-----|--------|-----------------|-----------------|
-| `comparison-grid-4` | dynamic (1+N+1) | 4-up tool grid | comparison articles, 2–4 tools |
+| `comparison-grid-4` | **1 (single still)** | 4-up tool grid, top-right glow, 84px score | comparison articles, **exactly 4 tools**, `frontmatterExtras.tools[].score` required |
 | `comparison-grid-3` | dynamic (1+N+1) | 3-up tool grid | comparison articles, exactly 3 tools |
 | `single-tool-spotlight` | 3 (cover/body/end) | hero cover + tool deep-dive body | tools collection, has pros/features |
 | `verdict-per-use-case` | dynamic (1+N+2) | use-case-prominent header | comparison articles with per-use-case verdicts |
 | `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `frontmatterExtras.pros ≥ 3 AND cons ≥ 3` |
 
 **`pro-con-verdict` cover:** Two halves divided by a diagonal SVG clipPath — left half tinted with `prosColor` (default oklch green), right half with `consColor` (default oklch red). Tool name overlays the split at the bottom. This is the only template with a split-screen cover and is visually distinct from all others in the Instagram grid.
+
+**`comparison-grid-4` is a single-still template (Spec 60.2)** — one PNG per article, no dispatcher. `renderComparisonGrid4()` calls `renderStill()` once with `slideIndex: 0`. The worker reads `content.renderInput` snapshot from DB (Spec 58.2 pattern) — NOT the job data. Top-right glow (not bottom-left). Score font-size 84px (not 56px like grid-3). Winner flag is `right: 28px` (not left).
 
 ## Variant History (Spec 57.1)
 
@@ -119,7 +121,7 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 
 - **`getCompositions()` + override pattern, not `selectComposition()`** — use `getCompositions()` to get the registered composition, then spread your `inputProps` override when calling `renderStill()`. `selectComposition()` is deprecated in Remotion 4.
 
-- **oklch transparency** — use `color-mix(in oklch, <color> <pct>%, transparent)` for all alpha overlays. Appending hex alpha digits to oklch strings (e.g. `oklch(...)33`) is invalid CSS and Chromium silently drops the rule.
+- **oklch transparency** — use `color-mix(in oklch, <color> <pct>%, transparent)` for all alpha overlays. Appending hex alpha digits to oklch strings (e.g. `oklch(...)33`) is invalid CSS and Chromium silently drops the rule. **The Claude Design HTML exports use `oklab` in some color-mix calls — always translate to `oklch` when porting to Remotion.** Both work in browser but `oklch` is the project standard and matches DsTokens color space.
 
 - **Visual hierarchy on list items** — for ordered lists (strengths, pros, use-cases), apply decreasing opacity to simulate the depth that stagger animation creates in web UI. Pattern: `opacity: Math.max(0.65, 1 - i * 0.12)` on each list item. The clamp at `0.65` ensures no item becomes unreadable. The "star" first item always stays at full opacity since it's pulled out separately.
 

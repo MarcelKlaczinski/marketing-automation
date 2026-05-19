@@ -50,6 +50,7 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
   // Import from the /render-server subpath (pure .ts, no JSX) so the API tsconfig doesn't need --jsx.
   const renderServer = (await import("@marketing-auto/social/render-server")) as unknown as {
     renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderComparisonGrid4: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderVerdictPerUseCase: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderSingleToolSpotlight: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderProConVerdict: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
@@ -57,7 +58,30 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
 
   let slides: Buffer[];
 
-  if (templateKey === "comparison-grid-4" || templateKey === "comparison-grid-3") {
+  if (templateKey === "comparison-grid-4") {
+    // comparison-grid-4 uses the renderInput snapshot pattern (Spec 60.2).
+    // The full ComparisonGrid4Input was stored in social_posts.content.renderInput at INSERT time.
+    const [post] = await db
+      .select({ content: socialPosts.content })
+      .from(socialPosts)
+      .where(eq(socialPosts.id, data.socialPostId));
+
+    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
+    const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
+    if (!snapshot) {
+      throw new Error(
+        `No renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: comparison-grid-4)`,
+      );
+    }
+
+    const fullInput: Record<string, unknown> = {
+      ...snapshot,
+      brandTokens: data.brandTokens,
+      overrides: data.overrides,
+    };
+    const result = await renderServer.renderComparisonGrid4(fullInput);
+    slides = result.slides;
+  } else if (templateKey === "comparison-grid-3") {
     const toolRecap = (data.resolvedTools as Array<{ slug: string }>).map((t) => t.slug);
     const carouselInput = {
       theme: data.theme,

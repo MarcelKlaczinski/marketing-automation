@@ -7,6 +7,8 @@ import { SingleToolSpotlight } from "./compositions/single-tool-spotlight/Single
 import { singleToolSpotlightInputSchema } from "./compositions/single-tool-spotlight/types.ts";
 import { ProConVerdictComposition } from "./compositions/pro-con-verdict/ProConVerdict.tsx";
 import { proConVerdictInputSchema } from "./compositions/pro-con-verdict/types.ts";
+import { ComparisonGrid4 } from "./compositions/comparison-grid-4/ComparisonGrid4.tsx";
+import { comparisonGrid4InputSchema } from "./compositions/comparison-grid-4/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -168,6 +170,36 @@ export function RemotionRoot() {
           end: {
             ctaLine: "Vollständiger Test →",
             url: "toolwiki.ai/midjourney",
+          },
+        })}
+      />
+      <Composition
+        id="comparison-grid-4"
+        component={ComparisonGrid4}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={comparisonGrid4InputSchema}
+        defaultProps={comparisonGrid4InputSchema.parse({
+          slideIndex: 0,
+          locale: "de",
+          theme: "dark",
+          generated: {
+            headline: "Welcher KI-Bildgenerator",
+            headlineEm: "gewinnt 2026?",
+            subline: "Vier Modelle, dieselben 12 Prompts, drei Wochen Test. Hier ist das Ergebnis.",
+            eyebrow: "Vergleich · 4 Bildgeneratoren",
+            slideNum: "01 / 04",
+            ctaLine1: "Vollständiger Test →",
+            ctaLine2: "toolwiki.ai/bilder",
+            dateLabel: "Stand 05/2026 · toolwiki.ai/bilder",
+            tools: [
+              { name: "Midjourney", verdictStrong: "Beste Ästhetik out-of-the-box", verdictRest: ", unschlagbar für Hero-Visuals.", score: 92, scoreTier: "hi", priceLabel: "v7 · 30 $/Mo", isWinner: true, winnerFlagText: "Testsieger", iconInitials: "MJ", iconHue: 220 },
+              { name: "Flux 1.2 Pro", verdictStrong: "Fotorealismus & korrekte Hände", verdictRest: ", mit selbst-hostbarem Dev-Modell.", score: 88, scoreTier: "hi", priceLabel: "API · ab 0.05 $/Bild", isWinner: false, iconInitials: "FL", iconHue: 180 },
+              { name: "DALL·E 4", verdictStrong: "Höchste Prompt-Adhärenz", verdictRest: ", in ChatGPT Plus enthalten.", score: 81, scoreTier: "hi", priceLabel: "via ChatGPT · 20 $/Mo", isWinner: false, iconInitials: "DE", iconHue: 160 },
+              { name: "Stable Diffusion", verdictStrong: "Maximale Kontrolle", verdictRest: " über ComfyUI & LoRAs.", score: 74, scoreTier: "mid", priceLabel: "Open-Source · lokal", isWinner: false, iconInitials: "SD", iconHue: 270 },
+            ],
           },
         })}
       />
