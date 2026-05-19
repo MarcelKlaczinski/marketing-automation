@@ -196,7 +196,7 @@ export class RefreshPipeline extends Pipeline<
       log.warn({ err: e, articleId: pipelineInput.articleId }, "Schema extension enqueue failed after refresh");
     }
 
-    // Propagate refresh to EN sibling if one exists
+    // Propagate refresh to sibling if one exists (bidirectional: DE→EN and EN→DE)
     try {
       const [article] = await db
         .select({ id: articles.id, projectId: articles.projectId, locale: articles.locale, translationKey: articles.translationKey })
@@ -204,21 +204,21 @@ export class RefreshPipeline extends Pipeline<
         .where(eq(articles.id, pipelineInput.articleId))
         .limit(1);
 
-      if (article?.locale === "de") {
-        const enSibling = await findEnSibling(article);
-        if (enSibling) {
+      if (article) {
+        const sibling = await findEnSibling(article);
+        if (sibling) {
           const { enqueueTranslationPipeline } = await import("../translation/trigger.ts");
           await enqueueTranslationPipeline({
             sourceArticleId: article.id,
-            targetArticleId: enSibling.id,
+            targetArticleId: sibling.id,
             projectId:       article.projectId,
             mode:            "refresh_propagation",
           });
-          log.info({ articleId: article.id, enSiblingId: enSibling.id }, "[refresh] EN sibling refresh enqueued");
+          log.info({ articleId: article.id, siblingId: sibling.id, siblingLocale: sibling.locale }, "[refresh] sibling refresh enqueued");
         }
       }
     } catch (e) {
-      log.warn({ err: e, articleId: pipelineInput.articleId }, "[refresh] EN sibling propagation failed — skipped");
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "[refresh] sibling propagation failed — skipped");
     }
   }
 }

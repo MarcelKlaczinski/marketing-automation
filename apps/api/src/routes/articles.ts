@@ -16,7 +16,11 @@ import {
   topicBriefs,
 } from "@marketing-auto/db";
 import { suggestFrontmatterFields } from "../lib/frontmatter-service.ts";
-import { enqueueRefreshPipeline } from "@marketing-auto/pipelines";
+import {
+  enqueueRefreshPipeline,
+  enqueueTranslationPipeline,
+  findSibling,
+} from "@marketing-auto/pipelines";
 import {
   continueArticleGeneration,
   enqueueArticleDraftPipeline,
@@ -1679,6 +1683,71 @@ articleRoutes.post("/:id/extend-schema", async (c) => {
     enqueue: enqueueSchemaExtensionPipeline,
   });
   log.info({ articleId: id, ...result }, "Schema extension triggered via HTTP");
+  return triggerResultToResponse(c, result);
+});
+
+// ─── translate (manual trigger / re-sync, Spec 59.2 B.4) ─────────────────────
+
+const TranslateBodySchema = z.object({
+  force: z.boolean().optional(),
+});
+
+articleRoutes.post("/:id/translate", async (c) => {
+  const id = c.req.param("id");
+  const rawBody = await c.req.json().catch(() => ({}));
+  const { force = false } = TranslateBodySchema.safeParse(rawBody).data ?? {};
+
+  const [article] = await db
+    .select({
+      id:             articles.id,
+      projectId:      articles.projectId,
+      bodyMd:         articles.bodyMd,
+      locale:         articles.locale,
+      translationKey: articles.translationKey,
+      source:         articles.source,
+    })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+
+  if (!article) return c.json({ ok: false, error: "article_not_found" }, 404);
+
+  if (!article.bodyMd) {
+    return c.json({ ok: false, error: "article_not_ready", message: "Article has no body content yet" }, 422);
+  }
+
+  const existingSibling = await findSibling(article);
+
+  if (existingSibling && !force) {
+    return c.json({
+      ok: false,
+      error: "sibling_exists",
+      message: "Sibling translation already exists. Use force=true to re-translate as manual_resync.",
+      data: { siblingId: existingSibling.id },
+    }, 409);
+  }
+
+  const mode = existingSibling ? "manual_resync" : "fresh_translation";
+
+  const translationCostEur =
+    estimateCostEur("anthropic", COST_OPS.TRANSLATION_DECISION) +
+    estimateCostEur("anthropic", COST_OPS.TRANSLATE_DRAFT) +
+    estimateCostEur("anthropic", COST_OPS.ARTICLE_SELF_REVIEW);
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:translation",
+    projectId:    article.projectId,
+    uniqueKey:    { field: "sourceArticleId", value: article.id },
+    costEstimate: { service: "anthropic", estimatedCostEur: translationCostEur },
+    extraInput: {
+      sourceArticleId: article.id,
+      mode,
+      ...(existingSibling ? { targetArticleId: existingSibling.id } : {}),
+    },
+    enqueue: enqueueTranslationPipeline,
+  });
+
+  log.info({ articleId: id, mode, siblingId: existingSibling?.id ?? null, ...result }, "Translation pipeline triggered via HTTP");
   return triggerResultToResponse(c, result);
 });
 

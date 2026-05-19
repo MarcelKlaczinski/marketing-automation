@@ -340,29 +340,45 @@ export class BlogPipeline extends Pipeline<
       log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] failed to load article for afterComplete hooks");
     }
 
-    // Auto-trigger EN translation if project opts in and article is DE
+    // Bidirectional auto-trigger: DE→EN or EN→DE depending on article locale
     try {
-      if (articleLocale === "de") {
+      if (articleLocale === "de" || articleLocale === "en") {
         const [project] = await db
           .select({ targetLocales: projects.targetLocales, translationAutoTrigger: projects.translationAutoTrigger })
           .from(projects)
           .where(eq(projects.id, pipelineInput.projectId))
           .limit(1);
 
-        const wantsEn = project?.targetLocales?.includes("en-US") ?? false;
         const autoTrigger = project?.translationAutoTrigger ?? true;
+        if (autoTrigger) {
+          const targetBcp47 = articleLocale === "de" ? "en-US" : "de-DE";
+          const wantsTarget = project?.targetLocales?.includes(targetBcp47) ?? false;
 
-        if (wantsEn && autoTrigger) {
-          await enqueueTranslationPipeline({
-            sourceArticleId: pipelineInput.articleId,
-            projectId:       pipelineInput.projectId,
-            mode:            "fresh_translation",
-          });
-          log.info({ articleId: pipelineInput.articleId }, "[blog] auto-triggered EN translation");
+          if (wantsTarget) {
+            // Guard: skip if sibling already exists (refresh handles propagation separately)
+            const { findSibling } = await import("../translation/sibling.ts");
+            const [articleForSibling] = await db
+              .select({ id: articles.id, projectId: articles.projectId, locale: articles.locale, translationKey: articles.translationKey })
+              .from(articles)
+              .where(eq(articles.id, pipelineInput.articleId))
+              .limit(1);
+            const existingSibling = articleForSibling ? await findSibling(articleForSibling) : null;
+
+            if (!existingSibling) {
+              await enqueueTranslationPipeline({
+                sourceArticleId: pipelineInput.articleId,
+                projectId:       pipelineInput.projectId,
+                mode:            "fresh_translation",
+              });
+              log.info({ articleId: pipelineInput.articleId, articleLocale, targetBcp47 }, "[blog] auto-triggered translation");
+            } else {
+              log.info({ articleId: pipelineInput.articleId, siblingId: existingSibling.id }, "[blog] sibling already exists — skipping auto-translation");
+            }
+          }
         }
       }
     } catch (e) {
-      log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] EN translation auto-trigger failed — skipped");
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] translation auto-trigger failed — skipped");
     }
 
     // Spec 54.12: Hub completion → enqueue all pending spokes
