@@ -230,6 +230,11 @@ export const articles = pgTable(
     // Spec E.1a: tracks when article body was last meaningfully refreshed (≠ updatedAt)
     lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
 
+    // Spec 59.2: set by translation pipeline on target article after each sync completes
+    lastSyncedFromSiblingAt: timestamp("last_synced_from_sibling_at", { withTimezone: true }),
+    // Spec 59.2: set by PATCH /articles/:id and POST /articles/:id/body (user edits only, NOT pipelines)
+    lastEditedAt: timestamp("last_edited_at", { withTimezone: true }),
+
     // Spec 54.2: links article to the project_configurations row active when it was generated
     // FK declared via raw SQL migration (project-config.ts → projects.ts; no circular dep,
     // but project-config.ts is loaded after content.ts in schema/index.ts ordering)

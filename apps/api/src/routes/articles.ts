@@ -16,6 +16,7 @@ import {
   topicBriefs,
 } from "@marketing-auto/db";
 import { suggestFrontmatterFields } from "../lib/frontmatter-service.ts";
+import { detectDivergence, type DivergenceState } from "../lib/divergence.ts";
 import {
   enqueueRefreshPipeline,
   enqueueTranslationPipeline,
@@ -916,7 +917,13 @@ articleRoutes.get("/:id", async (c) => {
   // Look up translation sibling (same translationKey, opposite locale)
   const translationSibling = article.translationKey
     ? await db
-        .select({ id: articles.id, locale: articles.locale, status: articles.status })
+        .select({
+          id: articles.id,
+          locale: articles.locale,
+          status: articles.status,
+          lastEditedAt: articles.lastEditedAt,
+          lastSyncedFromSiblingAt: articles.lastSyncedFromSiblingAt,
+        })
         .from(articles)
         .where(
           and(
@@ -1006,7 +1013,19 @@ articleRoutes.get("/:id", async (c) => {
         ...article,
         projectSlug: proj?.slug ?? null,
         projectAstroLocalPath: (proj?.astroRepo as { localPath?: string } | null)?.localPath ?? null,
-        translationSibling: translationSibling[0] ?? null, // { id, locale, status } or null
+        translationSibling: translationSibling[0]
+          ? {
+              id:     translationSibling[0].id,
+              locale: translationSibling[0].locale,
+              status: translationSibling[0].status,
+              divergence: detectDivergence(
+                article.lastEditedAt ?? null,
+                article.lastSyncedFromSiblingAt ?? null,
+                translationSibling[0].lastEditedAt ?? null,
+                translationSibling[0].lastSyncedFromSiblingAt ?? null,
+              ),
+            }
+          : null,
       },
       cluster,
       pillar,
@@ -1063,7 +1082,15 @@ articleRoutes.patch("/:id", zValidator("json", ArticleUpdateSchema), async (c) =
   if (!existing) return c.json({ ok: false, error: "Article not found" }, 404);
 
   // Build update object conditionally — required by exactOptionalPropertyTypes
-  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  const now = new Date();
+  // lastEditedAt only on content-field changes — status is a workflow action, not a content edit
+  const isContentEdit =
+    input.title !== undefined ||
+    input.metaDescription !== undefined ||
+    input.cornerstoneKeyword !== undefined ||
+    input.slug !== undefined;
+  const patch: Record<string, unknown> = { updatedAt: now };
+  if (isContentEdit) patch.lastEditedAt = now;
   if (input.title !== undefined) patch.title = input.title;
   if (input.metaDescription !== undefined) patch.metaDescription = input.metaDescription;
   if (input.cornerstoneKeyword !== undefined) patch.cornerstoneKeyword = input.cornerstoneKeyword;
@@ -1118,6 +1145,7 @@ articleRoutes.post("/:id/body", zValidator("json", BodyUpdateSchema), async (c) 
       wordCount: input.bodyMd.trim().split(/\s+/).filter(Boolean).length,
       updatedAt: now,
       lastRefreshedAt: now,
+      lastEditedAt: now,
     })
     .where(eq(articles.id, id));
 

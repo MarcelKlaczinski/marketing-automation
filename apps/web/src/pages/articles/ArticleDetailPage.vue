@@ -52,6 +52,14 @@
     </div>
 
     <template v-else>
+      <DivergenceBanner
+        v-if="showDivergenceBanner"
+        :divergence="divergenceState"
+        :sibling-locale="siblingLocale"
+        @resync="onResyncSibling"
+        @open-sibling="goToSibling"
+        @dismiss="dismissedDivergenceBanner = true"
+      />
       <ArticleBodyTab
         v-if="activeTab === 'body'"
         :article-id="articleId"
@@ -96,6 +104,7 @@ import ArticleVersionsTab from "src/pages/articles/tabs/ArticleVersionsTab.vue";
 import ArticleRunsTab from "src/pages/articles/tabs/ArticleRunsTab.vue";
 import ArticleCostTab from "src/pages/articles/tabs/ArticleCostTab.vue";
 import ArticleSocialTab from "src/pages/articles/tabs/ArticleSocialTab.vue";
+import DivergenceBanner, { type DivergenceState } from "src/components/article-detail/DivergenceBanner.vue";
 import type { ArticleDetail } from "src/types/ui";
 
 type TabKey = "body" | "frontmatter" | "versions" | "runs" | "cost" | "social";
@@ -129,6 +138,7 @@ export default defineComponent({
     ArticleRunsTab,
     ArticleCostTab,
     ArticleSocialTab,
+    DivergenceBanner,
   },
 
   setup() {
@@ -147,6 +157,8 @@ export default defineComponent({
 
   data: () => ({
     activeTab: "body" as TabKey,
+    dismissedDivergenceBanner: false,
+    resyncInProgress: false,
   }),
 
   computed: {
@@ -160,6 +172,20 @@ export default defineComponent({
     backRoute(): string {
       const slug = this.$route.params.slug as string;
       return `/projects/${slug}/articles`;
+    },
+    divergenceState(): DivergenceState {
+      // Cast is safe: "in_sync" never reaches the banner (showDivergenceBanner guards it)
+      return (this.article?.translationSibling?.divergence ?? "in_sync") as DivergenceState;
+    },
+    siblingLocale(): "de" | "en" {
+      const loc = this.article?.translationSibling?.locale;
+      // translationKey pairs only ever produce "de" or "en" siblings
+      return loc === "de" ? "de" : "en";
+    },
+    showDivergenceBanner(): boolean {
+      if (this.dismissedDivergenceBanner) return false;
+      const state = this.divergenceState;
+      return state === "this_newer" || state === "sibling_newer" || state === "both_diverged";
     },
     tabs() {
       return [
@@ -179,6 +205,22 @@ export default defineComponent({
       if (!sibling) return;
       const slug = this.$route.params.slug as string;
       void this.$router.push(`/projects/${slug}/articles/${sibling.id}`);
+    },
+    async onResyncSibling(): Promise<void> {
+      if (this.resyncInProgress) return;
+      this.resyncInProgress = true;
+      try {
+        await apiPost(`/articles/${this.articleId}/translate`, { force: true });
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("articles.divergence.resyncStarted") as string,
+        });
+        this.dismissedDivergenceBanner = true;
+      } catch {
+        // error handled by api.ts interceptor
+      } finally {
+        this.resyncInProgress = false;
+      }
     },
     onBodySaved(): void {
       void this.queryClient.invalidateQueries({

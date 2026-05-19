@@ -254,6 +254,24 @@ export default {
     viewSiblingLocale: "{locale}-Version ansehen",
   },
 
+  divergence: {
+    this_newer: {
+      headline: "{locale}-Version ist veraltet",
+      description: "Dieser Artikel wurde bearbeitet seit die Übersetzung zuletzt synchronisiert wurde. Die {locale}-Version kann jetzt aktualisiert werden.",
+    },
+    sibling_newer: {
+      headline: "{locale}-Version ist neuer",
+      description: "Die {locale}-Version wurde bearbeitet. Öffne sie und starte die Rück-Synchronisation von dort.",
+    },
+    both_diverged: {
+      headline: "Beide Versionen wurden bearbeitet",
+      description: "Dieser Artikel und die {locale}-Version wurden unabhängig voneinander bearbeitet. Wähle, welche Version als Quelle dienen soll.",
+    },
+    resyncSibling: "{locale}-Version jetzt synchronisieren",
+    openSibling: "{locale}-Version öffnen",
+    resyncStarted: "Synchronisation gestartet — die Übersetzung wird im Hintergrund aktualisiert.",
+  },
+
   runs: {
     type: {
       sync: "Astro-Sync",

@@ -428,6 +428,13 @@
       "when": 1783800000000,
       "tag": "0060_vendor_rss_feeds_to_objects",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1783900000000,
+      "tag": "0061_bidirectional_translation_support",
+      "breakpoints": true
     }
   ]
 }

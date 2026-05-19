@@ -12,6 +12,7 @@
   - `src/lib/brand-asset-service.ts` Brand asset CRUD + brand-token defaults (Spec 52b)
   - `src/lib/color-utils.ts`         OKLCH↔hex helpers + WCAG contrast ratio (Spec 52b)
   - `src/lib/icon-resolver.ts`       Re-exports `resolveToolIcon` from pipelines (Spec 52a)
+  - `src/lib/divergence.ts`          Pure `detectDivergence()` helper for translation sibling conflict detection (Spec 59.2)
 
 ## Service Layer Pattern (`src/lib/<domain>-service.ts`)
 
@@ -252,6 +253,8 @@ if (!validServices.includes(service as typeof validServices[number])) { ... }
 After the guard the type is still `string`, so cast explicitly if you need the narrowed type downstream.
 
 ## Common Mistakes to Avoid
+- DO NOT define pure helper functions inline in route files when they need unit tests — extract them to `src/lib/<name>.ts` and import from there. Route-level private functions are invisible to test files. Pattern: `detectDivergence()` was a private function in `articles.ts`; extracted to `src/lib/divergence.ts` so `test/lib/divergence.test.ts` can import and test it directly. See `apps/api/src/lib/divergence.ts` for the canonical example.
+- DO NOT use `await import(...)` inside a `mock.module()` callback — the callback is synchronous and `await` inside it is a syntax error. Import the real module at the top of the test file before calling `mock.module()`, or omit real-module re-exports from the mock entirely if the test only needs the DB layer.
 - DO NOT do business logic in route handlers — that goes in /packages/core (or `src/lib/<domain>-service.ts` for bootstrap/system routes without project context)
 - DO NOT call adapters directly from routes — always via core services (exception: installer verify flow per spec Decision 10, with a justification comment). When adding a new adapter verify flow, the verify function MUST live in `packages/adapters/<name>/src/verify.ts` (exported via `"./verify"` subpath) and be imported from there — do NOT define it inline in `system.ts`. All existing adapters follow this pattern: `verifyAnthropic`, `verifyReplicate`, `verifySmtp`, etc. all live in their adapter packages. The system.ts header comment ("each adapter owns its verify logic") is the rule, not just documentation.
 - DO NOT use `process.env` directly — use typed `getEnv()` from @marketing-auto/shared
@@ -273,6 +276,7 @@ After the guard the type is still `string`, so cast explicitly if you need the n
 - DO NOT add a second network round-trip when `autoApproveGaps = true` in the `/suggest` handler — auto-generation fires inline after the dual-write (brief + gap metadata), using `decideRoute` + `executeDecision` + `triggerWithPreRunId` with the in-memory `updatedBrief` object. The response is enriched with `{ autoTriggered: true, articleId, runId, jobId }` so the frontend knows immediately. Errors during auto-trigger (cost limit, routing skip, exception) fall through to return the plain suggestion with `autoTriggered: false` — the suggestion itself never fails due to auto-approval.
 
 - DO NOT interpolate a numeric variable directly into an `INTERVAL` sql template — Drizzle binds it as a parameter and PostgreSQL rejects `INTERVAL $1 days`. Use `sql.raw(String(n))` for the number: `` sql`COALESCE(...) < NOW() - INTERVAL '${sql.raw(String(days))} days'` ``. Only safe for integers derived from DB config (not user input). Caught in Spec 56.6 `needsRefresh` and `discovery-counts` expressions.
+- DO NOT set `lastEditedAt` (or any "user-edited" timestamp) on every PATCH — distinguish content-field changes from workflow-state changes. A status-only PATCH (e.g. `status: "approved"`) is a workflow action and must NOT set `lastEditedAt`; only changes to title, metaDescription, slug, cornerstoneKeyword, or bodyMd count as content edits. Setting it on status changes creates false divergence warnings (e.g. divergence banner appears after Marcel approves a freshly translated article). Pattern: `const isContentEdit = input.title !== undefined || input.metaDescription !== undefined || ...; if (isContentEdit) patch.lastEditedAt = now;`
 - DO NOT add a new cron job type without updating all 4 places: (1) SQL migration (`ALTER TYPE cron_job_type ADD VALUE`), (2) Drizzle `cronJobTypeEnum` in `packages/db/src/schema/cron.ts`, (3) `getQueueForJobType()` switch in `cron-orchestrator.ts`, (4) `allQueues` array in `syncCronJobs()`. Missing any one silently ignores jobs or causes TypeScript errors at runtime. See migration 0054 + cron-orchestrator.ts for the canonical pattern.
 
 ## Gap Routes — TopicBrief as SSoT (Spec 54.3)

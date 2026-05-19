@@ -22,7 +22,7 @@
  *   6. SelfReviewStep         — quality classification (Haiku 4.5)
  *   7. PersistArticleStep     — final persist, status → final_review
  */
-import { articles, db, eq } from "@marketing-auto/db";
+import { articles, db, eq, and } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
@@ -245,6 +245,16 @@ export class TranslationPipeline extends Pipeline<
       });
     } catch (e) {
       log.warn({ err: e, articleId: output.articleId }, "Schema extension enqueue failed after translation");
+    }
+
+    // Mark target article as freshly synced from its sibling (divergence tracking, Spec 59.2)
+    try {
+      await db
+        .update(articles)
+        .set({ lastSyncedFromSiblingAt: new Date() })
+        .where(and(eq(articles.id, output.articleId), eq(articles.projectId, pipelineInput.projectId)));
+    } catch (e) {
+      log.warn({ err: e, articleId: output.articleId }, "[translation] lastSyncedFromSiblingAt update failed — skipped");
     }
 
     // Check cluster completion — clusters wait for both DE + EN articles.

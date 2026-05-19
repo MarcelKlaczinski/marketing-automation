@@ -276,7 +276,14 @@ export interface ArticleDetail {
   createdAt: string;
   heroImagePublicUrl: string | null;
   heroImageAltText: string | null;
-  translationSibling: { id: string; locale: string; status: string } | null;
+  translationSibling: {
+    id: string;
+    locale: string;
+    status: string;
+    divergence: "in_sync" | "this_newer" | "sibling_newer" | "both_diverged";
+  } | null;
+  lastEditedAt: string | null;
+  lastSyncedFromSiblingAt: string | null;
 }
 
 /** Article versions list entry */

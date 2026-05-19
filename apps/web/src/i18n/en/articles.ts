@@ -189,6 +189,24 @@ export default {
     viewSiblingLocale: "View {locale} version",
   },
 
+  divergence: {
+    this_newer: {
+      headline: "{locale} version is out of date",
+      description: "This article was edited since the translation was last synced. The {locale} version can be updated now.",
+    },
+    sibling_newer: {
+      headline: "{locale} version is newer",
+      description: "The {locale} version was edited. Open it and trigger re-sync from there.",
+    },
+    both_diverged: {
+      headline: "Both versions were edited",
+      description: "This article and the {locale} version were edited independently. Choose which version should be the source.",
+    },
+    resyncSibling: "Sync {locale} version now",
+    openSibling: "Open {locale} version",
+    resyncStarted: "Sync started — the translation is being updated in the background.",
+  },
+
   runs: {
     type: {
       sync: "Astro Sync",
