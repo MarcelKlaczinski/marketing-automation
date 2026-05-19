@@ -57,19 +57,19 @@ For new visual-refreshed templates, look at `src/compositions/single-tool-spotli
 
 The `resolveBrandTokens(unknown) → BrandTokens` helper is at `src/lib/brand-tokens.ts` — use it at the top of every slide component to convert the loosely-typed `brandTokens?: unknown` from the input schema into a typed `BrandTokens` before passing to `deriveDsTokens`.
 
-## Template Inventory (as of Spec 60.3)
+## Template Inventory (as of Spec 60.4)
 
 | Key | Slides | Cover Signature | Eligible content |
 |-----|--------|-----------------|-----------------|
 | `comparison-grid-4` | **1 (single still)** | 4-up tool grid, top-right glow, 84px score | comparison articles, **exactly 4 tools**, `frontmatterExtras.tools[].score` required |
 | `comparison-grid-3` | **1 (single still)** | 3-up auto-height card stack, bottom-left glow, 56px score, 2×2 pro/con bullets | comparison articles, **exactly 3 tools** (sliced in `buildInput`), `frontmatterExtras.tools` required |
+| `verdict-per-use-case` | **1 (single still)** | 5–7 flat use-case rows, **top-left glow, accent-500** (only template), winner pill | comparison articles, ≥3 tools + ≥5 `frontmatterExtras.useCaseVerdicts` |
 | `single-tool-spotlight` | 3 (cover/body/end) | hero cover + tool deep-dive body | tools collection, has pros/features |
-| `verdict-per-use-case` | dynamic (1+N+2) | use-case-prominent header | comparison articles with per-use-case verdicts |
 | `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `frontmatterExtras.pros ≥ 3 AND cons ≥ 3` |
 
 **`pro-con-verdict` cover:** Two halves divided by a diagonal SVG clipPath — left half tinted with `prosColor` (default oklch green), right half with `consColor` (default oklch red). Tool name overlays the split at the bottom. This is the only template with a split-screen cover and is visually distinct from all others in the Instagram grid.
 
-**Both `comparison-grid-4` and `comparison-grid-3` are single-still templates** — one PNG per article, no dispatcher. Their render functions each call `renderStill()` once with `slideIndex: 0`. Both workers read `content.renderInput` snapshot from DB (Spec 58.2 pattern) — NOT the job data. Key visual differences: grid-4 has top-right glow + 84px score + right-anchored winner flag; grid-3 has bottom-left glow + 56px score + left-anchored winner flag + 2×2 pro/con bullet row per card.
+**`comparison-grid-4`, `comparison-grid-3`, and `verdict-per-use-case` are all single-still templates** — one PNG per article, no dispatcher. Their render functions each call `renderStill()` once with `slideIndex: 0`. Workers read `content.renderInput` snapshot from DB (Spec 58.2 pattern) — NOT job data. Key visual deltas: grid-4 top-right glow + 84px score; grid-3 bottom-left glow + 56px score + 2×2 pro/con bullets; verdict-per-use-case top-left **accent** glow + flat row list (no cards, no scores).
 
 ## Variant History (Spec 57.1)
 
@@ -120,6 +120,14 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 - **Tool icons are inline SVGs, not file paths** (Spec 52a) — `ToolIconImage` receives an `iconSvg` string (inline SVG from simple-icons/iconify/lobe-icons) or `initials`+`hue` for the avatar fallback. The old `iconUrl` file-path pattern and `resolveIconUrls()` pre-processing were removed. Never pass `file://` paths or emoji strings to `ToolIconImage`.
 
 - **`getCompositions()` + override pattern, not `selectComposition()`** — use `getCompositions()` to get the registered composition, then spread your `inputProps` override when calling `renderStill()`. `selectComposition()` is deprecated in Remotion 4.
+
+- **`ToolIconImage` has no `borderRadius` prop** — the component auto-calculates border-radius from `size` (`size * 0.22` for SVG icons, `"50%"` for the initials avatar). Do not pass `borderRadius` as a prop — it silently does nothing as it's not in the component's type. If a template spec mentions a specific border-radius (e.g. "10px"), note that the component will approximate it based on size.
+
+- **`DsGlow` uses `color: "brand" | "accent"`, not `colorToken`** — when spec docs or design notes reference a `colorToken` prop, the actual implementation uses `color`. `color="accent"` selects `tokens.accent[500]`; `color="brand"` selects `tokens.brand[500]`. Check `src/ds-components/DsGlow.tsx` before adding a new prop — it may already exist under a different name.
+
+- **New single-still templates: composition id must be kebab-case** — `comparison-grid-3`, `comparison-grid-4`, and `verdict-per-use-case` all use kebab-case composition IDs (matching `TemplateKey`). `SingleToolSpotlight` and `ProConVerdict` use PascalCase IDs (legacy). Do NOT use PascalCase IDs for new single-still templates — the worker lookup uses the `TemplateKey` string directly as the composition ID.
+
+- **`ContentBounds` in a new composition's `types.ts` must match REMOTION.md exactly** — `bounds-match-remotion-md.test.ts` reads REMOTION.md directly and asserts that `*Bounds` objects match the values there. If a spec document and REMOTION.md disagree on a bound value, REMOTION.md wins. Check REMOTION.md before setting bounds in `types.ts`.
 
 - **oklch transparency** — use `color-mix(in oklch, <color> <pct>%, transparent)` for all alpha overlays. Appending hex alpha digits to oklch strings (e.g. `oklch(...)33`) is invalid CSS and Chromium silently drops the rule. **The Claude Design HTML exports use `oklab` in some color-mix calls — always translate to `oklch` when porting to Remotion.** Both work in browser but `oklch` is the project standard and matches DsTokens color space.
 
