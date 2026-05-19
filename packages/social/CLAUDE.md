@@ -16,6 +16,16 @@ Avoid:
 
 Display names (i18n labels) can be human-friendly; keys must be semantic.
 
+## BrandTokens Schema (Spec 60.0)
+
+`brandTokensSchema` and `BrandTokens` have moved to `@marketing-auto/shared/brand-tokens`. Import from there in new code:
+
+```typescript
+import { brandTokensSchema, type BrandTokens, DEFAULT_BRAND_TOKENS } from "@marketing-auto/shared/brand-tokens";
+```
+
+`packages/social/src/compositions/list-carousel/types.ts` re-exports them for back-compat. The `packages/social/src/lib/index.ts` re-export also resolves to shared. `packages/social/src/brand-tokens/index.ts` is a thin re-export ready for `deriveDsTokens()` in Spec 60.0b.
+
 ## What this package does
 
 Renders Instagram carousel slides as PNG via Remotion 4 (headless Chrome).

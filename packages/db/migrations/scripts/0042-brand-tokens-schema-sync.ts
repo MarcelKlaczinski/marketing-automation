@@ -115,7 +115,11 @@ export async function run(): Promise<void> {
   for (const project of allProjects) {
     const original = (project.brandTokens ?? {}) as Record<string, unknown>;
     const transformed = transformBrandTokens(original);
-    const changed = JSON.stringify(transformed) !== JSON.stringify(original);
+    // Compare after parsing through the canonical schema so key-order differences
+    // (PostgreSQL JSONB normalises key order) don't cause spurious re-writes.
+    const originalCanonical = JSON.stringify(brandTokensSchema.parse(original));
+    const transformedCanonical = JSON.stringify(brandTokensSchema.parse(transformed));
+    const changed = transformedCanonical !== originalCanonical;
 
     if (changed) {
       await db

@@ -1,10 +1,7 @@
 import { zValidator } from "@hono/zod-validator";
 import { db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
-import {
-  validateBrandTokenContrast,
-  brandTokensSchema as socialBrandTokensSchema,
-} from "@marketing-auto/social/lib";
+import { validateBrandTokenContrast } from "@marketing-auto/social/lib";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -62,24 +59,25 @@ brandTokenRoutes.patch(
     const existing = brandTokensSchema.parse(project.brandTokens ?? {});
 
     // Deep merge: only override fields the caller sent
-    const merged: ParsedBrandTokens = {
+    const rawMerge = {
       colors: { ...existing.colors, ...body.tokens.colors },
       typography: { ...existing.typography, ...body.tokens.typography },
       voice: { ...existing.voice, ...body.tokens.voice },
       social: { ...existing.social, ...body.tokens.social },
     };
 
+    // Spec 60.0: parse through canonical schema before writing — ensures DB is always valid.
+    // This also normalises deprecated fields (e.g. surfaceSecondary default) at write time.
+    const merged: ParsedBrandTokens = brandTokensSchema.parse(rawMerge);
+
     // WCAG contrast validation — warning by default, blocker unless ?force=true
-    // socialBrandTokensSchema applies Remotion defaults so validator receives fully-resolved colors
-    const violations = validateBrandTokenContrast(socialBrandTokensSchema.parse(merged));
+    const violations = validateBrandTokenContrast(merged);
     if (violations.length > 0 && !force) {
       return c.json({ ok: false, error: "Contrast violations detected", violations }, 400);
     }
 
     const rows = await db
       .update(projects)
-      // exactOptionalPropertyTypes: ParsedBrandTokens has field?: T|undefined while BrandTokens has field?: T
-      // The shapes are structurally compatible at runtime; cast is safe here.
       // biome-ignore lint/suspicious/noExplicitAny: exactOptionalPropertyTypes incompatibility
       .set({ brandTokens: merged as any, updatedAt: new Date() })
       .where(eq(projects.id, project.id))

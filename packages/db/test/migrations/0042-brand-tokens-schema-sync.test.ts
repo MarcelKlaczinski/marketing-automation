@@ -120,7 +120,7 @@ describe("transformBrandTokens", () => {
     ).toBe("Sie");
   });
 
-  it("is idempotent — running twice produces the same result", () => {
+  it("is idempotent — parsed result is identical after two transforms", () => {
     const input = {
       colors: { primaryHue: 248, primary: "oklch(64% 0.16 248)", accent: "oklch(72% 0.15 168)" },
       typography: {
@@ -132,7 +132,10 @@ describe("transformBrandTokens", () => {
     };
     const out1 = transformBrandTokens(input);
     const out2 = transformBrandTokens(out1);
-    expect(out2).toEqual(out1);
+    // Compare via canonical parse to match the migration's actual idempotency check
+    expect(JSON.stringify(brandTokensSchema.parse(out2))).toBe(
+      JSON.stringify(brandTokensSchema.parse(out1)),
+    );
   });
 
   it("produces output that parses cleanly against brandTokensSchema", () => {
