@@ -9,6 +9,8 @@ import { ProConVerdictComposition } from "./compositions/pro-con-verdict/ProConV
 import { proConVerdictInputSchema } from "./compositions/pro-con-verdict/types.ts";
 import { ComparisonGrid4 } from "./compositions/comparison-grid-4/ComparisonGrid4.tsx";
 import { comparisonGrid4InputSchema } from "./compositions/comparison-grid-4/types.ts";
+import { ComparisonGrid3 } from "./compositions/comparison-grid-3/ComparisonGrid3.tsx";
+import { comparisonGrid3InputSchema } from "./compositions/comparison-grid-3/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -199,6 +201,35 @@ export function RemotionRoot() {
               { name: "Flux 1.2 Pro", verdictStrong: "Fotorealismus & korrekte Hände", verdictRest: ", mit selbst-hostbarem Dev-Modell.", score: 88, scoreTier: "hi", priceLabel: "API · ab 0.05 $/Bild", isWinner: false, iconInitials: "FL", iconHue: 180 },
               { name: "DALL·E 4", verdictStrong: "Höchste Prompt-Adhärenz", verdictRest: ", in ChatGPT Plus enthalten.", score: 81, scoreTier: "hi", priceLabel: "via ChatGPT · 20 $/Mo", isWinner: false, iconInitials: "DE", iconHue: 160 },
               { name: "Stable Diffusion", verdictStrong: "Maximale Kontrolle", verdictRest: " über ComfyUI & LoRAs.", score: 74, scoreTier: "mid", priceLabel: "Open-Source · lokal", isWinner: false, iconInitials: "SD", iconHue: 270 },
+            ],
+          },
+        })}
+      />
+      <Composition
+        id="comparison-grid-3"
+        component={ComparisonGrid3}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={comparisonGrid3InputSchema}
+        defaultProps={comparisonGrid3InputSchema.parse({
+          slideIndex: 0,
+          locale: "de",
+          theme: "dark",
+          generated: {
+            headline: "Die",
+            headlineEm: "drei Schulen",
+            subline: "Ästhetik, Prompt-Adhärenz oder Kontrolle — jedes Tool steht für eine andere Philosophie.",
+            eyebrow: "Vergleich · 3 Top-Modelle",
+            slideNum: "02 / 04",
+            ctaLine1: "Workflow-Empfehlungen →",
+            ctaLine2: "toolwiki.ai/bilder",
+            dateLabel: "Stand 05/2026 · toolwiki.ai/bilder",
+            tools: [
+              { name: "Midjourney v7", meta: "Premium-Ästhetik · web + Discord", score: 92, scoreTier: "hi", pricePrefix: "Ab", priceAmount: "10 $/Mo", isWinner: true, winnerFlagText: "Top Aesthetic", pros: ["Hero-Visuals out-of-the-box", "--sref für Marken-Konsistenz"], cons: ["Schwer aus MJ-Look auszubrechen", "Text im Bild bleibt schwach"], iconInitials: "MJ", iconHue: 220 },
+              { name: "DALL·E 4", meta: "Prompt-Adhärenz · via ChatGPT", score: 81, scoreTier: "hi", pricePrefix: "Ab", priceAmount: "20 $/Mo", isWinner: false, pros: ["Liefert exakt was du beschreibst", "Text endlich lesbar"], cons: ["Stil oft glatt, austauschbar", "Weniger Stil-Kontrolle"], iconInitials: "DE", iconHue: 160 },
+              { name: "Stable Diffusion", meta: "Maximale Kontrolle · ComfyUI", score: 74, scoreTier: "mid", pricePrefix: "", priceAmount: "Kostenlos", isWinner: false, pros: ["LoRAs für 98% Charakter-Konsistenz", "Kein Abo, keine Quota"], cons: ["Steile Lernkurve (Hardware + Nodes)", "SD-Default wirkt blass ohne LoRA"], iconInitials: "SD", iconHue: 270 },
             ],
           },
         })}
