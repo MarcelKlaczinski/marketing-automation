@@ -53,7 +53,7 @@ export const coverBounds = {
   updateBadge:    { min: 8,  max: 28 },
   heroTitle:      { min: 6,  max: 22 },
   kicker:         { min: 40, max: 130 },
-  toolLogosCount: { min: 1,  max: 6 },
+  toolLogosCount: { countMin: 1, countMax: 6 },  // ListBound: item count, not char count
   toolsMoreText:  { min: 4,  max: 14 },
   stats: {
     count: 3,
