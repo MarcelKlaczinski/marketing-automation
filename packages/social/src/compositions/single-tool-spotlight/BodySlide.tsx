@@ -64,6 +64,7 @@ export const BodySlide: React.FC<BodySlideProps> = (props) => {
           tokens={tokens}
           eyebrow={props.eyebrow}
           rightText={`${slideNum} / ${slideTotal}`}
+          num={props.headerNum}
         />
 
         {/* Row 2 — tool hero: logo + name + version + optional LivePill */}
