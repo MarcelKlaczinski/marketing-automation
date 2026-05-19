@@ -1,11 +1,12 @@
 /**
- * Tests for the pro-con-verdict template.
+ * Tests for the pro-con-verdict template (Spec 60.5 DS single-still rewrite).
  *
  * Structure:
  *   1. Eligibility — collection + pros/cons array gate
  *   2. Override schema — defaults round-trip
- *   3. Composition schema — input validation
- *   4. Live render — RUN_LIVE_SOCIAL=1 gated
+ *   3. Composition input schema — generated field validation
+ *   4. Fixtures coverage — all three fixture variants are defined
+ *   5. Live render — RUN_LIVE_SOCIAL=1 gated
  *
  * Run live suite:
  *   RUN_LIVE_SOCIAL=1 bun test packages/social/test/pro-con-verdict.test.ts
@@ -43,6 +44,34 @@ function makeArticle(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+const validGenerated = {
+  toolName: "Loom",
+  toolCategory: "Video-Messaging",
+  iconInitials: "LM",
+  iconHue: 180,
+  subline: "Loom in Pro und Contra — wofür es sich lohnt, und wo ein anderes Tool besser passt.",
+  eyebrow: "Pro & Contra · Tool-Verdict",
+  slideNum: "04 / 05",
+  ctaLine1: "Vollständiger Test →",
+  ctaLine2: "toolwiki.ai/loom",
+  dateLabel: "Stand 05/2026 · toolwiki.ai",
+  prosHeader: "Stärken",
+  consHeader: "Schwächen",
+  pros: [
+    "Async-Video direkt im Browser",
+    "Auto-Transkription inklusive",
+    "Slack-Integration nahtlos",
+  ],
+  cons: [
+    "Free-Tier auf 5 Min begrenzt",
+    "Video-Editor schwach",
+    "Keine Live-Recording-Option",
+  ],
+  verdictText: "Für async-First Teams erste Wahl — solange du keinen Vollzeit-Editor brauchst.",
+  verdictEm: "erste Wahl",
+  recommendationTag: "Empfohlen für: Remote-Teams & Content Creator",
+};
 
 // ---------------------------------------------------------------------------
 // 1. Eligibility
@@ -99,24 +128,15 @@ describe("proConVerdictTemplate.eligibility", () => {
 describe("proConVerdictOverridesSchema", () => {
   it("parse({}) returns fully-populated defaults", () => {
     const defaults = proConVerdictOverridesSchema.parse({});
-    expect(defaults.copy.coverEyebrow.de).toBe("BEWERTUNG");
-    expect(defaults.copy.coverEyebrow.en).toBe("REVIEW");
-    expect(defaults.copy.prosHeader.de).toBe("VORTEILE");
-    expect(defaults.copy.prosHeader.en).toBe("PROS");
-    expect(defaults.copy.consHeader.de).toBe("NACHTEILE");
-    expect(defaults.copy.consHeader.en).toBe("CONS");
-    expect(defaults.copy.verdictEyebrow.de).toBe("VERDIKT");
-    expect(defaults.copy.verdictEyebrow.en).toBe("VERDICT");
-    expect(defaults.copy.whenToUseLabel.de).toBe("WANN NUTZEN");
-    expect(defaults.copy.whenToSkipLabel.en).toBe("WHEN TO SKIP");
-    expect(defaults.copy.endCtaText.de).toBe("Mehr im Artikel");
-    expect(defaults.layout.includeEndSlide).toBe(true);
-    expect(defaults.layout.coverSplitDirection).toBe("diagonal");
-    expect(defaults.layout.backgroundIntensity).toBe("medium");
-    expect(defaults.eligibility.minPros).toBe(3);
-    expect(defaults.eligibility.maxPros).toBe(5);
-    expect(defaults.eligibility.minCons).toBe(3);
-    expect(defaults.eligibility.maxCons).toBe(5);
+    expect(defaults.copy.eyebrow.de).toBe("Pro & Contra · Tool-Verdict");
+    expect(defaults.copy.eyebrow.en).toBe("Pros & Cons · Tool Verdict");
+    expect(defaults.copy.prosHeader.de).toBe("Stärken");
+    expect(defaults.copy.prosHeader.en).toBe("Strengths");
+    expect(defaults.copy.consHeader.de).toBe("Schwächen");
+    expect(defaults.copy.consHeader.en).toBe("Weaknesses");
+    expect(defaults.copy.ctaPrefix.de).toBe("Vollständiger Test →");
+    expect(defaults.copy.ctaPrefix.en).toBe("Full review →");
+    expect(defaults.eligibility.minToolCount).toBe(1);
   });
 
   it("strips unknown fields (.strip())", () => {
@@ -129,27 +149,10 @@ describe("proConVerdictOverridesSchema", () => {
 
   it("accepts partial overrides and fills in defaults for missing keys", () => {
     const result = proConVerdictOverridesSchema.parse({
-      copy: { coverEyebrow: { de: "ANALYSE", en: "ANALYSIS" } },
-      layout: { includeEndSlide: false },
+      copy: { eyebrow: { de: "Analyse", en: "Analysis" } },
     });
-    expect(result.copy.coverEyebrow.de).toBe("ANALYSE");
-    expect(result.copy.prosHeader.de).toBe("VORTEILE");
-    expect(result.layout.includeEndSlide).toBe(false);
-    expect(result.layout.showToolLogoOnCover).toBe(true);
-  });
-
-  it("rejects invalid coverSplitDirection enum value", () => {
-    const result = proConVerdictOverridesSchema.safeParse({
-      layout: { coverSplitDirection: "circular" },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects invalid backgroundIntensity enum value", () => {
-    const result = proConVerdictOverridesSchema.safeParse({
-      layout: { backgroundIntensity: "extreme" },
-    });
-    expect(result.success).toBe(false);
+    expect(result.copy.eyebrow.de).toBe("Analyse");
+    expect(result.copy.prosHeader.de).toBe("Stärken");
   });
 });
 
@@ -158,60 +161,46 @@ describe("proConVerdictOverridesSchema", () => {
 // ---------------------------------------------------------------------------
 
 describe("proConVerdictInputSchema", () => {
-  const baseInput = {
-    tool: { name: "Loom" },
-    pros: [
-      "Async-Video direkt im Browser",
-      "Auto-Transkription",
-      "Slack-Integration",
-    ],
-    cons: [
-      "Free-Tier auf 5 Min begrenzt",
-      "Editor schwach",
-      "Keine Live-Recording-Option",
-    ],
-    verdict: {
-      snippet: "Loom ist ideal für schnelle async Kommunikation.",
-      whenToUse: "Wenn du schnelle Erklärungen ohne Meeting brauchst.",
-      whenToSkip: "Wenn du tiefe Video-Editierung oder Live-Streams planst.",
-    },
-  };
-
-  it("accepts a valid input with verdict", () => {
-    const result = proConVerdictInputSchema.safeParse(baseInput);
+  it("accepts a valid generated input", () => {
+    const result = proConVerdictInputSchema.safeParse({ generated: validGenerated });
     expect(result.success).toBe(true);
-  });
-
-  it("accepts verdict = null", () => {
-    const result = proConVerdictInputSchema.safeParse({ ...baseInput, verdict: null });
-    expect(result.success).toBe(true);
-  });
-
-  it("rejects fewer than 3 pros", () => {
-    const result = proConVerdictInputSchema.safeParse({
-      ...baseInput,
-      pros: ["Only one pro here"],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("rejects more than 5 cons", () => {
-    const result = proConVerdictInputSchema.safeParse({
-      ...baseInput,
-      cons: ["Con 1", "Con 2", "Con 3", "Con 4", "Con 5", "Con 6"],
-    });
-    expect(result.success).toBe(false);
   });
 
   it("defaults theme to dark and locale to de", () => {
-    const result = proConVerdictInputSchema.parse(baseInput);
+    const result = proConVerdictInputSchema.parse({ generated: validGenerated });
     expect(result.theme).toBe("dark");
     expect(result.locale).toBe("de");
+  });
+
+  it("rejects fewer than 3 pros in generated", () => {
+    const result = proConVerdictInputSchema.safeParse({
+      generated: { ...validGenerated, pros: ["Only one pro"] },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects more than 4 cons in generated", () => {
+    const result = proConVerdictInputSchema.safeParse({
+      generated: {
+        ...validGenerated,
+        cons: ["Con 1", "Con 2", "Con 3", "Con 4", "Con 5"],
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts light theme", () => {
+    const result = proConVerdictInputSchema.safeParse({
+      generated: validGenerated,
+      theme: "light",
+      locale: "en",
+    });
+    expect(result.success).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 4. Fixtures coverage — all three fixture variants are parseable
+// 4. Fixtures coverage — all three fixture variants are defined
 // ---------------------------------------------------------------------------
 
 describe("PRO_CON_VERDICT_FIXTURES", () => {
@@ -219,6 +208,23 @@ describe("PRO_CON_VERDICT_FIXTURES", () => {
     expect(PRO_CON_VERDICT_FIXTURES.characteristic).toBeDefined();
     expect(PRO_CON_VERDICT_FIXTURES["edge-min"]).toBeDefined();
     expect(PRO_CON_VERDICT_FIXTURES["edge-max"]).toBeDefined();
+  });
+
+  it("each fixture has input and generatedContent", () => {
+    for (const [key, fixture] of Object.entries(PRO_CON_VERDICT_FIXTURES)) {
+      expect(fixture.input, `${key}.input`).toBeDefined();
+      expect(fixture.generatedContent, `${key}.generatedContent`).toBeDefined();
+    }
+  });
+
+  it("generatedContent parses through proConVerdictGeneratedSchema", async () => {
+    const { proConVerdictGeneratedSchema } = await import(
+      "../src/compositions/pro-con-verdict/types"
+    );
+    for (const [key, fixture] of Object.entries(PRO_CON_VERDICT_FIXTURES)) {
+      const result = proConVerdictGeneratedSchema.safeParse(fixture.generatedContent);
+      expect(result.success, `${key} generatedContent should be valid`).toBe(true);
+    }
   });
 });
 
@@ -230,91 +236,68 @@ const LIVE = process.env.RUN_LIVE_SOCIAL === "1";
 
 describe.skipIf(!LIVE)("renderProConVerdict (live)", () => {
   it(
-    "renders 5 PNG slides for the characteristic fixture",
+    "renders 1 PNG slide (single-still) for the characteristic fixture",
     async () => {
       const { renderProConVerdict } = await import("../render-server");
       const fixture = PRO_CON_VERDICT_FIXTURES.characteristic!;
 
       const input = proConVerdictInputSchema.parse({
-        tool: { name: fixture.input.toolName },
-        pros: fixture.input.pros,
-        cons: fixture.input.cons,
-        verdict: {
-          snippet: "Loom ist ideal für schnelle async Kommunikation im Team.",
-          whenToUse: "Wenn du schnelle Video-Erklärungen ohne Meeting brauchst.",
-          whenToSkip: "Wenn du tiefe Video-Editierung oder Live-Streams planst.",
-        },
+        generated: fixture.generatedContent,
         theme: "dark",
         locale: "de",
       });
 
       const result = await renderProConVerdict(input);
 
-      expect(result.sequenceCount).toBe(5);
-      expect(result.slides).toHaveLength(5);
+      expect(result.sequenceCount).toBe(1);
+      expect(result.slides).toHaveLength(1);
 
-      for (const slide of result.slides) {
-        expect(slide).toBeInstanceOf(Buffer);
-        expect(slide.length).toBeGreaterThan(1000);
-      }
+      const slide = result.slides[0]!;
+      expect(slide).toBeInstanceOf(Buffer);
+      expect(slide.length).toBeGreaterThan(1000);
 
       // PNG magic bytes
-      const cover = result.slides[0]!;
-      expect(cover[0]).toBe(0x89);
-      expect(cover[1]).toBe(0x50); // P
-      expect(cover[2]).toBe(0x4e); // N
-      expect(cover[3]).toBe(0x47); // G
+      expect(slide[0]).toBe(0x89);
+      expect(slide[1]).toBe(0x50); // P
+      expect(slide[2]).toBe(0x4e); // N
+      expect(slide[3]).toBe(0x47); // G
     },
     120_000,
   );
 
   it(
-    "renders 4 slides when includeEndSlide is false",
+    "renders edge-min fixture (EN light) without errors",
     async () => {
       const { renderProConVerdict } = await import("../render-server");
       const fixture = PRO_CON_VERDICT_FIXTURES["edge-min"]!;
 
       const input = proConVerdictInputSchema.parse({
-        tool: { name: fixture.input.toolName },
-        pros: fixture.input.pros,
-        cons: fixture.input.cons,
-        verdict: null,
+        generated: fixture.generatedContent,
         theme: "light",
         locale: "en",
-        overrides: { layout: { includeEndSlide: false } },
-        totalSlides: 4,
       });
 
       const result = await renderProConVerdict(input);
-      expect(result.sequenceCount).toBe(4);
-      expect(result.slides).toHaveLength(4);
+      expect(result.sequenceCount).toBe(1);
+      expect(result.slides).toHaveLength(1);
     },
     120_000,
   );
 
   it(
-    "renders edge-max fixture without overflow",
+    "renders edge-max fixture (DE dark) without overflow errors",
     async () => {
       const { renderProConVerdict } = await import("../render-server");
       const fixture = PRO_CON_VERDICT_FIXTURES["edge-max"]!;
 
       const input = proConVerdictInputSchema.parse({
-        tool: { name: fixture.input.toolName },
-        pros: fixture.input.pros,
-        cons: fixture.input.cons,
-        verdict: {
-          snippet: "Maximum length tool has all features packed in but costs a lot.",
-          whenToUse:
-            "When you need the absolute maximum feature set and budget is no concern for your enterprise team.",
-          whenToSkip:
-            "When you are a solo developer or small team on a tight budget looking for a simpler workflow.",
-        },
+        generated: fixture.generatedContent,
         theme: "dark",
-        locale: "en",
+        locale: "de",
       });
 
       const result = await renderProConVerdict(input);
-      expect(result.slides).toHaveLength(5);
+      expect(result.slides).toHaveLength(1);
     },
     120_000,
   );
