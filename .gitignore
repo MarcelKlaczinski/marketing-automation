@@ -55,9 +55,4 @@ apps/api/uploads/
 /renders/mock-edge-max/single-tool-spotlight/de-light/slide-05.png
 /social/
 # Template visual baselines are gitignored (generated locally by test:visual).
-# ds-components/ is committed — these are stable shared-primitive baselines (Spec 60.0b v2 Section D.3).
-/packages/social/test/__baselines__/comparison-grid-3/
-/packages/social/test/__baselines__/comparison-grid-4/
-/packages/social/test/__baselines__/pro-con-verdict/
-/packages/social/test/__baselines__/single-tool-spotlight/
-/packages/social/test/__baselines__/verdict-per-use-case/
+/packages/social/test/__baselines__/
