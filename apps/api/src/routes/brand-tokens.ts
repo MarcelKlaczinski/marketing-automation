@@ -115,10 +115,13 @@ brandTokenRoutes.post("/:slug/brand-tokens/reset", async (c) => {
   const existing = brandTokensSchema.parse(project.brandTokens ?? {});
   const sectionsToReset = body.sections ?? ["colors", "typography", "voice", "social"];
 
-  const updated: ParsedBrandTokens = { ...existing };
+  // Delete requested sections, then re-parse through canonical schema so the DB
+  // always stores fully-normalised data (Spec 60.0: write-time validation invariant).
+  const afterDelete: Record<string, unknown> = { ...existing };
   for (const section of sectionsToReset) {
-    delete updated[section];
+    delete afterDelete[section];
   }
+  const updated: ParsedBrandTokens = brandTokensSchema.parse(afterDelete);
 
   await db
     .update(projects)

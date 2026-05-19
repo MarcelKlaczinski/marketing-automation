@@ -1,6 +1,6 @@
 /// <reference path="./culori.d.ts" />
 import { wcagContrast, parse } from "culori";
-import type { BrandTokens } from "../compositions/list-carousel/types.ts";
+import type { BrandTokens } from "@marketing-auto/shared/brand-tokens";
 
 export type ContrastViolation = {
   field: string;
