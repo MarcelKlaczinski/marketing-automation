@@ -11,9 +11,33 @@ import {
   selectPattern,
 } from "@marketing-auto/core";
 
+// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — Grid3Props
 export const comparisonGrid3Bounds = {
-  tagline: { min: 10, max: 120 },
+  // Slide header (REMOTION.md Grid3Props)
+  eyebrow:   { min: 14, max: 30 },
+  headerNum: { min: 14, max: 44 },
+  heroTitle: { min: 14, max: 40 },
+  heroSub:   { min: 60, max: 160 },
+  // Per-tool slots — EXACTLY 3 entries
+  tools: {
+    count:      3,
+    name:       { min: 4,  max: 18 },
+    meta:       { min: 12, max: 32 },
+    priceLabel: { min: 4,  max: 22 },
+    bullets: {
+      pros: { count: 2, each: { min: 14, max: 50 } }, // EXACTLY 2 pros per tool
+      cons: { count: 2, each: { min: 14, max: 50 } }, // EXACTLY 2 cons per tool
+    },
+    flagText: { min: 6, max: 16 },
+    // score is 0-99 (numeric, not character-bound)
+  },
+  footer: {
+    ctaLine: { min: 8,  max: 24 },
+    url:     { min: 12, max: 32 },
+  },
+  // Internal render fields not in REMOTION.md — kept for render-code compatibility
   strengths: { max: 3, perItemMaxChars: 60 },
+  // Caption/hashtag fields (not rendered on slide)
   captionBody: { min: 20, max: 1800 },
   hashtags: { max: 10, perItemMaxChars: 24 },
 } as const satisfies ContentBounds;
