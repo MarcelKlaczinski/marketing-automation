@@ -22,6 +22,18 @@ Renders Instagram carousel slides as PNG via Remotion 4 (headless Chrome).
 Entry: `render-server.ts` → `renderListCarousel()` returns `Buffer[]` (one per slide).
 Compositions live in `src/compositions/<template-name>/`, shared primitives in `src/shared/`.
 
+## Template Inventory (as of Spec 59.3)
+
+| Key | Slides | Cover Signature | Eligible content |
+|-----|--------|-----------------|-----------------|
+| `comparison-grid-4` | dynamic (1+N+1) | 4-up tool grid | comparison articles, 2–4 tools |
+| `comparison-grid-3` | dynamic (1+N+1) | 3-up tool grid | comparison articles, exactly 3 tools |
+| `single-tool-spotlight` | 5 | tool hero portrait | tools collection, has pros/features |
+| `verdict-per-use-case` | dynamic (1+N+2) | use-case-prominent header | comparison articles with per-use-case verdicts |
+| `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `frontmatterExtras.pros ≥ 3 AND cons ≥ 3` |
+
+**`pro-con-verdict` cover:** Two halves divided by a diagonal SVG clipPath — left half tinted with `prosColor` (default oklch green), right half with `consColor` (default oklch red). Tool name overlays the split at the bottom. This is the only template with a split-screen cover and is visually distinct from all others in the Instagram grid.
+
 ## Variant History (Spec 57.1)
 
 The `editorial` variant was removed in Spec 57.1. All list-carousel templates now use the `stunning` variant only. The `variant` field remains in `listCarouselInputSchema` for potential future extension but accepts only `'stunning'`. Files deleted: `ListCarousel.tsx`, `CoverSlide.tsx`, `ToolSlide.tsx`, `EndSlide.tsx` (all editorial). Migration 0047 backfills existing `social_posts.locale` rows to `'de-DE'` (NOT NULL).
@@ -79,6 +91,12 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 - **`transition` in inline styles is a no-op** — Remotion renders static PNGs via `renderStill()`. CSS `transition` properties in inline styles are silently ignored. For visual state differences (e.g. active progress dot vs. inactive), use shape/size/color differences directly rather than transitions. See `UseCaseVerdictSlide.tsx` for the progress-dot pattern.
 
 - **Fixed-height slide layout — do NOT use `justifyContent: "space-between"`** — in a 1080×1080 slide, `space-between` distributes dead space between sections when content is short. Instead: set `paddingBottom: 140` on the outer container, give the main content block `flex: 1` so it fills all remaining space, and position the footer with `position: "absolute", bottom: 72`. This keeps content dense and fonts large regardless of how much text there is.
+
+- **`prosColor`/`consColor` live at `brandTokens.colors.prosColor` / `brandTokens.colors.consColor`** — NOT at top-level `brandTokens.prosColor`. The `pro-con-verdict` template introduced these optional keys as part of the nested `colors` object inside `brandTokensSchema`. `resolveProsColor(brandTokens)` reads `brandTokens?.colors?.prosColor`. If you add new per-template semantic color keys, follow this same nesting pattern.
+
+- **Override copy strings in each slide component, not in the dispatcher** — `pro-con-verdict` slides each call `proConVerdictOverridesSchema.parse(input.overrides ?? {})` directly rather than receiving parsed copy strings as props. This keeps slides self-contained and avoids prop type changes when new copy fields are added. Follow this pattern for future templates: parse overrides at component level, not in the top-level dispatcher (`ProConVerdict.tsx`).
+
+- **`plannerMeta.contentType` vs `buildHashtagInstructions` ContentType are different enums** — `plannerMeta.contentType` (in `TemplateDefinition`) accepts `"comparison" | "tool-spotlight" | "use-case" | "news" | "concept"`. The `ContentType` argument to `buildHashtagInstructions()` (in `packages/core`) accepts `"comparison" | "review" | "general"`. These are entirely separate. Use `contentType: "review"` in `buildHashtagInstructions()` for single-tool evaluation templates; use `contentType: "tool-spotlight"` in `plannerMeta`.
 
 ## Composition structure
 
