@@ -84,8 +84,7 @@ export async function renderComparisonGrid(input: ListCarouselInput): Promise<Re
 }
 
 export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput): Promise<RenderResult> {
-  const hasUseCaseSlide = input.tool.useCases.length >= 3;
-  const totalSlides = hasUseCaseSlide ? 5 : 4;
+  const totalSlides = input.slideTotal;
   const serveUrl = await getBundle();
   const compositions = await getCompositions(serveUrl);
   const baseComposition = compositions.find((c) => c.id === "SingleToolSpotlight");
@@ -98,7 +97,7 @@ export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput)
   try {
     for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
       const outPath = resolve(outDir, `slide-${slideIndex}.png`);
-      const slideProps = { ...input, slideIndex, totalSlides } as Record<string, unknown>;
+      const slideProps = { ...input, slideIndex } as Record<string, unknown>;
 
       await renderStill({
         composition: { ...baseComposition, props: slideProps },

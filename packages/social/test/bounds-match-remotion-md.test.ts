@@ -17,7 +17,7 @@ import { join } from "node:path";
 import { comparisonGrid4Bounds } from "../src/templates/definitions/comparisonGrid4";
 import { comparisonGrid3Bounds } from "../src/templates/definitions/comparisonGrid3";
 import { verdictPerUseCaseBounds } from "../src/templates/definitions/verdictPerUseCase";
-import { singleToolSpotlightBounds } from "../src/templates/definitions/singleToolSpotlight";
+import { singleToolSpotlightBounds, coverBounds } from "../src/templates/definitions/singleToolSpotlight";
 
 const REMOTION_MD_PATH = join(
   import.meta.dir,
@@ -58,6 +58,7 @@ describe("*Bounds match REMOTION.md field-length budgets", () => {
     expect(remotionMd).toContain("Grid3Props");
     expect(remotionMd).toContain("VerdictProps");
     expect(remotionMd).toContain("SpotlightProps");
+    expect(remotionMd).toContain("CoverProps");
   });
 
   describe("comparison-grid-4 (Grid4Props)", () => {
@@ -197,6 +198,49 @@ describe("*Bounds match REMOTION.md field-length budgets", () => {
       expect(match).toBeTruthy();
       expect(singleToolSpotlightBounds.tool.name.min).toBe(Number(match![1]));
       expect(singleToolSpotlightBounds.tool.name.max).toBe(Number(match![2]));
+    });
+  });
+
+  describe("cover (CoverProps — Spec 60.1)", () => {
+    const cover = extractSection(remotionMd, "cover");
+
+    it("eyebrow min/max", () => {
+      const budget = parseFieldBudget(cover, "eyebrow");
+      expect(budget).not.toBeNull();
+      expect(coverBounds.eyebrow.min).toBe(budget!.min);
+      expect(coverBounds.eyebrow.max).toBe(budget!.max);
+    });
+
+    it("heroTitle min/max", () => {
+      const budget = parseFieldBudget(cover, "heroTitle");
+      expect(budget).not.toBeNull();
+      expect(coverBounds.heroTitle.min).toBe(budget!.min);
+      expect(coverBounds.heroTitle.max).toBe(budget!.max);
+    });
+
+    it("kicker min/max", () => {
+      const budget = parseFieldBudget(cover, "kicker");
+      expect(budget).not.toBeNull();
+      expect(coverBounds.kicker.min).toBe(budget!.min);
+      expect(coverBounds.kicker.max).toBe(budget!.max);
+    });
+
+    it("swipeText min/max", () => {
+      const budget = parseFieldBudget(cover, "swipeText");
+      expect(budget).not.toBeNull();
+      expect(coverBounds.swipeText.min).toBe(budget!.min);
+      expect(coverBounds.swipeText.max).toBe(budget!.max);
+    });
+
+    it("stats.count is 3", () => {
+      expect(coverBounds.stats.count).toBe(3);
+    });
+
+    it("footer.ctaLine min/max", () => {
+      const match = cover.match(/ctaLine:\s*string;\s*\/\/\s*min\s*(\d+),\s*max\s*(\d+)/);
+      expect(match).toBeTruthy();
+      expect(coverBounds.footer.ctaLine.min).toBe(Number(match![1]));
+      expect(coverBounds.footer.ctaLine.max).toBe(Number(match![2]));
     });
   });
 });

@@ -5,6 +5,7 @@ import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { singleToolSpotlightOverridesSchema } from "../overrides/singleToolSpotlight.overrides.ts";
 import { SINGLE_TOOL_SPOTLIGHT_FIXTURES } from "./fixtures/singleToolSpotlight.fixtures.ts";
+import type { SingleToolSpotlightInput } from "../../compositions/single-tool-spotlight/types.ts";
 import {
   generateContentWithGate,
   inferArticleType,
@@ -47,6 +48,33 @@ export const singleToolSpotlightBounds = {
   hashtags: { max: 10, perItemMaxChars: 24 },
 } as const satisfies ContentBounds;
 
+// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — CoverProps section
+// Spec 60.1 Session 1: cover bounds (new — cover slide introduced in 60.1)
+export const coverBounds = {
+  eyebrow:       { min: 8,  max: 28 },
+  headerNum:     { min: 12, max: 56 },
+  updateBadge:   { min: 8,  max: 28 },
+  heroTitle:     { min: 6,  max: 22 },
+  kicker:        { min: 40, max: 130 },
+  toolLogosCount: { min: 3, max: 6 },
+  toolsMoreText: { min: 4,  max: 14 },
+  stats: {
+    count: 3,
+    value: { min: 1, max: 4 },
+    label: { min: 8, max: 24 },
+  },
+  byline: {
+    name:     { min: 4,  max: 22 },
+    role:     { min: 10, max: 32 },
+    readTime: { min: 5,  max: 14 },
+  },
+  swipeText: { min: 12, max: 28 },
+  footer: {
+    ctaLine: { min: 6,  max: 22 },
+    url:     { min: 12, max: 32 },
+  },
+} as const satisfies ContentBounds;
+
 export const singleToolSpotlightGeneratedSchema = z.object({
   caption: z.string().min(singleToolSpotlightBounds.captionBody.min).max(singleToolSpotlightBounds.captionBody.max),
   hashtags: z.array(z.string().max(singleToolSpotlightBounds.hashtags.perItemMaxChars)).max(singleToolSpotlightBounds.hashtags.max),
@@ -62,8 +90,10 @@ const SLIDE_H = 1350;
 const SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS = {
   minTools: 1,
   maxTools: 1,
-  minSlides: 4,
-  maxSlides: 5,
+  // Spec 60.1: 3-slide architecture (cover + body + end; overridable via overrides.layout)
+  minSlides: 2,
+  maxSlides: 3,
+  defaultSlides: 3,
   eligibleCollections: ["tools"],
   fieldBounds: {
     pros:     { minItems: 3, maxItems: 5 }, // REMOTION.md strengths.countMin = 3
@@ -77,8 +107,8 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
   key: "single-tool-spotlight",
   displayName: "Single-Tool-Spotlight",
   description:
-    "4–5 Slides für einen einzelnen Tool-Article: Cover, Stärken, Pricing & Für-wen, CTA. Slide 5 optional wenn ≥3 Use-Cases vorhanden.",
-  defaultSlideCount: 4,
+    "3 Slides für einen einzelnen Tool-Article (Spec 60.1): Cover, Body (Verdict + Stärken/Schwächen), CTA.",
+  defaultSlideCount: 3,
   estimatedCostUsd: 0.006,
 
   outputFormat: "carousel",
@@ -157,46 +187,23 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
   },
 
   render: async (context) => {
+    // TODO(Spec 60.1 Sessions 5-6): Rebuild body/cover props from generatedContent
+    // (verdictQuote, scoreLabel, facts, strengths, weaknesses) + article metadata.
+    // For now: slides render as placeholders until Session 5 implements the composition.
     const { article, input, locale, theme } = context;
     const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
     const resolvedOverrides = singleToolSpotlightOverridesSchema.parse(context.overrides ?? {});
 
-    const hasUseCaseSlide = input.useCases.length >= 3;
-    const totalSlides = hasUseCaseSlide ? 5 : 4;
-
-    const pros = input.pros.slice(0, SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS.fieldBounds.pros.maxItems);
-    const cons = input.cons.slice(0, SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS.fieldBounds.cons.maxItems);
-    const features = input.features.slice(0, SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS.fieldBounds.features.maxItems);
-    const useCases = input.useCases.slice(0, SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS.fieldBounds.useCases.maxItems);
-
-    const pricingTier = (input.pricingTier === "enterprise" ? "paid" : (input.pricingTier ?? "freemium")) as "free" | "freemium" | "paid";
-
-    const carouselInput = {
+    const compositionInput: SingleToolSpotlightInput = {
+      slideIndex: 0,
+      slideTotal: SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS.defaultSlides,
+      cover: null,
+      body: null,
+      end: null,
       theme,
       locale,
-      slideIndex: 0,
-      totalSlides,
-      brandTokens,
-      overrides: resolvedOverrides,
-      articleSlug: article.slug,
-      tool: {
-        slug: input.slug,
-        name: input.name,
-        pros,
-        cons,
-        features,
-        useCases,
-        pricingTier,
-        ...(input.tagline !== undefined && { tagline: input.tagline }),
-        ...(input.website !== undefined && { website: input.website }),
-        ...(input.primaryCategory !== undefined && { primaryCategory: input.primaryCategory }),
-        ...(input.priceFrom !== undefined && { priceFrom: input.priceFrom }),
-        ...(input.rating !== undefined && { rating: input.rating }),
-        ...(input.affiliateSlug !== undefined && { affiliateSlug: input.affiliateSlug }),
-        ...(input.iconSvg !== undefined && { iconSvg: input.iconSvg }),
-        ...(input.iconInitials !== undefined && { iconInitials: input.iconInitials }),
-        ...(input.iconHue !== undefined && { iconHue: input.iconHue }),
-      },
+      brandTokens: brandTokens as Record<string, unknown>,
+      overrides: resolvedOverrides as Record<string, unknown>,
     };
 
     // Dynamic import — avoids bundling Remotion into non-render contexts
@@ -207,7 +214,7 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
     };
 
     const { slides: buffers } = await socialModule.renderSingleToolSpotlight(
-      carouselInput as unknown as Record<string, unknown>,
+      compositionInput as unknown as Record<string, unknown>,
     );
 
     const slideOutputs = await writeSlides(

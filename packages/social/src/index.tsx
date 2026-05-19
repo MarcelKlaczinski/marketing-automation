@@ -3,7 +3,7 @@ import { ListCarouselStunning } from "./compositions/list-carousel/ListCarouselS
 import { listCarouselInputSchema } from "./compositions/list-carousel/types.ts";
 import { UseCaseVerdictComposition } from "./compositions/verdict-cards/UseCaseVerdictComposition.tsx";
 import { useCaseVerdictInputSchema } from "./compositions/verdict-cards/types.ts";
-import { SingleToolSpotlightComposition } from "./compositions/single-tool-spotlight/SingleToolSpotlightComposition.tsx";
+import { SingleToolSpotlight } from "./compositions/single-tool-spotlight/SingleToolSpotlight.tsx";
 import { singleToolSpotlightInputSchema } from "./compositions/single-tool-spotlight/types.ts";
 import { ProConVerdictComposition } from "./compositions/pro-con-verdict/ProConVerdict.tsx";
 import { proConVerdictInputSchema } from "./compositions/pro-con-verdict/types.ts";
@@ -120,40 +120,54 @@ export function RemotionRoot() {
       />
       <Composition
         id="SingleToolSpotlight"
-        component={SingleToolSpotlightComposition}
+        component={SingleToolSpotlight}
         durationInFrames={1}
         fps={30}
         width={1080}
         height={1350}
         schema={singleToolSpotlightInputSchema}
         defaultProps={singleToolSpotlightInputSchema.parse({
-          theme: "dark",
-          locale: "de",
-          slideIndex: 0,
-          websiteUrl: "toolwiki.ai",
-          instagramHandle: "@toolwiki.ai",
-          articleSlug: "synthesia",
-          tool: {
-            slug: "synthesia",
-            name: "Synthesia",
-            tagline: "Enterprise-grade KI-Avatarvideos für Training & Marketing.",
-            primaryCategory: "KI-Video",
-            pricingTier: "paid",
-            priceFrom: 22,
-            rating: 4.4,
-            pros: [
-              { text: "Enterprise-grade Compliance (SOC 2, ISO 27001)" },
-              { text: "Keine Kamera-Crew nötig" },
-              { text: "Training-Videos in 140 Sprachen" },
+          slideIndex: 1,
+          slideTotal: 3,
+          cover: null,
+          body: {
+            eyebrow: "Deep Dive · Tool-Portrait",
+            headerNum: "Test 04/2026 · 50k+ Generierungen",
+            slideIndex: 1,
+            slideTotal: 3,
+            tool: {
+              logo: "",
+              name: "Midjourney",
+              version: "v7 · Premium-Ästhetik",
+              isLive: true,
+            },
+            verdictQuote: "Für Hero-Visuals und Mood-Boards 2026 immer noch ungeschlagen.",
+            score: 92,
+            scoreLabel: "Top Aesthetic",
+            facts: [
+              { key: "Pricing", value: "Ab 10 $/Mo" },
+              { key: "Standard", value: "30 $ · 15h GPU" },
+              { key: "Für wen", value: "Marketing" },
+              { key: "Commercial", value: "Ab Basic" },
             ],
-            cons: [
-              { text: "Lippen-Sync nicht immer perfekt" },
-              { text: "Hohe Kosten bei vielen Minuten" },
+            strengths: [
+              "Ästhetik out-of-the-box auf Stockfoto-Niveau.",
+              "--sref für konsistenten Brand-Look.",
+              "Subtile Hauttöne, anspruchsvolles Licht.",
             ],
-            features: ["160+ vorgefertigte Avatare", "140 Sprachen"],
-            useCases: ["Corporate Training", "Compliance-Schulungen", "Produktvideos in 140 Sprachen"],
-            iconInitials: "SY",
-            iconHue: 200,
+            weaknesses: [
+              "Text im Bild bleibt schwach (→ Ideogram).",
+              "Schwer aus dem MJ-Look auszubrechen.",
+              "--cref max. 85 % Charakter-Ähnlichkeit.",
+            ],
+            footer: {
+              ctaLine: "Vollständiger Test →",
+              url: "toolwiki.ai/midjourney",
+            },
+          },
+          end: {
+            ctaLine: "Vollständiger Test →",
+            url: "toolwiki.ai/midjourney",
           },
         })}
       />
