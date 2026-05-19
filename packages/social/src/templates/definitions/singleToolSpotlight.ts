@@ -11,11 +11,38 @@ import {
   selectPattern,
 } from "@marketing-auto/core";
 
+// Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — SpotlightProps
 export const singleToolSpotlightBounds = {
-  pros: { max: 5, perItemMaxChars: 80 },
-  cons: { max: 4, perItemMaxChars: 80 },
+  // Slide header (REMOTION.md SpotlightProps)
+  eyebrow:   { min: 12, max: 28 },
+  headerNum: { min: 16, max: 44 },
+  // Per-tool identity
+  tool: {
+    name:    { min: 4, max: 14 }, // large display name — keep short
+    version: { min: 6, max: 34 }, // "v7 · Premium aesthetic"
+    // isLive is boolean
+  },
+  verdictQuote: { min: 40, max: 120 }, // <br> allowed for explicit wrap
+  scoreLabel:   { min: 6,  max: 18 },
+  // Facts grid — EXACTLY 4 entries
+  facts: {
+    count: 4,
+    key:   { min: 4, max: 14 },
+    value: { min: 4, max: 20 },
+  },
+  // Strengths/weaknesses — 3–4 entries; maps to pros/cons in render code
+  strengths:  { countMin: 3, countMax: 4, each: { min: 30, max: 70 } },
+  weaknesses: { countMin: 3, countMax: 4, each: { min: 30, max: 70 } },
+  footer: {
+    ctaLine: { min: 8,  max: 24 },
+    url:     { min: 12, max: 32 },
+  },
+  // Internal render fields retained for render-code compatibility
+  pros:     { max: 5, perItemMaxChars: 80 },
+  cons:     { max: 4, perItemMaxChars: 80 },
   features: { max: 6, perItemMaxChars: 80 },
   useCases: { max: 4, perItemMaxChars: 80 },
+  // Caption/hashtag fields (not rendered on slide)
   captionBody: { min: 20, max: 1800 },
   hashtags: { max: 10, perItemMaxChars: 24 },
 } as const satisfies ContentBounds;
@@ -39,7 +66,7 @@ const SINGLE_TOOL_SPOTLIGHT_CONSTRAINTS = {
   maxSlides: 5,
   eligibleCollections: ["tools"],
   fieldBounds: {
-    pros:     { minItems: 2, maxItems: 5 },
+    pros:     { minItems: 3, maxItems: 5 }, // REMOTION.md strengths.countMin = 3
     cons:     { minItems: 0, maxItems: 4 },
     features: { minItems: 0, maxItems: 6 },
     useCases: { minItems: 0, maxItems: 4 },
