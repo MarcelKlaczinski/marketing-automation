@@ -6,6 +6,8 @@
     "allowImportingTsExtensions": true,
     "noUnusedLocals": false,
     "paths": {
+      "@marketing-auto/shared": ["../../packages/shared/src/index.ts"],
+      "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"],
       "@marketing-auto/core": ["../../packages/core/src/index.ts"],
       "@marketing-auto/db": ["../../packages/db/src/index.ts"],
       "drizzle-orm": ["../../packages/db/node_modules/drizzle-orm/index.d.ts"],

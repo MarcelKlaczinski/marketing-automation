@@ -4,7 +4,11 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "types": ["bun"],
-    "typeRoots": ["../../node_modules/@types"]
+    "typeRoots": ["../../node_modules/@types"],
+    "paths": {
+      "@marketing-auto/shared": ["../../packages/shared/src/index.ts"],
+      "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"]
+    }
   },
   "include": ["src/**/*", "drizzle.config.ts"]
 }

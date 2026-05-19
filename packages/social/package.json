@@ -8,7 +8,8 @@
     "./render-server": "./render-server.ts",
     "./templates": "./src/templates/index.ts",
     "./templates/overrides": "./src/templates/overrides/index.ts",
-    "./lib": "./src/lib/index.ts"
+    "./lib": "./src/lib/index.ts",
+    "./brand-tokens": "./src/brand-tokens/index.ts"
   },
   "scripts": {
     "studio": "remotion studio src/index.tsx",

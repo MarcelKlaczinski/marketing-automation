@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import { getBrandTokens, DEFAULT_TYPOGRAPHY } from "../../src/lib/brand-asset-service.ts";
+import { brandTokensSchema } from "@marketing-auto/shared/brand-tokens";
 
 const SLUG = `brand-tokens-test-${Date.now()}`;
 
@@ -64,9 +65,9 @@ describe("brand-tokens routes", () => {
     it("returns default typography when no tokens are set", async () => {
       const tokens = await getBrandTokens(projectId);
       expect(tokens.typography).toBeDefined();
-      expect(tokens.typography?.fontFamily).toBe(DEFAULT_TYPOGRAPHY.fontFamily);
-      expect(tokens.typography?.headingWeight).toBe(DEFAULT_TYPOGRAPHY.headingWeight);
-      expect(tokens.typography?.bodyLineHeight).toBe(DEFAULT_TYPOGRAPHY.bodyLineHeight);
+      expect(tokens.typography.fontFamily).toBe(DEFAULT_TYPOGRAPHY.fontFamily);
+      expect(tokens.typography.headingWeight).toBe(DEFAULT_TYPOGRAPHY.headingWeight);
+      expect(tokens.typography.rankBadgeSize).toBe(DEFAULT_TYPOGRAPHY.rankBadgeSize);
     });
 
     it("persists a color patch and reads it back", async () => {
@@ -81,9 +82,9 @@ describe("brand-tokens routes", () => {
         .where(eq(projects.id, projectId));
 
       const tokens = await getBrandTokens(projectId);
-      expect(tokens.colors?.primary).toBe("#4F6FE5");
+      expect(tokens.colors.primary).toBe("#4F6FE5");
       // Typography defaults should still be filled in
-      expect(tokens.typography?.fontFamily).toBe(DEFAULT_TYPOGRAPHY.fontFamily);
+      expect(tokens.typography.fontFamily).toBe(DEFAULT_TYPOGRAPHY.fontFamily);
     });
 
     it("deep-merges typography without losing other tokens", async () => {
@@ -101,17 +102,17 @@ describe("brand-tokens routes", () => {
         .where(eq(projects.id, projectId));
 
       const refreshed = await getBrandTokens(projectId);
-      expect(refreshed.typography?.fontFamily).toBe("Space Grotesk");
+      expect(refreshed.typography.fontFamily).toBe("Space Grotesk");
       // Colors from previous step should still be there
-      expect(refreshed.colors?.primary).toBe("#4F6FE5");
+      expect(refreshed.colors.primary).toBe("#4F6FE5");
       // Other typography defaults should remain
-      expect(refreshed.typography?.headingWeight).toBe(DEFAULT_TYPOGRAPHY.headingWeight);
+      expect(refreshed.typography.headingWeight).toBe(DEFAULT_TYPOGRAPHY.headingWeight);
     });
 
     it("reset: deleting typography section restores defaults", async () => {
       // Simulate POST /reset sections=["typography"]
-      const existing = await getBrandTokens(projectId);
-      const afterReset = { ...existing };
+      // biome-ignore lint/suspicious/noExplicitAny: simulating DB row without typography section
+      const afterReset: Record<string, unknown> = { ...(await getBrandTokens(projectId)) };
       delete afterReset.typography;
 
       await db
@@ -121,34 +122,33 @@ describe("brand-tokens routes", () => {
         .where(eq(projects.id, projectId));
 
       const tokens = await getBrandTokens(projectId);
-      // getBrandTokens merges DEFAULT_TYPOGRAPHY, so all fields should be back
-      expect(tokens.typography?.fontFamily).toBe(DEFAULT_TYPOGRAPHY.fontFamily);
-      expect(tokens.typography?.headingWeight).toBe(DEFAULT_TYPOGRAPHY.headingWeight);
+      // brandTokensSchema.parse() restores all typography defaults
+      expect(tokens.typography.fontFamily).toBe(DEFAULT_TYPOGRAPHY.fontFamily);
+      expect(tokens.typography.headingWeight).toBe(DEFAULT_TYPOGRAPHY.headingWeight);
       // colors from before the reset should be preserved
-      expect(tokens.colors?.primary).toBe("#4F6FE5");
+      expect(tokens.colors.primary).toBe("#4F6FE5");
     });
   });
 
-  describe("DEFAULT_TYPOGRAPHY completeness", () => {
-    it("contains all required typography keys", () => {
-      const requiredKeys = [
+  describe("DEFAULT_TYPOGRAPHY completeness (Spec 60.0 canonical schema)", () => {
+    it("contains all canonical typography keys", () => {
+      // Canonical fields per brandTokensSchema (Spec 60.0) — deprecated DB-only fields removed
+      const canonicalKeys = [
         "fontFamily",
+        "fontFamilyMono",
         "headingWeight",
         "bodyWeight",
-        "eyebrowWeight",
-        "captionWeight",
         "eyebrowLetterSpacing",
-        "headingLetterSpacing",
-        "bodyLetterSpacing",
-        "headingSize",
-        "subheadSize",
-        "bodySize",
-        "eyebrowSize",
-        "headingLineHeight",
-        "bodyLineHeight",
+        "rankBadgeSize",
+        "rankBadgeWeight",
+        "rankBadgeLetterSpacing",
+        "footerWebsiteSize",
+        "footerHandleSize",
+        "footerLabelSize",
+        "footerGap",
       ] as const;
 
-      for (const key of requiredKeys) {
+      for (const key of canonicalKeys) {
         expect(DEFAULT_TYPOGRAPHY).toHaveProperty(key);
         expect(DEFAULT_TYPOGRAPHY[key]).not.toBeUndefined();
       }
@@ -159,11 +159,8 @@ describe("brand-tokens routes", () => {
       expect(DEFAULT_TYPOGRAPHY.headingWeight).toBeLessThanOrEqual(900);
     });
 
-    it("lineHeight values are within slider range (0.8-2.5)", () => {
-      expect(DEFAULT_TYPOGRAPHY.headingLineHeight).toBeGreaterThanOrEqual(0.8);
-      expect(DEFAULT_TYPOGRAPHY.headingLineHeight).toBeLessThanOrEqual(2.5);
-      expect(DEFAULT_TYPOGRAPHY.bodyLineHeight).toBeGreaterThanOrEqual(0.8);
-      expect(DEFAULT_TYPOGRAPHY.bodyLineHeight).toBeLessThanOrEqual(2.5);
+    it("matches brandTokensSchema default", () => {
+      expect(DEFAULT_TYPOGRAPHY).toEqual(brandTokensSchema.parse({}).typography);
     });
   });
 });

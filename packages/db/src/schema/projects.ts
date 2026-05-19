@@ -1,4 +1,5 @@
 import { boolean, index, integer, jsonb, numeric, pgTable, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
+import { type BrandTokens } from "@marketing-auto/shared/brand-tokens";
 import {
   credentialServiceEnum,
   industryEnum,
@@ -73,7 +74,8 @@ export const projects = pgTable(
     translationAutoTrigger: boolean("translation_auto_trigger").notNull().default(true),
 
     // Spec 51: Visual brand tokens for social-image generation (colors, typography, voice, social handles)
-    brandTokens: jsonb("brand_tokens").$type<BrandTokens>().notNull().default({}),
+    // biome-ignore lint/suspicious/noExplicitAny: {} is valid JSONB; brandTokensSchema.parse() applies defaults at read time
+    brandTokens: jsonb("brand_tokens").$type<BrandTokens>().notNull().default({} as BrandTokens),
 
     // Spec 57.1: controls future auto-pipeline locale rendering. 'one' = canonical only, 'all' = all targetLocales.
     // Stored but unused today — manual UI gives per-trigger choice; this setting is for Phase E automation.
@@ -167,47 +169,9 @@ export type PagespeedThresholds = {
   seo: number;
 };
 
-// Spec 51: Visual brand tokens for social-image generation
-export type BrandTokens = {
-  colors?: {
-    primary?: string;
-    primaryHue?: number;
-    accent?: string;
-    surface?: string;
-    surfaceDark?: string;
-    ink?: string;
-    inkMuted?: string;
-    wikiCream?: string;
-  };
-  typography?: {
-    fontFamily?: string;
-    fontFamilyOptions?: string[];
-    headingWeight?: number;
-    bodyWeight?: number;
-    eyebrowWeight?: number;
-    captionWeight?: number;
-    eyebrowLetterSpacing?: string;
-    headingLetterSpacing?: string;
-    bodyLetterSpacing?: string;
-    headingSize?: number;
-    subheadSize?: number;
-    bodySize?: number;
-    eyebrowSize?: number;
-    headingLineHeight?: number;
-    bodyLineHeight?: number;
-  };
-  voice?: {
-    locale?: string;
-    addressForm?: string;
-    forbiddenWords?: string[];
-    signaturePhrases?: string[];
-  };
-  social?: {
-    instagramHandle?: string;
-    websiteUrl?: string;
-    logoAssetKey?: string;
-  };
-};
+// Spec 60.0: BrandTokens is now generated from brandTokensSchema in @marketing-auto/shared.
+// Re-exported here so downstream consumers that imported from @marketing-auto/db don't break.
+export type { BrandTokens } from "@marketing-auto/shared/brand-tokens";
 
 // Spec 50: Frontmatter schema descriptor for a single field in an Astro collection
 export type FrontmatterFieldDescriptor = {

@@ -10,6 +10,7 @@
       "@marketing-auto/db": ["../../packages/db/src/index.ts"],
       "@marketing-auto/db/*": ["../../packages/db/src/*.ts"],
       "@marketing-auto/shared": ["../../packages/shared/src/index.ts"],
+      "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"],
       "@marketing-auto/shared/*": ["../../packages/shared/src/*.ts"],
       "@marketing-auto/core": ["../../packages/core/src/index.ts"],
       "@marketing-auto/core/notifications": ["../../packages/core/src/notifications/index.ts"],

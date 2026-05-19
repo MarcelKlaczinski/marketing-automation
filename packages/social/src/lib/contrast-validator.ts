@@ -11,8 +11,9 @@ export type ContrastViolation = {
 };
 
 type CheckPair = {
-  fg: string;
-  bg: string;
+  // fg/bg can be undefined for deprecated optional fields — loop skips those pairs
+  fg: string | undefined;
+  bg: string | undefined;
   field: string;
   bgName: string;
   required: number;
@@ -23,6 +24,7 @@ export function validateBrandTokenContrast(tokens: BrandTokens): ContrastViolati
   const c = tokens.colors;
 
   const pairs: CheckPair[] = [
+    // eyebrowColor + surfaceSecondary are deprecated optional fields (Spec 60.0); skip when absent
     { fg: c.eyebrowColor,    bg: c.surfaceDark,      field: "eyebrowColor",    bgName: "surfaceDark",      required: 3.0 },
     { fg: c.ink,             bg: c.surfaceDark,      field: "ink",             bgName: "surfaceDark",      required: 4.5 },
     { fg: c.inkMuted,        bg: c.surfaceDark,      field: "inkMuted",        bgName: "surfaceDark",      required: 4.5 },
@@ -35,6 +37,7 @@ export function validateBrandTokenContrast(tokens: BrandTokens): ContrastViolati
   ];
 
   for (const pair of pairs) {
+    if (!pair.fg || !pair.bg) continue;
     const fgParsed = parse(pair.fg);
     const bgParsed = parse(pair.bg);
     // parse() returns undefined for unrecognized formats; culori v4 supports oklch natively

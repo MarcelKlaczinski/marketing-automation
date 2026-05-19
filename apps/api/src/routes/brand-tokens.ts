@@ -12,18 +12,14 @@ import { requireAuth } from "../middleware/auth.ts";
 import {
   getBrandTokens,
   brandTokensSchema,
-  DEFAULT_TYPOGRAPHY,
   type ParsedBrandTokens,
 } from "../lib/brand-asset-service.ts";
+import { DEFAULT_BRAND_TOKENS } from "@marketing-auto/shared/brand-tokens";
 
 const log = createLogger("routes:brand-tokens");
 
 export const brandTokenRoutes = new Hono();
 brandTokenRoutes.use(requireAuth);
-
-const DEFAULT_TOKENS: ParsedBrandTokens = {
-  typography: DEFAULT_TYPOGRAPHY,
-};
 
 // ─── GET /api/projects/:slug/brand-tokens ─────────────────────────────────────
 
@@ -39,7 +35,7 @@ brandTokenRoutes.get("/:slug/brand-tokens", async (c) => {
 
   const tokens = await getBrandTokens(project.id);
 
-  return c.json({ ok: true, data: { tokens, defaults: DEFAULT_TOKENS } });
+  return c.json({ ok: true, data: { tokens, defaults: DEFAULT_BRAND_TOKENS } });
 });
 
 // ─── PATCH /api/projects/:slug/brand-tokens ───────────────────────────────────

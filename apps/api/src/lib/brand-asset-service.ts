@@ -1,65 +1,21 @@
 import { and, eq } from "drizzle-orm";
 import { db, projectBrandAssets, projects, type ProjectBrandAsset } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
-import { z } from "zod";
+import {
+  brandTokensSchema,
+  type BrandTokens,
+  DEFAULT_BRAND_TOKENS,
+} from "@marketing-auto/shared/brand-tokens";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOOL_SLUG_TO_LOBE } from "./tool-icon-mapping.ts";
 
 const log = createLogger("brand-asset-service");
 
-// ─── Brand token Zod schema (mirrors BrandTokens DB type) ────────────────────
-
-export const brandTokensSchema = z.object({
-  colors: z
-    .object({
-      primary: z.string().optional(),
-      primaryHue: z.number().optional(),
-      accent: z.string().optional(),
-      surface: z.string().optional(),
-      surfaceDark: z.string().optional(),
-      ink: z.string().optional(),
-      inkMuted: z.string().optional(),
-      wikiCream: z.string().optional(),
-    })
-    .optional(),
-  typography: z
-    .object({
-      fontFamily: z.string().optional(),
-      fontFamilyOptions: z.array(z.string()).optional(),
-      headingWeight: z.number().optional(),
-      bodyWeight: z.number().optional(),
-      eyebrowWeight: z.number().optional(),
-      captionWeight: z.number().optional(),
-      eyebrowLetterSpacing: z.string().optional(),
-      headingLetterSpacing: z.string().optional(),
-      bodyLetterSpacing: z.string().optional(),
-      headingSize: z.number().optional(),
-      subheadSize: z.number().optional(),
-      bodySize: z.number().optional(),
-      eyebrowSize: z.number().optional(),
-      headingLineHeight: z.number().optional(),
-      bodyLineHeight: z.number().optional(),
-    })
-    .optional(),
-  voice: z
-    .object({
-      locale: z.string().optional(),
-      addressForm: z.string().optional(),
-      forbiddenWords: z.array(z.string()).optional(),
-      signaturePhrases: z.array(z.string()).optional(),
-    })
-    .optional(),
-  social: z
-    .object({
-      instagramHandle: z.string().optional(),
-      websiteUrl: z.string().optional(),
-      logoAssetKey: z.string().optional(),
-    })
-    .optional(),
-});
-
-export type ParsedBrandTokens = z.infer<typeof brandTokensSchema>;
+// Spec 60.0: canonical schema from @marketing-auto/shared/brand-tokens.
+// Re-exported here so existing imports from this file don't break.
+export { brandTokensSchema, type BrandTokens };
+export type ParsedBrandTokens = BrandTokens;
 
 // ─── Resolved icon / logo shapes ─────────────────────────────────────────────
 
@@ -105,23 +61,9 @@ function hashToHue(s: string): number {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export const DEFAULT_TYPOGRAPHY = {
-  fontFamily: "Inter Variable",
-  fontFamilyOptions: ["Inter Variable", "Space Grotesk", "Plus Jakarta Sans", "Manrope", "Outfit"],
-  headingWeight: 800,
-  bodyWeight: 400,
-  eyebrowWeight: 700,
-  captionWeight: 600,
-  eyebrowLetterSpacing: "0.08em",
-  headingLetterSpacing: "-0.02em",
-  bodyLetterSpacing: "0em",
-  headingSize: 64,
-  subheadSize: 32,
-  bodySize: 24,
-  eyebrowSize: 18,
-  headingLineHeight: 1.1,
-  bodyLineHeight: 1.5,
-};
+// Spec 60.0: canonical defaults now come from brandTokensSchema.parse({}).
+// DEFAULT_TYPOGRAPHY is kept for back-compat (used in brand-tokens.ts route response).
+export const DEFAULT_TYPOGRAPHY: BrandTokens["typography"] = DEFAULT_BRAND_TOKENS.typography;
 
 export async function getBrandTokens(projectId: string): Promise<ParsedBrandTokens> {
   const project = await db.query.projects.findFirst({
@@ -129,10 +71,8 @@ export async function getBrandTokens(projectId: string): Promise<ParsedBrandToke
     columns: { brandTokens: true },
   });
   if (!project) throw new Error(`Project ${projectId} not found`);
-  const tokens = brandTokensSchema.parse(project.brandTokens ?? {});
-  // Merge typography defaults so consumers always get fully-populated fields
-  tokens.typography = { ...DEFAULT_TYPOGRAPHY, ...tokens.typography };
-  return tokens;
+  // brandTokensSchema.parse() applies all defaults — no manual merge needed (Spec 60.0)
+  return brandTokensSchema.parse(project.brandTokens ?? {});
 }
 
 export async function resolveToolIcon(

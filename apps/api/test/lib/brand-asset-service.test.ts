@@ -26,6 +26,7 @@ describe("brand-asset-service", () => {
         name: "Brand Asset Test Project",
         industry: "ai_education",
         pipelineTemplate: "educational",
+        // biome-ignore lint/suspicious/noExplicitAny: partial brand tokens for test setup
         brandTokens: {
           colors: {
             primary: "oklch(64% 0.16 248)",
@@ -54,7 +55,7 @@ describe("brand-asset-service", () => {
             websiteUrl: "test.ai",
             logoAssetKey: "main",
           },
-        },
+        } as any,
       })
       .returning({ id: projects.id });
     projectId = proj!.id;

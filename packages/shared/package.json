@@ -8,7 +8,8 @@
     "./config": "./src/config.ts",
     "./result": "./src/result.ts",
     "./logger": "./src/logger.ts",
-    "./hero-variants": "./src/hero-variants.ts"
+    "./hero-variants": "./src/hero-variants.ts",
+    "./brand-tokens": "./src/brand-tokens/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
