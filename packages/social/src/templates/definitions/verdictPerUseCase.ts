@@ -6,11 +6,8 @@ import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { USE_CASE_VERDICT_FIXTURES } from "./fixtures/verdictPerUseCase.fixtures.ts";
 import type { UseCaseVerdictItem } from "../../compositions/verdict-cards/types.ts";
-import {
-  generateContentWithGate,
-  inferArticleType,
-  selectPattern,
-} from "@marketing-auto/core";
+// @marketing-auto/core imported lazily inside generateContent() to avoid
+// triggering getEnv() at module evaluation time (breaks unit tests without env vars).
 
 // Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — VerdictProps
 export const verdictPerUseCaseBounds = {
@@ -102,6 +99,7 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<ComparisonContext> = 
   },
 
   generateContent: async (article, input, locale, llmCaller) => {
+    const { generateContentWithGate, inferArticleType, selectPattern } = await import("@marketing-auto/core");
     const toolNames = (input as ComparisonContext).tools.map((t) => t.name);
     const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);
     const pattern = selectPattern(article.id, articleType);

@@ -1,4 +1,5 @@
-import { db, articles, projectBrandAssets, and, eq, inArray } from "@marketing-auto/db";
+// @marketing-auto/db imported lazily inside buildToolLookup() to avoid
+// triggering getEnv() at module evaluation time (breaks unit tests without env vars).
 import type { ToolReference } from "./types.ts";
 
 // Brand-color fallbacks for well-known tool slugs — used when the tool article in DB
@@ -56,6 +57,8 @@ export async function buildToolLookup(
   projectId: string,
 ): Promise<Map<string, ToolReference>> {
   if (toolSlugs.length === 0) return new Map();
+
+  const { db, articles, projectBrandAssets, and, eq, inArray } = await import("@marketing-auto/db");
 
   const toolArticles = await db
     .select()

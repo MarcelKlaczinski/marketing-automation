@@ -10,7 +10,7 @@ export const coverPropsSchema = z.object({
   toolLogos: z.array(z.object({
     src: z.string(),
     alt: z.string(),
-  })).min(3).max(6),
+  })).min(1).max(6),
   toolsMoreText: z.string().min(4).max(14),
   stats: z.array(z.object({
     value: z.string().min(1).max(4),

@@ -105,11 +105,12 @@ describe("coverPropsSchema", () => {
     ).toThrow();
   });
 
-  it("rejects toolLogos below min (2 items)", () => {
+  it("rejects toolLogos below min (empty array)", () => {
+    // min is 1 since Spec 60.1 — single-tool spotlight has exactly one logo
     expect(() =>
       coverPropsSchema.parse({
         ...validCover,
-        toolLogos: [{ src: "/a.svg", alt: "A" }, { src: "/b.svg", alt: "B" }],
+        toolLogos: [],
       }),
     ).toThrow();
   });

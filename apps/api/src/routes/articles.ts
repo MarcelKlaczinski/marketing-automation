@@ -16,7 +16,7 @@ import {
   topicBriefs,
 } from "@marketing-auto/db";
 import { suggestFrontmatterFields } from "../lib/frontmatter-service.ts";
-import { detectDivergence, type DivergenceState } from "../lib/divergence.ts";
+import { detectDivergence } from "../lib/divergence.ts";
 import {
   enqueueRefreshPipeline,
   enqueueTranslationPipeline,

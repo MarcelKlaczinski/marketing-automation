@@ -2,7 +2,8 @@ import type { TemplateDefinition, GeneratedContent, ContentBounds } from "../typ
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { PRO_CON_VERDICT_FIXTURES } from "./fixtures/proConVerdict.fixtures.ts";
-import { buildHashtagInstructions } from "@marketing-auto/core";
+// @marketing-auto/core imported lazily inside generateContent() to avoid
+// triggering getEnv() at module evaluation time (breaks unit tests without env vars).
 import { validateAndReprompt } from "../validateGenerated.ts";
 import { z } from "zod";
 
@@ -154,6 +155,7 @@ export const proConVerdictTemplate: TemplateDefinition<ProConVerdictContext> = {
   },
 
   generateContent: async (article, input, locale, llmCaller) => {
+    const { buildHashtagInstructions } = await import("@marketing-auto/core");
     const ctx = input as ProConVerdictContext;
     const { toolName, pros, cons } = ctx;
 

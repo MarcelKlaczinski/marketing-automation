@@ -5,11 +5,8 @@ import { buildToolLookup } from "../adapters/toolLookup.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
 import { COMPARISON_GRID_4_FIXTURES } from "./fixtures/comparisonGrid4.fixtures.ts";
-import {
-  generateContentWithGate,
-  inferArticleType,
-  selectPattern,
-} from "@marketing-auto/core";
+// @marketing-auto/core imported lazily inside generateContent() to avoid
+// triggering getEnv() at module evaluation time (breaks unit tests without env vars).
 
 // Authoritative source: .claude/skills/toolwiki-design/REMOTION.md — Grid4Props
 export const comparisonGrid4Bounds = {
@@ -97,6 +94,7 @@ export const comparisonGrid4Template: TemplateDefinition<ComparisonContext> = {
   },
 
   generateContent: async (article, input, locale, llmCaller) => {
+    const { generateContentWithGate, inferArticleType, selectPattern } = await import("@marketing-auto/core");
     const ctx = input as ComparisonContext;
     const toolNames = ctx.tools.map((t) => t.name);
     const articleType = inferArticleType(article.title ?? article.slug, toolNames.length);

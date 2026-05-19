@@ -53,6 +53,27 @@ export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
       iconHue: 200,
     } satisfies ToolContext,
     generatedContent: {
+      verdictQuote:
+        "Für Hero-Visuals und Mood-Boards 2026 immer noch ungeschlagen.",
+      scoreLabel: "Top Aesthetic",
+      facts: [
+        { key: "Pricing",    value: "Ab 10 $/Mo" },
+        { key: "Standard",   value: "30 $ · 15h GPU" },
+        { key: "Für wen",    value: "Marketing" },
+        { key: "Commercial", value: "Ab Basic" },
+      ],
+      strengths: [
+        "Ästhetik out-of-the-box auf Stockfoto-Niveau.",
+        "--sref für konsistenten Brand-Look.",
+        "Subtile Hauttöne, anspruchsvolles Licht.",
+        "API seit v6.1 für Studio-Pipelines.",
+      ],
+      weaknesses: [
+        "Text im Bild bleibt schwach (→ Ideogram).",
+        "Schwer aus dem MJ-Look auszubrechen.",
+        "--cref max. 85 % Charakter-Ähnlichkeit.",
+        "Komposition kippt aus Stil-Bias.",
+      ],
       caption:
         "Midjourney v7 im ehrlichen Test: Wo das Tool 2026 wirklich unschlagbar ist — und wo es Grenzen hat.\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/midjourney",
       hashtags: [
@@ -91,6 +112,25 @@ export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
       iconHue: 190,
     } satisfies ToolContext,
     generatedContent: {
+      verdictQuote:
+        "Für schnelle Browser-Experimente ohne Setup die erste Wahl.",
+      scoreLabel: "Solid Starter",
+      facts: [
+        { key: "Preis",   value: "Kostenlos" },
+        { key: "Plan",    value: "Free Tier" },
+        { key: "Für wen", value: "Einsteiger" },
+        { key: "APIs",    value: "Nicht da" },
+      ],
+      strengths: [
+        "Kostenlos nutzbar ohne Anmeldung nötig.",
+        "Läuft im Browser ohne Installation.",
+        "Schnelle Ergebnisse unter 10 Sekunden.",
+      ],
+      weaknesses: [
+        "Kein Export in Vektorformat verfügbar.",
+        "Nur 5 Generierungen pro Tag kostenlos.",
+        "Keine API für Entwickler vorhanden.",
+      ],
       caption: "MinTool: Kostenlos, kein Login, sofort nutzbar.\n\n→ toolwiki.ai/min-tool",
       hashtags: [
         "#KITools",
@@ -148,6 +188,27 @@ export const SINGLE_TOOL_SPOTLIGHT_FIXTURES: MockFixtureMap = {
       iconHue: 280,
     } satisfies ToolContext,
     generatedContent: {
+      verdictQuote:
+        "Für Enterprise-Teams mit Compliance-Anforderungen die technisch stärkste Plattform.",
+      scoreLabel: "Enterprise Pick",
+      facts: [
+        { key: "Preis/Mo",   value: "Ab 499 $/Mo" },
+        { key: "Zertifikat", value: "SOC2 + DSGVO" },
+        { key: "Für wen",    value: "Enterprise" },
+        { key: "Support",    value: "24/7 SLA" },
+      ],
+      strengths: [
+        "SOC2 Type II und DSGVO-konform für EU-Einsatz.",
+        "Unbegrenzte Workspaces und Lizenzen inklusive.",
+        "REST API plus Webhooks für alle Aktionen.",
+        "Dedizierter 24/7 Enterprise-Support mit SLA.",
+      ],
+      weaknesses: [
+        "Steile Lernkurve bei Multi-Step-Workflows.",
+        "Onboarding dauert zwei bis vier Wochen typisch.",
+        "Keine native Mobile-App für iOS oder Android.",
+        "Preis für KMU schwer zu rechtfertigen leider.",
+      ],
       caption:
         "MaximumLengthT im Enterprise-Test: SOC2, RBAC, Multi-Cloud — lohnt sich der Preis wirklich?\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ toolwiki.ai/maximum-length-tool",
       hashtags: [

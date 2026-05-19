@@ -2,24 +2,47 @@ import React from "react";
 import { AbsoluteFill } from "remotion";
 import type { SingleToolSpotlightInput } from "./types.ts";
 import "./loadFonts.ts"; // Side-effect: registers Inter Variable with Remotion
-
-// Sessions 4-5 (Spec 60.1): Replace with CoverSlide, BodySlide, EndSlide implementations.
+import { CoverSlide } from "./CoverSlide.tsx";
+import { BodySlide } from "./BodySlide.tsx";
+import { EndSlide } from "./EndSlide.tsx";
 
 export function SingleToolSpotlight(props: SingleToolSpotlightInput) {
   const slides = computeSlideOrder(props);
   const slide = slides[props.slideIndex];
 
   if (slide === "cover" && props.cover) {
-    // TODO(Session 5): return <CoverSlide content={props.cover} {...sharedProps(props)} />;
-    return <AbsoluteFill style={{ background: "#050507" }} />;
+    return (
+      <CoverSlide
+        content={props.cover}
+        theme={props.theme}
+        locale={props.locale}
+        slideIndex={props.slideIndex}
+        slideTotal={props.slideTotal}
+        {...(props.brandTokens !== undefined && { brandTokens: props.brandTokens })}
+      />
+    );
   }
   if (slide === "body" && props.body) {
-    // TODO(Session 4): return <BodySlide content={props.body} {...sharedProps(props)} />;
-    return <AbsoluteFill style={{ background: "#050507" }} />;
+    return (
+      <BodySlide
+        {...props.body}
+        slideIndex={props.slideIndex}
+        slideTotal={props.slideTotal}
+        theme={props.theme}
+        locale={props.locale}
+        {...(props.brandTokens !== undefined && { brandTokens: props.brandTokens })}
+      />
+    );
   }
   if (slide === "end" && props.end) {
-    // TODO(Session 5): return <EndSlide content={props.end} {...sharedProps(props)} />;
-    return <AbsoluteFill style={{ background: "#050507" }} />;
+    return (
+      <EndSlide
+        content={props.end}
+        theme={props.theme}
+        locale={props.locale}
+        {...(props.brandTokens !== undefined && { brandTokens: props.brandTokens })}
+      />
+    );
   }
 
   return <AbsoluteFill style={{ background: "#050507" }} />;

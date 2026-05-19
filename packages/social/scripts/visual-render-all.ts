@@ -283,6 +283,7 @@ const suites: { templateKey: string; fixtures: FixtureSuite }[] = [
   },
 
   // ── single-tool-spotlight ──────────────────────────────────────────────
+  // Uses SINGLE_TOOL_SPOTLIGHT_COMPOSITION_FIXTURES (cover/body/end schema, Spec 60.1).
   {
     templateKey: "single-tool-spotlight",
     fixtures: [
@@ -290,18 +291,44 @@ const suites: { templateKey: string; fixtures: FixtureSuite }[] = [
         name: "characteristic",
         slides: async (theme) => {
           const input = singleToolSpotlightInputSchema.parse({
-            theme, locale: "de", slideIndex: 0, totalSlides: 5,
-            brandTokens: DEFAULT_BRAND, articleSlug: "chatgpt",
-            tool: {
-              slug: "chatgpt", name: "ChatGPT",
-              tagline: "Der bekannteste KI-Assistent der Welt — für Text, Code und Recherche.",
-              primaryCategory: "KI-Assistent", pricingTier: "freemium", priceFrom: 20, rating: 4.6,
-              pros: [{ text: "Stärkste Sprachmodelle (GPT-4o, o1)" }, { text: "Riesige Plugin- und GPT-Bibliothek" }, { text: "Beste Coding-Unterstützung im Free-Tier" }, { text: "Multimodal: Text, Bild, Audio, Video" }, { text: "API mit günstigsten Token-Kosten" }],
-              cons: [{ text: "Datenschutz: Opt-out nötig für Training" }, { text: "Kontext-Limit bei langen Gesprächen" }, { text: "Halluziniert bei sehr spezifischen Fakten" }],
-              features: ["GPT-4o und o1 Reasoning-Modell", "DALL-E 3 Bildgenerierung integriert", "Code Interpreter mit Python-Ausführung", "Custom GPTs baubar", "Plugins und Tools-Ecosystem", "Web-Browsing in Echtzeit"],
-              useCases: ["Texte schreiben und überarbeiten", "Code debuggen und generieren", "Recherche und Zusammenfassungen", "Bilder generieren mit DALL-E 3"],
-              iconInitials: "GP", iconHue: 160,
+            ...{
+              slideIndex: 0,
+              slideTotal: 3,
+              cover: null,
+              body: {
+                eyebrow: "Deep Dive · Tool-Portrait",
+                headerNum: "Test 04/2026 · 50k+ Generierungen",
+                slideIndex: 1,
+                slideTotal: 3,
+                tool: { logo: "", name: "Midjourney", version: "v7 · Premium-Ästhetik", isLive: true },
+                verdictQuote: "Für Hero-Visuals und Mood-Boards 2026 immer noch ungeschlagen.",
+                score: 92,
+                scoreLabel: "Top Aesthetic",
+                facts: [
+                  { key: "Pricing", value: "Ab 10 $/Mo" },
+                  { key: "Standard", value: "30 $ · 15h GPU" },
+                  { key: "Für wen", value: "Marketing" },
+                  { key: "Commercial", value: "Ab Basic" },
+                ],
+                strengths: [
+                  "Ästhetik out-of-the-box auf Stockfoto-Niveau.",
+                  "--sref für konsistenten Brand-Look.",
+                  "Subtile Hauttöne, anspruchsvolles Licht.",
+                  "API seit v6.1 für Studio-Pipelines.",
+                ],
+                weaknesses: [
+                  "Text im Bild bleibt schwach (→ Ideogram).",
+                  "Schwer aus dem MJ-Look auszubrechen.",
+                  "--cref max. 85 % Charakter-Ähnlichkeit.",
+                  "Komposition kippt aus Stil-Bias.",
+                ],
+                footer: { ctaLine: "Vollständiger Test →", url: "toolwiki.ai/midjourney" },
+              },
+              end: { ctaLine: "Vollständiger Test →", url: "toolwiki.ai/midjourney" },
+              locale: "de",
             },
+            theme,
+            brandTokens: DEFAULT_BRAND as Record<string, unknown>,
           });
           return (await rs()).renderSingleToolSpotlight(input as unknown as Record<string, unknown>).then(r => r.slides);
         },
@@ -310,15 +337,42 @@ const suites: { templateKey: string; fixtures: FixtureSuite }[] = [
         name: "edge-min",
         slides: async (theme) => {
           const input = singleToolSpotlightInputSchema.parse({
-            theme, locale: "de", slideIndex: 0, totalSlides: 4,
-            brandTokens: DEFAULT_BRAND, articleSlug: "simple-tool",
-            tool: {
-              slug: "simple-tool", name: "SimpleTool", pricingTier: "free",
-              pros: [{ text: "Kostenlos nutzbar ohne Registrierung" }, { text: "Funktioniert in jedem Browser" }],
-              cons: [], features: [],
-              useCases: ["Schnelle Textzusammenfassungen"],
-              iconInitials: "ST", iconHue: 190,
+            ...{
+              slideIndex: 0,
+              slideTotal: 2,
+              cover: null,
+              body: {
+                eyebrow: "Deep Dive · Tool",
+                headerNum: "Test 05/2026 · Min-Tool",
+                slideIndex: 0,
+                slideTotal: 2,
+                tool: { logo: "", name: "MinTool", version: "v1.0 · Kostenlos", isLive: false },
+                verdictQuote: "Für schnelle Browser-Experimente ohne Setup die erste Wahl.",
+                score: 61,
+                scoreLabel: "Solid Starter",
+                facts: [
+                  { key: "Preis", value: "Kostenlos" },
+                  { key: "Plan", value: "Free Tier" },
+                  { key: "Für wen", value: "Einsteiger" },
+                  { key: "APIs", value: "Nicht da" },
+                ],
+                strengths: [
+                  "Kostenlos nutzbar ohne Anmeldung nötig.",
+                  "Läuft im Browser ohne Installation.",
+                  "Schnelle Ergebnisse unter 10 Sekunden.",
+                ],
+                weaknesses: [
+                  "Kein Export in Vektorformat verfügbar.",
+                  "Nur 5 Generierungen pro Tag kostenlos.",
+                  "Keine API für Entwickler vorhanden.",
+                ],
+                footer: { ctaLine: "Zum kostenlosen Test →", url: "toolwiki.ai/min-tool" },
+              },
+              end: { ctaLine: "Zum kostenlosen Test →", url: "toolwiki.ai/min-tool" },
+              locale: "de",
             },
+            theme,
+            brandTokens: DEFAULT_BRAND as Record<string, unknown>,
           });
           return (await rs()).renderSingleToolSpotlight(input as unknown as Record<string, unknown>).then(r => r.slides);
         },
@@ -327,18 +381,65 @@ const suites: { templateKey: string; fixtures: FixtureSuite }[] = [
         name: "edge-max",
         slides: async (theme) => {
           const input = singleToolSpotlightInputSchema.parse({
-            theme, locale: "de", slideIndex: 0, totalSlides: 5,
-            brandTokens: DEFAULT_BRAND, articleSlug: "megatool-pro",
-            tool: {
-              slug: "mega-tool", name: "MegaTool Pro",
-              tagline: "Enterprise-Plattform mit KI-gestützter Automatisierung für skalierbare Workflows.",
-              primaryCategory: "KI-Workflow", pricingTier: "enterprise", priceFrom: 299, rating: 4.2,
-              pros: [{ text: "SOC2 Type II + DSGVO-konform zertifiziert" }, { text: "Unbegrenzte Workspaces und Nutzer" }, { text: "REST API + Webhooks für alle Aktionen" }, { text: "On-Premise-Deployment auf eigenen Servern" }, { text: "Dedizierter Enterprise-Support 24/7" }],
-              cons: [{ text: "Steile Lernkurve bei komplexen Workflows" }, { text: "Onboarding dauert 2–4 Wochen" }, { text: "Keine Mobile-App verfügbar" }, { text: "Preis für KMUs schwer rechtfertigbar" }],
-              features: ["Visueller Drag-and-Drop Workflow-Builder", "KI-gestützte Anomalie-Erkennung in Echtzeit", "Multi-Cloud-Connector: AWS, Azure, GCP", "Granulare RBAC-Berechtigungen", "Audit-Trail mit 90-Tage-Retention", "White-Label und Custom-Domain-Support"],
-              useCases: ["Automatisierung komplexer Unternehmens-Workflows", "Compliance-Monitoring und Audit-Reporting", "Multi-Cloud-Datenintegration und ETL", "Echtzeit-Anomalie-Erkennung in Produktionssystemen"],
-              iconInitials: "MP", iconHue: 280,
+            ...{
+              slideIndex: 0,
+              slideTotal: 3,
+              cover: {
+                eyebrow: "Enterprise · Deep Dive",
+                headerNum: "Audit 05/2026 · MaximumLengthT",
+                updateBadge: "Stand: Mai 2026",
+                heroTitle: "Enterprise KI",
+                kicker: "Vollständiger Test einer Enterprise-KI-Plattform mit SOC2, RBAC, Multi-Cloud und 24/7-Support.",
+                toolLogos: [{ src: "", alt: "MaximumLengthT" }],
+                toolsMoreText: "+ 3 weitere",
+                stats: [
+                  { value: "SOC", label: "Type II zertifiziert" },
+                  { value: "99%", label: "SLA-Verfügbarkeit" },
+                  { value: "90d", label: "Audit-Trail-Retention" },
+                ],
+                byline: {
+                  initials: "MK",
+                  name: "Marcel Klaczinski",
+                  role: "Editor · Enterprise & Compliance",
+                  readTime: "18 Min Lesen",
+                },
+                swipeText: "Swipe für den Deep Dive",
+                footer: { ctaLine: "Vollständiger Test →", url: "toolwiki.ai/enterprise" },
+              },
+              body: {
+                eyebrow: "Enterprise · Deep Dive",
+                headerNum: "Audit 05/2026 · MaximumLengthT",
+                slideIndex: 1,
+                slideTotal: 3,
+                tool: { logo: "", name: "MaximumLengthT", version: "v4.2 Enterprise · SOC2 certified", isLive: true },
+                verdictQuote: "Für Enterprise-Teams mit Compliance-Anforderungen die technisch stärkste Plattform.",
+                score: 84,
+                scoreLabel: "Enterprise Pick",
+                facts: [
+                  { key: "Preis/Mo", value: "Ab 499 $/Mo" },
+                  { key: "Zertifikat", value: "SOC2 + DSGVO" },
+                  { key: "Für wen", value: "Enterprise" },
+                  { key: "Support", value: "24/7 SLA" },
+                ],
+                strengths: [
+                  "SOC2 Type II und DSGVO-konform für EU-Einsatz.",
+                  "Unbegrenzte Workspaces und Lizenzen inklusive.",
+                  "REST API plus Webhooks für alle Aktionen.",
+                  "Dedizierter 24/7 Enterprise-Support mit SLA.",
+                ],
+                weaknesses: [
+                  "Steile Lernkurve bei Multi-Step-Workflows.",
+                  "Onboarding dauert zwei bis vier Wochen typisch.",
+                  "Keine native Mobile-App für iOS oder Android.",
+                  "Preis für KMU schwer zu rechtfertigen leider.",
+                ],
+                footer: { ctaLine: "Vollständiger Test →", url: "toolwiki.ai/enterprise" },
+              },
+              end: { ctaLine: "Vollständiger Test →", url: "toolwiki.ai/enterprise" },
+              locale: "de",
             },
+            theme,
+            brandTokens: DEFAULT_BRAND as Record<string, unknown>,
           });
           return (await rs()).renderSingleToolSpotlight(input as unknown as Record<string, unknown>).then(r => r.slides);
         },

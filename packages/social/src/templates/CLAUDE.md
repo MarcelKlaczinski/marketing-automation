@@ -223,6 +223,41 @@ If `edge-min` looks sparse or `edge-max` clips text, the layout is not productio
 
 ---
 
+## LLM Constraint Blocks (Spec 60.1)
+
+When a template's `generateContent()` builds a custom LLM prompt (i.e. it does NOT delegate entirely to `generateContentWithGate()`), use `buildConstraintBlock(bounds, locale)` from `src/templates/lib/buildConstraintBlock.ts` to format the character/count constraints. This keeps prompt limits in sync with the bounds source-of-truth (REMOTION.md) — no manual copy-paste of numbers into prompt strings.
+
+```typescript
+import { buildConstraintBlock } from "../lib/buildConstraintBlock";
+
+const constraintBlock = buildConstraintBlock(
+  singleToolSpotlightBounds,
+  locale,
+  {
+    // Only include LLM-generated fields — skip structural fields like `eyebrow`
+    // and `footer.url` that come from the article, not the LLM.
+    fields: ["verdictQuote", "scoreLabel", "facts", "strengths", "weaknesses"],
+  },
+);
+```
+
+Output is a markdown-ish block ready to inline into a prompt:
+
+```
+CHARACTER LIMITS (must be respected):
+- verdictQuote: 40–120 chars
+- scoreLabel: 6–18 chars
+- facts: exactly 4
+  - key: 4–14 chars
+  - value: 4–20 chars
+- strengths: 3–4 items, each 30–70 chars
+- weaknesses: 3–4 items, each 30–70 chars
+```
+
+`buildConstraintBlock` handles all `ContentBounds` shapes: `FieldBound` (`{ min, max }`), `ListBound` (`{ max, perItemMaxChars }` or `{ countMin/countMax, each }`), numeric counts, and nested `ContentBounds` groups (recurses with indentation).
+
+**Do NOT** hardcode character limits as prose in prompt strings. If REMOTION.md or a bounds object is updated, the prompt updates automatically. Templates that use `generateContentWithGate()` exclusively (no custom prompt) do not need `buildConstraintBlock` — the helper is only relevant when you write a template-specific prompt.
+
 ## 8. Layout-Shift-Free Convention (Spec 59.3.5)
 
 Every new template must declare three things alongside its `TemplateDefinition`. See the full convention in [specs/59.3.5-layout-shift-free-templates.md](/specs/59.3.5-layout-shift-free-templates.md).
@@ -303,3 +338,15 @@ generatedContent: {
 - `bootstrapTemplates()` must be called explicitly in test files — importing `bootstrap.ts` as a side effect does not register templates.
 - `validateAndReprompt`'s `onValidationFailure: "truncate"` does not silently truncate — it still throws (with a note). Actual in-slide truncation is `WebkitLineClamp`. Don't conflate the two.
 - Bucket boundaries (`slot-body` last entry = `maxChars: 280`) must match the corresponding `bounds.max`. Verify alignment after every bounds change — the `bounds-bucket-alignment.test.ts` will catch mismatches automatically once `slotMap` is set.
+
+---
+
+## Gotchas from Spec 60.1 implementation
+
+- DO NOT call `buildHashtagInstructions(contentType, locale)` with two positional args — the function signature is `buildHashtagInstructions(ctx: HashtagContext)` taking a single object parameter. Correct usage: `buildHashtagInstructions({ locale, contentType: "review", toolNames: [ctx.name], ...(ctx.primaryCategory !== undefined && { toolCategory: ctx.primaryCategory }) })`. The wrong call causes `TS2554: Expected 1 arguments, but got 2`. This is a gotcha for anyone writing custom `generateContent()` in a template beyond `generateContentWithGate()`.
+
+- DO NOT hardcode `toolLogos.min(3)` for all templates — the `.min()` constraint depends on whether the template is single-tool or multi-tool. `single-tool-spotlight` uses `.min(1)` (at minimum one logo), while multi-tool comparison grids use `.min(3)`. Always check the template's REMOTION.md bounds and/or eligibility rules before setting the Zod schema constraint. When a composition's Zod schema is rewritten (e.g. Spec 60.1), schema bounds must be updated alongside the constraints.
+
+- **Schema boundary tests must be updated when min/max constraints change** — when a Zod schema constraint (`.min(N)` or `.max(N)`) is changed, verify the corresponding unit test. A test like "rejects toolLogos below min (2 items)" becomes wrong if min changes from 3→1; update it to "rejects toolLogos below min (empty array)". Any time a min/max constraint changes, search tests for hardcoded boundary assertions and update them.
+
+- DO NOT assume `visual-render-all.ts` fixture format stays in sync with composition schemas automatically — when a composition's Zod input schema is rewritten, the fixture format in `visual-render-all.ts` must be updated manually to match the new shape. Old fixtures using `{ tool: {...}, totalSlides, articleSlug }` need rewriting to `{ cover, body, end, slideTotal }` after schema changes. Fixtures are NOT generated from schema; they are hand-crafted test data that the maintainer must keep aligned.

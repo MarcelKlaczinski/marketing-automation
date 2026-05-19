@@ -44,13 +44,26 @@ Renders Instagram carousel slides as PNG via Remotion 4 (headless Chrome).
 Entry: `render-server.ts` → `renderListCarousel()` returns `Buffer[]` (one per slide).
 Compositions live in `src/compositions/<template-name>/`, shared primitives in `src/shared/`.
 
+## Reference template: single-tool-spotlight (Spec 60.1)
+
+For new visual-refreshed templates, look at `src/compositions/single-tool-spotlight/` as the canonical pattern:
+- One composition file per slide-type (`CoverSlide.tsx` / `BodySlide.tsx` / `EndSlide.tsx`)
+- Top-level dispatcher (`SingleToolSpotlight.tsx`) switches on `slideIndex`
+- `deriveDsTokens()` called once at the top of each slide component, memoized via `useMemo`
+- `<DsGlow>` / `<DsTop>` / `<DsFoot>` consumed for shared visual elements
+- Template-internal subcomponents (`HeroTool`, `VerdictLine`, etc.) live in `shared/` inside the composition folder
+- Inter Variable font loaded at module scope in `loadFonts.ts` via `@remotion/google-fonts/Inter`
+- LLM prompt uses `buildConstraintBlock(bounds, locale)` from `src/templates/lib/buildConstraintBlock.ts` for character limits
+
+The `resolveBrandTokens(unknown) → BrandTokens` helper is at `src/lib/brand-tokens.ts` — use it at the top of every slide component to convert the loosely-typed `brandTokens?: unknown` from the input schema into a typed `BrandTokens` before passing to `deriveDsTokens`.
+
 ## Template Inventory (as of Spec 59.3)
 
 | Key | Slides | Cover Signature | Eligible content |
 |-----|--------|-----------------|-----------------|
 | `comparison-grid-4` | dynamic (1+N+1) | 4-up tool grid | comparison articles, 2–4 tools |
 | `comparison-grid-3` | dynamic (1+N+1) | 3-up tool grid | comparison articles, exactly 3 tools |
-| `single-tool-spotlight` | 5 | tool hero portrait | tools collection, has pros/features |
+| `single-tool-spotlight` | 3 (cover/body/end) | hero cover + tool deep-dive body | tools collection, has pros/features |
 | `verdict-per-use-case` | dynamic (1+N+2) | use-case-prominent header | comparison articles with per-use-case verdicts |
 | `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `frontmatterExtras.pros ≥ 3 AND cons ≥ 3` |
 
@@ -186,3 +199,5 @@ Render output path: `/renders/<articleId>/<templateKey>/<locale>-<theme>/slide-N
 - `initials?: string` + `hue?: number` — deterministic HSL gradient avatar fallback
 
 The `emoji` prop was removed in Spec 52a. The component never renders emoji.
+
+**DS component visual isolation in tests (Spec 60.1)** — when writing baselines for individual DS components (`<DsGlow>`, `<DsTop>`, `<DsFoot>`), do not register them as standalone Remotion compositions in `src/index.tsx`. Instead, render each component-in-context: DsGlow via a body slide (glow most prominent), DsTop via a cover slide (header row dominant), DsFoot via an end slide (footer is sole focal element). This is the approved isolation pattern for DS component baseline testing — it ensures components are tested in realistic context rather than artificial harness compositions.

@@ -57,7 +57,7 @@ exports[`buildConstraintBlock — cover bounds formats cover DE correctly (snaps
 - updateBadge: 8–28 Zeichen
 - heroTitle: 6–22 Zeichen
 - kicker: 40–130 Zeichen
-- toolLogosCount: 3–6 Zeichen
+- toolLogosCount: 1–6 Zeichen
 - toolsMoreText: 4–14 Zeichen
 - stats: exakt 3
   - value: 1–4 Zeichen
@@ -79,7 +79,7 @@ exports[`buildConstraintBlock — cover bounds formats cover EN correctly (snaps
 - updateBadge: 8–28 chars
 - heroTitle: 6–22 chars
 - kicker: 40–130 chars
-- toolLogosCount: 3–6 chars
+- toolLogosCount: 1–6 chars
 - toolsMoreText: 4–14 chars
 - stats: exactly 3
   - value: 1–4 chars
