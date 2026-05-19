@@ -227,10 +227,21 @@ If `edge-min` looks sparse or `edge-max` clips text, the layout is not productio
 
 Every new template must declare three things alongside its `TemplateDefinition`. See the full convention in [specs/59.3.5-layout-shift-free-templates.md](/specs/59.3.5-layout-shift-free-templates.md).
 
-**The triple: `bounds` + `generatedSchema` + `slotMap`**
+**`ContentBounds` is a recursive interface (Spec 60.0c)** — `ContentBounds` supports nested slot groups (e.g. `tools.name`, `footer.ctaLine`) and numeric count fields. `REMOTION.md` at `.claude/skills/toolwiki-design/REMOTION.md` is the authoritative source for all field-length budgets. Keep `*Bounds` objects in sync with it. The drift-detection test `packages/social/test/bounds-match-remotion-md.test.ts` fails automatically when REMOTION.md is updated but the bounds aren't.
 
 ```ts
 export const myTemplateBounds = {
+  // Nested group — satisfies ContentBounds recursively
+  tools: {
+    count:   4,                      // numeric — structural constraint, not chars
+    name:    { min: 3, max: 16 },   // FieldBound
+    verdict: { min: 30, max: 80 },  // FieldBound
+  },
+  footer: {
+    ctaLine: { min: 8, max: 24 },
+    url:     { min: 12, max: 32 },
+  },
+  // Flat fields still work as before
   headline: { min: 10, max: 60 },     // FieldBound — rendered slot
   captionBody: { min: 20, max: 1800 }, // FieldBound — not rendered
   items: { max: 5, perItemMaxChars: 80 }, // ListBound
@@ -283,6 +294,10 @@ generatedContent: {
 **Fixture keys must be `characteristic` / `edge-min` / `edge-max`** — named slugs like `"recraft-vs-ideogram-de"` prevent the fixture tests from finding the right fixture by key. Always use the three canonical key names.
 
 **Deprecated alias dead code:** Don't leave `@deprecated` export aliases in fixture files after a rename. If nothing imports the old name, delete it in the same PR — lingering aliases confuse `grep` and future refactors.
+
+**DO NOT use a global regex to parse field budgets from REMOTION.md** — REMOTION.md has 5 template sections and shared field names (e.g. `eyebrow`, `heroSub`) appear in multiple sections with different values. A global `.match()` always returns the FIRST occurrence (the `cover` section). Use `extractSection(md, "comparison-grid-4")` to slice the section first, then match within it. See `packages/social/test/bounds-match-remotion-md.test.ts` for the canonical pattern.
+
+**`*Bounds` naming uses REMOTION.md field names; render internals may differ** — bounds document the design contract (`strengths`, `weaknesses`, `verdict`). The render code and Remotion composition may use different internal field names (`pros`, `cons`, `tagline`) that predate the design system. Do not rename render internals to match bounds without also updating the composition schema — that's a visual change and requires a separate spec session.
 
 **Gotchas:**
 - `bootstrapTemplates()` must be called explicitly in test files — importing `bootstrap.ts` as a side effect does not register templates.
