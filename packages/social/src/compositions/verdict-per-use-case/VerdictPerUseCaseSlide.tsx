@@ -24,7 +24,7 @@ export const VerdictPerUseCaseSlide: React.FC<VerdictPerUseCaseInput> = ({
       style={{
         width: 1080,
         height: 1350,
-        // Spec A.9: light mode uses this exact oklch value (no .tcard shadow — no cards)
+        // Light mode: no card backgrounds in this template, so no shadows needed
         backgroundColor: isLight ? "oklch(99% 0.005 250)" : tokens.surface.base,
         color: tokens.ink.base,
         fontFamily: tokens.typography.fontFamily,
