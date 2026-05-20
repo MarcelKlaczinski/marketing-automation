@@ -9,7 +9,7 @@ import { syncCronJobs } from "../workers/cron-orchestrator.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
-import { createLogger } from "@marketing-auto/shared";
+import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
@@ -178,7 +178,7 @@ projectRoutes.get("/:slug", async (c) => {
       vendorRssSignalCronEnabled: proj.vendorRssSignalCronEnabled,
       llmMode: proj.llmMode,
       // Spec 61.4: feature flag so the UI only shows the LLM Mode toggle when batch API is enabled
-      batchApiEnabled: process.env.BATCH_API_ENABLED === "true",
+      batchApiEnabled: getEnv().BATCH_API_ENABLED,
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),

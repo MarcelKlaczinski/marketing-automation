@@ -58,6 +58,7 @@ async function submitPendingRequests(): Promise<void> {
 
   const anthropic = getAnthropicClient();
   const requests = pending.map((row) => {
+    // Safe: requestBody is written by batch-llm-client.enqueueBatch() with exactly these fields
     const body = row.requestBody as {
       model: string;
       max_tokens: number;
@@ -67,10 +68,12 @@ async function submitPendingRequests(): Promise<void> {
     return {
       custom_id: row.anthropicCustomId,
       params: {
+        // Safe: model is stored as a string literal that satisfies Anthropic.Model
         model: body.model as Anthropic.Model,
         max_tokens: body.max_tokens,
         // Cast to TextBlockParam[] — requestBody was built by batch-llm-client with text blocks only
         ...(body.system !== undefined ? { system: body.system as Anthropic.Messages.TextBlockParam[] } : {}),
+        // Safe: messages are stored as MessageParam objects by batch-llm-client
         messages: body.messages as Anthropic.Messages.MessageParam[],
       },
     };

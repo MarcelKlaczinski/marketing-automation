@@ -81,6 +81,9 @@ const envSchema = z.object({
   // Voyage AI (Spec 54.5) — text embeddings for trend synthesis coverage check
   VOYAGE_API_KEY: optionalStr(z.string().min(1)),
 
+  // Batch API feature flag (Spec 61.4) — set to "true" to show LLM Mode toggle in UI
+  BATCH_API_ENABLED: z.coerce.boolean().default(false),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),
