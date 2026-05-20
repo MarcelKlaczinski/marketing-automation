@@ -8,7 +8,7 @@
 // Uses @anthropic-ai/sdk directly for batch endpoints (not the adapter) — the adapter
 // only wraps anthropic.messages(); batch lifecycle endpoints are not exposed there.
 import Anthropic from "@anthropic-ai/sdk";
-import { batchRequests, db, eq, inArray, and, lt } from "@marketing-auto/db";
+import { batchRequests, costLogs, db, eq, inArray, and, lt } from "@marketing-auto/db";
 import { resumePipeline } from "@marketing-auto/pipelines/batch-resume";
 import { calculateBatchCostEur } from "@marketing-auto/pipelines/cost-calculator";
 import { createLogger, getEnv } from "@marketing-auto/shared";
@@ -185,6 +185,23 @@ async function processResultItem(item: Anthropic.Messages.MessageBatchIndividual
         updatedAt: new Date(),
       })
       .where(eq(batchRequests.id, row.id));
+
+    // Write to cost_logs so limits + dashboard pick up batch costs (Pattern 120)
+    await db.insert(costLogs).values({
+      projectId: row.projectId,
+      service: "anthropic",
+      operation: `batch:${row.model}`,
+      costEur: String(costEur),
+      metadata: {
+        model: row.model,
+        inputTokens: msg.usage.input_tokens,
+        outputTokens: msg.usage.output_tokens,
+        anthropicBatchId: row.anthropicBatchId,
+        anthropicCustomId: row.anthropicCustomId,
+      },
+      ...(row.pipelineRunId ? { pipelineRunId: row.pipelineRunId } : {}),
+      ...(row.articleId ? { articleId: row.articleId } : {}),
+    });
 
     log.info(
       { batchRequestId: row.id, customId: item.custom_id, costEur },
