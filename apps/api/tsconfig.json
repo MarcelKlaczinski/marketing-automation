@@ -54,6 +54,8 @@
       "@marketing-auto/pipelines/engine": ["../../packages/pipelines/src/engine/index.ts"],
       "@marketing-auto/pipelines/social-render-queue": ["../../packages/pipelines/src/engine/social-render-queue.ts"],
       "@marketing-auto/pipelines/article-quality-analysis-queue": ["../../packages/pipelines/src/engine/article-quality-analysis-queue.ts"],
+      "@marketing-auto/pipelines/batch-resume": ["../../packages/pipelines/src/engine/batch-resume.ts"],
+      "@marketing-auto/pipelines/cost-calculator": ["../../packages/pipelines/src/engine/cost-calculator.ts"],
       "@marketing-auto/pipelines/article-quality": ["../../packages/pipelines/src/article-quality/index.ts"],
       "@marketing-auto/social/render-server": ["../../packages/social/render-server.ts"],
       "@marketing-auto/social/templates": ["../../packages/social/src/templates/index.ts"],
