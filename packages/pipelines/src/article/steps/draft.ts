@@ -7,7 +7,8 @@ import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
 import { validateComparisonExtras } from "../frontmatter/comparison.ts";
-import { buildComparisonContextFragment, selectDraftPrompt } from "../prompts/comparison.ts";
+import { validateKiWissenExtras } from "../frontmatter/ki-wissen.ts";
+import { buildComparisonContextFragment, selectDraftPrompt } from "../prompts/index.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -331,6 +332,32 @@ Output format:
       }
     }
 
+    // Spec 61.3 Pattern 111: validate ki-wissen FRONTMATTER_EXTRAS (category enum,
+    // level enum, icon, facts[3..5], next[2..4]) + Pattern 116 (no monetization fields).
+    if (collectionType === "ki-wissen") {
+      if (!frontmatterExtras) {
+        throw new ArticlePipelineError(
+          "ki-wissen: draft did not emit a FRONTMATTER_EXTRAS block — cannot validate category/level/icon/facts/next",
+          "draft",
+        );
+      }
+      const validation = validateKiWissenExtras(frontmatterExtras);
+      if (!validation.ok) {
+        throw new ArticlePipelineError(validation.error, "draft");
+      }
+      // Pattern 116: minimum FAQ count for ki-wissen is 7 (vs. 5 for blog/comparison).
+      // FAQ is a top-level field on frontmatterExtras (not in KiWissenExtrasSchema —
+      // that schema only covers ki-wissen-specific fields). Validate count here.
+      const faqRaw = frontmatterExtras.faq;
+      const faqCount = Array.isArray(faqRaw) ? faqRaw.length : 0;
+      if (faqCount < 7) {
+        throw new ArticlePipelineError(
+          `ki-wissen: faq must contain at least 7 entries, got ${faqCount}`,
+          "draft",
+        );
+      }
+    }
+
     // Inject HubCarousel: import at the top, component before the last ## section (Fazit).
     // The HubCarousel renders related cluster articles and must always be present in MDX.
     const hubImport = `import HubCarousel from '@/components/content/HubCarousel.astro';`;
@@ -368,6 +395,14 @@ Output format:
       ctx.log.warn(
         { articleId: input.articleId, wordCount },
         "[draft] comparison article below 2000 word target",
+      );
+    }
+
+    // Spec 61.3: ki-wissen pillar pages should hit ~2500 words. Warn (don't fail) when below.
+    if (collectionType === "ki-wissen" && wordCount < 2500) {
+      ctx.log.warn(
+        { articleId: input.articleId, wordCount },
+        "[draft] ki-wissen article below 2500 word target",
       );
     }
 
