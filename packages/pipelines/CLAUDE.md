@@ -268,6 +268,30 @@ under token pressure. See `src/article/localize/pipeline.ts` for the canonical e
 This must be preserved when adding post-processing steps — do not strip or move the
 import. The component is required by the Astro blog layout for cluster navigation.
 
+### Collection-specific draft prompts (Spec 61.2 + 61.3)
+
+`src/article/prompts/index.ts` is the canonical selector entry point:
+
+```typescript
+import { selectDraftPrompt } from "../prompts/index.ts";
+const promptFn = selectDraftPrompt(collectionType);
+// null = use the blog default literal inside DraftStep
+```
+
+Builder files (`comparison.ts`, `ki-wissen.ts`) export `buildXxxDraftPrompt({authorInstruction, today, locale})` and nothing selector-related. Each builder owns its `LOCALE_LABELS` typed map (DE/EN section names) and emits a single-shot prompt that REPLACES the default — body structure + FRONTMATTER_EXTRAS block in one LLM call (Pattern 110).
+
+Collection-specific validation lives in `src/article/frontmatter/<collection>.ts` as `validateXxxExtras(raw): {ok,data}|{ok,error}`. Called inside `DraftStep` after the FRONTMATTER_EXTRAS JSON parse; throws `ArticlePipelineError(stage="draft")` on failure (Pattern 111). Cross-collection fields like `faq` are NOT inside the collection schema — validate them separately in `DraftStep` (e.g. ki-wissen requires `faq.length ≥ 7`, blog/comparison ≥ 5).
+
+Adding a new collection variant:
+1. Add the enum value to `ARTICLE_COLLECTION_TYPES` in `packages/shared/src/types/article-collection.ts`
+2. Add the folder mapping to `COLLECTION_ASTRO_NAME` in `PersistArticleStep`
+3. Create `src/article/frontmatter/<collection>.ts` with the Zod schema + `validateXxxExtras`
+4. Create `src/article/prompts/<collection>.ts` with the builder
+5. Add the case to `selectDraftPrompt` in `prompts/index.ts`
+6. Add a `if (collectionType === "<name>") { validate + faq check + word-count warn }` block in `DraftStep`
+
+No changes to pipeline shape, bridge, or step list are needed — the same `BlogPipeline` handles all variants.
+
 ## Refresh + Translation Pipelines (Spec 54.10 + 59.2)
 
 ### article:refresh
@@ -497,7 +521,9 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT expect `ToolLinkerStep` to link every tool mention — it links only the **first** occurrence per H2 section (SEO best practice). A tool mentioned 4 times in a single section gets linked once. This is intentional; do not change the behaviour without updating the spec.
 - DO NOT pass an empty `briefId` in the `article:blog` pipeline input — `AuthorPickStep` and `ToolRelevanceStep` both query the brief by ID in their `execute()` methods. A missing brief causes the pipeline to fail at step 1 or 2. The `enqueueBlogGenerationPipeline` wrapper always receives `briefId` from `triggerWithPreRunId` via `extraInput`; verify it is present before adding new callers.
 - DO NOT assume `triggerWithPreRunId`'s `extraInput` flows through to the BullMQ job payload — it goes into `pipeline_runs.input` JSONB but the `enqueue` callback receives the full payload and is free to drop fields. `enqueueBlogGenerationPipeline` (and any similar thin wrapper) explicitly forwards only the fields it declares in its parameter type; new fields require updating the wrapper's signature AND its forwarding code together. Caught in Spec 61.2: adding `collectionType`/`comparisonToolSlugs` to `extraInput` silently no-ops until `enqueueBlogGenerationPipeline` is updated to forward them. See `packages/pipelines/src/article/blog/trigger.ts` for the canonical conditional-spread pattern.
-- DO NOT hardcode language-specific section names ("Auf einen Blick", "Pricing-Stand:", etc.) inside a collection-specific draft prompt — every prompt that emits a locale-dependent body must accept `locale: "de" | "en"` and look up section labels from a typed `LOCALE_LABELS` map. The instruction text stays in English; only output examples and section headings switch by locale (per root CLAUDE.md's English-prompt rule, "few-shot examples that demonstrate target-language output format may stay in target language"). See `packages/pipelines/src/article/prompts/comparison.ts` `LOCALE_LABELS` for the canonical pattern.
+- DO NOT hardcode language-specific section names ("Auf einen Blick", "Pricing-Stand:", "Mythos vs. Realität", etc.) inside a collection-specific draft prompt — every prompt that emits a locale-dependent body must accept `locale: "de" | "en"` and look up section labels from a typed `LOCALE_LABELS` map local to that builder file. The instruction text stays in English; only output examples and section headings switch by locale (per root CLAUDE.md's English-prompt rule, "few-shot examples that demonstrate target-language output format may stay in target language"). See `packages/pipelines/src/article/prompts/comparison.ts` and `prompts/ki-wissen.ts` `LOCALE_LABELS` for the canonical pattern.
+- DO NOT branch on `collectionType` inside `DraftStep.execute()` to choose a prompt — Pattern 109 lives in `src/article/prompts/index.ts` as `selectDraftPrompt(collectionType)`. Builder files (`comparison.ts`, `ki-wissen.ts`) must NOT import `ArticleCollectionType` or define their own selector — they export `buildXxxDraftPrompt()` only. The selector returns `null` for the blog default, and DraftStep falls back to its module-local literal. New collection = one builder file + one case in the switch.
+- DO NOT pull the FAQ-count constraint into a collection-specific `<X>ExtrasSchema` — `faq` is a shared FRONTMATTER_EXTRAS field (blog/comparison/ki-wissen all emit it). Validate the minimum count inside `DraftStep` immediately after the schema parse, using `Array.isArray(faqRaw) ? faqRaw.length : 0` and throwing `ArticlePipelineError(stage="draft")` on shortfall. ki-wissen requires ≥ 7; blog/comparison ≥ 5. See `DraftStep` ki-wissen branch for the canonical placement.
 - DO NOT assume `mockImplementationOnce` exhaustion is safe when a step makes multiple `anthropic.messages()` calls — once `mockImplementationOnce` runs out, subsequent calls fall through to the base `mockReturnValue`. If the base mock returns a different JSON shape than the call site expects, the downstream validator crashes at runtime (`TypeError: undefined is not an object evaluating 'hook.highlightWord.trim'`). Fix: add field-presence guards before passing parsed JSON to any validator. Pattern: `if (typeof candidate.leadPhrase === "string" && typeof candidate.highlightWord === "string") { hookPartial = candidate; }`. Caught in Spec 57.1: `ExtractToolsStep` makes 3 LLM calls (extraction + hook + enrich); tests that only mocked the first two caused the hook parser to receive tools-extraction JSON from the base mock.
 - DO NOT assume author expertise embeddings are pre-populated — they are lazily computed on first `AuthorPickStep` run and cached in `articles.frontmatterExtras.expertiseEmbedding`. The first article generated for a new cluster/author combination pays the Voyage embedding cost (~€0.0001); subsequent calls hit the JSONB cache. If you wipe `frontmatterExtras`, re-importing the authors resets the cache.
 - DO NOT hardcode a fallback author slug in `author-picker` — any hardcoded slug may not exist in the project's authors collection and will silently produce phantom author references in generated articles. Always query the DB for the actual top author by post count and validate they exist in `articles WHERE collection='authors'`. See `defaultFallbackAuthor()` in `src/article/author-picker/index.ts`. Throw `AuthorPickerError` rather than returning a phantom slug.
