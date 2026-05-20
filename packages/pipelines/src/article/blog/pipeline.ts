@@ -1,4 +1,6 @@
-import { articles, db, eq, projects } from "@marketing-auto/db";
+import { articleDiscovery, articles, db, eq, projects } from "@marketing-auto/db";
+import type { ArticleDiscoverySuggestedTemplates } from "@marketing-auto/db";
+import { enqueueSocialImagePipeline } from "../social-image/trigger.ts";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
@@ -404,6 +406,46 @@ export class BlogPipeline extends Pipeline<
       } catch (e) {
         log.warn({ err: e, clusterId: clusterGenerationId }, "[blog] checkClusterCompletion failed — status not updated");
       }
+    }
+
+    // Spec 60.6: auto-trigger social render when socialAutoRenderLocales is set
+    try {
+      const [project] = await db
+        .select({ socialAutoRenderLocales: projects.socialAutoRenderLocales, targetLocales: projects.targetLocales })
+        .from(projects)
+        .where(eq(projects.id, pipelineInput.projectId))
+        .limit(1);
+
+      if (project?.socialAutoRenderLocales) {
+        const [discovery] = await db
+          .select({ suggestedTemplates: articleDiscovery.suggestedTemplates })
+          .from(articleDiscovery)
+          .where(eq(articleDiscovery.articleId, pipelineInput.articleId))
+          .limit(1);
+
+        const suggestions: ArticleDiscoverySuggestedTemplates = discovery?.suggestedTemplates ?? [];
+        const top1 = suggestions
+          .filter((s) => s.confidence >= 0.6)
+          .sort((a, b) => b.confidence - a.confidence)[0] ?? null;
+
+        const locales = project.socialAutoRenderLocales === "all"
+          ? (project.targetLocales ?? ["de-DE"])
+          : [articleLocale === "en" ? "en-US" : "de-DE"];
+
+        await enqueueSocialImagePipeline({
+          articleId: pipelineInput.articleId,
+          projectId: pipelineInput.projectId,
+          locales,
+          theme: "dark",
+          ...(top1 ? { templateKey: top1.templateKey } : {}),
+        });
+        log.info(
+          { articleId: pipelineInput.articleId, templateKey: top1?.templateKey ?? null, locales },
+          "[blog] auto-triggered social render after blog completion"
+        );
+      }
+    } catch (e) {
+      log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] social auto-render trigger failed — skipped");
     }
   }
 }
