@@ -13,6 +13,7 @@ import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
 import { articles, db, eq } from "@marketing-auto/db";
 import { z } from "zod";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import type { VoiceReference } from "../voice-reference/loader.ts";
 import { ArticlePipelineError } from "../types.ts";
@@ -176,7 +177,9 @@ For TAGS: ${tagLanguageNote}`;
       articleId:        input.articleId,
       operation:        COST_OPS.TRANSLATE_DRAFT,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     `You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native ${targetLocaleName} writing.`,
+      // Spec 62.0a Section 4.4: edit-prompt resume override applies to all 3 LLM calls
+      // in this step (one override per step; granular per-call overrides are out of 62.0a scope).
+      systemPrefix:     resolvePrompt(ctx, this.name, () => `You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native ${targetLocaleName} writing.`),
       systemSuffix:     "",
       userMessage,
       maxTokens:        8192,
@@ -252,7 +255,7 @@ Output: A structured markdown outline with H2/H3 headings and brief section desc
       articleId:        input.articleId,
       operation:        COST_OPS.REFRESH_OUTLINE,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     `You are a content strategist specializing in ${targetLocaleName} AI and software content.`,
+      systemPrefix:     resolvePrompt(ctx, this.name, () => `You are a content strategist specializing in ${targetLocaleName} AI and software content.`),
       systemSuffix:     "",
       userMessage:      outlineUserMessage,
       maxTokens:        2000,
@@ -303,7 +306,7 @@ For TAGS: ${tagLanguageNote}`;
       articleId:        input.articleId,
       operation:        COST_OPS.REFRESH_DRAFT,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     `You are an expert AI content writer creating high-quality ${targetLocaleName} articles for ${targetAudience}.`,
+      systemPrefix:     resolvePrompt(ctx, this.name, () => `You are an expert AI content writer creating high-quality ${targetLocaleName} articles for ${targetAudience}.`),
       systemSuffix:     "",
       userMessage:      draftUserMessage,
       maxTokens:        8192,

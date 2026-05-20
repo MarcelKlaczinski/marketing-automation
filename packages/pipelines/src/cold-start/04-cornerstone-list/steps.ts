@@ -3,6 +3,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { generateTranslationKey } from "../shared/translation-key.ts";
 
 // ─── Shared schemas ───────────────────────────────────────────────────────────
@@ -158,7 +159,8 @@ Output strict JSON matching: { cluster, cornerstone_keyword, proposed_title, pro
       operation: COST_OPS.COLD_START_CORNERSTONE_SPECS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: `Produce a ${locale.toUpperCase()} cornerstone spec for cluster "${cluster.name}" with cornerstone keyword "${cluster.cornerstone_keyword}".`,
       maxTokens: 2000,
       jsonMode: true,

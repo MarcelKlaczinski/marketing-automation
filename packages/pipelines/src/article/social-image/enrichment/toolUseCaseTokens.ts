@@ -1,5 +1,6 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core";
+import { resolvePrompt } from "../../../engine/prompt-resolver.ts";
 import type { StepContext } from "../../../engine/step.ts";
 
 export interface ToolUseCaseTokens {
@@ -119,10 +120,15 @@ interface LlmTokenItem {
 /**
  * Generate use-case tokens for every tool in one Haiku call.
  * Each tool that fails validation receives a programmatic fallback.
+ *
+ * `stepName` is the calling step's name (used to key the edit-prompt resume override
+ * per Spec 62.0a Section 4.4). Caller passes `this.name` so all LLM activity inside a
+ * given step run shares the same override key.
  */
 export async function enrichToolUseCaseTokens(
   tools: ToolTokenInput[],
   ctx: StepContext,
+  stepName: string,
 ): Promise<Record<string, ToolUseCaseTokens>> {
   if (tools.length === 0) return {};
 
@@ -142,7 +148,11 @@ export async function enrichToolUseCaseTokens(
       operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
       model: "claude-haiku-4-5",
       systemPrefix: "",
-      systemSuffix: "Generate alltagssprache use-case tokens for AI tools. Return valid JSON only.",
+      systemSuffix: resolvePrompt(
+        ctx,
+        stepName,
+        () => "Generate alltagssprache use-case tokens for AI tools. Return valid JSON only."
+      ),
       userMessage,
       maxTokens: 600,
       estimatedCostEur: 0.002,

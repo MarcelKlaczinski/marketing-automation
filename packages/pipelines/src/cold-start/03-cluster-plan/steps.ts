@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { buildLocaleContext } from "../_lib/locale-context.ts";
 import { buildNicheContext } from "../_lib/niche-context.ts";
 
@@ -162,7 +163,8 @@ Output strict JSON: { "candidates": [{ "name", "pillar", "cornerstone_keyword", 
       operation: COST_OPS.COLD_START_CLUSTER_CANDIDATES,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: "Generate the cluster candidates per the rules above.",
       maxTokens: 6000,
       jsonMode: true,
@@ -434,7 +436,8 @@ Output strict JSON:
       operation: COST_OPS.COLD_START_CLUSTER_SYNTHESIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: userMsg,
       maxTokens: 8000,
       jsonMode: true,

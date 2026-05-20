@@ -3,6 +3,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { DetectionResultSchema } from "../types.ts";
 
 const InputSchema = z.object({
@@ -79,7 +80,8 @@ Rules:
       operation: COST_OPS.SCHEMA_RICH_DETECTION,
       model: "claude-haiku-4-5",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: [
         "# Article title",
         input.title,

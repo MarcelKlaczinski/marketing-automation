@@ -8,6 +8,7 @@ import { batchLlmCall } from "../../engine/batch-llm-client.ts";
 const log = createLogger("pipelines:outline-step");
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
 import {
   type ArticleOutline,
@@ -154,6 +155,10 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       input.locale ? { ...promptBase, locale: input.locale } : promptBase
     );
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    // cacheablePrefix (skill + project context) stays cached and unaffected.
+    const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+
     const userMsg = [
       "# Article brief",
       `**Cornerstone keyword**: ${input.cornerstoneKeyword}`,
@@ -193,7 +198,7 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       operation: COST_OPS.ARTICLE_OUTLINE,
       model,
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      systemSuffix,
       userMessage: userMsg,
       maxTokens: 8000,
       jsonMode: true,

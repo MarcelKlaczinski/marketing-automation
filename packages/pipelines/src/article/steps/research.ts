@@ -4,6 +4,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { ResearchResultSchema } from "../types.ts";
 
 const InputSchema = z.object({
@@ -54,6 +55,9 @@ Be specific. "Most pages cover X" is good. "There are some patterns" is bad.
       input.locale ? { ...promptBase, locale: input.locale } : promptBase
     );
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+
     const userMsg = [
       `# Target keyword: ${input.cornerstoneKeyword}`,
       "",
@@ -81,7 +85,7 @@ Be specific. "Most pages cover X" is good. "There are some patterns" is bad.
       operation: COST_OPS.ARTICLE_RESEARCH_SYNTHESIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      systemSuffix,
       userMessage: userMsg,
       maxTokens: 2000,
       estimatedCostEur: 0.1,

@@ -13,6 +13,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import {
   buildCloserHeadline,
   type CloserToolContext,
@@ -99,6 +100,9 @@ type LoadArticleInput = {
   locales: string[];
   preRunId?: string;
 };
+
+/** Default system suffix for JSON-only LLM calls in this module — extracted so the override key works against a stable default. */
+const JSON_ONLY_SUFFIX = "Respond with only a valid JSON object. No markdown, no explanation.";
 
 export class LoadArticleStep extends BaseStep<
   LoadArticleInput,
@@ -321,7 +325,13 @@ Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match t
       operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
       model: "claude-haiku-4-5",
       systemPrefix: "",
-      systemSuffix: "Extract structured tool data for Instagram carousel generation. Return valid JSON only.",
+      // Spec 62.0a Section 4.4: one edit-prompt override per step covers all 3 LLM calls
+      // inside ExtractToolsStep (extract DE, extract EN, generate hook).
+      systemSuffix: resolvePrompt(
+        ctx,
+        this.name,
+        () => "Extract structured tool data for Instagram carousel generation. Return valid JSON only."
+      ),
       userMessage: prompt,
       maxTokens: 3000,
       estimatedCostEur: 0.005,
@@ -372,7 +382,7 @@ Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match t
     };
     const articleType = inferArticleType(input.articleTitle, tools.length);
     const pattern = selectPattern(input.articleId, articleType);
-    const coverHookOutput: HookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic);
+    const coverHookOutput: HookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic, this.name);
 
     // ─── Tool-use-case-token enrichment + deterministic closer engine ──────────
     const tokenMap = await enrichToolUseCaseTokens(
@@ -383,6 +393,7 @@ Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match t
         ...(t.bestFor !== undefined && { bestFor: t.bestFor }),
       })),
       ctx,
+      this.name,
     );
     tools = tools.map((t) => {
       const tokens = tokenMap[t.slug];
@@ -455,7 +466,11 @@ Extract ${tools.length} tools in the same order as the DE extraction. Keep ALL t
           operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
           model: "claude-haiku-4-5",
           systemPrefix: "",
-          systemSuffix: "Extract structured tool data for Instagram carousel generation. Return valid JSON only.",
+          systemSuffix: resolvePrompt(
+            ctx,
+            this.name,
+            () => "Extract structured tool data for Instagram carousel generation. Return valid JSON only."
+          ),
           userMessage: enPrompt,
           maxTokens: 3000,
           estimatedCostEur: 0.005,
@@ -525,6 +540,9 @@ async function generateHookWithGate(
   pattern: HookPattern,
   ctx: StepContext,
   anthropicClient: typeof anthropic,
+  // Spec 62.0a Section 4.4: stepName threaded from the calling step's `this.name` so the
+  // edit-prompt resume override is keyed correctly (same key as the rest of the step).
+  stepName: string,
   maxRetries = 2,
 ): Promise<HookOutput> {
   let lastViolations: string[] | undefined;
@@ -548,7 +566,7 @@ async function generateHookWithGate(
         operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
         model: "claude-haiku-4-5",
         systemPrefix: "",
-        systemSuffix: systemPrompt,
+        systemSuffix: resolvePrompt(ctx, stepName, () => systemPrompt),
         userMessage: userPrompt,
         maxTokens: 256,
         estimatedCostEur: 0.001,
@@ -776,7 +794,12 @@ ${isDE ? `{
         operation: COST_OPS.SOCIAL_IMAGE_GRID4_GENERATE,
         model: "claude-sonnet-4-6",
         systemPrefix: "",
-        systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation.",
+        // Spec 62.0a Section 4.4: edit-prompt resume override.
+        systemSuffix: resolvePrompt(
+          ctx,
+          this.name,
+          () => JSON_ONLY_SUFFIX
+        ),
         userMessage: prompt,
         maxTokens: 1200,
         estimatedCostEur: 0.028,
@@ -906,7 +929,12 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
         operation: COST_OPS.SOCIAL_IMAGE_CAPTION,
         model: "claude-sonnet-4-6",
         systemPrefix: "",
-        systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation.",
+        // Spec 62.0a Section 4.4: edit-prompt resume override.
+        systemSuffix: resolvePrompt(
+          ctx,
+          this.name,
+          () => JSON_ONLY_SUFFIX
+        ),
         userMessage: prompt,
         maxTokens: 600,
         estimatedCostEur: 0.028,

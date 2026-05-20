@@ -31,6 +31,7 @@ import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 import { slugify } from "../trigger.ts";
 
@@ -153,7 +154,9 @@ Output ONLY these four tagged blocks, nothing else:
       operation: COST_OPS.ARTICLE_OUTLINE, // cheapest cost bucket
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      // Applies to ALL 3 LLM calls in this step (one override per step).
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: userMsg,
       maxTokens: 800,
       estimatedCostEur: 0.05,
@@ -286,7 +289,7 @@ full translated article body in Markdown (preserving all MDX/imports)
       operation: COST_OPS.ARTICLE_DRAFT,
       model: "claude-sonnet-4-6",
       systemPrefix: bodyPrompt.cacheablePrefix,
-      systemSuffix: bodyPrompt.variableSuffix,
+      systemSuffix: resolvePrompt(ctx, this.name, () => bodyPrompt.variableSuffix),
       userMessage: bodyUserMsg,
       maxTokens: 8000,
       estimatedCostEur: this.estimatedCostEur() * 0.8,
@@ -362,7 +365,7 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
         operation: COST_OPS.ARTICLE_OUTLINE,
         model: "claude-haiku-4-5",
         systemPrefix: structurePrompt.cacheablePrefix,
-        systemSuffix: structurePrompt.variableSuffix,
+        systemSuffix: resolvePrompt(ctx, this.name, () => structurePrompt.variableSuffix),
         userMessage: structureUserParts.join("\n"),
         maxTokens: 4000,
         estimatedCostEur: this.estimatedCostEur() * 0.2,

@@ -2,6 +2,10 @@ import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
+
+const DEFAULT_SYSTEM_PREFIX =
+  "You are a content strategy assistant that classifies translation requirements.";
 
 const InputSchema = z.object({
   articleId:        z.string().uuid(),
@@ -90,6 +94,9 @@ Respond in JSON only:
   "reasoning": "brief explanation (max 80 words)"
 }`;
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces systemPrefix.
+    const systemPrefix = resolvePrompt(ctx, this.name, () => DEFAULT_SYSTEM_PREFIX);
+
     let raw: unknown;
     try {
       const result = await anthropic.messages({
@@ -98,7 +105,7 @@ Respond in JSON only:
         articleId:        input.articleId,
         operation:        COST_OPS.TRANSLATION_DECISION,
         model:            "claude-haiku-4-5",
-        systemPrefix:     "You are a content strategy assistant that classifies translation requirements.",
+        systemPrefix,
         systemSuffix:     "",
         userMessage:      prompt,
         maxTokens:        300,

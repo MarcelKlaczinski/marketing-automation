@@ -5,6 +5,7 @@ import { ARTICLE_COLLECTION_TYPES, type ArticleCollectionType } from "@marketing
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
 import { validateComparisonExtras } from "../frontmatter/comparison.ts";
 import { validateKiWissenExtras } from "../frontmatter/ki-wissen.ts";
@@ -234,6 +235,9 @@ Output format:
       input.locale ? { ...promptBase, locale: input.locale } : promptBase
     );
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+
     // Spec 61.2: comparison-specific tool listing (positional mapping for the LLM)
     const comparisonContext =
       collectionType === "comparison" && input.comparisonToolSlugs?.length
@@ -285,7 +289,7 @@ Output format:
       operation: COST_OPS.ARTICLE_DRAFT,
       model,
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      systemSuffix,
       userMessage: userMsg,
       maxTokens: 8000,
       estimatedCostEur: this.estimatedCostEur(),

@@ -3,6 +3,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
 import { SelfReviewIssueSchema } from "../types.ts";
 
@@ -98,6 +99,9 @@ export class SelfReviewStep extends BaseStep<
       stepInstructions,
     });
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+
     const userMsg = [
       "# Article under review",
       `**Cornerstone keyword**: ${input.cornerstoneKeyword}`,
@@ -121,7 +125,7 @@ export class SelfReviewStep extends BaseStep<
         operation: COST_OPS.ARTICLE_SELF_REVIEW,
         model: "claude-haiku-4-5",
         systemPrefix: prompt.cacheablePrefix,
-        systemSuffix: prompt.variableSuffix,
+        systemSuffix,
         userMessage: userMsg,
         maxTokens: 3000,
         jsonMode: true,

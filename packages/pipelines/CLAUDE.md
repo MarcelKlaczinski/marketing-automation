@@ -615,16 +615,56 @@ The runner has two execution modes selectable per pipeline run:
 
 **Idempotency cache** (also 62.0a): if `step.idempotencyKey(input)` returns a string, the runner checks `idempotency_outputs` BEFORE execute. A HIT skips the step and uses the cached output. After successful execute, the output is written to the cache (`onConflictDoNothing`). Use when re-execution is expensive (LLM calls, image generation).
 
-**Prompt override consumption** — `resolvePrompt(ctx, stepName, buildDefault)` is the canonical entry point for LLM steps to honour an `edit-prompt` resume action:
+**Prompt override consumption** — `resolvePrompt(ctx, stepName, buildDefault)` is the canonical entry point for LLM steps to honour an `edit-prompt` resume action. The default builder is called only when `ctx.promptOverride?.[stepName]` is unset.
+
+**Scope of the override** — the wrap replaces the **`systemSuffix`** (variable step instructions), NOT the full system prompt. `systemPrefix`/`cacheablePrefix` (skill foundation + project marketing context) stays intact so Anthropic prompt-cache hits keep working during debug runs and the user can't accidentally drop the project context by editing only the step instructions.
+
+**Four wrap variants** (all 14 step-bound files in `packages/pipelines/src/` use one of these):
 
 ```typescript
-import { resolvePrompt } from "@marketing-auto/pipelines";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 
-// Inside an LLM step's execute():
-const prompt = resolvePrompt(ctx, this.name, () => buildSystemPrompt({ ... }));
+// Variant A — split prompt via buildSystemPrompt
+const prompt = await buildSystemPrompt({ skills, projectIdOrSlug, stepInstructions });
+const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+await anthropic.messages({ systemPrefix: prompt.cacheablePrefix, systemSuffix, ... });
+
+// Variant B — direct string (no cacheable foundation)
+await anthropic.messages({
+  systemPrefix: "",
+  systemSuffix: resolvePrompt(ctx, this.name, () => "You are an expert..."),
+  ...
+});
+
+// Variant C — shared callArgs across sync + batch + retry call sites (e.g. OutlineStep)
+const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+const callArgs = { systemPrefix: prompt.cacheablePrefix, systemSuffix, ... };
+await anthropic.messages(callArgs);                      // sync
+await anthropic.messages({ ...callArgs, forceRefresh: true });  // sync retry
+await batchLlmCall({ ...callArgs, stepKey: "outline", mode: "batch" }); // batch
+
+// Variant D — helper function called from a step; thread stepName as a parameter
+export async function enrichToolUseCaseTokens(
+  tools: ToolTokenInput[],
+  ctx: StepContext,
+  stepName: string,  // caller passes `this.name`
+) {
+  await anthropic.messages({
+    ...,
+    systemSuffix: resolvePrompt(ctx, stepName, () => "Default suffix..."),
+  });
+}
 ```
 
-The default builder is called only when `ctx.promptOverride?.[this.name]` is unset. Phase 4 of Spec 62.0a migrates all ~17 LLM-calling steps to this helper (Section 4.4 of the spec).
+**One override per step** — Steps with multiple LLM calls (e.g. `TranslationBodyStep` has 3, `LocalizeArticleStep` has 3, `ExtractToolsStep` has 3) use ONE override key (`this.name`) shared across all calls. When `ctx.promptOverride[this.name]` is set, every LLM call in that step receives the same override (per spec 62.0a edge-case decision; granular per-call overrides are deferred).
+
+**Out of scope: free-function LLM calls** — Some LLM-calling functions in `packages/pipelines/src/` are NOT `BaseStep` classes — they're called from HTTP routes, BullMQ workers, or TopicSources directly. They have no `StepContext` and therefore no override path. Currently exempt:
+- `cluster/full-plan/llm-call.ts`, `cluster-creator/propose.ts` — called from HTTP routes
+- `topic-sources/trend-discovery/{synthesize,coverage}.ts` — called from `TrendDiscoveryTopicSource`
+- `article/discovery/llmEnrichment.ts` — called from `discoveryWorker`
+- `engine/batch-llm-client.ts` — lower-level wrapper; receives `systemSuffix` from callers
+
+A future refactor to make these `BaseStep` classes would let them pick up the override mechanism too. Out of 62.0a's scope.
 
 **Checkpoint storage**: `pipeline_runs.batchCheckpoint` (jsonb) now stores BOTH batch and step-pause suspension checkpoints. The step-pause variant carries a `kind: "step_pause"` discriminator plus `stepPauseId`. The column name is historical (Spec 61.4) — treat it as a generic suspension checkpoint. The resolve service reads `batchCheckpoint.accumulatedOutput` to rebuild `PipelineRunOptions.priorOutput` at re-enqueue.
 

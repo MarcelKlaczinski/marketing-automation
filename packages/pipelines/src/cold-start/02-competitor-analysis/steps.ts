@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { buildLocaleContext, localeFromDomain } from "../_lib/locale-context.ts";
 import { buildNicheContext } from "../_lib/niche-context.ts";
 
@@ -145,7 +146,8 @@ Output strict JSON:
       operation: COST_OPS.COLD_START_COMPETITOR_IDENTIFICATION,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: "Identify the competitors and produce the review questions.",
       maxTokens: 2000,
       jsonMode: true,
@@ -333,7 +335,8 @@ Output strict JSON: { "reportMd": "...", "contentGaps": [...], "topicsToAvoid": 
       operation: COST_OPS.COLD_START_COMPETITOR_ANALYSIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: userMsg,
       maxTokens: 6000,
       jsonMode: true,

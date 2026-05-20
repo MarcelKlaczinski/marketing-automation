@@ -3,6 +3,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 
 // ─── Step 1: Generate questions ──────────────────────────────────────────────
 
@@ -80,7 +81,8 @@ Rules:
       operation: COST_OPS.COLD_START_VOICE_QUESTIONS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: `Here is the current marketing-context.md:\n\n${input.existingContextMd}\n\nProduce the questions.`,
       maxTokens: 4000,
       jsonMode: true,
@@ -147,7 +149,8 @@ Output strict JSON: { updatedMarketingContextMd, changesSummary }
       operation: COST_OPS.COLD_START_VOICE_SYNTHESIS,
       model: "claude-opus-4-7",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: `# Original marketing-context.md\n${input.existingContextMd}\n\n---\n\n# Marcel's answers\n${input.answeredQuestionsMd}\n\nNow produce the updated marketing-context.md.`,
       maxTokens: 8000,
       jsonMode: true,

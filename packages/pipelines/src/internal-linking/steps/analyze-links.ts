@@ -3,6 +3,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
+import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import {
   type AnalyzeLinksOutput,
   AnalyzeLinksOutputSchema,
@@ -122,7 +123,8 @@ Constraint: max 10 suggestions. Aim for 3-7. Quality > quantity.
       operation: COST_OPS.INTERNAL_LINK_ANALYSIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix: prompt.variableSuffix,
+      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
       userMessage: userMsg,
       maxTokens: 3000,
       jsonMode: true,
