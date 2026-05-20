@@ -11,6 +11,7 @@
     "add-user": "bun --env-file ../../.env src/scripts/add-user.ts",
     "add-project": "bun --env-file ../../.env src/scripts/add-project.ts",
     "sync-context": "bun --env-file ../../.env src/scripts/sync-context.ts",
+    "batch-resume-verify": "bun --env-file ../../.env src/scripts/batch-resume-verify.ts",
     "signals:collect": "bun --env-file ../../.env src/scripts/signals/collect.ts",
     "trends:synthesize": "bun --env-file ../../.env src/scripts/trends/synthesize.ts",
     "worker": "bun --env-file ../../.env src/workers/index.ts",
