@@ -10,11 +10,17 @@ import type { Pipeline } from "./pipeline.ts";
 import { pipelineRegistry } from "./registry.ts";
 import { isPipelineSuspended, runPipeline } from "./runner.ts";
 
+const batchResultSchema = z.object({ stepKey: z.string(), content: z.string() });
+
 const jobDataSchema = z.object({
   pipelineName: z.string(),
   projectId: z.string(),
   input: z.unknown(),
   preRunId: z.string().uuid().optional(),
+  // Spec 61.4: batch resume fields (all optional — only set when re-enqueueing after batch completes)
+  resumeFromStep: z.string().optional(),
+  batchResult: batchResultSchema.optional(),
+  priorOutput: z.record(z.unknown()).optional(),
 });
 
 const log = createLogger("pipeline-queue");
@@ -62,6 +68,8 @@ export function getPipelineQueue(): Queue {
   return _queue;
 }
 
+export type BatchResult = { stepKey: string; content: string };
+
 export type EnqueuePipelineInput = {
   pipelineName: string;
   projectId: string;
@@ -69,6 +77,10 @@ export type EnqueuePipelineInput = {
   jobOptions?: JobsOptions;
   /** Pre-created pipeline_runs row ID. Runner will UPDATE it instead of INSERT. */
   preRunId?: string;
+  // Spec 61.4: batch resume — skip completed steps and inject cached LLM content
+  resumeFromStep?: string;
+  batchResult?: BatchResult;
+  priorOutput?: Record<string, unknown>;
 };
 
 /**
@@ -83,6 +95,9 @@ export async function enqueuePipeline(input: EnqueuePipelineInput): Promise<{ jo
       projectId: input.projectId,
       input: input.input,
       preRunId: input.preRunId,
+      ...(input.resumeFromStep !== undefined ? { resumeFromStep: input.resumeFromStep } : {}),
+      ...(input.batchResult !== undefined ? { batchResult: input.batchResult } : {}),
+      ...(input.priorOutput !== undefined ? { priorOutput: input.priorOutput } : {}),
     },
     input.jobOptions
   );
@@ -105,17 +120,29 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
   const worker = new Worker(
     QUEUE_NAME,
     async (job) => {
-      const { pipelineName, projectId, input, preRunId } = jobDataSchema.parse(job.data);
+      const {
+        pipelineName,
+        projectId,
+        input,
+        preRunId,
+        resumeFromStep,
+        batchResult,
+        priorOutput,
+      } = jobDataSchema.parse(job.data);
 
       const pipeline = pipelineRegistry.get(pipelineName);
       if (!pipeline) {
         throw new Error(`Pipeline not registered: ${pipelineName}`);
       }
 
-      const runOpts: Parameters<typeof runPipeline>[2] =
-        preRunId !== undefined
-          ? { projectId, jobId: String(job.id), preRunId }
-          : { projectId, jobId: String(job.id) };
+      const runOpts: Parameters<typeof runPipeline>[2] = {
+        projectId,
+        jobId: String(job.id),
+        ...(preRunId !== undefined ? { preRunId } : {}),
+        ...(resumeFromStep !== undefined ? { resumeFromStep } : {}),
+        ...(batchResult !== undefined ? { batchResult } : {}),
+        ...(priorOutput !== undefined ? { priorOutput } : {}),
+      };
 
       const result = await runPipeline(
         pipeline as Pipeline<unknown, unknown>,

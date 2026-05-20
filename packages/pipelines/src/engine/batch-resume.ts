@@ -1,0 +1,76 @@
+// Spec 61.4: Resume a suspended pipeline after Anthropic Batch API delivers its result.
+// Called by the batch processor worker (apps/api/src/workers/batch-processor.worker.ts).
+import type { BatchCheckpoint, BatchRequest } from "@marketing-auto/db";
+import { batchRequests, db, eq, pipelineRuns } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
+import { enqueuePipeline } from "./queue.ts";
+
+const log = createLogger("pipelines:batch-resume");
+
+/**
+ * Re-enqueues the pipeline that suspended waiting for a batch result.
+ * The runner will skip all steps before `resumeFromStep` (they're in priorOutput)
+ * and inject the LLM content from the batch as `ctx.batchResult`.
+ */
+export async function resumePipeline(batchRow: BatchRequest): Promise<void> {
+  if (!batchRow.pipelineRunId) {
+    log.warn({ batchRequestId: batchRow.id }, "Batch row has no pipelineRunId — skipping resume");
+    return;
+  }
+
+  const [run] = await db
+    .select()
+    .from(pipelineRuns)
+    .where(eq(pipelineRuns.id, batchRow.pipelineRunId))
+    .limit(1);
+
+  if (!run) {
+    log.warn({ pipelineRunId: batchRow.pipelineRunId }, "Pipeline run not found — skipping resume");
+    return;
+  }
+
+  if (run.status !== "batch_pending") {
+    log.info(
+      { pipelineRunId: run.id, status: run.status },
+      "Pipeline run is not batch_pending — skipping resume (already processed?)"
+    );
+    return;
+  }
+
+  const checkpoint = run.batchCheckpoint as unknown as BatchCheckpoint;
+  if (!checkpoint?.stepKey) {
+    log.warn({ pipelineRunId: run.id }, "No checkpoint on batch_pending run — skipping resume");
+    return;
+  }
+
+  const responseBody = batchRow.responseBody as { content?: string } | null;
+  const content = responseBody?.content ?? "";
+
+  log.info(
+    { pipelineRunId: run.id, stepKey: checkpoint.stepKey, batchRequestId: batchRow.id },
+    "Resuming suspended pipeline"
+  );
+
+  // Mark the pipeline run as queued again so the UI reflects the re-enqueue
+  await db
+    .update(pipelineRuns)
+    .set({ status: "queued", batchCheckpoint: null })
+    .where(eq(pipelineRuns.id, run.id));
+
+  await enqueuePipeline({
+    pipelineName: run.pipelineName,
+    projectId: batchRow.projectId,
+    input: (run.input ?? {}) as Record<string, unknown>,
+    // Re-use the same pipeline_runs row so the UI keeps the same runId
+    preRunId: run.id,
+    resumeFromStep: checkpoint.stepKey,
+    batchResult: { stepKey: checkpoint.stepKey, content },
+    priorOutput: checkpoint.accumulatedOutput,
+  });
+
+  // Mark the batch_requests row as "resume_enqueued" to avoid double-processing
+  await db
+    .update(batchRequests)
+    .set({ status: "resume_enqueued", updatedAt: new Date() })
+    .where(eq(batchRequests.id, batchRow.id));
+}
