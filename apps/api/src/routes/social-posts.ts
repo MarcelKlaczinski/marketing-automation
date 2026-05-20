@@ -595,6 +595,12 @@ const generateTemplatesBodySchema = z.object({
   templateKeys: z.array(z.string()).min(1),
   locale: z.enum(["de", "en"]).default("de"),
   theme: z.enum(["dark", "light"]).default("dark"),
+  // Spec 60.6: LLM suggestion metadata for recommendation accuracy tracking
+  suggestionMeta: z.object({
+    suggestedTemplate: z.string().optional(),
+    suggestionConfidence: z.number().min(0).max(1).optional(),
+    suggestionReason: z.string().optional(),
+  }).optional(),
 });
 
 socialPostRoutes.post(
@@ -707,16 +713,26 @@ socialPostRoutes.post(
           )
         );
 
+      // Spec 60.6: derive userOverride — true when user picked a different template than suggested
+      const meta = body.suggestionMeta;
+      const userOverride = !!(meta?.suggestedTemplate && meta.suggestedTemplate !== templateKey);
+
+      const insertValues: typeof templateRenders.$inferInsert = {
+        articleId,
+        templateKey,
+        locale: body.locale,
+        theme: body.theme,
+        status: "pending",
+        renderInput,
+        userOverride,
+      };
+      if (meta?.suggestedTemplate !== undefined) insertValues.suggestedTemplate = meta.suggestedTemplate;
+      if (meta?.suggestionConfidence !== undefined) insertValues.suggestionConfidence = String(meta.suggestionConfidence);
+      if (meta?.suggestionReason !== undefined) insertValues.suggestionReason = meta.suggestionReason;
+
       const [insertedRow] = await db
         .insert(templateRenders)
-        .values({
-          articleId,
-          templateKey,
-          locale: body.locale,
-          theme: body.theme,
-          status: "pending",
-          renderInput,
-        })
+        .values(insertValues)
         .returning({ id: templateRenders.id });
 
       if (!insertedRow) {
