@@ -111,6 +111,8 @@ Project-scoped overrides let admins customize copy strings, layout toggles, and 
 
 **Dynamic import in pipeline step** — import `getOverrideSchema`/`mergeOverrides` from `@marketing-auto/social/templates/overrides` directly (not dynamic import needed; dynamic import was considered but the package is already on the dependency graph).
 
+**`isOverrideTemplateKey` guard required when templateKey is `string`** — `getOverrideSchema(key)` expects `OverrideTemplateKey` (a narrow literal union). When the key comes from user input or pipeline input (typed as `string`), TypeScript rejects the call. Use `isOverrideTemplateKey(key)` from the same import before calling `getOverrideSchema`: `const overrides = isOverrideTemplateKey(key) ? mergeOverrides(getOverrideSchema(key), row?.values) : (row?.values ?? {})`. See `RenderSlidesStep.execute()` (Spec 60.6) for the canonical pattern.
+
 ## Gotchas
 
 - **Font loading must be at module level** — call `loadFont()` from `@remotion/google-fonts/<Font>` at the top of the composition file (outside the component function). Remotion pre-loads fonts before headless Chrome renders; calling inside the component body is too late and produces blank/default font.
