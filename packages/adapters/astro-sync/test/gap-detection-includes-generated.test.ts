@@ -30,6 +30,7 @@ const mockCtx = (projectId: string): StepContext => ({
   reportProgress: async () => {},
   getStepOutput: () => undefined,
   llmMode: "sync",
+  runMode: "production",
 });
 
 describe("DetectContentGapsStep — generated articles count (Spec 54.3)", () => {

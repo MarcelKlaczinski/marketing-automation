@@ -1,6 +1,12 @@
 export { BaseStep, type StepContext } from "./step.ts";
 export { Pipeline } from "./pipeline.ts";
-export { runPipeline, type PipelineRunResult, type PipelineRunOptions } from "./runner.ts";
+export {
+  runPipeline,
+  isPipelineSuspended,
+  type PipelineRunResult,
+  type PipelineRunOptions,
+  type StepPauseResume,
+} from "./runner.ts";
 export { resolvePrompt } from "./prompt-resolver.ts";
 export {
   enqueuePipeline,

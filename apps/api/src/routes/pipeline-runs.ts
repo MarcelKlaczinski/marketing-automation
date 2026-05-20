@@ -6,6 +6,7 @@ import {
   costLogs,
   db,
   linkRebuildRuns,
+  listStepPausesForRun,
   pagespeedRuns,
   pipelineRuns,
   projects,
@@ -14,11 +15,13 @@ import {
 } from "@marketing-auto/db";
 import { getPauseInfo, isProjectPaused } from "@marketing-auto/core";
 import { enqueuePipeline } from "@marketing-auto/pipelines";
+import { stepPausePayloadSchema } from "@marketing-auto/shared";
 import { and, asc, desc, eq, gte, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { requireAuth } from "../middleware/auth.ts";
+import { resolveStepPause } from "../lib/step-pause-service.ts";
 
 export type ActivityType =
   | "cold_start"
@@ -580,6 +583,61 @@ pipelineRunsRoutes.patch("/:id/cancel", async (c) => {
 
   return c.json({ ok: true });
 });
+
+// ─── GET /api/pipeline-runs/:id/step-pauses — Spec 62.0a ──────────────────────
+// Returns all step_pauses for a pipeline run (resolved + unresolved), newest first.
+pipelineRunsRoutes.get("/:id/step-pauses", async (c) => {
+  const id = c.req.param("id");
+  const [run] = await db
+    .select({ id: pipelineRuns.id })
+    .from(pipelineRuns)
+    .where(eq(pipelineRuns.id, id))
+    .limit(1);
+  if (!run) return c.json({ ok: false, error: "Run not found" }, 404);
+
+  const pauses = await listStepPausesForRun(id);
+  return c.json({ ok: true, data: pauses });
+});
+
+// ─── POST /api/pipeline-runs/:id/step-pauses/:stepPauseId/resolve — Spec 62.0a ─
+// Resolves a paused step with one of the 7 user actions and re-enqueues the pipeline.
+// `extract-for-optimization` tags the row but does NOT re-enqueue.
+pipelineRunsRoutes.post(
+  "/:id/step-pauses/:stepPauseId/resolve",
+  zValidator("json", stepPausePayloadSchema),
+  async (c) => {
+    const id = c.req.param("id");
+    const stepPauseId = c.req.param("stepPauseId");
+    const payload = c.req.valid("json");
+
+    const user = c.get("user");
+    const resolvedBy = user?.email ?? user?.id ?? "system";
+
+    const result = await resolveStepPause(stepPauseId, payload, resolvedBy);
+    if (!result.ok) {
+      const status = result.status as 404 | 409 | 422;
+      return c.json({ ok: false, error: result.error }, status);
+    }
+
+    // Defensive: the resolved pause must belong to the run id in the URL.
+    if (result.resolved.pipelineRunId !== id) {
+      return c.json({ ok: false, error: "step_pause_mismatched_run" }, 400);
+    }
+
+    return c.json(
+      {
+        ok: true,
+        data: {
+          stepPauseId,
+          action: result.resolved.action,
+          reEnqueued: result.reEnqueued,
+          jobId: result.jobId,
+        },
+      },
+      202
+    );
+  }
+);
 
 // ─── GET /api/pipeline-runs/:runId — enriched with steps + costs + article + brief ──
 pipelineRunsRoutes.get("/:runId", async (c) => {

@@ -6,10 +6,9 @@ import {
   persistStepPause,
   pipelineRuns,
   projects,
-  type StepAction,
   writeIdempotencyOutput,
 } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
+import { createLogger, type StepAction } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import type { Pipeline } from "./pipeline.ts";
 import type { BaseStep, StepContext } from "./step.ts";
@@ -23,11 +22,14 @@ const log = createLogger("pipeline-runner");
  * whether to skip the step (approve / edit-output / promote-golden), re-execute with
  * overridden input (edit-input), re-execute with overridden prompt (edit-prompt), or
  * abort / re-suspend (abort / extract-for-optimization).
+ *
+ * Shape mirrors the queue's Zod `stepPauseResumeSchema` so the type flows cleanly through
+ * jobData parse → runPipeline opts without intermediate casts.
  */
 export interface StepPauseResume {
   stepName: string;
   action: StepAction;
-  storedOutput: unknown;
+  storedOutput?: unknown;
   editedInput?: unknown;
   editedOutput?: unknown;
   editedPrompt?: string;
@@ -295,6 +297,11 @@ export async function runPipeline<TInput, TOutput>(
       const stepLog = pipelineLog.child({ step: step.name });
       stepLog.info({ stepIndex: i }, "Step starting");
 
+      // Spec 62.0a: edit-input resume action supplies a per-step input override.
+      if (stepInputOverride[step.name] !== undefined) {
+        currentInput = stepInputOverride[step.name];
+      }
+
       const stepInput = step.inputSchema.parse(currentInput);
 
       const [stepRun] = await db
@@ -312,9 +319,42 @@ export async function runPipeline<TInput, TOutput>(
 
       const stepRunId = stepRun!.id;
 
+      // Spec 62.0a: idempotency cache check BEFORE execute. A HIT skips the step entirely.
       const idemKey = step.idempotencyKey(stepInput);
-      if (idemKey)
-        stepLog.debug({ idemKey }, "Idempotency key computed (caching not yet implemented)");
+      if (idemKey) {
+        const cached = await getIdempotencyOutput({
+          idempotencyKey: idemKey,
+          pipelineName: pipeline.name,
+          stepName: step.name,
+          projectId: options.projectId,
+        });
+        if (cached) {
+          stepLog.info({ idemKey }, "Idempotency cache HIT — skipping execute");
+          const parsedCached = step.outputSchema.parse(cached.stepOutput);
+          await db
+            .update(pipelineRuns)
+            .set({
+              status: "completed",
+              output: parsedCached as Record<string, unknown>,
+              completedAt: new Date(),
+            })
+            .where(eq(pipelineRuns.id, stepRunId));
+          stepOutputs[step.name] = parsedCached;
+          if (i < pipeline.steps.length - 1) {
+            const nextStep = pipeline.steps[i + 1] as BaseStep<unknown, unknown>;
+            currentInput = pipeline.bridge(
+              step,
+              nextStep,
+              parsedCached,
+              validatedInput,
+              <T>(name: string) => stepOutputs[name] as T | undefined
+            );
+          } else {
+            currentInput = parsedCached;
+          }
+          continue;
+        }
+      }
 
       // Spec 61.4: pass batchResult into ctx when this is the step being resumed.
       const stepBatchResult =
@@ -326,7 +366,9 @@ export async function runPipeline<TInput, TOutput>(
         stepRunId,
         pipelineName: pipeline.name,
         llmMode,
+        runMode,
         ...(stepBatchResult !== undefined ? { batchResult: stepBatchResult } : {}),
+        ...(Object.keys(promptOverride).length > 0 ? { promptOverride } : {}),
         log: stepLog,
         reportProgress: async (percent, message) => {
           await db
@@ -446,6 +488,73 @@ export async function runPipeline<TInput, TOutput>(
       });
 
       stepOutputs[step.name] = validatedOutput;
+
+      // Spec 62.0a: idempotency cache write — best-effort, ON CONFLICT DO NOTHING means
+      // the first writer wins; concurrent identical-input runs simply share the cached output.
+      if (idemKey) {
+        await writeIdempotencyOutput({
+          idempotencyKey: idemKey,
+          pipelineName: pipeline.name,
+          stepName: step.name,
+          projectId: options.projectId,
+          stepOutput: validatedOutput as Record<string, unknown>,
+          // costEur is not measured at the runner level — defaults to 0. Spec 62.0a notes
+          // this is an approximation; per-step cost attribution is a Phase 3 concern.
+        });
+      }
+
+      // Spec 62.0a: debug-mode step-pause. After every pausable step's successful run, suspend
+      // the pipeline and persist a step_pauses row for user resolution. Production mode skips
+      // this entirely. Steps can opt out via pausableInDebug() → false (trivial persist steps).
+      if (runMode === "debug" && step.pausableInDebug()) {
+        const pausedAccumulated = { ...stepOutputs };
+        const stepPauseRow = await persistStepPause({
+          pipelineRunId: runId,
+          stepRunId,
+          stepName: step.name,
+          pipelineName: pipeline.name,
+          projectId: options.projectId,
+          stepInput: stepInput as Record<string, unknown>,
+          stepOutput: validatedOutput as Record<string, unknown>,
+          // promptUsed is only populated when the edit-prompt override was applied for THIS step.
+          // The full default prompt is reconstructable from buildSystemPrompt() at any time and
+          // is not stored to keep the row small. 62.0b will link to prompt_versions instead.
+          promptUsed: promptOverride[step.name] ?? null,
+        });
+
+        // Reuse the pipeline_runs.batchCheckpoint jsonb column for step-pause checkpoints —
+        // shape is identical (stepKey + accumulatedOutput) plus a `kind` discriminator and the
+        // step_pauses row id so the resolve service can rebuild PipelineRunOptions.priorOutput.
+        const checkpoint = {
+          kind: "step_pause" as const,
+          stepKey: step.name,
+          stepPauseId: stepPauseRow.id,
+          accumulatedOutput: pausedAccumulated,
+        };
+        await db
+          .update(pipelineRuns)
+          .set({
+            status: "paused",
+            batchCheckpoint: checkpoint as unknown as Record<string, unknown>,
+            completedAt: new Date(),
+          })
+          .where(eq(pipelineRuns.id, runId));
+
+        stepLog.info(
+          { stepPauseId: stepPauseRow.id, stepName: step.name },
+          "Pipeline suspended — step paused awaiting user resolution"
+        );
+        return {
+          ok: false,
+          suspended: true,
+          runId,
+          stepKey: step.name,
+          stepPauseId: stepPauseRow.id,
+          error: "step_paused" as const,
+          failedAtStep: "" as const,
+          stepOutputs: pausedAccumulated,
+        };
+      }
 
       if (i < pipeline.steps.length - 1) {
         const nextStep = pipeline.steps[i + 1] as BaseStep<unknown, unknown>;

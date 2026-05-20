@@ -549,6 +549,8 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT put the "should this step run?" guard inside `execute()` — implement `shouldRun(ctx): Promise<boolean>` on the step class instead. The engine calls `shouldRun()` before `execute()` and invokes `skipOutput(input)` when it returns false, giving the pipeline a valid output shape with zero cost. Never bypass this pattern with an `if` at the top of `execute()`. See `SocialGenerationStep` (Pattern 102, Spec 60.7).
 - DO NOT use exceptions to signal batch API suspension from a step — return `{ batchPending: true, batchRequestId }` from `execute()` instead (Pattern 118, Spec 61.4). The runner detects the object shape before `outputSchema.parse()`, checkpoints to `pipeline_runs.batchCheckpoint`, and returns `ok:false/suspended:true`. Throwing an exception would mark the BullMQ job as failed and trigger retries.
 - DO NOT check `ctx.resumeFromStep === step.name` inside a step to detect the batch resume path — check `ctx.batchResult?.stepKey === step.name` instead. `resumeFromStep` drives the runner's skip loop; `ctx.batchResult` carries the cached LLM content for exactly the one step being resumed. A step must check `ctx.batchResult` BEFORE calling `batchLlmCall()` to avoid a second LLM call on resume. See `OutlineStep` in `src/article/steps/outline.ts` for the canonical check.
+- DO NOT add a required field to `StepContext` without grepping for every `mockCtx` literal in the workspace and patching them — Spec 62.0a added `runMode: "production" | "debug"` and broke 11 test fixtures across `packages/pipelines/test/`, `packages/adapters/astro-sync/test/`, and one inline literal in `apps/api/src/routes/projects.ts`. Pattern: `grep -rn 'llmMode: "sync"' --include="*.test.ts"` finds the canonical pivot point in mocks. Patch in one batched commit; the workspace typecheck will catch any miss.
+- DO NOT declare a new `PipelineRunOptions` field with shape derived from a Zod schema's `z.unknown()` / `z.string().optional()` and expect the interface side to use `field?: T` under `exactOptionalPropertyTypes` — Zod infers optionals as `T | undefined` which is incompatible. Either declare the interface to match Zod's inferred shape (`storedOutput?: unknown`, `editedPrompt?: string`) AND mark a single justified `as Parameters<typeof runPipeline>[2]` cast at the worker dispatch site, OR define the schema once in a shared file and use `z.infer<typeof X>` as the canonical type. Canonical example: `StepPauseResume` in [runner.ts](src/engine/runner.ts) + `stepPauseResumeSchema` in [queue.ts](src/engine/queue.ts) (Spec 62.0a Session 2).
 
 ## Batch Mode Step Contract (Spec 61.4)
 
@@ -601,6 +603,30 @@ batch mode. The model wraps output in ` ```json … ``` ` fences. Any step that 
 `JSON.parse(ctx.batchResult.content)` will throw `Unrecognized token '\``. Pattern: slice
 `raw.indexOf("{")` to `raw.lastIndexOf("}") + 1` before parsing. See `OutlineStep` `ctx.batchResult`
 branch for the canonical fix.
+
+## Step-Pause + Run-Mode Contract (Spec 62.0a)
+
+The runner has two execution modes selectable per pipeline run:
+
+- `runMode: "production"` (default): every step executes end-to-end. No pauses.
+- `runMode: "debug"`: after every pausable step's successful execute, the runner persists a `step_pauses` row, suspends `pipeline_runs.status = "paused"`, and returns `{ suspended: true, error: "step_paused", stepKey, stepPauseId }`. BullMQ treats this as a clean job completion (no retry). The user resolves via `POST /api/pipeline-runs/:id/step-pauses/:stepPauseId/resolve` which re-enqueues with `stepPauseResume` populated.
+
+**Opt out per step**: override `pausableInDebug(): boolean { return false; }` on the step class. Use for trivial steps where pausing has no inspection value (DB-only persist, status flip). Production mode ignores this entirely.
+
+**Idempotency cache** (also 62.0a): if `step.idempotencyKey(input)` returns a string, the runner checks `idempotency_outputs` BEFORE execute. A HIT skips the step and uses the cached output. After successful execute, the output is written to the cache (`onConflictDoNothing`). Use when re-execution is expensive (LLM calls, image generation).
+
+**Prompt override consumption** — `resolvePrompt(ctx, stepName, buildDefault)` is the canonical entry point for LLM steps to honour an `edit-prompt` resume action:
+
+```typescript
+import { resolvePrompt } from "@marketing-auto/pipelines";
+
+// Inside an LLM step's execute():
+const prompt = resolvePrompt(ctx, this.name, () => buildSystemPrompt({ ... }));
+```
+
+The default builder is called only when `ctx.promptOverride?.[this.name]` is unset. Phase 4 of Spec 62.0a migrates all ~17 LLM-calling steps to this helper (Section 4.4 of the spec).
+
+**Checkpoint storage**: `pipeline_runs.batchCheckpoint` (jsonb) now stores BOTH batch and step-pause suspension checkpoints. The step-pause variant carries a `kind: "step_pause"` discriminator plus `stepPauseId`. The column name is historical (Spec 61.4) — treat it as a generic suspension checkpoint. The resolve service reads `batchCheckpoint.accumulatedOutput` to rebuild `PipelineRunOptions.priorOutput` at re-enqueue.
 
 ## Trend Discovery Topic Source (Spec 54.5+)
 

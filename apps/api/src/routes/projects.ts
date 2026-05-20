@@ -625,6 +625,7 @@ projectRoutes.post("/:slug/detect-gaps", async (c) => {
     stepRunId:      "00000000-0000-0000-0000-000000000000",
     pipelineName:   "detect-content-gaps",
     llmMode:        "sync",
+    runMode:        "production",
     log:            log as StepContext["log"],
     reportProgress: async () => { /* on-demand: no-op */ },
     getStepOutput:  () => undefined,

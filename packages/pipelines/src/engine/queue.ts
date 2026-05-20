@@ -12,6 +12,27 @@ import { isPipelineSuspended, runPipeline } from "./runner.ts";
 
 const batchResultSchema = z.object({ stepKey: z.string(), content: z.string() });
 
+const stepActionSchemaJob = z.enum([
+  "approve",
+  "edit-output",
+  "edit-prompt",
+  "edit-input",
+  "abort",
+  "promote-golden",
+  "extract-for-optimization",
+  "auto-dismissed",
+]);
+
+const stepPauseResumeSchema = z.object({
+  stepName: z.string(),
+  action: stepActionSchemaJob,
+  storedOutput: z.unknown(),
+  editedInput: z.unknown().optional(),
+  editedOutput: z.unknown().optional(),
+  editedPrompt: z.string().optional(),
+  stepPauseId: z.string().uuid(),
+});
+
 const jobDataSchema = z.object({
   pipelineName: z.string(),
   projectId: z.string(),
@@ -21,6 +42,12 @@ const jobDataSchema = z.object({
   resumeFromStep: z.string().optional(),
   batchResult: batchResultSchema.optional(),
   priorOutput: z.record(z.unknown()).optional(),
+  // Spec 62.0a: step-pause + run-mode fields (all optional)
+  runMode: z.enum(["production", "debug"]).optional(),
+  overrideLlmMode: z.enum(["sync", "batch"]).optional(),
+  stepPauseResume: stepPauseResumeSchema.optional(),
+  promptOverride: z.record(z.string()).optional(),
+  stepInputOverride: z.record(z.unknown()).optional(),
 });
 
 const log = createLogger("pipeline-queue");
@@ -81,6 +108,12 @@ export type EnqueuePipelineInput = {
   resumeFromStep?: string;
   batchResult?: BatchResult;
   priorOutput?: Record<string, unknown>;
+  // Spec 62.0a: step-pause + run-mode fields
+  runMode?: "production" | "debug";
+  overrideLlmMode?: "sync" | "batch";
+  stepPauseResume?: z.infer<typeof stepPauseResumeSchema>;
+  promptOverride?: Record<string, string>;
+  stepInputOverride?: Record<string, unknown>;
 };
 
 /**
@@ -98,6 +131,13 @@ export async function enqueuePipeline(input: EnqueuePipelineInput): Promise<{ jo
       ...(input.resumeFromStep !== undefined ? { resumeFromStep: input.resumeFromStep } : {}),
       ...(input.batchResult !== undefined ? { batchResult: input.batchResult } : {}),
       ...(input.priorOutput !== undefined ? { priorOutput: input.priorOutput } : {}),
+      ...(input.runMode !== undefined ? { runMode: input.runMode } : {}),
+      ...(input.overrideLlmMode !== undefined ? { overrideLlmMode: input.overrideLlmMode } : {}),
+      ...(input.stepPauseResume !== undefined ? { stepPauseResume: input.stepPauseResume } : {}),
+      ...(input.promptOverride !== undefined ? { promptOverride: input.promptOverride } : {}),
+      ...(input.stepInputOverride !== undefined
+        ? { stepInputOverride: input.stepInputOverride }
+        : {}),
     },
     input.jobOptions
   );
@@ -128,6 +168,11 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         resumeFromStep,
         batchResult,
         priorOutput,
+        runMode,
+        overrideLlmMode,
+        stepPauseResume,
+        promptOverride,
+        stepInputOverride,
       } = jobDataSchema.parse(job.data);
 
       const pipeline = pipelineRegistry.get(pipelineName);
@@ -135,14 +180,22 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         throw new Error(`Pipeline not registered: ${pipelineName}`);
       }
 
-      const runOpts: Parameters<typeof runPipeline>[2] = {
+      // Zod's z.string().optional() infers as `string | undefined`; the runner's
+      // StepPauseResume interface uses `editedPrompt?: string` (exactOptionalPropertyTypes).
+      // The cast resolves the variance — runtime values are equivalent.
+      const runOpts = {
         projectId,
         jobId: String(job.id),
         ...(preRunId !== undefined ? { preRunId } : {}),
         ...(resumeFromStep !== undefined ? { resumeFromStep } : {}),
         ...(batchResult !== undefined ? { batchResult } : {}),
         ...(priorOutput !== undefined ? { priorOutput } : {}),
-      };
+        ...(runMode !== undefined ? { runMode } : {}),
+        ...(overrideLlmMode !== undefined ? { overrideLlmMode } : {}),
+        ...(stepPauseResume !== undefined ? { stepPauseResume } : {}),
+        ...(promptOverride !== undefined ? { promptOverride } : {}),
+        ...(stepInputOverride !== undefined ? { stepInputOverride } : {}),
+      } as Parameters<typeof runPipeline>[2];
 
       const result = await runPipeline(
         pipeline as Pipeline<unknown, unknown>,
