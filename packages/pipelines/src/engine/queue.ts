@@ -31,6 +31,9 @@ const stepPauseResumeSchema = z.object({
   editedOutput: z.unknown().optional(),
   editedPrompt: z.string().optional(),
   stepPauseId: z.string().uuid(),
+  // Spec 62.0b: who resolved the pause — threaded through to prompt_versions.created_by
+  // when action='promote-golden'. Optional for backward-compat with pre-62.0b job payloads.
+  resolvedBy: z.string().optional(),
 });
 
 const jobDataSchema = z.object({

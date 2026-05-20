@@ -7,6 +7,7 @@ import {
   persistStepPause,
   pipelineRuns,
   projects,
+  promoteToGolden,
   supersedeOldSubstep,
   writeIdempotencyOutput,
 } from "@marketing-auto/db";
@@ -15,6 +16,7 @@ import { eq } from "drizzle-orm";
 import type { Pipeline } from "./pipeline.ts";
 import type { BaseStep, StepContext } from "./step.ts";
 import type { SuspensionCheckpoint } from "@marketing-auto/db";
+import { invalidateGoldenPromptCache } from "./golden-prompt-cache.ts";
 
 const log = createLogger("pipeline-runner");
 
@@ -36,6 +38,12 @@ export interface StepPauseResume {
   editedOutput?: unknown;
   editedPrompt?: string;
   stepPauseId: string;
+  /**
+   * Spec 62.0b: identifier of whoever resolved the pause (user email/id or "system").
+   * Threaded through to `prompt_versions.created_by` when action='promote-golden'.
+   * Optional for backward-compat with pre-62.0b job payloads still in flight.
+   */
+  resolvedBy?: string;
 }
 
 export type PipelineRunOptions = {
@@ -211,10 +219,51 @@ export async function runPipeline<TInput, TOutput>(
           stepOutputs,
         };
       }
-      case "approve":
+      case "approve": {
+        stepOutputs[resume.stepName] = resume.storedOutput;
+        const next = pipeline.steps[targetIdx + 1] as BaseStep<unknown, unknown> | undefined;
+        resumeFromStep = next ? next.name : "__pipeline_complete__";
+        break;
+      }
       case "promote-golden": {
-        // promote-golden behaves identically to approve in 62.0a; the edited prompt is
-        // already persisted on step_pauses for 62.0b to consume.
+        // Spec 62.0b Section 5.1: persist the edited prompt as a project-scoped golden,
+        // supersede any prior golden for the same (step, project), and invalidate the
+        // in-process cache so the next pipeline run picks up the new prompt immediately.
+        // Then continue exactly like 'approve' (output stays the same; the prompt only
+        // affects FUTURE runs of this step on this project).
+        if (resume.editedPrompt !== undefined && resume.editedPrompt.length > 0) {
+          try {
+            await promoteToGolden({
+              stepName: resume.stepName,
+              projectId: options.projectId, // project-scoped by default
+              body: resume.editedPrompt,
+              sourcePauseId: resume.stepPauseId,
+              promoteNote: null,
+              createdBy: resume.resolvedBy ?? "system",
+            });
+            invalidateGoldenPromptCache({
+              stepName: resume.stepName,
+              projectId: options.projectId,
+            });
+            pipelineLog.info(
+              { stepName: resume.stepName, stepPauseId: resume.stepPauseId },
+              "Promoted edited prompt to golden"
+            );
+          } catch (err) {
+            // UNIQUE-constraint race or DB error — log loudly but don't block the resume.
+            // The user still gets the runtime behaviour of 'approve' on this run.
+            pipelineLog.warn(
+              { err, stepName: resume.stepName, stepPauseId: resume.stepPauseId },
+              "promote-golden persistence failed — falling through to approve semantics"
+            );
+          }
+        } else {
+          pipelineLog.warn(
+            { stepName: resume.stepName, stepPauseId: resume.stepPauseId },
+            "promote-golden resume action without editedPrompt — treating as approve"
+          );
+        }
+
         stepOutputs[resume.stepName] = resume.storedOutput;
         const next = pipeline.steps[targetIdx + 1] as BaseStep<unknown, unknown> | undefined;
         resumeFromStep = next ? next.name : "__pipeline_complete__";

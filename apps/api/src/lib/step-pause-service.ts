@@ -1,5 +1,6 @@
 import { enqueuePipeline, type StepPauseResume } from "@marketing-auto/pipelines";
 import {
+  createOptimizationRequest,
   db,
   eq,
   getStepPauseById,
@@ -44,18 +45,49 @@ export async function resolveStepPause(
 
   // extract-for-optimization: tag the row but keep it unresolved + no re-enqueue.
   // The Zod superRefine in stepPausePayloadSchema already requires userNote here.
+  // Spec 62.0b Section 5.2: ALSO insert a frozen snapshot into step_optimization_requests
+  // so Marcel can later query "what did I flag for review" without joining through pauses.
   if (payload.action === "extract-for-optimization") {
     if (existing.resolvedAt) {
       return { ok: false, status: 409, error: "already_resolved" };
+    }
+    const userNote = payload.userNote ?? existing.userNote;
+    if (!userNote) {
+      // Defensive: Zod superRefine should have caught this, but the existing row may have
+      // had its userNote stripped by a prior action that didn't require one.
+      return { ok: false, status: 422, error: "user_note_required" };
     }
     const [updated] = await db
       .update(stepPauses)
       .set({
         action: "extract-for-optimization",
-        userNote: payload.userNote ?? existing.userNote,
+        userNote,
       })
       .where(eq(stepPauses.id, stepPauseId))
       .returning();
+
+    // Spec 62.0b: persist the frozen snapshot. If this fails the pause-tagging above
+    // has already committed; log loudly so we know to reconcile manually, but still
+    // return success because the user-visible step (the tag) succeeded.
+    try {
+      await createOptimizationRequest({
+        stepPauseId: existing.id,
+        stepName: existing.stepName,
+        pipelineName: existing.pipelineName,
+        projectId: existing.projectId,
+        stepInput: existing.stepInput,
+        stepOutput: existing.stepOutput,
+        promptUsed: existing.promptUsed,
+        userNote,
+        requestedBy: resolvedBy,
+      });
+    } catch (err) {
+      log.warn(
+        { err, stepPauseId, stepName: existing.stepName },
+        "Failed to create step_optimization_request — pause tagged but snapshot missing"
+      );
+    }
+
     log.info(
       { stepPauseId, stepName: existing.stepName },
       "Step-pause flagged for optimization — pipeline remains paused"
@@ -117,6 +149,8 @@ export async function resolveStepPause(
     action: payload.action,
     storedOutput: resolved.stepOutput,
     stepPauseId: resolved.id,
+    // Spec 62.0b: threaded through to prompt_versions.created_by on promote-golden.
+    resolvedBy,
   };
   if (payload.editedInput !== undefined) stepPauseResume.editedInput = payload.editedInput;
   if (payload.editedOutput !== undefined) stepPauseResume.editedOutput = payload.editedOutput;
