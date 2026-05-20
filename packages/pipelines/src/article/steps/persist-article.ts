@@ -1,8 +1,19 @@
 import { type SelfReviewIssue, articleVersions, articles, cornerstoneSpecs, db } from "@marketing-auto/db";
-import { ARTICLE_COLLECTION_TYPES } from "@marketing-auto/shared";
+import { type ArticleCollectionType, ARTICLE_COLLECTION_TYPES } from "@marketing-auto/shared";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+
+// Spec 61.2: mirror of COLLECTION_FOLDER in adapter-astro-sync — keeps the
+// articles.collection (text) column aligned with the Astro folder routing.
+// Separate map (not import) per Pattern 107: each concern owns its constant.
+const COLLECTION_ASTRO_NAME: Record<ArticleCollectionType, string> = {
+  blog: "blog",
+  comparison: "comparisons",
+  "ki-wissen": "ki-wissen",
+  tools: "tools",
+  usecases: "usecases",
+};
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),
@@ -97,7 +108,13 @@ export class PersistArticleStep extends BaseStep<
           ...(input.tags ? { tags: input.tags } : {}),
           ...(input.frontmatterExtras ? { frontmatterExtras: input.frontmatterExtras } : {}),
           // Spec 61.1: write collection type when provided by the pipeline
-          ...(input.collectionType ? { collectionType: input.collectionType } : {}),
+          // Spec 61.2: also align articles.collection (Astro folder text column) with the enum
+          ...(input.collectionType
+            ? {
+                collectionType: input.collectionType,
+                collection: COLLECTION_ASTRO_NAME[input.collectionType],
+              }
+            : {}),
         })
         .where(eq(articles.id, input.articleId));
 
