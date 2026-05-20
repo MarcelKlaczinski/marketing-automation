@@ -1,6 +1,6 @@
 // Spec 61.4: Resume a suspended pipeline after Anthropic Batch API delivers its result.
 // Called by the batch processor worker (apps/api/src/workers/batch-processor.worker.ts).
-import type { BatchCheckpoint, BatchRequest } from "@marketing-auto/db";
+import type { BatchRequest, SuspensionCheckpoint } from "@marketing-auto/db";
 import {
   batchRequests,
   db,
@@ -43,9 +43,20 @@ export async function resumePipeline(batchRow: BatchRequest): Promise<void> {
     return;
   }
 
-  const checkpoint = run.batchCheckpoint as unknown as BatchCheckpoint;
+  const checkpoint = run.suspensionCheckpoint as unknown as SuspensionCheckpoint | null;
   if (!checkpoint?.stepKey) {
     log.warn({ pipelineRunId: run.id }, "No checkpoint on batch_pending run — skipping resume");
+    return;
+  }
+  // Defensive: a step-pause checkpoint must never reach the batch-resume code path —
+  // batch_pending runs only ever carry `kind: "batch"` (or legacy rows pre-62.0a-followup
+  // with no `kind` field at all, which we assume to be batch since the run status is
+  // batch_pending). Bail out if we ever see a step_pause checkpoint here.
+  if ("kind" in checkpoint && checkpoint.kind === "step_pause") {
+    log.warn(
+      { pipelineRunId: run.id, kind: checkpoint.kind },
+      "Refusing to batch-resume a step-pause checkpoint"
+    );
     return;
   }
 
@@ -72,7 +83,7 @@ export async function resumePipeline(batchRow: BatchRequest): Promise<void> {
   // Mark the pipeline run as queued again so the UI reflects the re-enqueue
   await db
     .update(pipelineRuns)
-    .set({ status: "queued", batchCheckpoint: null })
+    .set({ status: "queued", suspensionCheckpoint: null })
     .where(eq(pipelineRuns.id, run.id));
 
   await enqueuePipeline({

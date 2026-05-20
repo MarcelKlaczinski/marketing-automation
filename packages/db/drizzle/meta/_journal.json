@@ -484,6 +484,13 @@
       "when": 1784600000000,
       "tag": "0068_step_pause_cleanup_enum",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1784700000000,
+      "tag": "0069_rename_suspension_checkpoint",
+      "breakpoints": true
     }
   ]
 }

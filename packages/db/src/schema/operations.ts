@@ -112,8 +112,10 @@ export const pipelineRuns = pgTable(
     input: jsonb("input").$type<Record<string, unknown>>(),
     output: jsonb("output").$type<Record<string, unknown>>(),
     errorMessage: text("error_message"),
-    // Spec 61.4: checkpoint when pipeline suspends for Anthropic Batch API (Pattern 118)
-    batchCheckpoint: jsonb("batch_checkpoint").$type<Record<string, unknown>>(),
+    // Spec 61.4 + 62.0a: checkpoint when pipeline suspends. Holds either a batch-API
+    // resume payload (`kind: "batch"`) or a step-pause resume payload (`kind: "step_pause"`).
+    // See `SuspensionCheckpoint` in `./batch.ts` for the discriminated union shape.
+    suspensionCheckpoint: jsonb("suspension_checkpoint").$type<Record<string, unknown>>(),
 
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),

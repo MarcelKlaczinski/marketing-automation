@@ -27,7 +27,7 @@ export type StepPauseResolveResult =
  * 3. For all other user actions: atomically UPDATE the row (resolved_at + action + edited fields).
  *    The atomic guard `WHERE resolved_at IS NULL` returns null if a concurrent resolve already won
  *    → 409.
- * 4. Load the parent pipeline_runs row to recover `batchCheckpoint.accumulatedOutput`
+ * 4. Load the parent pipeline_runs row to recover `suspensionCheckpoint.accumulatedOutput`
  *    (= priorOutput at suspend time).
  * 5. Re-enqueue the pipeline with stepPauseResume + priorOutput. The runner re-enters,
  *    applies the action, and continues / re-suspends / aborts.
@@ -104,7 +104,7 @@ export async function resolveStepPause(
     );
   }
 
-  const checkpoint = parentRun.batchCheckpoint as
+  const checkpoint = parentRun.suspensionCheckpoint as
     | { kind?: string; stepKey?: string; accumulatedOutput?: Record<string, unknown> }
     | null;
   const priorOutput: Record<string, unknown> =
@@ -139,7 +139,7 @@ export async function resolveStepPause(
   // immediately UPDATE on entry to the same status, which is a benign no-op.
   await db
     .update(pipelineRuns)
-    .set({ status: "running", batchCheckpoint: null })
+    .set({ status: "running", suspensionCheckpoint: null })
     .where(eq(pipelineRuns.id, parentRun.id));
 
   return { ok: true, resolved, reEnqueued: true, jobId };

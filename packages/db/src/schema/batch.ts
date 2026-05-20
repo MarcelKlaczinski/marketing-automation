@@ -60,8 +60,27 @@ export const batchRequests = pgTable(
 export type BatchRequest = typeof batchRequests.$inferSelect;
 export type NewBatchRequest = typeof batchRequests.$inferInsert;
 
-export type BatchCheckpoint = {
-  stepKey: string;
-  batchRequestId: string;
-  accumulatedOutput: Record<string, unknown>;
-};
+/**
+ * Discriminated union stored in `pipeline_runs.suspension_checkpoint`.
+ *
+ * - `kind: "batch"` — pipeline is suspended awaiting an Anthropic Batch API result
+ *   (Spec 61.4 Pattern 118). `batchRequestId` references `batch_requests.id`.
+ * - `kind: "step_pause"` — pipeline is suspended in debug-mode awaiting user
+ *   resolution of a step pause (Spec 62.0a). `stepPauseId` references `step_pauses.id`.
+ *
+ * Rows written before Spec 62.0a-followup do NOT have a `kind` field — readers must
+ * fall back to inspecting `batchRequestId` vs `stepPauseId` for legacy rows.
+ */
+export type SuspensionCheckpoint =
+  | {
+      kind: "batch";
+      stepKey: string;
+      batchRequestId: string;
+      accumulatedOutput: Record<string, unknown>;
+    }
+  | {
+      kind: "step_pause";
+      stepKey: string;
+      stepPauseId: string;
+      accumulatedOutput: Record<string, unknown>;
+    };

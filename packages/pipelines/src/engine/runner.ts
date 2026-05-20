@@ -14,7 +14,7 @@ import { createLogger, type StepAction } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import type { Pipeline } from "./pipeline.ts";
 import type { BaseStep, StepContext } from "./step.ts";
-import type { BatchCheckpoint } from "@marketing-auto/db";
+import type { SuspensionCheckpoint } from "@marketing-auto/db";
 
 const log = createLogger("pipeline-runner");
 
@@ -175,7 +175,7 @@ export async function runPipeline<TInput, TOutput>(
 
   // Spec 61.4 + 62.0a: pre-populate stepOutputs from the suspension checkpoint so the runner
   // can skip steps that already completed before the pipeline suspended. Used by both
-  // batch resume (BatchCheckpoint.accumulatedOutput) and step-pause resume.
+  // batch resume (SuspensionCheckpoint.accumulatedOutput) and step-pause resume.
   if (options.priorOutput) {
     for (const [k, v] of Object.entries(options.priorOutput)) {
       stepOutputs[k] = v;
@@ -441,7 +441,8 @@ export async function runPipeline<TInput, TOutput>(
         (stepOutput as { batchPending: boolean }).batchPending
       ) {
         const suspension = stepOutput as { batchPending: true; batchRequestId: string };
-        const checkpoint: BatchCheckpoint = {
+        const checkpoint: SuspensionCheckpoint = {
+          kind: "batch",
           stepKey: step.name,
           batchRequestId: suspension.batchRequestId,
           accumulatedOutput: stepOutputs,
@@ -450,7 +451,7 @@ export async function runPipeline<TInput, TOutput>(
           .update(pipelineRuns)
           .set({
             status: "batch_pending",
-            batchCheckpoint: checkpoint as unknown as Record<string, unknown>,
+            suspensionCheckpoint: checkpoint as unknown as Record<string, unknown>,
             completedAt: new Date(),
           })
           .where(eq(pipelineRuns.id, runId));
@@ -529,11 +530,11 @@ export async function runPipeline<TInput, TOutput>(
           promptUsed: promptOverride[step.name] ?? null,
         });
 
-        // Reuse the pipeline_runs.batchCheckpoint jsonb column for step-pause checkpoints —
-        // shape is identical (stepKey + accumulatedOutput) plus a `kind` discriminator and the
-        // step_pauses row id so the resolve service can rebuild PipelineRunOptions.priorOutput.
-        const checkpoint = {
-          kind: "step_pause" as const,
+        // Reuse the pipeline_runs.suspensionCheckpoint jsonb column for step-pause checkpoints —
+        // shape carries a `kind: "step_pause"` discriminator and the step_pauses row id so
+        // the resolve service can rebuild PipelineRunOptions.priorOutput.
+        const checkpoint: SuspensionCheckpoint = {
+          kind: "step_pause",
           stepKey: step.name,
           stepPauseId: stepPauseRow.id,
           accumulatedOutput: pausedAccumulated,
@@ -542,7 +543,7 @@ export async function runPipeline<TInput, TOutput>(
           .update(pipelineRuns)
           .set({
             status: "paused",
-            batchCheckpoint: checkpoint as unknown as Record<string, unknown>,
+            suspensionCheckpoint: checkpoint as unknown as Record<string, unknown>,
             completedAt: new Date(),
           })
           .where(eq(pipelineRuns.id, runId));
