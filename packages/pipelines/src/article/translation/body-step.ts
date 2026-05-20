@@ -171,15 +171,21 @@ First output the translated article body in markdown, then append these tagged b
 
 For TAGS: ${tagLanguageNote}`;
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override applies to all 3 LLM calls
+    // in this step (one override per step; granular per-call overrides are out of 62.0a scope).
+    const literalSystemPrefix = await resolvePrompt(
+      ctx,
+      this.name,
+      () =>
+        `You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native ${targetLocaleName} writing.`
+    );
     const result = await anthropic.messages({
       projectId:        ctx.projectId,
       pipelineRunId:    ctx.pipelineRunId,
       articleId:        input.articleId,
       operation:        COST_OPS.TRANSLATE_DRAFT,
       model:            "claude-sonnet-4-6",
-      // Spec 62.0a Section 4.4: edit-prompt resume override applies to all 3 LLM calls
-      // in this step (one override per step; granular per-call overrides are out of 62.0a scope).
-      systemPrefix:     resolvePrompt(ctx, this.name, () => `You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native ${targetLocaleName} writing.`),
+      systemPrefix:     literalSystemPrefix,
       systemSuffix:     "",
       userMessage,
       maxTokens:        8192,
@@ -249,13 +255,18 @@ ${styleNotes}
 
 Output: A structured markdown outline with H2/H3 headings and brief section descriptions. No other text.`;
 
+    const outlineSystemPrefix = await resolvePrompt(
+      ctx,
+      this.name,
+      () => `You are a content strategist specializing in ${targetLocaleName} AI and software content.`
+    );
     const outlineResult = await anthropic.messages({
       projectId:        ctx.projectId,
       pipelineRunId:    ctx.pipelineRunId,
       articleId:        input.articleId,
       operation:        COST_OPS.REFRESH_OUTLINE,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     resolvePrompt(ctx, this.name, () => `You are a content strategist specializing in ${targetLocaleName} AI and software content.`),
+      systemPrefix:     outlineSystemPrefix,
       systemSuffix:     "",
       userMessage:      outlineUserMessage,
       maxTokens:        2000,
@@ -300,13 +311,19 @@ Output the complete article body in markdown, then append at the very end:
 
 For TAGS: ${tagLanguageNote}`;
 
+    const draftSystemPrefix = await resolvePrompt(
+      ctx,
+      this.name,
+      () =>
+        `You are an expert AI content writer creating high-quality ${targetLocaleName} articles for ${targetAudience}.`
+    );
     const draftResult = await anthropic.messages({
       projectId:        ctx.projectId,
       pipelineRunId:    ctx.pipelineRunId,
       articleId:        input.articleId,
       operation:        COST_OPS.REFRESH_DRAFT,
       model:            "claude-sonnet-4-6",
-      systemPrefix:     resolvePrompt(ctx, this.name, () => `You are an expert AI content writer creating high-quality ${targetLocaleName} articles for ${targetAudience}.`),
+      systemPrefix:     draftSystemPrefix,
       systemSuffix:     "",
       userMessage:      draftUserMessage,
       maxTokens:        8192,

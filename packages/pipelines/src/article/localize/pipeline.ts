@@ -148,15 +148,16 @@ Output ONLY these four tagged blocks, nothing else:
       `Cornerstone keyword: ${sourceArticle.cornerstoneKeyword ?? ""}`,
     ].join("\n");
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    // Applies to ALL 3 LLM calls in this step (one override per step).
+    const metaSystemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.ARTICLE_OUTLINE, // cheapest cost bucket
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      // Applies to ALL 3 LLM calls in this step (one override per step).
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix: metaSystemSuffix,
       userMessage: userMsg,
       maxTokens: 800,
       estimatedCostEur: 0.05,
@@ -283,13 +284,14 @@ full translated article body in Markdown (preserving all MDX/imports)
       "Now translate and culturally adapt the metadata and body as instructed.",
     ].join("\n");
 
+    const bodySystemSuffix = await resolvePrompt(ctx, this.name, () => bodyPrompt.variableSuffix);
     const bodyResult = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.ARTICLE_DRAFT,
       model: "claude-sonnet-4-6",
       systemPrefix: bodyPrompt.cacheablePrefix,
-      systemSuffix: resolvePrompt(ctx, this.name, () => bodyPrompt.variableSuffix),
+      systemSuffix: bodySystemSuffix,
       userMessage: bodyUserMsg,
       maxTokens: 8000,
       estimatedCostEur: this.estimatedCostEur() * 0.8,
@@ -359,13 +361,18 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
       }
       structureUserParts.push("Translate the JSON structures as instructed.");
 
+      const structureSystemSuffix = await resolvePrompt(
+        ctx,
+        this.name,
+        () => structurePrompt.variableSuffix
+      );
       const structureResult = await anthropic.messages({
         projectId: ctx.projectId,
         pipelineRunId: ctx.pipelineRunId,
         operation: COST_OPS.ARTICLE_OUTLINE,
         model: "claude-haiku-4-5",
         systemPrefix: structurePrompt.cacheablePrefix,
-        systemSuffix: resolvePrompt(ctx, this.name, () => structurePrompt.variableSuffix),
+        systemSuffix: structureSystemSuffix,
         userMessage: structureUserParts.join("\n"),
         maxTokens: 4000,
         estimatedCostEur: this.estimatedCostEur() * 0.2,

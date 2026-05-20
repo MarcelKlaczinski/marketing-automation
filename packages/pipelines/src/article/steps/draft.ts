@@ -236,7 +236,7 @@ Output format:
     );
 
     // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-    const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
 
     // Spec 61.2: comparison-specific tool listing (positional mapping for the LLM)
     const comparisonContext =

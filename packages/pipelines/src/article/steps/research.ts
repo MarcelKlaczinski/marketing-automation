@@ -56,7 +56,7 @@ Be specific. "Most pages cover X" is good. "There are some patterns" is bad.
     );
 
     // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-    const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
 
     const userMsg = [
       `# Target keyword: ${input.cornerstoneKeyword}`,

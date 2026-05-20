@@ -75,14 +75,15 @@ Rules:
 `,
     });
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_VOICE_QUESTIONS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: `Here is the current marketing-context.md:\n\n${input.existingContextMd}\n\nProduce the questions.`,
       maxTokens: 4000,
       jsonMode: true,
@@ -143,14 +144,15 @@ Output strict JSON: { updatedMarketingContextMd, changesSummary }
 `,
     });
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_VOICE_SYNTHESIS,
       model: "claude-opus-4-7",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: `# Original marketing-context.md\n${input.existingContextMd}\n\n---\n\n# Marcel's answers\n${input.answeredQuestionsMd}\n\nNow produce the updated marketing-context.md.`,
       maxTokens: 8000,
       jsonMode: true,

@@ -157,14 +157,15 @@ ${input.topicsToAvoid.map((t) => `- ${t}`).join("\n")}
 Output strict JSON: { "candidates": [{ "name", "pillar", "cornerstone_keyword", "reasoning" }] }`,
     });
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_CLUSTER_CANDIDATES,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: "Generate the cluster candidates per the rules above.",
       maxTokens: 6000,
       jsonMode: true,
@@ -430,14 +431,15 @@ Output strict JSON:
       ...input.topicsToAvoid.map((t) => `- ${t}`),
     ].join("\n");
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_CLUSTER_SYNTHESIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: userMsg,
       maxTokens: 8000,
       jsonMode: true,

@@ -95,7 +95,7 @@ Respond in JSON only:
 }`;
 
     // Spec 62.0a Section 4.4: edit-prompt resume override replaces systemPrefix.
-    const systemPrefix = resolvePrompt(ctx, this.name, () => DEFAULT_SYSTEM_PREFIX);
+    const systemPrefix = await resolvePrompt(ctx, this.name, () => DEFAULT_SYSTEM_PREFIX);
 
     let raw: unknown;
     try {

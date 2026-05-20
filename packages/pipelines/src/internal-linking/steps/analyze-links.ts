@@ -117,14 +117,15 @@ Constraint: max 10 suggestions. Aim for 3-7. Quality > quantity.
       "Now produce link suggestions per the rules.",
     ].join("\n");
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.INTERNAL_LINK_ANALYSIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: userMsg,
       maxTokens: 3000,
       jsonMode: true,

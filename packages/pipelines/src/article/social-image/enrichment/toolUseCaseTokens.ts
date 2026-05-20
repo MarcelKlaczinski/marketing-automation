@@ -142,17 +142,18 @@ export async function enrichToolUseCaseTokens(
   let parsed: { tokens?: LlmTokenItem[] } | null = null;
 
   try {
+    const systemSuffix = await resolvePrompt(
+      ctx,
+      stepName,
+      () => "Generate alltagssprache use-case tokens for AI tools. Return valid JSON only."
+    );
     const resp = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
       model: "claude-haiku-4-5",
       systemPrefix: "",
-      systemSuffix: resolvePrompt(
-        ctx,
-        stepName,
-        () => "Generate alltagssprache use-case tokens for AI tools. Return valid JSON only."
-      ),
+      systemSuffix,
       userMessage,
       maxTokens: 600,
       estimatedCostEur: 0.002,

@@ -153,14 +153,15 @@ Output strict JSON matching: { cluster, cornerstone_keyword, proposed_title, pro
       `.trim(),
     });
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_CORNERSTONE_SPECS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: `Produce a ${locale.toUpperCase()} cornerstone spec for cluster "${cluster.name}" with cornerstone keyword "${cluster.cornerstone_keyword}".`,
       maxTokens: 2000,
       jsonMode: true,

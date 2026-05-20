@@ -11,7 +11,7 @@
 // ever exercise that path; current integration tests call `runPipeline` directly.
 
 import { z } from "zod";
-import { BaseStep, Pipeline } from "../../src/engine/index.ts";
+import { BaseStep, Pipeline, resolvePrompt } from "../../src/engine/index.ts";
 import type { StepContext } from "../../src/engine/index.ts";
 
 // ─── Step A ──────────────────────────────────────────────────────────────────
@@ -42,10 +42,9 @@ const StepBInputSchema = z.object({ value: z.number() });
 const StepBOutputSchema = z.object({ doubled: z.number(), llm: z.string() });
 
 /**
- * Pseudo-LLM step. Reads ctx.promptOverride[this.name] directly and writes it into
- * the output. No idempotency key (LLM steps are typically too varied to cache).
- * Lets integration tests assert that edit-prompt resume actions propagate correctly
- * without needing to mock an actual LLM.
+ * Pseudo-LLM step. Goes through `resolvePrompt()` so the full 62.0b hybrid lookup chain
+ * is exercised by integration tests (Debug-override → project-golden → global-golden →
+ * file default). No idempotency key (LLM steps are typically too varied to cache).
  */
 export class TestStepB extends BaseStep<
   z.infer<typeof StepBInputSchema>,
@@ -56,7 +55,7 @@ export class TestStepB extends BaseStep<
   readonly outputSchema = StepBOutputSchema;
 
   async execute(input: z.infer<typeof StepBInputSchema>, ctx: StepContext) {
-    const promptUsed = ctx.promptOverride?.[this.name] ?? "default-prompt";
+    const promptUsed = await resolvePrompt(ctx, this.name, () => "default-prompt");
     return { doubled: input.value, llm: promptUsed };
   }
 }

@@ -9,6 +9,11 @@ export {
 } from "./runner.ts";
 export { resolvePrompt } from "./prompt-resolver.ts";
 export {
+  getGoldenPromptCached,
+  invalidateGoldenPromptCache,
+  clearGoldenPromptCacheForTesting,
+} from "./golden-prompt-cache.ts";
+export {
   enqueuePipeline,
   startPipelineWorker,
   getPipelineQueue,

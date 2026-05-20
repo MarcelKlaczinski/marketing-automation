@@ -140,14 +140,15 @@ Output strict JSON:
 }`,
     });
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_COMPETITOR_IDENTIFICATION,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: "Identify the competitors and produce the review questions.",
       maxTokens: 2000,
       jsonMode: true,
@@ -329,14 +330,15 @@ Output strict JSON: { "reportMd": "...", "contentGaps": [...], "topicsToAvoid": 
       }),
     ].join("\n");
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
+    const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
     const result = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.COLD_START_COMPETITOR_ANALYSIS,
       model: "claude-sonnet-4-6",
       systemPrefix: prompt.cacheablePrefix,
-      // Spec 62.0a Section 4.4: edit-prompt resume override replaces variableSuffix.
-      systemSuffix: resolvePrompt(ctx, this.name, () => prompt.variableSuffix),
+      systemSuffix,
       userMessage: userMsg,
       maxTokens: 6000,
       jsonMode: true,

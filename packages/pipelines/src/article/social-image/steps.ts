@@ -319,19 +319,20 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
 
 Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match the carousel target language).`;
 
+    // Spec 62.0a Section 4.4: one edit-prompt override per step covers all 3 LLM calls
+    // inside ExtractToolsStep (extract DE, extract EN, generate hook).
+    const extractSystemSuffix = await resolvePrompt(
+      ctx,
+      this.name,
+      () => "Extract structured tool data for Instagram carousel generation. Return valid JSON only."
+    );
     const response = await anthropic.messages({
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
       operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
       model: "claude-haiku-4-5",
       systemPrefix: "",
-      // Spec 62.0a Section 4.4: one edit-prompt override per step covers all 3 LLM calls
-      // inside ExtractToolsStep (extract DE, extract EN, generate hook).
-      systemSuffix: resolvePrompt(
-        ctx,
-        this.name,
-        () => "Extract structured tool data for Instagram carousel generation. Return valid JSON only."
-      ),
+      systemSuffix: extractSystemSuffix,
       userMessage: prompt,
       maxTokens: 3000,
       estimatedCostEur: 0.005,
@@ -460,17 +461,18 @@ Return ONLY valid JSON (no markdown fences) with this exact shape:
 
 Extract ${tools.length} tools in the same order as the DE extraction. Keep ALL text in ENGLISH.`;
 
+        const enExtractSystemSuffix = await resolvePrompt(
+          ctx,
+          this.name,
+          () => "Extract structured tool data for Instagram carousel generation. Return valid JSON only."
+        );
         const enResp = await anthropic.messages({
           projectId: ctx.projectId,
           pipelineRunId: ctx.pipelineRunId,
           operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
           model: "claude-haiku-4-5",
           systemPrefix: "",
-          systemSuffix: resolvePrompt(
-            ctx,
-            this.name,
-            () => "Extract structured tool data for Instagram carousel generation. Return valid JSON only."
-          ),
+          systemSuffix: enExtractSystemSuffix,
           userMessage: enPrompt,
           maxTokens: 3000,
           estimatedCostEur: 0.005,
@@ -560,13 +562,14 @@ async function generateHookWithGate(
 
     let hookPartial: { leadPhrase: string; highlightWord: string; trailPhrase: string } | null = null;
     try {
+      const hookSystemSuffix = await resolvePrompt(ctx, stepName, () => systemPrompt);
       const resp = await anthropicClient.messages({
         projectId: ctx.projectId,
         pipelineRunId: ctx.pipelineRunId,
         operation: COST_OPS.SOCIAL_IMAGE_EXTRACT,
         model: "claude-haiku-4-5",
         systemPrefix: "",
-        systemSuffix: resolvePrompt(ctx, stepName, () => systemPrompt),
+        systemSuffix: hookSystemSuffix,
         userMessage: userPrompt,
         maxTokens: 256,
         estimatedCostEur: 0.001,
@@ -787,6 +790,8 @@ ${isDE ? `{
   ]
 }`}`;
 
+    // Spec 62.0a Section 4.4: edit-prompt resume override.
+    const grid4SystemSuffix = await resolvePrompt(ctx, this.name, () => JSON_ONLY_SUFFIX);
     const tryGenerate = async () => {
       const response = await anthropic.messages({
         projectId: ctx.projectId,
@@ -794,12 +799,7 @@ ${isDE ? `{
         operation: COST_OPS.SOCIAL_IMAGE_GRID4_GENERATE,
         model: "claude-sonnet-4-6",
         systemPrefix: "",
-        // Spec 62.0a Section 4.4: edit-prompt resume override.
-        systemSuffix: resolvePrompt(
-          ctx,
-          this.name,
-          () => JSON_ONLY_SUFFIX
-        ),
+        systemSuffix: grid4SystemSuffix,
         userMessage: prompt,
         maxTokens: 1200,
         estimatedCostEur: 0.028,
@@ -923,18 +923,15 @@ Respond with ONLY a valid JSON object — no markdown, no explanation:
 
       // jsonMode not used: claude-sonnet-4-6 rejects assistant prefill (400).
       // JSON extraction is done manually below from raw response text.
+      // Spec 62.0a Section 4.4: edit-prompt resume override.
+      const captionSystemSuffix = await resolvePrompt(ctx, this.name, () => JSON_ONLY_SUFFIX);
       const response = await anthropic.messages({
         projectId: ctx.projectId,
         pipelineRunId: ctx.pipelineRunId,
         operation: COST_OPS.SOCIAL_IMAGE_CAPTION,
         model: "claude-sonnet-4-6",
         systemPrefix: "",
-        // Spec 62.0a Section 4.4: edit-prompt resume override.
-        systemSuffix: resolvePrompt(
-          ctx,
-          this.name,
-          () => JSON_ONLY_SUFFIX
-        ),
+        systemSuffix: captionSystemSuffix,
         userMessage: prompt,
         maxTokens: 600,
         estimatedCostEur: 0.028,
