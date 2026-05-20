@@ -118,3 +118,11 @@ export const refreshSuggestionSourceEnum = pgEnum("refresh_suggestion_source", [
   "time",
   "quality",
 ]);
+
+export const articleCollectionTypeEnum = pgEnum("article_collection_type", [
+  "blog",
+  "comparison",
+  "ki-wissen",
+  "tools",
+  "usecases",
+]);

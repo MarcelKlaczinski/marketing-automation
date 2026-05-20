@@ -14,6 +14,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { vector } from "drizzle-orm/pg-core";
 import {
+  articleCollectionTypeEnum,
   articleSourceEnum,
   articleStatusEnum,
   cornerstoneSpecStatusEnum,
@@ -118,9 +119,8 @@ export const articles = pgTable(
     // Vector embedding for internal linking (Spec 24) — 1024 dims = Voyage AI voyage-3
     embedding: vector("embedding", { dimensions: 1024 }),
 
-    // Collection type — hardcoded "blog" for now; forward-compat for Glossar/Case-Studies (Spec 25+)
-    collectionType: text("collection_type")
-      .$type<"blog" | "glossar" | "case_study" | "tool">()
+    // Collection type — drives Astro content folder routing (Spec 61.1)
+    collectionType: articleCollectionTypeEnum("collection_type")
       .notNull()
       .default("blog"),
 
