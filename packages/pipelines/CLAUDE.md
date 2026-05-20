@@ -642,29 +642,35 @@ The runner has two execution modes selectable per pipeline run:
 
 **Idempotency cache** (also 62.0a): if `step.idempotencyKey(input)` returns a string, the runner checks `idempotency_outputs` BEFORE execute. A HIT skips the step and uses the cached output. After successful execute, the output is written to the cache (`onConflictDoNothing`). Use when re-execution is expensive (LLM calls, image generation).
 
-**Prompt override consumption** — `resolvePrompt(ctx, stepName, buildDefault)` is the canonical entry point for LLM steps to honour an `edit-prompt` resume action. The default builder is called only when `ctx.promptOverride?.[stepName]` is unset.
+**Prompt override consumption** — `resolvePrompt(ctx, stepName, buildDefault)` is the canonical entry point for LLM steps to honour an `edit-prompt` resume action. **It is async since Spec 62.0b** and resolves through a 4-tier hybrid chain:
 
-**Scope of the override** — the wrap replaces the **`systemSuffix`** (variable step instructions), NOT the full system prompt. `systemPrefix`/`cacheablePrefix` (skill foundation + project marketing context) stays intact so Anthropic prompt-cache hits keep working during debug runs and the user can't accidentally drop the project context by editing only the step instructions.
+1. `ctx.promptOverride?.[stepName]` — Debug-Run override (highest, in-memory only)
+2. Project-specific golden in `prompt_versions` (cached, 5-min TTL)
+3. Global golden in `prompt_versions` where `project_id IS NULL` (cached, 5-min TTL)
+4. `buildDefault()` — file-level default the step ships with
 
-**Four wrap variants** (all 14 step-bound files in `packages/pipelines/src/` use one of these):
+The default builder runs lazily — only invoked when Tiers 1–3 all miss. Empty-string override is a valid value (treated as "use no instructions"); only `undefined` falls through. Cache invalidation happens automatically on every `promote-golden` resume action via `invalidateGoldenPromptCache()`; the 5-min TTL is the backstop for races. Single-process caveat: multi-worker deploys would need Redis pub-sub (not yet needed for Toolwiki).
+
+**Scope of the override** — the wrap replaces the **`systemSuffix`** (variable step instructions), NOT the full system prompt. `systemPrefix`/`cacheablePrefix` (skill foundation + project marketing context) stays intact so Anthropic prompt-cache hits keep working during debug runs and the user can't accidentally drop the project context by editing only the step instructions. `prompt_versions.body` stores the systemSuffix replacement, never the full prompt.
+
+**Four wrap variants** (all 14 step-bound files in `packages/pipelines/src/` use one of these — note `await`):
 
 ```typescript
 import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 
 // Variant A — split prompt via buildSystemPrompt
 const prompt = await buildSystemPrompt({ skills, projectIdOrSlug, stepInstructions });
-const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
 await anthropic.messages({ systemPrefix: prompt.cacheablePrefix, systemSuffix, ... });
 
-// Variant B — direct string (no cacheable foundation)
-await anthropic.messages({
-  systemPrefix: "",
-  systemSuffix: resolvePrompt(ctx, this.name, () => "You are an expert..."),
-  ...
-});
+// Variant B — direct string (no cacheable foundation). Extract to a const first;
+// inline `resolvePrompt(...)` inside an anthropic.messages object literal is a type error
+// since 62.0b (Promise<string> vs string).
+const systemSuffix = await resolvePrompt(ctx, this.name, () => "You are an expert...");
+await anthropic.messages({ systemPrefix: "", systemSuffix, ... });
 
 // Variant C — shared callArgs across sync + batch + retry call sites (e.g. OutlineStep)
-const systemSuffix = resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
+const systemSuffix = await resolvePrompt(ctx, this.name, () => prompt.variableSuffix);
 const callArgs = { systemPrefix: prompt.cacheablePrefix, systemSuffix, ... };
 await anthropic.messages(callArgs);                      // sync
 await anthropic.messages({ ...callArgs, forceRefresh: true });  // sync retry
@@ -676,12 +682,14 @@ export async function enrichToolUseCaseTokens(
   ctx: StepContext,
   stepName: string,  // caller passes `this.name`
 ) {
-  await anthropic.messages({
-    ...,
-    systemSuffix: resolvePrompt(ctx, stepName, () => "Default suffix..."),
-  });
+  const systemSuffix = await resolvePrompt(ctx, stepName, () => "Default suffix...");
+  await anthropic.messages({ ..., systemSuffix });
 }
 ```
+
+**Promote-golden flow (Spec 62.0b)** — when the user resolves a pause with `action: "promote-golden"` and an `editedPrompt`, the runner persists a new `prompt_versions` row (`is_golden=true`, project-scoped to `options.projectId`) via `promoteToGolden()`, supersedes any prior golden for the same (step, project), and calls `invalidateGoldenPromptCache()`. The next pipeline run of any kind picks up the new prompt automatically. `prompt_versions.created_by` is populated from `StepPauseResume.resolvedBy` (threaded by the step-pause-service from the auth context), defaulting to `"system"` if absent. The partial unique index `prompt_versions_one_golden_per_step` (`WHERE is_golden=true`, key `(step_name, COALESCE(project_id::text, 'GLOBAL'))`) is the race-condition safety net for concurrent promotes.
+
+**Extract-for-optimization flow (Spec 62.0b)** — the **service layer** (`apps/api/src/lib/step-pause-service.ts`), not the runner, owns the write to `step_optimization_requests`. The pause itself stays unresolved (`resolved_at` NULL) so the UI keeps showing it. The frozen snapshot (stepInput/stepOutput/promptUsed) is copied from the `step_pauses` row at request time so it survives later mutation or auto-dismissal of the pause.
 
 **One override per step** — Steps with multiple LLM calls (e.g. `TranslationBodyStep` has 3, `LocalizeArticleStep` has 3, `ExtractToolsStep` has 3) use ONE override key (`this.name`) shared across all calls. When `ctx.promptOverride[this.name]` is set, every LLM call in that step receives the same override (per spec 62.0a edge-case decision; granular per-call overrides are deferred).
 
