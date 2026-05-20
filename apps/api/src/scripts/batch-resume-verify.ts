@@ -32,7 +32,7 @@ import {
   pipelineRuns,
   projects,
 } from "@marketing-auto/db";
-import { enqueueArticleOutlinePipeline } from "@marketing-auto/pipelines";
+import { enqueuePipeline } from "@marketing-auto/pipelines";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Queue } from "bullmq";
 import { readFile } from "node:fs/promises";
@@ -210,10 +210,17 @@ async function main(): Promise<void> {
     runId = pre!.id;
     console.log(`✓ pipeline_runs row created (queued): ${runId}`);
 
-    const { jobId } = await enqueueArticleOutlinePipeline({
-      preRunId: runId,
-      articleId,
+    // Bypass enqueueArticleOutlinePipeline (which uses a stable jobId per articleId
+    // and silently no-ops on re-enqueue per BullMQ dedup semantics — see the DO-NOT
+    // gotcha in root CLAUDE.md about static jobIds for re-trigger flows).
+    // For verification runs we want a fresh job every time.
+    const verifyJobId = `verify-batch-resume-${articleId}-${Date.now()}`;
+    const { jobId } = await enqueuePipeline({
+      pipelineName: "article:outline",
       projectId: toolwiki.id,
+      input: { articleId, projectId: toolwiki.id },
+      preRunId: runId,
+      jobOptions: { jobId: verifyJobId },
     });
     console.log(`✓ enqueued article:outline (jobId=${jobId})`);
 
