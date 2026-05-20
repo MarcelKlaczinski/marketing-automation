@@ -15,6 +15,7 @@
       "name": "@marketing-auto/api",
       "version": "0.1.0",
       "dependencies": {
+        "@anthropic-ai/sdk": "^0.94.0",
         "@hono/zod-validator": "^0.4.0",
         "@lobehub/icons-static-png": "^1.90.0",
         "@marketing-auto/adapter-anthropic": "workspace:*",

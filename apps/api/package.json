@@ -29,6 +29,7 @@
     "cluster:rebuild-links": "bun --env-file ../../.env src/scripts/cluster/rebuild-links.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.94.0",
     "@hono/zod-validator": "^0.4.0",
     "@lobehub/icons-static-png": "^1.90.0",
     "@marketing-auto/adapter-anthropic": "workspace:*",
