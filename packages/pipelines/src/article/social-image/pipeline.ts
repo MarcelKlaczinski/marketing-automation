@@ -19,6 +19,8 @@ type PipelineInput = {
   variant: "stunning";
   locales: string[];
   preRunId?: string;
+  // Spec 60.6: when set, RenderSlidesStep uses this key instead of auto-routing by tool count
+  templateKey?: string | null;
 };
 
 const InputSchema = z.object({
@@ -28,6 +30,7 @@ const InputSchema = z.object({
   variant: z.enum(["stunning"]).default("stunning"),
   locales: z.array(z.string()).min(1).max(5).default(["de-DE"]),
   preRunId: z.string().uuid().optional(),
+  templateKey: z.string().nullable().optional(),
 }) as z.ZodType<PipelineInput>;
 
 type SocialPostResult = {
@@ -65,6 +68,19 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
     new GenerateCaptionStep(),
     new RenderSlidesStep(),
   ];
+
+  // Spec 60.6: inject templateKeyOverride from pipeline input into the generate-caption → render-slides transition
+  override bridge(
+    fromStep: { name: string },
+    toStep: { name: string },
+    output: unknown,
+    pipelineInput: PipelineInput,
+  ): unknown {
+    if (fromStep.name === "generate-caption" && toStep.name === "render-slides" && pipelineInput.templateKey != null) {
+      return { ...(output as Record<string, unknown>), templateKeyOverride: pipelineInput.templateKey };
+    }
+    return output;
+  }
 
   override async afterComplete(output: PipelineOutput, _input: PipelineInput, _runId: string): Promise<void> {
     log.info(

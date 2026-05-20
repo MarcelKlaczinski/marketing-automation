@@ -840,6 +840,8 @@ const perLocaleOutputSchema = z.object({
 
 const GenerateCaptionOutputSchema = GenerateCaptionInputSchema.extend({
   perLocaleOutputs: z.array(perLocaleOutputSchema).min(1),
+  // Spec 60.6: explicit template key override from pipeline input; null = auto-route (default)
+  templateKeyOverride: z.string().nullable().optional(),
 });
 
 const captionJsonSchema = z.object({
@@ -979,12 +981,16 @@ export class RenderSlidesStep extends BaseStep<
   override estimatedCostEur(): number { return 0.002; }
 
   async execute(input: z.infer<typeof RenderSlidesInputSchema>, ctx: StepContext): Promise<z.infer<typeof RenderSlidesOutputSchema>> {
-    const templateKey = input.resolvedTools.length === 3 ? "comparison-grid-3" : "comparison-grid-4";
+    // Spec 60.6: respect explicit templateKey from pipeline input; fall back to tool-count routing
+    const templateKey = (input.templateKeyOverride ?? null) ??
+      (input.resolvedTools.length === 3 ? "comparison-grid-3" : "comparison-grid-4");
 
     // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
-    const { getOverrideSchema, mergeOverrides } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
+    const { getOverrideSchema, mergeOverrides, isOverrideTemplateKey } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
     const overrideRow = await fetchTemplateOverrides(input.projectId, templateKey);
-    const resolvedOverrides = mergeOverrides(getOverrideSchema(templateKey), overrideRow?.values);
+    const resolvedOverrides = isOverrideTemplateKey(templateKey)
+      ? mergeOverrides(getOverrideSchema(templateKey), overrideRow?.values)
+      : (overrideRow?.values ?? {});
 
     // Fire-and-forget: mark last_used_at (approximate — only writes when older than 1h)
     if (overrideRow) {
