@@ -194,8 +194,12 @@ describe("buildSourceContextFragment — manual", () => {
 // ─── refresh_detection source ─────────────────────────────────────────────────
 
 describe("buildSourceContextFragment — refresh_detection", () => {
-  it("throws an error (not in 54.9 scope)", () => {
+  // Spec 54.10 added refresh_detection support (the test was written for 54.9 when it
+  // wasn't yet implemented). The fragment now returns refresh framing text.
+  it("returns refresh framing text including 'Refresh Context'", () => {
     const brief = makeBrief("refresh_detection");
-    expect(() => buildSourceContextFragment(brief)).toThrow("refresh_detection");
+    const fragment = buildSourceContextFragment(brief);
+    expect(fragment).toContain("Refresh Context");
+    expect(fragment).toContain("refresh of an existing article");
   });
 });

@@ -31,6 +31,8 @@ describe("TopicBriefInsertSchema", () => {
           trendScore: 0.87,
           signals: [
             {
+              // `id` was added to the signal schema after this test was written.
+              id: "00000000-0000-0000-0000-0000000000a1",
               source: "hackernews",
               externalId: "hN12345",
               capturedAt: "2026-05-15T10:00:00Z",

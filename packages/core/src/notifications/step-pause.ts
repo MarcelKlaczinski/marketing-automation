@@ -6,7 +6,7 @@
 // Severity is "info" — step-pause is an intentional debug-mode signal, not a problem.
 // We do NOT fire Web Push (that's reserved for severity="critical" like cost-limit).
 
-import { and, db, eq, isNull, notifications, projects, sql, users } from "@marketing-auto/db";
+import { and, db, eq, notifications, projects, sql, users } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { createNotification } from "./index.ts";
 
@@ -25,22 +25,23 @@ export interface NotifyStepPausedInput {
 
 /**
  * Fire-and-forget notification fan-out for the project's owners.
- * Idempotent at the (pipelineRunId, owner) level: if an unread step_paused notification
- * already exists for this run, no second notification is created.
+ * Idempotent at the pipelineRunId level: max 1 notification per run, EVER (Spec Section 10
+ * risk-register). Once the user has been told a run paused, additional pauses in the same
+ * run don't fire new notifications — the user can open the paused-runs view to see them all.
  *
- * Spec 62.0a Section 7 + Section 10. Safe to swallow errors — failure here must not
- * affect the pipeline's suspended-state machine.
+ * Safe to swallow errors — failure here must not affect the pipeline's suspended-state machine.
  */
 export async function notifyStepPaused(input: NotifyStepPausedInput): Promise<void> {
   try {
-    // Coalesce: existing unread step_paused notification for THIS run already covers it.
+    // Coalesce per spec Section 10: max 1 notification per pipelineRunId regardless of
+    // read state. Read notifications still count — the user has already been informed
+    // about this run; subsequent pauses are visible inside the run's paused-steps view.
     const existing = await db
       .select({ id: notifications.id })
       .from(notifications)
       .where(
         and(
           eq(notifications.type, STEP_PAUSED_NOTIFICATION_TYPE),
-          isNull(notifications.readAt),
           sql`${notifications.metadata}->>'pipelineRunId' = ${input.pipelineRunId}`
         )
       )
