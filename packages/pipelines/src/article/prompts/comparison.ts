@@ -1,5 +1,3 @@
-import type { ArticleCollectionType } from "@marketing-auto/shared";
-
 /**
  * Locale-specific labels used by the comparison body template. Output strings
  * are localised; instructions and rules stay in English (per root CLAUDE.md:
@@ -191,29 +189,5 @@ export function buildComparisonContextFragment(opts: {
   return lines.join("\n");
 }
 
-// ───── Prompt selector (Pattern 109) ──────────────────────────────────────────
-
-export type DraftPromptFn = (opts: {
-  authorInstruction: string;
-  today: string;
-  locale: "de" | "en";
-}) => string;
-
-/**
- * Returns the draft step-instructions function for a given collection type.
- * `null` = use the built-in blog default (no override). Callers should keep
- * the default literal inside DraftStep for blog backwards-compat.
- *
- * Pattern 109: collection-specific prompts are selected here, never branched
- * inside the step body. Adding a new collection = add one case here.
- */
-export function selectDraftPrompt(
-  collectionType: ArticleCollectionType | undefined,
-): DraftPromptFn | null {
-  switch (collectionType) {
-    case "comparison":
-      return buildComparisonDraftPrompt;
-    default:
-      return null;
-  }
-}
+// Selector (Pattern 109) lives in ./index.ts so all collection-specific draft
+// prompts have a single entry point. This file is pure builders.
