@@ -337,6 +337,15 @@ export default {
     userId: "Benutzer-ID",
   },
 
+  llmMode: {
+    title: "LLM-Modus",
+    description: "Wähle zwischen sofortiger Ausführung (Sync) und kostenoptimierten Batch-Jobs mit 24h Verzögerung (50% günstiger).",
+    modeLabel: "Ausführungsmodus",
+    sync: "Sync – sofort (Standard)",
+    batch: "Batch – 24h Verzögerung, 50% günstiger",
+    batchWarning: "Im Batch-Modus werden Artikel innerhalb von 24h generiert. Kein sofortiges Ergebnis.",
+  },
+
   notifications: {
     title: "Browser-Benachrichtigungen",
     intro: "Erhalte Push-Benachrichtigungen für kritische Events (Pipeline-Fehler, Kostenlimits) auch wenn der Tab geschlossen ist.",

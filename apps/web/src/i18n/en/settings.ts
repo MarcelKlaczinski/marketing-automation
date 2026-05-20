@@ -336,6 +336,15 @@ export default {
     userId: "User ID",
   },
 
+  llmMode: {
+    title: "LLM Mode",
+    description: "Choose between immediate execution (Sync) and cost-optimised batch jobs with a 24h delay (50% cheaper).",
+    modeLabel: "Execution Mode",
+    sync: "Sync – immediate (default)",
+    batch: "Batch – 24h delay, 50% cheaper",
+    batchWarning: "In batch mode articles are generated within 24 hours. No immediate results.",
+  },
+
   notifications: {
     title: "Browser Notifications",
     intro: "Receive push notifications for critical events (pipeline failures, cost limits) even when the tab is closed.",

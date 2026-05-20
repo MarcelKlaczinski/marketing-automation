@@ -30,7 +30,7 @@ export type ActivityType =
   | "link_rebuild"
   | "other";
 
-export type NormalizedStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+export type NormalizedStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "batch_pending";
 
 export interface ActivityEntry {
   id: string;
@@ -78,6 +78,7 @@ export function normalizeStatus(raw: string): NormalizedStatus {
     errored: "failed",
     budget_exceeded: "failed",
     cancelled: "cancelled",
+    batch_pending: "batch_pending",
   };
   return map[raw] ?? "failed";
 }

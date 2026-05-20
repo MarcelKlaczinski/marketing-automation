@@ -403,7 +403,29 @@
         </div>
       </FormSection>
 
-      <!-- Section 9: Template Overrides -->
+      <!-- Section 9: LLM Mode — only shown when BATCH_API_ENABLED feature flag is on -->
+      <FormSection
+        v-if="project && project.batchApiEnabled"
+        :title="$t('settings.llmMode.title')"
+        :description="$t('settings.llmMode.description')"
+        :dirty="llmModeForm.dirty.value"
+        :saving="llmModeForm.saving.value"
+        :last-saved-at="llmModeForm.lastSavedAt.value ?? ''"
+        @save="llmModeForm.save()"
+        @cancel="llmModeForm.cancel()"
+      >
+        <FormField :label="$t('settings.llmMode.modeLabel')">
+          <FormSelect v-model="llmModeForm.formData.value.llmMode">
+            <option value="sync">{{ $t("settings.llmMode.sync") }}</option>
+            <option value="batch">{{ $t("settings.llmMode.batch") }}</option>
+          </FormSelect>
+        </FormField>
+        <p v-if="llmModeForm.formData.value.llmMode === 'batch'" style="font-size:12px;color:var(--color-warning,#f59e0b);margin:4px 0 0">
+          {{ $t("settings.llmMode.batchWarning") }}
+        </p>
+      </FormSection>
+
+      <!-- Section 10: Template Overrides -->
       <TemplateOverridesSection :slug="($route.params.slug as string)" />
     </template>
   </div>

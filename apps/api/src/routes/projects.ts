@@ -176,6 +176,9 @@ projectRoutes.get("/:slug", async (c) => {
       hackernewsSignalCronEnabled: proj.hackernewsSignalCronEnabled,
       producthuntSignalCronEnabled: proj.producthuntSignalCronEnabled,
       vendorRssSignalCronEnabled: proj.vendorRssSignalCronEnabled,
+      llmMode: proj.llmMode,
+      // Spec 61.4: feature flag so the UI only shows the LLM Mode toggle when batch API is enabled
+      batchApiEnabled: process.env.BATCH_API_ENABLED === "true",
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),
@@ -316,6 +319,8 @@ const updateProjectSchema = z.object({
   hackernewsSignalCronEnabled: z.boolean().optional(),
   producthuntSignalCronEnabled: z.boolean().optional(),
   vendorRssSignalCronEnabled: z.boolean().optional(),
+  // Spec 61.4: LLM execution mode for batch API opt-in
+  llmMode: z.enum(["sync", "batch"]).optional(),
 });
 
 projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c) => {
@@ -361,6 +366,7 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
   if (input.hackernewsSignalCronEnabled !== undefined) setFields.hackernewsSignalCronEnabled = input.hackernewsSignalCronEnabled;
   if (input.producthuntSignalCronEnabled !== undefined) setFields.producthuntSignalCronEnabled = input.producthuntSignalCronEnabled;
   if (input.vendorRssSignalCronEnabled !== undefined) setFields.vendorRssSignalCronEnabled = input.vendorRssSignalCronEnabled;
+  if (input.llmMode !== undefined) setFields.llmMode = input.llmMode;
 
   await db
     .update(projects)
@@ -618,6 +624,7 @@ projectRoutes.post("/:slug/detect-gaps", async (c) => {
     pipelineRunId:  "00000000-0000-0000-0000-000000000000",
     stepRunId:      "00000000-0000-0000-0000-000000000000",
     pipelineName:   "detect-content-gaps",
+    llmMode:        "sync",
     log:            log as StepContext["log"],
     reportProgress: async () => { /* on-demand: no-op */ },
     getStepOutput:  () => undefined,

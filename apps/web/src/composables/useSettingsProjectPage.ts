@@ -48,6 +48,9 @@ interface ProjectSettingsData {
   qualityAnalysisCronEnabled: boolean;
   autoApproveGaps: boolean;
   refreshStalenessThresholdDays: number;
+  // Spec 61.4: batch API fields
+  llmMode: "sync" | "batch";
+  batchApiEnabled: boolean;
 }
 
 export function useSettingsProjectPage(slug: string) {
@@ -168,6 +171,15 @@ export function useSettingsProjectPage(slug: string) {
 
   const { discoveryForm, cronStatus, triggerCron } = useDiscoverySettings(slug, project);
 
+  // Spec 61.4: LLM mode form — only persisted when batch API feature flag is on
+  const llmModeForm = useSectionForm({
+    initialData: () => ({
+      llmMode: (project.value?.llmMode ?? "sync") as "sync" | "batch",
+    }),
+    onSave: (data) => apiPatch(`/projects/${slug}`, { llmMode: data.llmMode }),
+    invalidateKeys: [["project-settings", slug]],
+  });
+
   watch(project, () => {
     basicsForm.resetFromUpstream();
     marketingForm.resetFromUpstream();
@@ -177,6 +189,7 @@ export function useSettingsProjectPage(slug: string) {
     translationForm.resetFromUpstream();
     socialForm.resetFromUpstream();
     discoveryForm.resetFromUpstream();
+    llmModeForm.resetFromUpstream();
   });
 
   return {
@@ -192,5 +205,6 @@ export function useSettingsProjectPage(slug: string) {
     discoveryForm,
     cronStatus,
     triggerCron,
+    llmModeForm,
   };
 }
