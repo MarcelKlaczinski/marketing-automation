@@ -2,6 +2,7 @@ import { zValidator } from "@hono/zod-validator";
 import {
   articles,
   astroSyncRuns,
+  autoDismissStepPauses,
   clusters,
   costLogs,
   db,
@@ -15,13 +16,15 @@ import {
 } from "@marketing-auto/db";
 import { getPauseInfo, isProjectPaused } from "@marketing-auto/core";
 import { enqueuePipeline } from "@marketing-auto/pipelines";
-import { stepPausePayloadSchema } from "@marketing-auto/shared";
+import { createLogger, stepPausePayloadSchema } from "@marketing-auto/shared";
 import { and, asc, desc, eq, gte, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
 import { requireAuth } from "../middleware/auth.ts";
 import { resolveStepPause } from "../lib/step-pause-service.ts";
+
+const log = createLogger("routes:pipeline-runs");
 
 export type ActivityType =
   | "cold_start"
@@ -572,14 +575,30 @@ pipelineRunsRoutes.patch("/:id/cancel", async (c) => {
 
   if (!run) return c.json({ ok: false, error: "Run not found" }, 404);
 
-  if (!["queued", "running"].includes(run.status)) {
-    return c.json({ ok: false, error: "Only queued or running runs can be cancelled" }, 409);
+  // Spec 62.0a: paused and batch_pending runs are also cancellable. Marcel may want to
+  // abandon a paused debug run without going through the resolve flow, or kill a stuck
+  // batch_pending run whose batch will never complete.
+  const cancellableStatuses = ["queued", "running", "paused", "batch_pending"];
+  if (!cancellableStatuses.includes(run.status)) {
+    return c.json(
+      { ok: false, error: "Only queued, running, paused, or batch_pending runs can be cancelled" },
+      409
+    );
   }
 
   await db
     .update(pipelineRuns)
     .set({ status: "cancelled", completedAt: new Date() })
     .where(eq(pipelineRuns.id, id));
+
+  // Spec 62.0a Section 4.5.2: auto-dismiss unresolved step_pauses so the cancelled run
+  // drops out of the "needs attention" queue. Wrapped so a DB hiccup doesn't 500 a
+  // successful cancel — stale pauses are caught by the 6h cleanup worker as backup.
+  try {
+    await autoDismissStepPauses(id, "cancelled");
+  } catch (err) {
+    log.warn({ err, runId: id }, "autoDismissStepPauses failed on cancel — stale pauses remain");
+  }
 
   return c.json({ ok: true });
 });

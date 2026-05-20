@@ -6,6 +6,7 @@ import { getTrendSynthesizerQueue } from "./trend-synthesizer.ts";
 import { getRefreshDetectorQueue } from "./refresh-detector.ts";
 import { getArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 import { getSignalCollectorQueue } from "./signal-collector.ts";
+import { getStepPauseCleanupQueue } from "./step-pause-cleanup.worker.ts";
 
 const log = createLogger("cron-orchestrator");
 
@@ -36,7 +37,7 @@ export function getCronOrchestratorQueue(): Queue {
 
 // ─── Queue registry ───────────────────────────────────────────────────────────
 
-function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit" | "signal_collector_github" | "signal_collector_hackernews" | "signal_collector_producthunt" | "signal_collector_vendor_rss"): Queue {
+function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" | "quality_analysis" | "signal_collector_reddit" | "signal_collector_github" | "signal_collector_hackernews" | "signal_collector_producthunt" | "signal_collector_vendor_rss" | "step_pause_cleanup"): Queue {
   if (jobType === "trends_synthesizer") return getTrendSynthesizerQueue();
   if (jobType === "quality_analysis") return getArticleQualityAnalysisQueue();
   if (jobType === "signal_collector_reddit") return getSignalCollectorQueue();
@@ -44,6 +45,7 @@ function getQueueForJobType(jobType: "trends_synthesizer" | "refresh_detector" |
   if (jobType === "signal_collector_hackernews") return getSignalCollectorQueue();
   if (jobType === "signal_collector_producthunt") return getSignalCollectorQueue();
   if (jobType === "signal_collector_vendor_rss") return getSignalCollectorQueue();
+  if (jobType === "step_pause_cleanup") return getStepPauseCleanupQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -74,7 +76,13 @@ export async function syncCronJobs(): Promise<void> {
 
   // Remove jobs that are no longer in desired state
   const desiredNames = new Set(desired.map((d) => `${d.jobType}:${d.projectId}`));
-  const allQueues = [getTrendSynthesizerQueue(), getRefreshDetectorQueue(), getArticleQualityAnalysisQueue(), getSignalCollectorQueue()];
+  const allQueues = [
+    getTrendSynthesizerQueue(),
+    getRefreshDetectorQueue(),
+    getArticleQualityAnalysisQueue(),
+    getSignalCollectorQueue(),
+    getStepPauseCleanupQueue(),
+  ];
 
   for (const queue of allQueues) {
     const repeats = await queue.getRepeatableJobs();
@@ -87,7 +95,8 @@ export async function syncCronJobs(): Promise<void> {
         repeat.name.startsWith("signal_collector_github:") ||
         repeat.name.startsWith("signal_collector_hackernews:") ||
         repeat.name.startsWith("signal_collector_producthunt:") ||
-        repeat.name.startsWith("signal_collector_vendor_rss:");
+        repeat.name.startsWith("signal_collector_vendor_rss:") ||
+        repeat.name.startsWith("step_pause_cleanup:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

@@ -1,7 +1,13 @@
 // Spec 61.4: Resume a suspended pipeline after Anthropic Batch API delivers its result.
 // Called by the batch processor worker (apps/api/src/workers/batch-processor.worker.ts).
 import type { BatchCheckpoint, BatchRequest } from "@marketing-auto/db";
-import { batchRequests, db, eq, pipelineRuns } from "@marketing-auto/db";
+import {
+  batchRequests,
+  db,
+  eq,
+  pipelineRuns,
+  supersedeOldSubstep,
+} from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { enqueuePipeline } from "./queue.ts";
 
@@ -50,6 +56,18 @@ export async function resumePipeline(batchRow: BatchRequest): Promise<void> {
     { pipelineRunId: run.id, stepKey: checkpoint.stepKey, batchRequestId: batchRow.id },
     "Resuming suspended pipeline"
   );
+
+  // Spec 62.0a Section 4.5.1: the substep row for `checkpoint.stepKey` is the one that
+  // returned batchPending. It's still status='running' (or 'batch_pending' depending on path)
+  // — mark it superseded before the runner re-enters and creates a new substep row.
+  // Resolves the Pre-flight Task 1 cosmetic orphan-substep issue at its structural root.
+  const supersededCount = await supersedeOldSubstep(run.id, checkpoint.stepKey);
+  if (supersededCount > 0) {
+    log.info(
+      { pipelineRunId: run.id, stepKey: checkpoint.stepKey, supersededCount },
+      "Superseded stale substep rows before batch-resume"
+    );
+  }
 
   // Mark the pipeline run as queued again so the UI reflects the re-enqueue
   await db

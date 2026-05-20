@@ -6,6 +6,7 @@ import {
   persistStepPause,
   pipelineRuns,
   projects,
+  supersedeOldSubstep,
   writeIdempotencyOutput,
 } from "@marketing-auto/db";
 import { createLogger, type StepAction } from "@marketing-auto/shared";
@@ -229,6 +230,9 @@ export async function runPipeline<TInput, TOutput>(
         delete stepOutputs[resume.stepName];
         resumeFromStep = resume.stepName;
         stepInputOverride[resume.stepName] = resume.editedInput;
+        // Spec 62.0a Section 4.5.1: the previous substep row stays in the running/paused
+        // state until we re-execute; mark it superseded so it doesn't linger orphan-running.
+        await supersedeOldSubstep(runId, resume.stepName);
         break;
       }
       case "edit-prompt": {
@@ -237,6 +241,8 @@ export async function runPipeline<TInput, TOutput>(
         if (resume.editedPrompt !== undefined) {
           promptOverride[resume.stepName] = resume.editedPrompt;
         }
+        // Spec 62.0a Section 4.5.1: same supersession as edit-input — old substep is replaced.
+        await supersedeOldSubstep(runId, resume.stepName);
         break;
       }
       case "extract-for-optimization":
@@ -626,6 +632,19 @@ export async function runPipeline<TInput, TOutput>(
       .update(pipelineRuns)
       .set({ status: "failed", errorMessage: errMsg, completedAt: new Date() })
       .where(eq(pipelineRuns.id, runId));
+
+    // Spec 62.0a Section 4.5.2: any unresolved step_pauses on this run are now meaningless —
+    // the parent failed and won't resume. Auto-dismiss so they drop out of the unresolved index.
+    // Wrapped in try-catch so a DB hiccup here does NOT re-throw out of the parent catch
+    // block (which would propagate to BullMQ and trigger an expensive retry).
+    try {
+      const dismissed = await autoDismissStepPauses(runId, "failed");
+      if (dismissed > 0) {
+        pipelineLog.info({ dismissed }, "Auto-dismissed unresolved step-pauses on pipeline failure");
+      }
+    } catch (dismissErr) {
+      pipelineLog.warn({ err: dismissErr }, "autoDismissStepPauses failed — stale pauses remain");
+    }
 
     if (pipeline.afterError) {
       try {

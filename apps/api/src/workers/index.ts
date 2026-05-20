@@ -45,6 +45,7 @@ import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
 import { closeSocialRenderQueue } from "@marketing-auto/pipelines/social-render-queue";
 import { startArticleQualityAnalysisWorker } from "./article-quality-analysis.worker.ts";
+import { seedStepPauseCleanupCron, startStepPauseCleanupWorker } from "./step-pause-cleanup.worker.ts";
 import { closeArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 import { startBatchProcessorWorker, closeBatchProcessorInfrastructure } from "./batch-processor.worker.ts";
 import { createLogger } from "@marketing-auto/shared";
@@ -187,6 +188,12 @@ async function main() {
   const socialRenderWorker = startSocialRenderWorker();
   const articleQualityAnalysisWorker = startArticleQualityAnalysisWorker();
   const batchProcessorWorker = startBatchProcessorWorker();
+  const stepPauseCleanupWorker = startStepPauseCleanupWorker();
+  // Spec 62.0a Section 4.5.3: seed cron_state rows on startup (idempotent). The
+  // orchestrator's next tick (within 60s) picks them up and creates the BullMQ
+  // repeat job. Seed lives in code, not SQL migration, because PostgreSQL forbids
+  // using a freshly-added enum value in the same session that added it.
+  await seedStepPauseCleanupCron();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -207,6 +214,7 @@ async function main() {
     await closeArticleQualityAnalysisQueue();
     await batchProcessorWorker.close();
     await closeBatchProcessorInfrastructure();
+    await stepPauseCleanupWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

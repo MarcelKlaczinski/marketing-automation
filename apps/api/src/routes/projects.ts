@@ -6,6 +6,7 @@ import type { StepContext } from "@marketing-auto/pipelines/engine";
 import { enqueueArticleOutlinePipeline, enqueueBlogGenerationPipeline, decideRoute, executeDecision } from "@marketing-auto/pipelines";
 import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { syncCronJobs } from "../workers/cron-orchestrator.ts";
+import { STEP_PAUSE_CLEANUP_CRON_PATTERN } from "../workers/step-pause-cleanup.worker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -251,6 +252,18 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       },
       automationRules: [],
     });
+
+    // Spec 62.0a Section 4.5.3: enable step-pause-cleanup by default for new projects.
+    // The orchestrator picks up the row within 60s and registers the 6h repeat job.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "step_pause_cleanup",
+        isActive: true,
+        cronPattern: STEP_PAUSE_CLEANUP_CRON_PATTERN,
+      })
+      .onConflictDoNothing();
   }
 
   return c.json({ ok: true, data: created }, 201);

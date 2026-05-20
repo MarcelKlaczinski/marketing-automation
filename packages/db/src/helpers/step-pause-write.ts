@@ -1,5 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "../client.ts";
+import { pipelineRuns } from "../schema/operations.ts";
 import { stepPauses, type NewStepPause, type StepPause } from "../schema/operations.ts";
 
 export interface PersistStepPauseInput {
@@ -97,5 +98,55 @@ export async function autoDismissStepPauses(
     })
     .where(and(eq(stepPauses.pipelineRunId, pipelineRunId), isNull(stepPauses.resolvedAt)))
     .returning({ id: stepPauses.id });
+  return rows.length;
+}
+
+/**
+ * Section 4.5.1: mark prior in-flight substeps as `superseded` before the runner
+ * re-executes a step (batch-resume, edit-input, edit-prompt). Targets only substep
+ * rows (parent_run_id = parentRunId AND step_name = stepName) that are still in a
+ * non-terminal state. Returns the number of rows transitioned.
+ */
+export async function supersedeOldSubstep(
+  parentRunId: string,
+  stepName: string
+): Promise<number> {
+  const rows = await db
+    .update(pipelineRuns)
+    .set({ status: "superseded", completedAt: new Date() })
+    .where(
+      and(
+        eq(pipelineRuns.parentRunId, parentRunId),
+        eq(pipelineRuns.stepName, stepName),
+        inArray(pipelineRuns.status, ["running", "batch_pending", "paused"] as const)
+      )
+    )
+    .returning({ id: pipelineRuns.id });
+  return rows.length;
+}
+
+/**
+ * Cleanup-worker variant: find stuck substep rows across ALL parent runs and mark
+ * them `superseded`. A substep is "stuck" when status='running', step_name IS NOT NULL,
+ * and started_at is older than the cutoff. Returns the number of rows reaped.
+ *
+ * Defense-in-depth for Section 4.5.3 — handles process-kill scenarios where the
+ * runner-level supersedeOldSubstep was never reached.
+ */
+export async function reapStuckSubsteps(cutoff: Date): Promise<number> {
+  const rows = await db
+    .update(pipelineRuns)
+    .set({ status: "superseded", completedAt: new Date() })
+    .where(
+      and(
+        eq(pipelineRuns.status, "running"),
+        // Substeps only — parent rows have step_name = NULL.
+        isNotNull(pipelineRuns.stepName),
+        // Date → ISO string per the SQL Date-Binding Convention in root CLAUDE.md.
+        // lt(col, Date) is fine — Drizzle's typed operators serialize Date correctly.
+        lt(pipelineRuns.startedAt, cutoff)
+      )
+    )
+    .returning({ id: pipelineRuns.id });
   return rows.length;
 }
