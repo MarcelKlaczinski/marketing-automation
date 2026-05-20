@@ -35,10 +35,28 @@ import {
 import { enqueueArticleOutlinePipeline } from "@marketing-auto/pipelines";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Queue } from "bullmq";
+import { readFile } from "node:fs/promises";
 import { and, desc, inArray } from "drizzle-orm";
 import IORedis from "ioredis";
 
 const log = createLogger("batch-resume-verify");
+
+async function workerIsAlive(): Promise<{ alive: boolean; pid?: number }> {
+  try {
+    const raw = await readFile("tmp/worker.pid", "utf8");
+    const pid = Number.parseInt(raw.trim(), 10);
+    if (!Number.isFinite(pid)) return { alive: false };
+    try {
+      // process.kill(pid, 0) throws ESRCH when no such process exists; success = alive.
+      process.kill(pid, 0);
+      return { alive: true, pid };
+    } catch {
+      return { alive: false, pid };
+    }
+  } catch {
+    return { alive: false };
+  }
+}
 
 const TOOLWIKI_SLUG = "toolwiki";
 const POLL_MS = 10_000;
@@ -124,6 +142,19 @@ async function main(): Promise<void> {
   console.log(`Article ID:     ${article.id}`);
   console.log(`Article status: ${article.status}`);
   console.log(`Anthropic key:  ${env.ANTHROPIC_API_KEY ? "set" : "<vault>"}`);
+
+  // Preflight: worker must be alive or the pipeline will hang at status='queued' forever.
+  const worker = await workerIsAlive();
+  if (!worker.alive) {
+    console.error(
+      `\n❌ Worker is not running${worker.pid ? ` (stale PID ${worker.pid} in tmp/worker.pid)` : " (no tmp/worker.pid)"}.\n` +
+        `   Start it first:\n` +
+        `     bun --filter @marketing-auto/api run worker:restart\n` +
+        `   Then re-run this script.`
+    );
+    process.exit(1);
+  }
+  console.log(`Worker:         alive (pid ${worker.pid})`);
   console.log(``);
 
   const originalMode = toolwiki.llmMode;
@@ -190,9 +221,12 @@ async function main(): Promise<void> {
     const startMs = Date.now();
     let lastParentStatus = "";
     let lastBatchStatus = "";
+    let lastHeartbeatMs = 0;
     let submitFired = false;
     let processFired = false;
     let batchRequestRow: { id: string; status: string } | null = null;
+
+    console.log(`Polling every ${POLL_MS / 1000}s. Heartbeat every 60s. Ctrl-C is safe (restores llm_mode).\n`);
 
     while (Date.now() - startMs < TIMEOUT_MS) {
       const [run] = await db
@@ -208,6 +242,14 @@ async function main(): Promise<void> {
       if (run.status !== lastParentStatus) {
         console.log(`  [${elapsed(startMs)}] parent_run.status: ${lastParentStatus || "(none)"} → ${run.status}`);
         lastParentStatus = run.status;
+        lastHeartbeatMs = Date.now();
+      } else if (Date.now() - lastHeartbeatMs > 60_000) {
+        const stillMsg =
+          run.status === "queued"
+            ? "still queued — worker may not be picking up the job"
+            : `still ${run.status}`;
+        console.log(`  [${elapsed(startMs)}] heartbeat: ${stillMsg}`);
+        lastHeartbeatMs = Date.now();
       }
 
       if (run.status === "completed" || run.status === "failed" || run.status === "cancelled") {
