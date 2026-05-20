@@ -463,6 +463,13 @@
       "when": 1784300000000,
       "tag": "0065_collection_type_enum",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1784400000000,
+      "tag": "0066_batch_api_worker_schema",
+      "breakpoints": true
     }
   ]
 }

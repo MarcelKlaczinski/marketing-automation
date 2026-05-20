@@ -99,6 +99,9 @@ export const projects = pgTable(
     producthuntSignalCronEnabled: boolean("producthunt_signal_cron_enabled").notNull().default(false),
     vendorRssSignalCronEnabled: boolean("vendor_rss_signal_cron_enabled").notNull().default(false),
 
+    // Spec 61.4: 'sync' = immediate LLM calls (default), 'batch' = Anthropic Batch API (50% cost, 24h delay)
+    llmMode: text("llm_mode").notNull().default("sync"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

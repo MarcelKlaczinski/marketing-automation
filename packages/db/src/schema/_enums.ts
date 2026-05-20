@@ -93,6 +93,7 @@ export const pipelineRunStatusEnum = pgEnum("pipeline_run_status", [
   "completed",
   "failed",
   "cancelled",
+  "batch_pending",  // Spec 61.4: pipeline suspended awaiting Anthropic Batch API result
 ]);
 
 export const approvalActionEnum = pgEnum("approval_action", [
