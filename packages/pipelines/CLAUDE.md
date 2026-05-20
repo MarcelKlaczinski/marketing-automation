@@ -430,11 +430,38 @@ const mockCtx = (projectId: string): StepContext => ({
   pipelineRunId: crypto.randomUUID(),
   stepRunId: crypto.randomUUID(),
   pipelineName: "test",
+  llmMode: "sync",          // Spec 61.4 — required
+  runMode: "production",    // Spec 62.0a — required
   log: createLogger("test"),
   reportProgress: async () => {},
   getStepOutput: () => undefined,
 });
 ```
+
+**Runner-mechanic tests** (e.g. step-pause + idempotency end-to-end on the runner itself, not on a single step) use the `TestPipeline` fixture in `test/fixtures/test-pipeline.ts`:
+
+- 3 steps with mixed `idempotencyKey()` behaviour (A + C cached, B not)
+- Step B is a "pseudo-LLM step" — reads `ctx.promptOverride?.[this.name]` directly without calling Anthropic, so tests stay deterministic + offline
+- No registry registration — tests call `runPipeline()` directly, bypassing BullMQ
+
+Driving the runner manually (simulating what the resolve service would do):
+
+```typescript
+const r2 = await runPipeline(new TestPipeline(), { x: 5 }, {
+  projectId,
+  runMode: "debug",
+  preRunId: r1.runId,
+  priorOutput: { "step-a": { value: 10 } },
+  stepPauseResume: {
+    stepName: "step-a",
+    action: "approve",
+    storedOutput: pauseA.stepOutput,
+    stepPauseId: pauseA.id,
+  },
+});
+```
+
+**`getLatestPause` helper** — when integration tests bypass the resolve service, prior pauses stay `resolved_at: NULL`. The helper sorts `step_pauses` by `requestedAt DESC LIMIT 1` to reliably return the most recent unresolved pause across re-entries. See `test/engine/step-pause-resume.test.ts` for the canonical implementation.
 
 **Live-gated tests** (call real APIs) use `describe.skipIf`:
 
