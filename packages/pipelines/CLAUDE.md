@@ -315,6 +315,30 @@ Auto-triggered from `BlogPipeline.afterComplete` when `project.targetLocales` in
 
 `ChainStep` is a **TypeScript-only union type** — no DB enum or CHECK constraint exists on `pipeline_chains`. Adding a new value requires only a Drizzle schema update (`packages/db/src/schema/content.ts`), no SQL DDL. The chain-orchestrator maintains two sequences: `LEGACY_STEP_SEQUENCE` (outline→draft→schema-de→localize→schema-en→astro-transfer) and `BLOG_STEP_SEQUENCE` (blog→localize→schema-en→astro-transfer). `isBlogEligible()` routes to the correct sequence at `startChain()` time.
 
+## Optional Steps (Spec 60.7 Patterns 102–104)
+
+**Pattern 102 — `shouldRun()` + `skipOutput()`**: the canonical guard for steps that should not execute in all projects. Override both methods on the step class:
+
+```typescript
+class MyOptionalStep extends BaseStep<Input, Output> {
+  override async shouldRun(ctx: StepContext): Promise<boolean> {
+    const [project] = await db.select({ featureFlag: projects.featureFlag })
+      .from(projects).where(eq(projects.id, ctx.projectId)).limit(1);
+    return !!project?.featureFlag;
+  }
+
+  override skipOutput(input: Input): Output {
+    return { ...input, jobIds: [] };   // valid Output shape, no cost incurred
+  }
+}
+```
+
+Never gate with an `if` at the top of `execute()` — use `shouldRun()` so the engine accounts for the skip in run records and the pipeline output remains Zod-valid.
+
+**Pattern 103 — `resolveAutoTemplates(config, suggestions)`**: the single source of truth for which social templates to auto-generate. `[]` = top-1 LLM suggestion (backward compat), `['__suggested__']` = all suggestions ≥ 0.6 confidence, explicit array = as-is with eligibility gate at enqueue time. Lives in `src/article/steps/social-generation.step.ts`. Always call it; never inline the resolution logic.
+
+**Pattern 104 — `template_renders` is canonical**: `social_posts` is legacy. No new rows should be written to `social_posts` after Spec 60.7. During the transition period both tables are read via `mergeRenderHistory()` in `ArticleSocialTab.vue`.
+
 ## afterComplete Hook
 
 `Pipeline` has an optional `afterComplete?(output, input): Promise<void>` hook called by the runner after all steps succeed. Use it for post-pipeline side-effects that must happen outside the step chain (e.g., auto-enqueuing a follow-up pipeline). The runner wraps it in its own `try-catch` — failures log a `warn` but do NOT mark the pipeline as failed or trigger BullMQ retries. If `afterComplete` fails silently, manual recovery is needed (e.g., `article:continue`).
@@ -493,6 +517,8 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT add `preRunId` to an existing enqueue wrapper as a required field — it must remain optional so internal callers (pipelines' `afterComplete` hooks) that don't have a `preRunId` continue working. Use `...(input.preRunId ? { preRunId: input.preRunId } : {})` conditional spread in the `enqueuePipeline()` call. See `enqueueTranslationPipeline` in `src/article/translation/trigger.ts` for the canonical pattern.
 - DO NOT copy DE `tags` to EN articles — tags are locale-specific strings. `TranslationBodyStep` outputs `enTags` (LLM-generated in EN) via the `<TAGS>` block; the bridge uses `body.enTags` instead of `s.deTags`. If the LLM emits no tags, EN article gets an empty array rather than German tags.
 - DO NOT add a new `@type` to `BuildJsonLdStep` without updating all four places: (1) `OutputSchema.addedTypes` z.enum, (2) the local `addedTypes` array type annotation, (3) the `existingMinusOurs` filter cast, (4) a `buildXxx()` helper function. Missing any one of them causes either a TypeScript error or a stale entry being left in `schemaJsonLd` on re-runs.
+- DO NOT write a new optional last-step input/output schema narrower than the preceding step's output when the pipeline output schema reads the last step directly — `BlogPipelineOutputSchema` expects `{ articleId, wordCount, selfReviewScore }` and the runner passes the final step's Zod-validated output as the pipeline result without calling `bridge()`. When the new step becomes the last step, include those fields as pass-through in both its input and output schemas. See `SocialGenerationStep` in `src/article/steps/social-generation.step.ts` for the canonical pattern.
+- DO NOT put the "should this step run?" guard inside `execute()` — implement `shouldRun(ctx): Promise<boolean>` on the step class instead. The engine calls `shouldRun()` before `execute()` and invokes `skipOutput(input)` when it returns false, giving the pipeline a valid output shape with zero cost. Never bypass this pattern with an `if` at the top of `execute()`. See `SocialGenerationStep` (Pattern 102, Spec 60.7).
 
 ## Trend Discovery Topic Source (Spec 54.5+)
 

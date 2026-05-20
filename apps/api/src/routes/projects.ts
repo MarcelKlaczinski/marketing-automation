@@ -167,6 +167,7 @@ projectRoutes.get("/:slug", async (c) => {
       autoPublish: proj.autoPublish,
       targetLocales: proj.targetLocales,
       socialAutoRenderLocales: proj.socialAutoRenderLocales,
+      socialAutoTemplates: proj.socialAutoTemplates,
       trendsCronEnabled: proj.trendsCronEnabled,
       refreshCronEnabled: proj.refreshCronEnabled,
       qualityAnalysisCronEnabled: proj.qualityAnalysisCronEnabled,
@@ -301,6 +302,8 @@ const updateProjectSchema = z.object({
   translationAutoTrigger: z.boolean().optional(),
   // Spec 57.1: auto-pipeline locale setting. 'one' = canonical only, 'all' = all targetLocales
   socialAutoRenderLocales: z.enum(["one", "all"]).optional(),
+  // Spec 60.7: which templates to auto-generate. [] = top-1 suggestion, ['__suggested__'] = all ≥ 0.6
+  socialAutoTemplates: z.array(z.string()).optional(),
   // Discovery automation (Spec 56.6 / 58.1)
   trendsCronEnabled: z.boolean().optional(),
   refreshCronEnabled: z.boolean().optional(),
@@ -345,6 +348,8 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
     setFields.translationAutoTrigger = input.translationAutoTrigger;
   if (input.socialAutoRenderLocales !== undefined)
     setFields.socialAutoRenderLocales = input.socialAutoRenderLocales;
+  if (input.socialAutoTemplates !== undefined)
+    setFields.socialAutoTemplates = input.socialAutoTemplates;
   if (input.trendsCronEnabled !== undefined) setFields.trendsCronEnabled = input.trendsCronEnabled;
   if (input.refreshCronEnabled !== undefined) setFields.refreshCronEnabled = input.refreshCronEnabled;
   if (input.qualityAnalysisCronEnabled !== undefined) setFields.qualityAnalysisCronEnabled = input.qualityAnalysisCronEnabled;

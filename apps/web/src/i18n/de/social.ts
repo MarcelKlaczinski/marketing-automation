@@ -86,6 +86,13 @@ export default {
       one: "Nur kanonische Sprache",
       all: "Alle konfigurierten Sprachen",
     },
+    autoTemplates: {
+      label: "Auto-Templates",
+      hint: "Welche Templates nach der Artikel-Generierung automatisch gerendert werden",
+      modeLlmTop1: "LLM-Empfehlung (Top-1, Konfidenz ≥ 60%)",
+      modeAllSuggested: "Alle Empfehlungen (Konfidenz ≥ 60%)",
+      modeManual: "Manuell auswählen",
+    },
   },
   templateOverrides: {
     title: "Template-Overrides",

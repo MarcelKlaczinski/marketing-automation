@@ -125,6 +125,28 @@ export async function runPipeline<TInput, TOutput>(
         getStepOutput: <T>(name: string) => stepOutputs[name] as T | undefined,
       };
 
+      // Pattern 102 (Spec 60.7): optional steps declare shouldRun(); skip cleanly when false.
+      if (step.shouldRun) {
+        const run = await step.shouldRun(ctx);
+        if (!run) {
+          stepLog.info({ stepIndex: i }, "Step skipped (shouldRun = false)");
+          const rawSkip = step.skipOutput ? step.skipOutput(stepInput) : stepInput;
+          const validatedSkip = step.outputSchema.parse(rawSkip);
+          await db
+            .update(pipelineRuns)
+            .set({ status: "completed", output: validatedSkip as Record<string, unknown>, completedAt: new Date() })
+            .where(eq(pipelineRuns.id, stepRunId));
+          stepOutputs[step.name] = validatedSkip;
+          if (i < pipeline.steps.length - 1) {
+            const nextStep = pipeline.steps[i + 1] as BaseStep<unknown, unknown>;
+            currentInput = pipeline.bridge(step, nextStep, validatedSkip, validatedInput, ctx.getStepOutput);
+          } else {
+            currentInput = validatedSkip;
+          }
+          continue;
+        }
+      }
+
       lastStepName = step.name;
       const stepStartTime = Date.now();
       let stepOutput: unknown;

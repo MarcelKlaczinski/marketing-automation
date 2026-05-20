@@ -241,6 +241,61 @@
             </label>
           </div>
         </FormField>
+
+        <FormField
+          :label="$t('social.settings.autoTemplates.label')"
+          :helper="$t('social.settings.autoTemplates.hint')"
+        >
+          <div class="radio-group">
+            <label class="radio-row">
+              <input
+                type="radio"
+                value="llm-top1"
+                :checked="autoTemplatesMode === 'llm-top1'"
+                @change="onAutoTemplatesModeChange('llm-top1')"
+                class="radio-input"
+              />
+              <span>{{ $t("social.settings.autoTemplates.modeLlmTop1") as string }}</span>
+            </label>
+            <label class="radio-row">
+              <input
+                type="radio"
+                value="all-suggested"
+                :checked="autoTemplatesMode === 'all-suggested'"
+                @change="onAutoTemplatesModeChange('all-suggested')"
+                class="radio-input"
+              />
+              <span>{{ $t("social.settings.autoTemplates.modeAllSuggested") as string }}</span>
+            </label>
+            <label class="radio-row">
+              <input
+                type="radio"
+                value="manual"
+                :checked="autoTemplatesMode === 'manual'"
+                @change="onAutoTemplatesModeChange('manual')"
+                class="radio-input"
+              />
+              <span>{{ $t("social.settings.autoTemplates.modeManual") as string }}</span>
+            </label>
+          </div>
+
+          <div v-if="autoTemplatesMode === 'manual'" class="template-checklist">
+            <label
+              v-for="key in knownTemplateKeys"
+              :key="key"
+              class="check-row"
+            >
+              <input
+                type="checkbox"
+                :value="key"
+                :checked="socialForm.formData.value.socialAutoTemplates.includes(key)"
+                @change="toggleTemplateKey(key)"
+                class="checkbox-input"
+              />
+              <span class="mono">{{ key }}</span>
+            </label>
+          </div>
+        </FormField>
       </FormSection>
 
       <!-- Section 8: Discovery automation -->
@@ -396,7 +451,49 @@ export default defineComponent({
     importInFlight: false,
   }),
 
+  computed: {
+    knownTemplateKeys(): string[] {
+      return [
+        "comparison-grid-4",
+        "comparison-grid-3",
+        "single-tool-spotlight",
+        "verdict-per-use-case",
+        "pro-con-verdict",
+      ];
+    },
+
+    autoTemplatesMode(): "llm-top1" | "all-suggested" | "manual" {
+      const v = this.socialForm.formData.value.socialAutoTemplates;
+      if (v.length === 0) return "llm-top1";
+      if (v.length === 1 && v[0] === "__suggested__") return "all-suggested";
+      return "manual";
+    },
+  },
+
   methods: {
+    onAutoTemplatesModeChange(mode: "llm-top1" | "all-suggested" | "manual"): void {
+      if (mode === "llm-top1") {
+        this.socialForm.formData.value.socialAutoTemplates = [];
+      } else if (mode === "all-suggested") {
+        this.socialForm.formData.value.socialAutoTemplates = ["__suggested__"];
+      } else {
+        // Manual: start with empty selection if coming from non-manual mode
+        if (this.autoTemplatesMode !== "manual") {
+          this.socialForm.formData.value.socialAutoTemplates = [];
+        }
+      }
+    },
+
+    toggleTemplateKey(key: string): void {
+      const current = this.socialForm.formData.value.socialAutoTemplates;
+      const idx = current.indexOf(key);
+      if (idx === -1) {
+        this.socialForm.formData.value.socialAutoTemplates = [...current, key];
+      } else {
+        this.socialForm.formData.value.socialAutoTemplates = current.filter((k) => k !== key);
+      }
+    },
+
     async onTriggerImport(): Promise<void> {
       const slug = (this.$route.params.slug as string);
       this.importInFlight = true;
@@ -489,6 +586,30 @@ export default defineComponent({
   height: 16px;
   cursor: pointer;
   accent-color: var(--accent-primary);
+}
+
+.template-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.02));
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.mono {
+  font-family: var(--font-mono, monospace);
 }
 
 /* Discovery section */

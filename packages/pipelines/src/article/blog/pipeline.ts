@@ -1,6 +1,4 @@
-import { articleDiscovery, articles, db, eq, projects } from "@marketing-auto/db";
-import type { ArticleDiscoverySuggestedTemplates } from "@marketing-auto/db";
-import { enqueueSocialImagePipeline } from "../social-image/trigger.ts";
+import { articles, db, eq, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
@@ -21,6 +19,7 @@ import { ToolRelevanceStep } from "../tool-linker/resolve-step.ts";
 import { ResearchStep } from "../steps/research.ts";
 import { OutlineStep } from "../steps/outline.ts";
 import { PersistOutlineStep } from "../steps/persist-outline.ts";
+import { SocialGenerationStep } from "../steps/social-generation.step.ts";
 
 const log = createLogger("pipelines:blog");
 
@@ -117,19 +116,20 @@ export class BlogPipeline extends Pipeline<
   readonly outputSchema = BlogPipelineOutputSchema;
 
   readonly steps = [
-    new AuthorPickStep(),      // 1. Pick + assign author
-    new ToolRelevanceStep(),   // 2. Resolve source + tools context
-    new TopicIntakeStep(),     // 3. Load article/cluster/project from DB
-    new ResearchStep(),        // 4. SERP research
-    new OutlineStep(),         // 5. LLM outline (source + tools context injected)
-    new PersistOutlineStep(),  // 6. Checkpoint: save outline
-    new DraftStep(),           // 7. LLM draft (source + tools context injected)
-    new PersistBodyStep(),     // 8. Checkpoint: save body immediately
-    new ToolLinkerStep(),      // 9. Linkify tool mentions
-    new SelfReviewStep(),      // 10. Quality check
-    new HeroImageStep(),       // 11. Hero image generation
-    new AssemblyStep(),        // 12. JSON-LD schema
-    new PersistArticleStep(),  // 13. Final persist
+    new AuthorPickStep(),         // 1.  Pick + assign author
+    new ToolRelevanceStep(),      // 2.  Resolve source + tools context
+    new TopicIntakeStep(),        // 3.  Load article/cluster/project from DB
+    new ResearchStep(),           // 4.  SERP research
+    new OutlineStep(),            // 5.  LLM outline (source + tools context injected)
+    new PersistOutlineStep(),     // 6.  Checkpoint: save outline
+    new DraftStep(),              // 7.  LLM draft (source + tools context injected)
+    new PersistBodyStep(),        // 8.  Checkpoint: save body immediately
+    new ToolLinkerStep(),         // 9.  Linkify tool mentions
+    new SelfReviewStep(),         // 10. Quality check
+    new HeroImageStep(),          // 11. Hero image generation
+    new AssemblyStep(),           // 12. JSON-LD schema
+    new PersistArticleStep(),     // 13. Final persist
+    new SocialGenerationStep(),   // 14. Optional: auto social renders (skipped when socialAutoRenderLocales unset)
   ] as const;
 
   override bridge(
@@ -275,6 +275,12 @@ export class BlogPipeline extends Pipeline<
       };
     }
 
+    // persist-article → social-generation: carry pipeline output fields for pass-through
+    if (fromStep.name === "persist-article" && toStep.name === "social-generation") {
+      const pa = output as { articleId: string; wordCount: number; selfReviewScore: number };
+      return { articleId: pa.articleId, wordCount: pa.wordCount, selfReviewScore: pa.selfReviewScore };
+    }
+
     // assembly → persist-article: collect all step outputs
     if (fromStep.name === "assembly" && toStep.name === "persist-article") {
       // tool-linker always runs in BlogPipeline (step 9) — guaranteed non-null
@@ -408,44 +414,19 @@ export class BlogPipeline extends Pipeline<
       }
     }
 
-    // Spec 60.6: auto-trigger social render when socialAutoRenderLocales is set
-    try {
-      const [project] = await db
-        .select({ socialAutoRenderLocales: projects.socialAutoRenderLocales, targetLocales: projects.targetLocales })
-        .from(projects)
-        .where(eq(projects.id, pipelineInput.projectId))
-        .limit(1);
+  }
 
-      if (project?.socialAutoRenderLocales) {
-        const [discovery] = await db
-          .select({ suggestedTemplates: articleDiscovery.suggestedTemplates })
-          .from(articleDiscovery)
-          .where(eq(articleDiscovery.articleId, pipelineInput.articleId))
-          .limit(1);
-
-        const suggestions: ArticleDiscoverySuggestedTemplates = discovery?.suggestedTemplates ?? [];
-        const top1 = suggestions
-          .filter((s) => s.confidence >= 0.6)
-          .sort((a, b) => b.confidence - a.confidence)[0] ?? null;
-
-        const locales = project.socialAutoRenderLocales === "all"
-          ? (project.targetLocales ?? ["de-DE"])
-          : [articleLocale === "en" ? "en-US" : "de-DE"];
-
-        await enqueueSocialImagePipeline({
-          articleId: pipelineInput.articleId,
-          projectId: pipelineInput.projectId,
-          locales,
-          theme: "dark",
-          ...(top1 ? { templateKey: top1.templateKey } : {}),
-        });
-        log.info(
-          { articleId: pipelineInput.articleId, templateKey: top1?.templateKey ?? null, locales },
-          "[blog] auto-triggered social render after blog completion"
-        );
-      }
-    } catch (e) {
-      log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] social auto-render trigger failed — skipped");
-    }
+  /**
+   * Runs the full article pipeline including social generation.
+   * Stub for Content Planner batch jobs (Theme 62).
+   *
+   * @param brief   Article generation brief
+   * @param social  Social generation config (overrides project defaults)
+   *
+   * TODO(Theme 62): implement full batch execution with social override support.
+   */
+  // biome-ignore lint/suspicious/noExplicitAny: stub — not yet implemented
+  async runWithSocial(_brief: any, _social?: { templates?: string[]; locales?: ("de" | "en")[]; theme?: "dark" | "light" }): Promise<{ articleId: string; socialJobIds: string[] }> {
+    throw new Error("BlogPipeline.runWithSocial() is not yet implemented. Use article:blog pipeline + SocialGenerationStep for auto-generation.");
   }
 }

@@ -81,6 +81,10 @@ export const projects = pgTable(
     // Stored but unused today — manual UI gives per-trigger choice; this setting is for Phase E automation.
     socialAutoRenderLocales: text("social_auto_render_locales").notNull().default("one"),
 
+    // Spec 60.7: which templates to auto-generate after article pipeline.
+    // [] = top-1 LLM suggestion; ['__suggested__'] = all suggestions ≥ 0.6; explicit list = those templates.
+    socialAutoTemplates: text("social_auto_templates").array().notNull().default([]),
+
     // Spec 56.6: Discovery automation config
     trendsCronEnabled: boolean("trends_cron_enabled").notNull().default(false),
     refreshCronEnabled: boolean("refresh_cron_enabled").notNull().default(false),

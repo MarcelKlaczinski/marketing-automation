@@ -152,7 +152,7 @@ describe("BlogPipeline — step name constants", () => {
   it("BlogPipeline has expected step count", async () => {
     const { BlogPipeline } = await import("../../../src/article/blog/pipeline.ts");
     const pipeline = new BlogPipeline();
-    expect(pipeline.steps.length).toBe(13);
+    expect(pipeline.steps.length).toBe(14);
   });
 
   it("BlogPipeline steps are in expected order", async () => {

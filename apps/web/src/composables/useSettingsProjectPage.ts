@@ -42,6 +42,7 @@ interface ProjectSettingsData {
   costLimits: CostLimits;
   translationAutoTrigger: boolean;
   socialAutoRenderLocales: string;
+  socialAutoTemplates: string[];
   trendsCronEnabled: boolean;
   refreshCronEnabled: boolean;
   qualityAnalysisCronEnabled: boolean;
@@ -155,9 +156,13 @@ export function useSettingsProjectPage(slug: string) {
   const socialForm = useSectionForm({
     initialData: () => ({
       socialAutoRenderLocales: project.value?.socialAutoRenderLocales ?? "one",
+      socialAutoTemplates: project.value?.socialAutoTemplates ?? ([] as string[]),
     }),
     onSave: (data) =>
-      apiPatch(`/projects/${slug}`, { socialAutoRenderLocales: data.socialAutoRenderLocales as "one" | "all" }),
+      apiPatch(`/projects/${slug}`, {
+        socialAutoRenderLocales: data.socialAutoRenderLocales as "one" | "all",
+        socialAutoTemplates: data.socialAutoTemplates as string[],
+      }),
     invalidateKeys: [["project-settings", slug]],
   });
 

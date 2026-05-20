@@ -74,4 +74,19 @@ export abstract class BaseStep<TInput, TOutput> {
   estimatedCostEur(_input: TInput): number {
     return 0;
   }
+
+  /**
+   * Optional guard for optional pipeline steps (Pattern 102, Spec 60.7).
+   * When defined and returns false, the step is skipped (execute() is not called).
+   * The runner calls skipOutput() to determine the skipped step's output.
+   * Default: undefined (step always runs).
+   */
+  shouldRun?(ctx: StepContext): Promise<boolean>;
+
+  /**
+   * Returns the output to use when the step is skipped via shouldRun() → false.
+   * Must be a valid instance of TOutput (will be parsed through outputSchema).
+   * Required when shouldRun() is defined.
+   */
+  skipOutput?(_input: TInput): TOutput;
 }

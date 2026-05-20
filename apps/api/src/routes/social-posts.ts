@@ -801,6 +801,65 @@ socialPostRoutes.get("/:articleId/template-renders", async (c) => {
   return c.json({ ok: true, data: { renders: data } });
 });
 
+// ─── POST /api/articles/:articleId/template-renders/:renderId/re-render ──────
+// Spec 60.7: re-renders a template_renders row using fresh brand tokens + overrides.
+// Analogous to social-posts/:id/re-render but for the template_renders table.
+
+socialPostRoutes.post("/:articleId/template-renders/:renderId/re-render", async (c) => {
+  const { articleId, renderId } = c.req.param();
+
+  const [render] = await db
+    .select()
+    .from(templateRenders)
+    .where(and(eq(templateRenders.id, renderId), eq(templateRenders.articleId, articleId)))
+    .limit(1);
+  if (!render) return c.json({ ok: false, error: "Template render not found" }, 404);
+
+  if (render.status === "rendering" || render.status === "pending") {
+    return c.json({ ok: false, error: "Render already in progress" }, 409);
+  }
+  if (!render.renderInput) {
+    return c.json({ ok: false, error: "No render input snapshot available for this render" }, 422);
+  }
+
+  // Supersede the existing row and insert a fresh one so the re-render has its own row
+  await db
+    .update(templateRenders)
+    .set({ status: "superseded" })
+    .where(eq(templateRenders.id, renderId));
+
+  const insertValues: typeof templateRenders.$inferInsert = {
+    articleId: render.articleId,
+    templateKey: render.templateKey,
+    locale: render.locale,
+    theme: render.theme,
+    status: "pending",
+    renderInput: render.renderInput,
+    userOverride: render.userOverride,
+  };
+  if (render.suggestedTemplate !== null && render.suggestedTemplate !== undefined) {
+    insertValues.suggestedTemplate = render.suggestedTemplate;
+  }
+  if (render.suggestionConfidence !== null && render.suggestionConfidence !== undefined) {
+    insertValues.suggestionConfidence = render.suggestionConfidence;
+  }
+  if (render.suggestionReason !== null && render.suggestionReason !== undefined) {
+    insertValues.suggestionReason = render.suggestionReason;
+  }
+
+  const [newRow] = await db
+    .insert(templateRenders)
+    .values(insertValues)
+    .returning({ id: templateRenders.id });
+
+  if (!newRow) return c.json({ ok: false, error: "Failed to create re-render row" }, 500);
+
+  const { jobId } = await enqueueTemplateRenderJob(newRow.id);
+  log.info({ articleId, originalRenderId: renderId, newRenderId: newRow.id, jobId }, "Template render re-enqueued");
+
+  return c.json({ ok: true, data: { jobId, renderId: newRow.id } });
+});
+
 // ─── GET /api/template-renders/:id/download ──────────────────────────────────
 
 export const templateRenderDetailRoutes = new Hono();

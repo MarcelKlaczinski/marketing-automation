@@ -114,7 +114,7 @@
       <div class="section">
         <h3 class="section-title">{{ $t("social.templatePicker.generatedHeading") as string }}</h3>
 
-        <LoadingShimmer v-if="isLoading" variant="card" :count="2" />
+        <LoadingShimmer v-if="historyLoading" variant="card" :count="2" />
 
         <EmptyState
           v-else-if="!posts.length"
@@ -182,7 +182,7 @@
                       variant="ghost"
                       size="sm"
                       :loading="downloadingId === post.id"
-                      @click="onDownload(post.id)"
+                      @click="onDownload(post)"
                     >
                       {{ $t("social.download") as string }}
                     </GlassButton>
@@ -337,9 +337,60 @@ interface SocialPost {
   content?: SocialPostContent | null;
 }
 
+// Spec 60.7: template_renders API response shape
+interface TemplateRender {
+  id: string;
+  templateKey: string | null;
+  displayName: string | null;
+  locale: string;
+  theme: string;
+  status: string; // pending | rendering | ready | failed | superseded
+  slides: Array<{ imageUrl: string }> | null;
+  costUsd: string | null;
+  createdAt: string | null;
+}
+
+// Unified history item — discriminated union covers both tables
+interface HistoryPost extends SocialPost {
+  _source: "template_render" | "social_post";
+}
+
 interface LocaleGroup {
   locale: string;
-  posts: SocialPost[];
+  posts: HistoryPost[];
+}
+
+// Approximate EUR/USD rate for frontend display only (not financial accounting)
+const EUR_PER_USD_APPROX = 0.92;
+
+function templateRenderToHistoryPost(r: TemplateRender): HistoryPost {
+  // Map template_renders.status to the renderStatus vocabulary used by the history UI
+  const renderStatus = r.status === "ready" ? "rendered" : r.status;
+  return {
+    _source: "template_render",
+    id: r.id,
+    locale: r.locale ?? "de-DE",
+    status: "draft",
+    renderStatus,
+    renderError: null,
+    totalSlides: r.slides?.length ?? 0,
+    costEur: r.costUsd && !isNaN(parseFloat(r.costUsd)) ? String((parseFloat(r.costUsd) * EUR_PER_USD_APPROX).toFixed(4)) : null,
+    createdAt: r.createdAt ?? new Date().toISOString(),
+    templateKey: r.templateKey,
+    content: {
+      slides: r.slides ?? [],
+      hashtags: [],
+    },
+  };
+}
+
+function mergeRenderHistory(renders: TemplateRender[], legacyPosts: SocialPost[]): HistoryPost[] {
+  const active = renders.filter((r) => r.status !== "superseded");
+  const renderItems: HistoryPost[] = active.map(templateRenderToHistoryPost);
+  const legacyItems: HistoryPost[] = legacyPosts.map((p) => ({ ...p, _source: "social_post" as const }));
+  return [...renderItems, ...legacyItems].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 interface EligibilityResult {
@@ -388,9 +439,15 @@ export default defineComponent({
     const queryClient = useQueryClient();
     const projectStore = useProjectStore();
 
-    const { data: postsData, isLoading } = useQuery({
+    const { data: postsData, isLoading: postsLoading } = useQuery({
       queryKey: ["social-posts", props.articleId],
       queryFn: () => apiGet<SocialPost[]>(`/articles/${props.articleId}/social-posts`),
+    });
+
+    // Spec 60.7: also load template_renders (canonical post-60.7 table)
+    const { data: rendersData, isLoading: rendersLoading } = useQuery({
+      queryKey: ["template-renders", props.articleId],
+      queryFn: () => apiGet<{ renders: TemplateRender[] }>(`/articles/${props.articleId}/template-renders`),
     });
 
     const { data: projectData } = useQuery({
@@ -399,7 +456,7 @@ export default defineComponent({
       enabled: !!projectStore.currentSlug,
     });
 
-    return { postsData, isLoading, projectData, queryClient, projectStore };
+    return { postsData, postsLoading, rendersData, rendersLoading, projectData, queryClient, projectStore };
   },
 
   data() {
@@ -427,8 +484,14 @@ export default defineComponent({
   },
 
   computed: {
-    posts(): SocialPost[] {
-      return (this.postsData as SocialPost[] | undefined) ?? [];
+    historyLoading(): boolean {
+      return (this.postsLoading as boolean) || (this.rendersLoading as boolean);
+    },
+
+    posts(): HistoryPost[] {
+      const renders = (this.rendersData as { renders: TemplateRender[] } | undefined)?.renders ?? [];
+      const legacy = (this.postsData as SocialPost[] | undefined) ?? [];
+      return mergeRenderHistory(renders, legacy);
     },
 
     availableLocales(): string[] {
@@ -440,7 +503,7 @@ export default defineComponent({
     },
 
     groupedPosts(): LocaleGroup[] {
-      const groups: Record<string, SocialPost[]> = {};
+      const groups: Record<string, HistoryPost[]> = {};
       for (const post of this.posts) {
         const loc = post.locale ?? "de-DE";
         if (!groups[loc]) groups[loc] = [];
@@ -529,6 +592,7 @@ export default defineComponent({
         await apiPost(`/articles/${this.articleId}/generate-templates`, body);
         this.$q.notify({ type: "positive", message: this.$t("social.render.enqueuedHint") as string });
         void this.queryClient.invalidateQueries({ queryKey: ["social-posts", this.articleId] });
+        void this.queryClient.invalidateQueries({ queryKey: ["template-renders", this.articleId] });
       } catch (err) {
         this.$q.notify({
           type: "negative",
@@ -557,7 +621,7 @@ export default defineComponent({
       return key ? (this.$t(key) as string) : status;
     },
 
-    postSlideUrls(post: SocialPost): string[] {
+    postSlideUrls(post: HistoryPost): string[] {
       return post.content?.slides?.map((s) => s.imageUrl) ?? [];
     },
 
@@ -565,47 +629,59 @@ export default defineComponent({
       this.expandedPostId = this.expandedPostId === postId ? null : postId;
     },
 
-    canReRender(post: SocialPost): boolean {
+    canReRender(post: HistoryPost): boolean {
       return post.renderStatus === "rendered" || post.renderStatus === "failed";
     },
 
-    confirmReRender(post: SocialPost): void {
+    confirmReRender(post: HistoryPost): void {
       this.$q.dialog({
         title: this.$t("social.reRenderConfirm.title") as string,
         message: this.$t("social.reRenderConfirm.message") as string,
         ok: { label: this.$t("social.reRenderConfirm.ok") as string, color: "primary", flat: true },
         cancel: { flat: true },
       }).onOk(() => {
-        void this.triggerReRender(post.id);
+        void this.triggerReRender(post);
       });
     },
 
-    async triggerReRender(postId: string): Promise<void> {
-      this.reRenderingIds = [...this.reRenderingIds, postId];
+    async triggerReRender(post: HistoryPost): Promise<void> {
+      this.reRenderingIds = [...this.reRenderingIds, post.id];
       try {
-        await apiPost(`/social-posts/${postId}/re-render`);
-        void this.queryClient.invalidateQueries({ queryKey: ["social-posts", this.articleId] });
+        if (post._source === "template_render") {
+          await apiPost(`/articles/${this.articleId}/template-renders/${post.id}/re-render`);
+          void this.queryClient.invalidateQueries({ queryKey: ["template-renders", this.articleId] });
+        } else {
+          await apiPost(`/social-posts/${post.id}/re-render`);
+          void this.queryClient.invalidateQueries({ queryKey: ["social-posts", this.articleId] });
+        }
       } catch (err) {
         this.$q.notify({
           type: "negative",
           message: err instanceof Error ? err.message : (this.$t("social.reRenderFailed") as string),
         });
       } finally {
-        this.reRenderingIds = this.reRenderingIds.filter((id) => id !== postId);
+        this.reRenderingIds = this.reRenderingIds.filter((id) => id !== post.id);
       }
     },
 
-    async onDownload(postId: string): Promise<void> {
-      this.downloadingId = postId;
+    async onDownload(post: HistoryPost): Promise<void> {
+      this.downloadingId = post.id;
       try {
         const base = (import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:3000/api";
-        const res = await fetch(`${base}/social-posts/${postId}/download-bundle`, { credentials: "include" });
+        // raw fetch required: apiPost assumes JSON; file download needs binary stream
+        const url = post._source === "template_render"
+          ? `${base}/template-renders/${post.id}/download`
+          : `${base}/social-posts/${post.id}/download-bundle`;
+        const filename = post._source === "template_render"
+          ? `template-render-${post.id}.zip`
+          : `social-post-${post.id}.zip`;
+        const res = await fetch(url, { credentials: "include" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         const objUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = objUrl;
-        a.download = `social-post-${postId}.zip`;
+        a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -617,7 +693,7 @@ export default defineComponent({
       }
     },
 
-    openPreview(post: SocialPost, slideIdx: number): void {
+    openPreview(post: HistoryPost, slideIdx: number): void {
       const urls = this.postSlideUrls(post);
       if (urls.length === 0) return;
       this.preview = {
