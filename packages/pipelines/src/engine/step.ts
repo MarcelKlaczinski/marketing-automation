@@ -22,6 +22,22 @@ export type StepContext = {
    * Steps that call LLMs must check this first and bypass the actual LLM call.
    */
   batchResult?: { stepKey: string; content: string };
+  /**
+   * Spec 62.0a: pipeline execution mode.
+   * 'production' (default): runner executes every step end-to-end.
+   * 'debug': after each pausable step's successful execute(), the runner persists a
+   * step_pauses row and suspends the pipeline (status='paused'). The user resolves
+   * the pause via POST /pipeline-runs/:id/step-pauses/:id/resolve, which re-enqueues
+   * with PipelineRunOptions.stepPauseResume populated.
+   */
+  runMode: "production" | "debug";
+  /**
+   * Spec 62.0a: per-step prompt override populated by the 'edit-prompt' resume action.
+   * LLM steps must consume via `resolvePrompt(ctx, this.name, () => buildSystemPrompt(...))`
+   * from `@marketing-auto/pipelines/prompt-resolver`. Keyed by step.name so a pipeline
+   * with multiple LLM steps (e.g. BlogPipeline.Outline + .Draft) does not collide.
+   */
+  promptOverride?: Record<string, string>;
   /** ID of this step's pipeline_runs row (sub-run of the pipeline run) */
   stepRunId: string;
   /** Pipeline name for logging */
@@ -101,4 +117,13 @@ export abstract class BaseStep<TInput, TOutput> {
    * Required when shouldRun() is defined.
    */
   skipOutput?(_input: TInput): TOutput;
+
+  /**
+   * Spec 62.0a: whether this step is pausable in debug mode.
+   * Default: true. Override to false for trivial steps (DB persist, status updates)
+   * where pausing adds no inspection value. Production-mode runs ignore this entirely.
+   */
+  pausableInDebug(): boolean {
+    return true;
+  }
 }

@@ -1,5 +1,14 @@
 import { publishPipelineEvent } from "@marketing-auto/core/events";
-import { db, pipelineRuns, projects } from "@marketing-auto/db";
+import {
+  autoDismissStepPauses,
+  db,
+  getIdempotencyOutput,
+  persistStepPause,
+  pipelineRuns,
+  projects,
+  type StepAction,
+  writeIdempotencyOutput,
+} from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import type { Pipeline } from "./pipeline.ts";
@@ -7,6 +16,23 @@ import type { BaseStep, StepContext } from "./step.ts";
 import type { BatchCheckpoint } from "@marketing-auto/db";
 
 const log = createLogger("pipeline-runner");
+
+/**
+ * Spec 62.0a: payload reconstructed by step-pause-service from a resolved step_pauses row,
+ * passed back through enqueuePipeline → runPipeline. The runner uses `action` to decide
+ * whether to skip the step (approve / edit-output / promote-golden), re-execute with
+ * overridden input (edit-input), re-execute with overridden prompt (edit-prompt), or
+ * abort / re-suspend (abort / extract-for-optimization).
+ */
+export interface StepPauseResume {
+  stepName: string;
+  action: StepAction;
+  storedOutput: unknown;
+  editedInput?: unknown;
+  editedOutput?: unknown;
+  editedPrompt?: string;
+  stepPauseId: string;
+}
 
 export type PipelineRunOptions = {
   projectId: string;
@@ -19,6 +45,14 @@ export type PipelineRunOptions = {
   resumeFromStep?: string;
   batchResult?: { stepKey: string; content: string };
   priorOutput?: Record<string, unknown>;
+  // Spec 62.0a: execution mode + LLM mode override + step-pause resume payload + prompt override
+  runMode?: "production" | "debug";
+  overrideLlmMode?: "sync" | "batch";
+  stepPauseResume?: StepPauseResume;
+  /** Per-step prompt overrides keyed by step.name. Populated by edit-prompt resume action. */
+  promptOverride?: Record<string, string>;
+  /** Per-step input overrides keyed by step.name. Populated by edit-input resume action. */
+  stepInputOverride?: Record<string, unknown>;
 };
 
 export type PipelineRunResult<TOutput> =
@@ -43,12 +77,25 @@ export type PipelineRunResult<TOutput> =
       stepOutputs: Record<string, unknown>;
       stepKey: string;
       batchRequestId: string;
+    }
+  | {
+      // Spec 62.0a: pipeline suspended awaiting user resolution of a step-pause.
+      // BullMQ treats this as a successful job completion (no retry); the API
+      // endpoint POST /pipeline-runs/:id/step-pauses/:id/resolve re-enqueues.
+      ok: false;
+      suspended: true;
+      runId: string;
+      error: "step_paused" | "step_extract_for_optimization";
+      failedAtStep: "";
+      stepOutputs: Record<string, unknown>;
+      stepKey: string;
+      stepPauseId: string;
     };
 
-/** Type guard: true when the pipeline suspended waiting for a batch API result (Spec 61.4). */
+/** Type guard: true when the pipeline suspended waiting for batch result OR user step-pause resolution. */
 export function isPipelineSuspended<T>(
   result: PipelineRunResult<T>
-): result is { ok: false; suspended: true; runId: string; stepKey: string; batchRequestId: string; error: "batch_suspended"; failedAtStep: ""; stepOutputs: Record<string, unknown> } {
+): result is Extract<PipelineRunResult<T>, { suspended: true }> {
   return !result.ok && (result as { suspended?: boolean }).suspended === true;
 }
 
@@ -67,13 +114,16 @@ export async function runPipeline<TInput, TOutput>(
 ): Promise<PipelineRunResult<TOutput>> {
   const validatedInput = pipeline.inputSchema.parse(input);
 
-  // Spec 61.4: load project's LLM mode once at pipeline start and pass to every step
+  // Spec 61.4: load project's LLM mode once at pipeline start and pass to every step.
+  // Spec 62.0a: PipelineRunOptions.overrideLlmMode is a per-run escape hatch.
   const [projectRow] = await db
     .select({ llmMode: projects.llmMode })
     .from(projects)
     .where(eq(projects.id, options.projectId))
     .limit(1);
-  const llmMode = (projectRow?.llmMode ?? "sync") as "sync" | "batch";
+  const projectLlmMode = (projectRow?.llmMode ?? "sync") as "sync" | "batch";
+  const llmMode: "sync" | "batch" = options.overrideLlmMode ?? projectLlmMode;
+  const runMode: "production" | "debug" = options.runMode ?? "production";
 
   let runId: string;
   if (options.preRunId) {
@@ -113,12 +163,102 @@ export async function runPipeline<TInput, TOutput>(
   const stepOutputs: Record<string, unknown> = {};
   let currentInput: unknown = validatedInput;
   let lastStepName = "(none)";
+  // Spec 62.0a: edit-input and edit-prompt resume actions install per-step overrides
+  // that the loop applies before each step's input/ctx is built.
+  const stepInputOverride: Record<string, unknown> = { ...(options.stepInputOverride ?? {}) };
+  const promptOverride: Record<string, string> = { ...(options.promptOverride ?? {}) };
+  let resumeFromStep: string | undefined = options.resumeFromStep;
 
-  // Spec 61.4: pre-populate stepOutputs from batch resume checkpoint so the runner
-  // can skip steps that already completed before the pipeline suspended.
+  // Spec 61.4 + 62.0a: pre-populate stepOutputs from the suspension checkpoint so the runner
+  // can skip steps that already completed before the pipeline suspended. Used by both
+  // batch resume (BatchCheckpoint.accumulatedOutput) and step-pause resume.
   if (options.priorOutput) {
     for (const [k, v] of Object.entries(options.priorOutput)) {
       stepOutputs[k] = v;
+    }
+  }
+
+  // Spec 62.0a Section 4.3: translate step-pause resume action into runner state.
+  // Six user-driven actions reach the runner; extract-for-optimization and auto-dismissed
+  // are handled by the resolve service (no re-enqueue) and should never appear here.
+  if (options.stepPauseResume) {
+    const resume = options.stepPauseResume;
+    const targetIdx = pipeline.steps.findIndex((s) => s.name === resume.stepName);
+    if (targetIdx === -1) {
+      throw new Error(
+        `stepPauseResume references unknown step '${resume.stepName}' in pipeline '${pipeline.name}'`
+      );
+    }
+    const targetStep = pipeline.steps[targetIdx] as BaseStep<unknown, unknown>;
+
+    switch (resume.action) {
+      case "abort": {
+        await db
+          .update(pipelineRuns)
+          .set({ status: "cancelled", completedAt: new Date() })
+          .where(eq(pipelineRuns.id, runId));
+        await autoDismissStepPauses(runId, "cancelled");
+        pipelineLog.info({ stepName: resume.stepName }, "Pipeline aborted via step-pause resolve");
+        return {
+          ok: false,
+          runId,
+          error: "aborted",
+          failedAtStep: resume.stepName,
+          stepOutputs,
+        };
+      }
+      case "approve":
+      case "promote-golden": {
+        // promote-golden behaves identically to approve in 62.0a; the edited prompt is
+        // already persisted on step_pauses for 62.0b to consume.
+        stepOutputs[resume.stepName] = resume.storedOutput;
+        const next = pipeline.steps[targetIdx + 1] as BaseStep<unknown, unknown> | undefined;
+        resumeFromStep = next ? next.name : "__pipeline_complete__";
+        break;
+      }
+      case "edit-output": {
+        const parsed = targetStep.outputSchema.parse(resume.editedOutput);
+        stepOutputs[resume.stepName] = parsed;
+        const next = pipeline.steps[targetIdx + 1] as BaseStep<unknown, unknown> | undefined;
+        resumeFromStep = next ? next.name : "__pipeline_complete__";
+        break;
+      }
+      case "edit-input": {
+        delete stepOutputs[resume.stepName];
+        resumeFromStep = resume.stepName;
+        stepInputOverride[resume.stepName] = resume.editedInput;
+        break;
+      }
+      case "edit-prompt": {
+        delete stepOutputs[resume.stepName];
+        resumeFromStep = resume.stepName;
+        if (resume.editedPrompt !== undefined) {
+          promptOverride[resume.stepName] = resume.editedPrompt;
+        }
+        break;
+      }
+      case "extract-for-optimization":
+      case "auto-dismissed": {
+        // Defensive: the resolve service should never re-enqueue for these actions.
+        // If we somehow reach here, re-suspend so the UI stays consistent.
+        pipelineLog.warn(
+          { action: resume.action, stepName: resume.stepName },
+          "Unexpected step-pause resume action reached runner — re-suspending"
+        );
+        return {
+          ok: false,
+          suspended: true,
+          runId,
+          stepKey: resume.stepName,
+          stepPauseId: resume.stepPauseId,
+          error:
+            resume.action === "extract-for-optimization"
+              ? ("step_extract_for_optimization" as const)
+              : ("step_paused" as const),
+          failedAtStep: "" as const,
+          stepOutputs,
+        };
+      }
     }
   }
 

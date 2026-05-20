@@ -7,8 +7,6 @@ import {
   db,
   eq,
   isNull,
-  isNotNull,
-  lt,
   projects,
   refreshDismissed,
   sql,
@@ -186,9 +184,9 @@ projectCronRoutes.get("/:slug/discovery-counts", async (c) => {
   const project = await resolveProject(slug);
   if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
 
-  const cutoff = new Date(
+  const cutoffIso = new Date(
     Date.now() - project.refreshStalenessThresholdDays * 24 * 60 * 60 * 1000
-  );
+  ).toISOString();
 
   const [trendsPendingResult, gapsOpenResult, refreshCandidatesResult] = await Promise.all([
     // Pending trend briefs (source=trend_discovery, approval_status=pending)
@@ -220,12 +218,14 @@ projectCronRoutes.get("/:slug/discovery-counts", async (c) => {
           eq(refreshDismissed.articleId, articles.id)
         )
       )
+      // Effective freshness: frontmatterUpdatedAt (Astro `updated:` author edit-marker)
+      // wins over lastRefreshedAt — must match `detectStaleArticles` + `/refresh-candidates`
+      // or the sidebar badge, the suggestions list and the queue list will disagree.
       .where(
         and(
           eq(articles.projectId, project.id),
           eq(articles.status, "published"),
-          isNotNull(articles.lastRefreshedAt),
-          lt(articles.lastRefreshedAt, cutoff),
+          sql`coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}) < ${cutoffIso}`,
           isNull(refreshDismissed.id)
         )
       ),
