@@ -85,6 +85,7 @@
       <ArticleSocialTab
         v-else-if="activeTab === 'social'"
         :article-id="articleId"
+        :article-locale="article?.locale ?? 'de'"
       />
     </template>
   </DetailPageShell>
