@@ -1,8 +1,18 @@
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { createLogger } from "@marketing-auto/shared";
+import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 import yaml from "yaml";
 import { z } from "zod";
 import type { FrontmatterField } from "../types.ts";
+
+// Spec 61.1 Pattern 107: single source of truth for collection type → Astro folder mapping.
+// Never inline the folder name at the call site — always look it up here.
+const COLLECTION_FOLDER: Record<ArticleCollectionType, string> = {
+  blog: "blog",
+  comparison: "comparisons",
+  "ki-wissen": "ki-wissen",
+  tools: "tools",
+  usecases: "usecases",
+};
 
 const log = createLogger("astro-sync:render");
 
@@ -23,6 +33,8 @@ const InputSchema = z.object({
     author: z.string().nullable().optional(),
     intentType: z.string().nullable().optional(),
     locale: z.string().nullable().optional(),
+    // Spec 61.1: collection type from DB, drives Astro content folder routing
+    collectionType: z.string(),
   }),
   cluster: z
     .object({
@@ -31,7 +43,7 @@ const InputSchema = z.object({
     })
     .nullable(),
   collectionInfo: z.object({
-    collectionName: z.literal("blog"),
+    collectionName: z.string(),
     fields: z.array(
       z.object({
         name: z.string(),
@@ -72,7 +84,12 @@ export class RenderMdxStep extends BaseStep<
   }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
-    const mdxPath = `${input.astroRepoRoot}/blog/${input.article.slug}.mdx`;
+    // Safe cast: DB column is article_collection_type enum NOT NULL — always one of the known values.
+    // Schema uses z.string() (not z.enum) to avoid Zod _input/_output variance breaking BaseStep (Spec 61.1).
+    // The fallback handles any future enum values added before COLLECTION_FOLDER is updated.
+    const collectionType = input.article.collectionType as ArticleCollectionType;
+    const astroFolder = COLLECTION_FOLDER[collectionType] ?? input.article.collectionType;
+    const mdxPath = `${input.astroRepoRoot}/${astroFolder}/${input.article.slug}.mdx`;
     const fm = buildFrontmatter(input);
 
     const unpopulatedRequired = input.collectionInfo.fields

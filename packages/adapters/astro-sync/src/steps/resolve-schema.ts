@@ -12,7 +12,7 @@ const InputSchema = z.object({
 
 const OutputSchema = z.object({
   collectionInfo: z.object({
-    collectionName: z.literal("blog"),
+    collectionName: z.string(),
     fields: z.array(
       z.object({
         name: z.string(),
