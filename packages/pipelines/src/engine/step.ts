@@ -10,6 +10,12 @@ export type StepContext = {
   projectId: string;
   /** ID of the parent pipeline_runs row (for cost-log linking) */
   pipelineRunId: string;
+  /**
+   * LLM execution mode for this pipeline run (Spec 61.4).
+   * 'sync' = immediate LLM call (default). 'batch' = Anthropic Batch API (50% cost, 24h delay).
+   * Steps that call LLMs must check this and return batchPending: true when mode === 'batch'.
+   */
+  llmMode: "sync" | "batch";
   /** ID of this step's pipeline_runs row (sub-run of the pipeline run) */
   stepRunId: string;
   /** Pipeline name for logging */

@@ -60,6 +60,7 @@ describe("PersistOutlineStep", () => {
     pipelineRunId,
     stepRunId: crypto.randomUUID(),
     pipelineName: "article:outline",
+    llmMode: "sync",
     log: createLogger("test"),
     reportProgress: async () => {},
     getStepOutput: () => undefined,

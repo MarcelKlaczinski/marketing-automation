@@ -8,6 +8,7 @@ const mockCtx = (): StepContext => ({
   pipelineRunId: crypto.randomUUID(),
   stepRunId: crypto.randomUUID(),
   pipelineName: "test",
+  llmMode: "sync",
   log: createLogger("test"),
   reportProgress: async () => {},
   getStepOutput: () => undefined,

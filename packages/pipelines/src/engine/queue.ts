@@ -8,7 +8,7 @@ import IORedis from "ioredis";
 import { z } from "zod";
 import type { Pipeline } from "./pipeline.ts";
 import { pipelineRegistry } from "./registry.ts";
-import { runPipeline } from "./runner.ts";
+import { isPipelineSuspended, runPipeline } from "./runner.ts";
 
 const jobDataSchema = z.object({
   pipelineName: z.string(),
@@ -125,6 +125,11 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
           await job.updateProgress(percent);
         }
       );
+
+      // Spec 61.4: batch suspension — BullMQ job completes cleanly, processor resumes later
+      if (isPipelineSuspended(result)) {
+        return { runId: result.runId, output: null };
+      }
 
       if (!result.ok) {
         throw new Error(`Pipeline failed at step "${result.failedAtStep}": ${result.error}`);

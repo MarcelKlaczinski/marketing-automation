@@ -1,9 +1,10 @@
 import { publishPipelineEvent } from "@marketing-auto/core/events";
-import { db, pipelineRuns } from "@marketing-auto/db";
+import { db, pipelineRuns, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import type { Pipeline } from "./pipeline.ts";
 import type { BaseStep, StepContext } from "./step.ts";
+import type { BatchCheckpoint } from "@marketing-auto/db";
 
 const log = createLogger("pipeline-runner");
 
@@ -17,14 +18,35 @@ export type PipelineRunOptions = {
 };
 
 export type PipelineRunResult<TOutput> =
-  | { ok: true; runId: string; output: TOutput; stepOutputs: Record<string, unknown> }
+  | { ok: true; suspended?: false; runId: string; output: TOutput; stepOutputs: Record<string, unknown> }
   | {
       ok: false;
+      suspended?: false;
       runId: string;
       error: string;
       failedAtStep: string;
       stepOutputs: Record<string, unknown>;
+    }
+  | {
+      // Spec 61.4 Pattern 118: pipeline suspended pending Anthropic Batch API result.
+      // ok: false so BullMQ job doesn't count this as a successful pipeline completion.
+      // Processor will resume the pipeline when the batch result arrives.
+      ok: false;
+      suspended: true;
+      runId: string;
+      error: "batch_suspended";
+      failedAtStep: "";
+      stepOutputs: Record<string, unknown>;
+      stepKey: string;
+      batchRequestId: string;
     };
+
+/** Type guard: true when the pipeline suspended waiting for a batch API result (Spec 61.4). */
+export function isPipelineSuspended<T>(
+  result: PipelineRunResult<T>
+): result is { ok: false; suspended: true; runId: string; stepKey: string; batchRequestId: string; error: "batch_suspended"; failedAtStep: ""; stepOutputs: Record<string, unknown> } {
+  return !result.ok && (result as { suspended?: boolean }).suspended === true;
+}
 
 /**
  * Runs a pipeline synchronously (no BullMQ).
@@ -40,6 +62,14 @@ export async function runPipeline<TInput, TOutput>(
   reportJobProgress?: (percent: number) => Promise<void>
 ): Promise<PipelineRunResult<TOutput>> {
   const validatedInput = pipeline.inputSchema.parse(input);
+
+  // Spec 61.4: load project's LLM mode once at pipeline start and pass to every step
+  const [projectRow] = await db
+    .select({ llmMode: projects.llmMode })
+    .from(projects)
+    .where(eq(projects.id, options.projectId))
+    .limit(1);
+  const llmMode = (projectRow?.llmMode ?? "sync") as "sync" | "batch";
 
   let runId: string;
   if (options.preRunId) {
@@ -115,6 +145,7 @@ export async function runPipeline<TInput, TOutput>(
         pipelineRunId: runId,
         stepRunId,
         pipelineName: pipeline.name,
+        llmMode,
         log: stepLog,
         reportProgress: async (percent, message) => {
           await db
@@ -162,12 +193,51 @@ export async function runPipeline<TInput, TOutput>(
       try {
         stepOutput = await step.execute(stepInput, ctx);
       } catch (err) {
+        // Note: batch suspension MUST NOT use exceptions (Pattern 118) — handled below.
         const errMsg = err instanceof Error ? err.message : String(err);
         await db
           .update(pipelineRuns)
           .set({ status: "failed", errorMessage: errMsg, completedAt: new Date() })
           .where(eq(pipelineRuns.id, stepRunId));
         throw err;
+      }
+
+      // Spec 61.4 Pattern 118: detect batch suspension signal BEFORE output schema validation.
+      // Step returns { batchPending: true, batchRequestId } when mode === 'batch'.
+      if (
+        typeof stepOutput === "object" &&
+        stepOutput !== null &&
+        "batchPending" in stepOutput &&
+        (stepOutput as { batchPending: boolean }).batchPending
+      ) {
+        const suspension = stepOutput as { batchPending: true; batchRequestId: string };
+        const checkpoint: BatchCheckpoint = {
+          stepKey: step.name,
+          batchRequestId: suspension.batchRequestId,
+          accumulatedOutput: stepOutputs,
+        };
+        await db
+          .update(pipelineRuns)
+          .set({
+            status: "batch_pending",
+            batchCheckpoint: checkpoint as unknown as Record<string, unknown>,
+            completedAt: new Date(),
+          })
+          .where(eq(pipelineRuns.id, runId));
+        stepLog.info(
+          { stepKey: step.name, batchRequestId: suspension.batchRequestId },
+          "Pipeline suspended — awaiting Anthropic Batch API result"
+        );
+        return {
+          ok: false,
+          suspended: true,
+          runId,
+          stepKey: step.name,
+          batchRequestId: suspension.batchRequestId,
+          error: "batch_suspended" as const,
+          failedAtStep: "" as const,
+          stepOutputs,
+        };
       }
 
       const validatedOutput = step.outputSchema.parse(stepOutput);

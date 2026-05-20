@@ -69,8 +69,8 @@ describe("Pipeline runner", () => {
   it("runs a trivial pipeline to completion", async () => {
     const result = await runPipeline(new TrivialPipeline(), { message: "hello" }, { projectId });
 
-    expect(result.ok).toBe(true);
-    if (result.ok) {
+    expect("ok" in result && result.ok).toBe(true);
+    if ("ok" in result && result.ok) {
       expect(result.output.echo).toBe("echo: hello");
       expect(result.stepOutputs["echo"]).toEqual({ echo: "echo: hello" });
     }
@@ -79,8 +79,8 @@ describe("Pipeline runner", () => {
   it("captures step failure and marks pipeline failed", async () => {
     const result = await runPipeline(new FailingPipeline(), { message: "x" }, { projectId });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
+    expect("ok" in result && !result.ok).toBe(true);
+    if ("ok" in result && !result.ok) {
       expect(result.error).toContain("boom");
       expect(result.failedAtStep).toBe("failing");
     }

@@ -3,6 +3,7 @@ import { COST_OPS } from "@marketing-auto/core/cost";
 import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
+import { batchLlmCall } from "../../engine/batch-llm-client.ts";
 
 const log = createLogger("pipelines:outline-step");
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -199,7 +200,20 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       estimatedCostEur: this.estimatedCostEur(),
     };
 
-    // Retry once on non-JSON response — Sonnet occasionally returns malformed output
+    // Spec 61.4: batch mode — enqueue for Anthropic Batch API, suspend pipeline (Pattern 118)
+    if (ctx.llmMode === "batch") {
+      const batchResult = await batchLlmCall({
+        ...callArgs,
+        stepKey: "outline",
+        mode: "batch",
+      });
+      if (batchResult.mode === "batch") {
+        // Return suspension signal — runner intercepts before outputSchema.parse() (Pattern 118)
+        return { batchPending: true, batchRequestId: batchResult.batchRequestId } as unknown as ArticleOutline;
+      }
+    }
+
+    // Sync mode (default): retry once on non-JSON response — Sonnet occasionally returns malformed output
     let result;
     try {
       result = await anthropic.messages(callArgs);
