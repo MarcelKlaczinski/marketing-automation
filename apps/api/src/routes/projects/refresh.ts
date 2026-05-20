@@ -3,11 +3,11 @@ import {
   and,
   articles,
   asc,
+  cronState,
   desc,
   db,
   eq,
   isNull,
-  isNotNull,
   lt,
   projects,
   refreshDismissed,
@@ -65,13 +65,14 @@ projectRefreshRoutes.get(
     const q = c.req.valid("query");
     const cutoff = new Date(
       Date.now() - project.refreshStalenessThresholdDays * 24 * 60 * 60 * 1000
-    );
+    ).toISOString();
 
+    // Effective freshness = lastRefreshedAt OR publishedAt OR updatedAt — must match
+    // the worker's `detectStaleArticles` filter so the two views never diverge.
     const conditions = [
       eq(articles.projectId, project.id),
       eq(articles.status, "published"),
-      isNotNull(articles.lastRefreshedAt),
-      lt(articles.lastRefreshedAt, cutoff),
+      sql`coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}) < ${cutoff}`,
       isNull(refreshDismissed.id),
     ];
 
@@ -91,7 +92,7 @@ projectRefreshRoutes.get(
         publishedAt: articles.publishedAt,
         updatedAt: articles.updatedAt,
         daysSinceLastUpdate: sql<number>`
-          EXTRACT(DAY FROM NOW() - ${articles.lastRefreshedAt})::int
+          EXTRACT(DAY FROM NOW() - coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}))::int
         `,
       })
       .from(articles)
@@ -116,6 +117,52 @@ projectRefreshRoutes.get(
     });
   }
 );
+
+// ─── GET /:slug/refresh-detection/status ──────────────────────────────────────
+//
+// Returns the freshest "last detection" timestamp from two independent sources:
+//   - cron_state.last_run_at — only updated when the orchestrator fires a scheduled cron run
+//   - refresh_suggestions.generated_at — set whenever the worker persists a candidate (manual OR cron)
+// The UI label takes the newer of the two so manual runs surface immediately.
+
+projectRefreshRoutes.get("/:slug/refresh-detection/status", async (c) => {
+  const { slug } = c.req.param();
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const [cron] = await db
+    .select({ isActive: cronState.isActive, lastRunAt: cronState.lastRunAt })
+    .from(cronState)
+    .where(and(eq(cronState.projectId, project.id), eq(cronState.jobType, "refresh_detector")))
+    .limit(1);
+
+  const [latestSuggestion] = await db
+    .select({ generatedAt: sql<string | null>`max(${refreshSuggestions.generatedAt})` })
+    .from(refreshSuggestions)
+    .where(eq(refreshSuggestions.projectId, project.id));
+
+  const cronLastRunAt = cron?.lastRunAt?.toISOString() ?? null;
+  const manualLastDetectedAt = latestSuggestion?.generatedAt ?? null;
+
+  // lastRunAt = the freshest of the two — drives the simple "last detection" label
+  const lastRunAt = !cronLastRunAt
+    ? manualLastDetectedAt
+    : !manualLastDetectedAt
+      ? cronLastRunAt
+      : new Date(cronLastRunAt) >= new Date(manualLastDetectedAt)
+        ? cronLastRunAt
+        : manualLastDetectedAt;
+
+  return c.json({
+    ok: true,
+    data: {
+      active: cron?.isActive ?? false,
+      lastRunAt,
+      cronLastRunAt,
+      manualLastDetectedAt,
+    },
+  });
+});
 
 // ─── POST /:slug/refresh-detection/run ────────────────────────────────────────
 

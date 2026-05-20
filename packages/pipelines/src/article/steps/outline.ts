@@ -203,7 +203,13 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
     // Spec 61.4 resume path: batch result injected by the runner — parse cached content directly.
     if (ctx.batchResult?.stepKey === "outline") {
       log.info({ articleId: input.articleId }, "outline: using cached batch result (resume path)");
-      const parsed = JSON.parse(ctx.batchResult.content) as unknown;
+      // Batch responses may include ```json … ``` fences (no assistant prefill in batch mode).
+      // Slice from the first '{' to the last '}' to be fence-tolerant.
+      const raw = ctx.batchResult.content;
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      const json = start >= 0 && end > start ? raw.slice(start, end + 1) : raw;
+      const parsed = JSON.parse(json) as unknown;
       return ArticleOutlineSchema.parse(parsed);
     }
 

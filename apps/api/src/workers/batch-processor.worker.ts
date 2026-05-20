@@ -8,6 +8,7 @@
 // Uses @anthropic-ai/sdk directly for batch endpoints (not the adapter) — the adapter
 // only wraps anthropic.messages(); batch lifecycle endpoints are not exposed there.
 import Anthropic from "@anthropic-ai/sdk";
+import { getGlobal } from "@marketing-auto/core/credentials";
 import { batchRequests, costLogs, db, eq, inArray, and, lt } from "@marketing-auto/db";
 import { resumePipeline } from "@marketing-auto/pipelines/batch-resume";
 import { calculateBatchCostEur } from "@marketing-auto/pipelines/cost-calculator";
@@ -33,9 +34,17 @@ function getConnection(): IORedis {
   return _connection;
 }
 
-function getAnthropicClient(): Anthropic {
-  const env = getEnv();
-  return new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+let _anthropicClient: Anthropic | null = null;
+
+async function getAnthropicClient(): Promise<Anthropic> {
+  if (_anthropicClient) return _anthropicClient;
+  const fromVault = await getGlobal("anthropic", "api_key");
+  const apiKey = fromVault ?? getEnv().ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error("Anthropic API key not configured (vault or ANTHROPIC_API_KEY env)");
+  }
+  _anthropicClient = new Anthropic({ apiKey });
+  return _anthropicClient;
 }
 
 // ─── Submit pending requests ──────────────────────────────────────────────────
@@ -56,7 +65,7 @@ async function submitPendingRequests(): Promise<void> {
 
   log.info({ count: pending.length }, "submit-pending: submitting batch to Anthropic");
 
-  const anthropic = getAnthropicClient();
+  const anthropic = await getAnthropicClient();
   const requests = pending.map((row) => {
     // Safe: requestBody is written by batch-llm-client.enqueueBatch() with exactly these fields
     const body = row.requestBody as {
@@ -124,7 +133,7 @@ async function processBatches(): Promise<void> {
 
   log.info({ count: batchIds.length }, "process-batches: polling Anthropic batches");
 
-  const anthropic = getAnthropicClient();
+  const anthropic = await getAnthropicClient();
 
   for (const anthropicBatchId of batchIds) {
     try {

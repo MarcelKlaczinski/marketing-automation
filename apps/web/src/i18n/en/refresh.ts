@@ -27,7 +27,11 @@ export default {
     dismiss: "Dismiss",
     markRefreshed: "Mark as refreshed",
     viewFindings: "View findings",
+    analyzeOne: "Analyze with AI",
   },
+
+  analyzeOneStarted: "AI analysis started for this article",
+  analyzeOneFailed: "Failed to start single-article analysis",
 
   analyzeAll: "Analyze all",
   analyzeAllHint: "Runs AI quality analysis on all published articles.",
@@ -39,8 +43,9 @@ export default {
   markRefreshedFailed: "Failed to mark article",
   suggestionDismissed: "Suggestion dismissed",
 
-  suggestionsTitle: "Quality Suggestions",
-  suggestionsDescription: "AI analysis identified these articles for a refresh.",
+  suggestionsTitle: "Refresh Suggestions",
+  suggestionsDescription:
+    "Articles flagged for a refresh — either time-based (threshold exceeded) or via AI quality analysis.",
 
   source: {
     time: "Time-based",

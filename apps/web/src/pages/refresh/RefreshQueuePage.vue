@@ -54,9 +54,13 @@
           :key="s.id"
           class="stagger-item"
           :suggestion="s"
+          :refreshing="refreshingArticleIds.includes(s.articleId)"
+          :analyzing="analyzingArticleIds.includes(s.articleId)"
           @mark-refreshed="onMarkRefreshed"
           @dismiss="onDismissSuggestion"
           @view-findings="onViewFindings"
+          @refresh="onRefreshSuggestion"
+          @analyze-quality="onAnalyzeSingle"
         />
       </div>
     </section>
@@ -126,6 +130,8 @@ import QualityFindingsModal from "src/components/refresh/QualityFindingsModal.vu
 interface CronStatusResponse {
   active: boolean;
   lastRunAt: string | null;
+  cronLastRunAt: string | null;
+  manualLastDetectedAt: string | null;
 }
 
 interface AnalyzeAllResponse {
@@ -164,6 +170,9 @@ export default defineComponent({
     analyzing: false,
     cronActive: false,
     cronLastRunAt: null as string | null,
+    manualLastDetectedAt: null as string | null,
+    refreshingArticleIds: [] as string[],
+    analyzingArticleIds: [] as string[],
     findingsModal: {
       open: false,
       articleTitle: "",
@@ -179,8 +188,11 @@ export default defineComponent({
       return this.cronActive ? "cron-dot--active" : "cron-dot--idle";
     },
     cronLabel(): string {
-      if (this.cronLastRunAt) {
-        return this.$t("refresh.lastDetection", { time: this.relativeTime(this.cronLastRunAt) }) as string;
+      // Prefer manual-run timestamp when available — cron may be off but manual triggers ran.
+      // Falls back to cron's last_run_at, then "never" if neither has fired.
+      const ts = this.manualLastDetectedAt ?? this.cronLastRunAt;
+      if (ts) {
+        return this.$t("refresh.lastDetection", { time: this.relativeTime(ts) }) as string;
       }
       return this.$t("refresh.neverDetected") as string;
     },
@@ -200,7 +212,8 @@ export default defineComponent({
           `/projects/${this.slug}/refresh-detection/status`,
         );
         this.cronActive = data.active;
-        this.cronLastRunAt = data.lastRunAt;
+        this.cronLastRunAt = data.cronLastRunAt;
+        this.manualLastDetectedAt = data.manualLastDetectedAt;
       } catch {
         // non-critical
       }
@@ -284,6 +297,45 @@ export default defineComponent({
           type: "negative",
           message: this.$t("refresh.markRefreshedFailed") as string,
         });
+      }
+    },
+
+    async onRefreshSuggestion(articleId: string): Promise<void> {
+      this.refreshingArticleIds.push(articleId);
+      try {
+        await this.triggerRefresh(articleId);
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("refresh.triggered") as string,
+        });
+      } catch {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("refresh.triggerFailed") as string,
+        });
+      } finally {
+        this.refreshingArticleIds = this.refreshingArticleIds.filter((id) => id !== articleId);
+      }
+    },
+
+    async onAnalyzeSingle(articleId: string): Promise<void> {
+      this.analyzingArticleIds.push(articleId);
+      try {
+        await apiPost<AnalyzeAllResponse>(
+          `/projects/${this.slug}/articles/quality-analysis`,
+          { articleIds: [articleId] },
+        );
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("refresh.analyzeOneStarted") as string,
+        });
+      } catch {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("refresh.analyzeOneFailed") as string,
+        });
+      } finally {
+        this.analyzingArticleIds = this.analyzingArticleIds.filter((id) => id !== articleId);
       }
     },
 

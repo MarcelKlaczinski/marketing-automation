@@ -113,8 +113,9 @@ async function enqueueBatch(params: BatchLlmCallParams): Promise<LlmCallResult> 
     messages: [{ role: "user" as const, content: params.userMessage }],
   };
 
-  // Pattern 119: custom_id = {pipelineRunId}:{stepKey}
-  const anthropicCustomId = `${params.pipelineRunId}:${params.stepKey}`;
+  // Pattern 119: custom_id = {pipelineRunId}_{stepKey}
+  // Note: separator is "_" (not ":") to satisfy Anthropic's pattern ^[a-zA-Z0-9_-]{1,64}$
+  const anthropicCustomId = `${params.pipelineRunId}_${params.stepKey}`;
 
   const [row] = await db
     .insert(batchRequests)

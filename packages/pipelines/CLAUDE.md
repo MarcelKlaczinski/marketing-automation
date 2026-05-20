@@ -589,6 +589,19 @@ async execute(input: Input, ctx: StepContext): Promise<Output> {
 under `"anthropic"`. The spec said `batch_api` but adding a new enum value requires a DDL
 migration; the CLAUDE.md rule "LLM calls always under anthropic" applies here too.
 
+**`anthropicCustomId` separator is `_`, not `:`** (Spec 62 pre-flight fix). Anthropic's batch API
+requires `custom_id` to match `^[a-zA-Z0-9_-]{1,64}$`; a colon causes HTTP 400. `batch-llm-client.ts`
+builds it as `` `${pipelineRunId}_${stepKey}` ``. The field is only matched by exact equality
+on the way back (`eq(batchRequests.anthropicCustomId, ...)`), never parsed/split — so the
+separator can change freely if needed.
+
+**Batch-resume parsing must be fence-tolerant.** `claude-sonnet-4-6` rejects assistant-prefill,
+so the sync adapter's `jsonMode` trick (which forces output to start with `{`) does NOT apply in
+batch mode. The model wraps output in ` ```json … ``` ` fences. Any step that does
+`JSON.parse(ctx.batchResult.content)` will throw `Unrecognized token '\``. Pattern: slice
+`raw.indexOf("{")` to `raw.lastIndexOf("}") + 1` before parsing. See `OutlineStep` `ctx.batchResult`
+branch for the canonical fix.
+
 ## Trend Discovery Topic Source (Spec 54.5+)
 
 `TrendDiscoveryTopicSource` lives in `src/topic-sources/trend-discovery/`. It implements `TopicSource<Input>` and produces TopicBriefs from `external_signals`.

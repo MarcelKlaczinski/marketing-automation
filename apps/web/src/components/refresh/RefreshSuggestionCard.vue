@@ -25,6 +25,23 @@
         </button>
         <button
           class="action-btn action-btn--primary"
+          :disabled="refreshing"
+          @click="$emit('refresh', suggestion.articleId)"
+        >
+          {{ $t("refresh.actions.refresh") as string }}
+          <span class="cost-hint mono">~€0.40</span>
+        </button>
+        <button
+          v-if="suggestion.source === 'time'"
+          class="action-btn action-btn--ghost"
+          :disabled="analyzing"
+          @click="$emit('analyze-quality', suggestion.articleId)"
+        >
+          {{ $t("refresh.actions.analyzeOne") as string }}
+          <span class="cost-hint mono">~€0.03</span>
+        </button>
+        <button
+          class="action-btn action-btn--ghost"
           :disabled="markingRefreshed"
           @click="$emit('mark-refreshed', suggestion.articleId)"
         >
@@ -57,9 +74,17 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    refreshing: {
+      type: Boolean,
+      default: false,
+    },
+    analyzing: {
+      type: Boolean,
+      default: false,
+    },
   },
 
-  emits: ["mark-refreshed", "dismiss", "view-findings"],
+  emits: ["mark-refreshed", "dismiss", "view-findings", "refresh", "analyze-quality"],
 });
 </script>
 
@@ -214,6 +239,12 @@ export default defineComponent({
 .action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.cost-hint {
+  font-size: 10px;
+  opacity: 0.7;
+  margin-left: 4px;
 }
 
 @media (max-width: 767px) {

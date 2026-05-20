@@ -27,7 +27,11 @@ export default {
     dismiss: "Verwerfen",
     markRefreshed: "Als aktualisiert markieren",
     viewFindings: "Details ansehen",
+    analyzeOne: "Mit KI analysieren",
   },
+
+  analyzeOneStarted: "KI-Analyse für diesen Artikel gestartet",
+  analyzeOneFailed: "Fehler beim Starten der Einzel-Analyse",
 
   analyzeAll: "Alle analysieren",
   analyzeAllHint: "Startet KI-Qualitätsanalyse für alle veröffentlichten Artikel.",
@@ -39,8 +43,9 @@ export default {
   markRefreshedFailed: "Fehler beim Markieren",
   suggestionDismissed: "Empfehlung verworfen",
 
-  suggestionsTitle: "Qualitäts-Empfehlungen",
-  suggestionsDescription: "KI-Analyse identifizierte diese Artikel für eine Überarbeitung.",
+  suggestionsTitle: "Refresh-Empfehlungen",
+  suggestionsDescription:
+    "Artikel zur Überarbeitung – zeitbasiert (Threshold überschritten) oder durch KI-Qualitätsanalyse identifiziert.",
 
   source: {
     time: "Zeitbasiert",
