@@ -268,12 +268,13 @@ export async function runPipeline<TInput, TOutput>(
       const overallProgress = Math.round((i / pipeline.steps.length) * 100);
       await reportJobProgress?.(overallProgress);
 
-      // Spec 61.4 Pattern 118: skip steps whose output is already in the checkpoint (batch resume).
-      // We replay completed steps without re-running them to avoid duplicate LLM charges.
+      // Spec 61.4 Pattern 118 + Spec 62.0a: skip any step whose output is already in
+      // stepOutputs UNLESS it is the explicit resumeFromStep. This handles batch resume
+      // (priorOutput pre-populated) AND step-pause approve/edit-output (storedOutput
+      // pre-populated AND resumeFromStep advanced past the paused step).
       if (
-        options.resumeFromStep &&
-        step.name !== options.resumeFromStep &&
-        stepOutputs[step.name] !== undefined
+        stepOutputs[step.name] !== undefined &&
+        step.name !== resumeFromStep
       ) {
         const cachedOutput = stepOutputs[step.name];
         if (i < pipeline.steps.length - 1) {
