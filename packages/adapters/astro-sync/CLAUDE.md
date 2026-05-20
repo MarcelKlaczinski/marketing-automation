@@ -22,8 +22,9 @@ Otherwise the adapter reads the PEM from the path. Set credentials via installer
 - Schema parsing is best-effort. If the Astro repo's content config is unparseable,
   the adapter emits permissive frontmatter (everything we know) and warns about unpopulated
   required fields. Marcel must either fix the regex parser or use astroFrontmatterDefaults.
-- Hardcoded `collection: "blog"`. Other collections (Glossar, Case-Studies, Tools) need
-  separate adapter pipelines.
+- `RenderMdxStep` routes to the Astro content folder via the `COLLECTION_FOLDER` map
+  (Pattern 107, Spec 61.1). `articles.collection` (text) still reads `"blog"` for all current
+  articles; `articles.collection_type` (enum) is what drives MDX folder routing.
 
 ## Required Environment
 
@@ -103,6 +104,14 @@ The step parses this with a regex, strips it from `bodyMd`, and saves to `articl
   Stages `auth` and `config` are error categories for the load phase and intentionally excluded from
   the DB column (they indicate config problems, not pipeline-stage failures). See `afterError()` in
   `pipeline.ts` for the filter list.
+- DO NOT use `z.string().optional().default("blog")` (or any `.default()`) on a field inside a
+  nested `z.object({...})` in a step's `inputSchema` when the upstream step guarantees the value is
+  always present — Zod `.default()` makes `_input` become `string | undefined` while `_output` stays
+  `string`, and `BaseStep<TInput, TOutput>` requires `inputSchema: ZodType<TInput>`, producing TS2416.
+  Fix: use `z.string()` (non-optional, no default) when the field is always provided by the upstream
+  step (e.g. a NOT NULL DB column read by `LoadArticleStep`). If the field is truly optional, use
+  `z.string().optional()` and handle `undefined` in `execute()`. See `render-mdx.ts`
+  `collectionType` field (Spec 61.1) for the canonical pattern.
 - DO NOT use `targetWhere` that only partially matches a partial index predicate in Drizzle's
   `onConflictDoUpdate` — PostgreSQL requires the `targetWhere` clause to match the index predicate
   EXACTLY (every condition). The `topic_briefs_unique_open_per_gap` index has TWO conditions:
