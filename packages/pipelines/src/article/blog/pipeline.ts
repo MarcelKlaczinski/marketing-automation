@@ -48,6 +48,10 @@ type BlogPipelineInput = {
   chainStep?: string;
   // Spec 61.1: collection type drives Astro folder routing; defaults to 'blog'
   collectionType?: ArticleCollectionType;
+  // Spec 61.2: comparison-only — 2-4 tool slugs (+ optional display names) the article compares.
+  // Ignored when collectionType !== 'comparison'.
+  comparisonToolSlugs?: string[];
+  comparisonToolNames?: string[];
 };
 
 const BlogPipelineInputSchema = z.object({
@@ -58,6 +62,8 @@ const BlogPipelineInputSchema = z.object({
   chainId: z.string().uuid().optional(),
   chainStep: z.string().optional(),
   collectionType: z.enum(ARTICLE_COLLECTION_TYPES).optional(),
+  comparisonToolSlugs: z.array(z.string()).min(2).max(4).optional(),
+  comparisonToolNames: z.array(z.string()).optional(),
 }) as z.ZodType<BlogPipelineInput>;
 
 const BlogPipelineOutputSchema = z.object({
@@ -209,7 +215,7 @@ export class BlogPipeline extends Pipeline<
     if (fromStep.name === "persist-outline" && toStep.name === "draft") {
       const t = getStepOutput<TopicIntakeOutput>("topic-intake")!;
       const tr = getStepOutput<ToolRelevanceOutput>("tool-relevance")!;
-      const base = {
+      const base: Record<string, unknown> = {
         articleId: pipelineInput.articleId,
         projectId: pipelineInput.projectId,
         projectSlug: t.projectSlug,
@@ -219,7 +225,17 @@ export class BlogPipeline extends Pipeline<
         toolsContext: tr.toolsContext,
       };
       if (pipelineInput.modelOverride) {
-        return { ...base, modelOverride: pipelineInput.modelOverride };
+        base.modelOverride = pipelineInput.modelOverride;
+      }
+      // Spec 61.2: forward collection type + comparison tool list into DraftStep
+      if (pipelineInput.collectionType) {
+        base.collectionType = pipelineInput.collectionType;
+      }
+      if (pipelineInput.comparisonToolSlugs?.length) {
+        base.comparisonToolSlugs = pipelineInput.comparisonToolSlugs;
+      }
+      if (pipelineInput.comparisonToolNames?.length) {
+        base.comparisonToolNames = pipelineInput.comparisonToolNames;
       }
       return base;
     }

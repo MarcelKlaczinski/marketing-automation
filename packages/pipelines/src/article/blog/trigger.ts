@@ -1,5 +1,5 @@
 import { db, eq, topicBriefs } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
+import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 import { enqueuePipeline } from "../../engine/queue.ts";
 import { createBlogArticleFromBrief } from "./persist.ts";
 
@@ -87,21 +87,31 @@ export async function enqueueBlogGeneration(
 
 /**
  * Thin preRunId-aware wrapper for use with triggerWithPreRunId in the API layer.
+ * Spec 61.2: forwards optional `collectionType` + comparison tool fields when
+ * the caller (articles-standalone, future routes) provides them.
  */
 export async function enqueueBlogGenerationPipeline(input: {
   preRunId: string;
   articleId: string;
   projectId: string;
   briefId: string;
+  collectionType?: ArticleCollectionType;
+  comparisonToolSlugs?: string[];
+  comparisonToolNames?: string[];
 }): Promise<{ jobId: string }> {
+  const pipelineInput: Record<string, unknown> = {
+    articleId: input.articleId,
+    projectId: input.projectId,
+    briefId: input.briefId,
+  };
+  if (input.collectionType) pipelineInput.collectionType = input.collectionType;
+  if (input.comparisonToolSlugs?.length) pipelineInput.comparisonToolSlugs = input.comparisonToolSlugs;
+  if (input.comparisonToolNames?.length) pipelineInput.comparisonToolNames = input.comparisonToolNames;
+
   const { jobId } = await enqueuePipeline({
     pipelineName: "article:blog",
     projectId: input.projectId,
-    input: {
-      articleId: input.articleId,
-      projectId: input.projectId,
-      briefId: input.briefId,
-    },
+    input: pipelineInput,
     preRunId: input.preRunId,
     jobOptions: { jobId: `article-blog-${input.articleId}` },
   });

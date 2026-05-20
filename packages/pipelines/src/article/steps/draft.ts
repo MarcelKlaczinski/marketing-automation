@@ -1,10 +1,13 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
 import { eq, type FrontmatterFieldDescriptor, articles, db, projects } from "@marketing-auto/db";
+import { ARTICLE_COLLECTION_TYPES, type ArticleCollectionType } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
+import { validateComparisonExtras } from "../frontmatter/comparison.ts";
+import { buildComparisonContextFragment, selectDraftPrompt } from "../prompts/comparison.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -19,6 +22,11 @@ const InputSchema = z.object({
   sourceContext: z.string().optional(),
   // Spec 54.9: relevant tools context for the cluster (pre-generation phase)
   toolsContext: z.string().optional(),
+  // Spec 61.2: collection type drives prompt selection; defaults to 'blog' when absent
+  collectionType: z.enum(ARTICLE_COLLECTION_TYPES).optional(),
+  // Spec 61.2: explicit tool slugs (2-4) for comparison articles; resolved from brief in standalone flow
+  comparisonToolSlugs: z.array(z.string()).optional(),
+  comparisonToolNames: z.array(z.string()).optional(),
 });
 
 const OutputSchema = z.object({
@@ -194,10 +202,20 @@ Output format:
 <!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","intentType":"...","excerpt":"...","bottomLinksVariant":"...","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
     `.trim();
 
+    // Spec 61.2: collection-specific prompt selector — null = use blog default
+    const collectionType: ArticleCollectionType = input.collectionType ?? "blog";
+    // ISO 8601 always contains "T", so split[0] is always defined; fallback only
+    // exists to satisfy `noUncheckedIndexedAccess`.
+    const today = new Date().toISOString().split("T")[0] ?? "";
+    const collectionPromptFn = selectDraftPrompt(collectionType);
+    const baseInstructions = collectionPromptFn
+      ? collectionPromptFn({ authorInstruction, today, locale: input.locale ?? "de" })
+      : DRAFT_STEP_DEFAULT_PROMPT;
+
     const draftInstructions = await resolveMasterPrompt({
       projectId: input.projectId,
       promptKey: "article.draft",
-      fallback: DRAFT_STEP_DEFAULT_PROMPT,
+      fallback: baseInstructions,
     });
 
     const promptBase = {
@@ -215,11 +233,22 @@ Output format:
       input.locale ? { ...promptBase, locale: input.locale } : promptBase
     );
 
+    // Spec 61.2: comparison-specific tool listing (positional mapping for the LLM)
+    const comparisonContext =
+      collectionType === "comparison" && input.comparisonToolSlugs?.length
+        ? buildComparisonContextFragment({
+            toolSlugs: input.comparisonToolSlugs,
+            ...(input.comparisonToolNames ? { toolNames: input.comparisonToolNames } : {}),
+          })
+        : null;
+
     const userMsg = [
       // Spec 54.9: source context (non-empty for gap_analysis / trend_discovery)
       ...(input.sourceContext ? [input.sourceContext, ""] : []),
       // Spec 54.9: tools context (non-empty when cluster has tool articles)
       ...(input.toolsContext ? [input.toolsContext, ""] : []),
+      // Spec 61.2: comparison tool list (only for comparison collection)
+      ...(comparisonContext ? [comparisonContext, ""] : []),
       "# Outline to write",
       `**Title**: ${outline.title}`,
       `**Meta description**: ${outline.metaDescription}`,
@@ -286,6 +315,22 @@ Output format:
       bodyMd = result.raw.slice(0, extrasStartIdx).trimEnd();
     }
 
+    // Spec 61.2 Pattern 111: validate comparison-specific frontmatter before persist.
+    // Throws ArticlePipelineError(stage="draft") so the pipeline run is marked failed
+    // and Marcel sees the validation issue in the UI (not a silent malformed article).
+    if (collectionType === "comparison") {
+      if (!frontmatterExtras) {
+        throw new ArticlePipelineError(
+          "comparison: draft did not emit a FRONTMATTER_EXTRAS block — cannot validate toolSlugs/winner/verdict",
+          "draft",
+        );
+      }
+      const validation = validateComparisonExtras(frontmatterExtras);
+      if (!validation.ok) {
+        throw new ArticlePipelineError(validation.error, "draft");
+      }
+    }
+
     // Inject HubCarousel: import at the top, component before the last ## section (Fazit).
     // The HubCarousel renders related cluster articles and must always be present in MDX.
     const hubImport = `import HubCarousel from '@/components/content/HubCarousel.astro';`;
@@ -315,6 +360,14 @@ Output format:
       throw new ArticlePipelineError(
         `Draft too short: ${wordCount} words. Outline estimated ${outline.estimatedTotalWords}.`,
         "draft"
+      );
+    }
+
+    // Spec 61.2: comparisons should hit ~2000 words. Warn (don't fail) when below.
+    if (collectionType === "comparison" && wordCount < 2000) {
+      ctx.log.warn(
+        { articleId: input.articleId, wordCount },
+        "[draft] comparison article below 2000 word target",
       );
     }
 
