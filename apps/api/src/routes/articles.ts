@@ -750,6 +750,45 @@ articleRoutes.patch(
   }
 );
 
+// PATCH /:id/skip-translation — Spec 62.0a-followup Issue 1.
+// Sets or clears articles.skip_auto_translation_until. While set to a future
+// timestamp, BlogPipeline.afterComplete and RefreshPipeline.afterComplete will
+// not enqueue the translation pipeline for this article. Pass `skipUntil: null`
+// to clear the flag immediately.
+articleRoutes.patch(
+  "/:id/skip-translation",
+  zValidator(
+    "json",
+    z.object({
+      // ISO-8601 timestamp string. `null` clears the flag.
+      skipUntil: z.string().datetime().nullable(),
+    })
+  ),
+  async (c) => {
+    const id = c.req.param("id");
+    const { skipUntil } = c.req.valid("json");
+
+    const [article] = await db
+      .select({ id: articles.id })
+      .from(articles)
+      .where(eq(articles.id, id))
+      .limit(1);
+    if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+    const skipUntilDate = skipUntil === null ? null : new Date(skipUntil);
+
+    await db
+      .update(articles)
+      .set({ skipAutoTranslationUntil: skipUntilDate })
+      .where(eq(articles.id, id));
+
+    return c.json({
+      ok: true,
+      data: { articleId: id, skipAutoTranslationUntil: skipUntilDate?.toISOString() ?? null },
+    });
+  }
+);
+
 // POST /:id/frontmatter-suggest — Haiku-powered field suggestions
 articleRoutes.post("/:id/frontmatter-suggest", async (c) => {
   const id = c.req.param("id");

@@ -3,6 +3,7 @@ import { type ArticleCollectionType, ARTICLE_COLLECTION_TYPES, createLogger } fr
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { enqueueSchemaExtension } from "../../schema-extension/trigger.ts";
+import { shouldSkipAutoTranslation } from "../translation/skip-gate.ts";
 import { enqueueTranslationPipeline } from "../translation/trigger.ts";
 import { enqueueClusterSpokes } from "../../cluster/full-plan/enqueue-spokes.ts";
 import { checkClusterCompletion } from "../../cluster/full-plan/check-completion.ts";
@@ -359,52 +360,70 @@ export class BlogPipeline extends Pipeline<
     let articleLocale: string | null = null;
     let articleRole: "hub" | "spoke" | null = null;
     let clusterGenerationId: string | null = null;
+    let skipAutoTranslationUntil: Date | null = null;
     try {
       const [article] = await db
-        .select({ locale: articles.locale, role: articles.role, clusterGenerationId: articles.clusterGenerationId })
+        .select({
+          locale: articles.locale,
+          role: articles.role,
+          clusterGenerationId: articles.clusterGenerationId,
+          skipAutoTranslationUntil: articles.skipAutoTranslationUntil,
+        })
         .from(articles)
         .where(eq(articles.id, pipelineInput.articleId))
         .limit(1);
       articleLocale = article?.locale ?? null;
       articleRole = (article?.role ?? null) as "hub" | "spoke" | null;
       clusterGenerationId = article?.clusterGenerationId ?? null;
+      skipAutoTranslationUntil = article?.skipAutoTranslationUntil ?? null;
     } catch (e) {
       log.warn({ err: e, articleId: pipelineInput.articleId }, "[blog] failed to load article for afterComplete hooks");
     }
 
-    // Bidirectional auto-trigger: DE→EN or EN→DE depending on article locale
+    // Bidirectional auto-trigger: DE→EN or EN→DE depending on article locale.
+    // Spec 62.0a-followup Issue 1: per-article skip flag short-circuits BEFORE the
+    // project-config load (cheaper) so a flag-set article never reads the project row.
+    // Log only when translation would otherwise have triggered (locale in {de,en}) —
+    // a non-translatable article + skip flag is silently a no-op.
     try {
       if (articleLocale === "de" || articleLocale === "en") {
-        const [project] = await db
-          .select({ targetLocales: projects.targetLocales, translationAutoTrigger: projects.translationAutoTrigger })
-          .from(projects)
-          .where(eq(projects.id, pipelineInput.projectId))
-          .limit(1);
+        if (shouldSkipAutoTranslation(skipAutoTranslationUntil)) {
+          log.info(
+            { articleId: pipelineInput.articleId, skipUntil: skipAutoTranslationUntil },
+            "[blog] skipping auto-translation — skip_auto_translation_until is in the future"
+          );
+        } else {
+          const [project] = await db
+            .select({ targetLocales: projects.targetLocales, translationAutoTrigger: projects.translationAutoTrigger })
+            .from(projects)
+            .where(eq(projects.id, pipelineInput.projectId))
+            .limit(1);
 
-        const autoTrigger = project?.translationAutoTrigger ?? true;
-        if (autoTrigger) {
-          const targetBcp47 = articleLocale === "de" ? "en-US" : "de-DE";
-          const wantsTarget = project?.targetLocales?.includes(targetBcp47) ?? false;
+          const autoTrigger = project?.translationAutoTrigger ?? true;
+          if (autoTrigger) {
+            const targetBcp47 = articleLocale === "de" ? "en-US" : "de-DE";
+            const wantsTarget = project?.targetLocales?.includes(targetBcp47) ?? false;
 
-          if (wantsTarget) {
-            // Guard: skip if sibling already exists (refresh handles propagation separately)
-            const { findSibling } = await import("../translation/sibling.ts");
-            const [articleForSibling] = await db
-              .select({ id: articles.id, projectId: articles.projectId, locale: articles.locale, translationKey: articles.translationKey })
-              .from(articles)
-              .where(eq(articles.id, pipelineInput.articleId))
-              .limit(1);
-            const existingSibling = articleForSibling ? await findSibling(articleForSibling) : null;
+            if (wantsTarget) {
+              // Guard: skip if sibling already exists (refresh handles propagation separately)
+              const { findSibling } = await import("../translation/sibling.ts");
+              const [articleForSibling] = await db
+                .select({ id: articles.id, projectId: articles.projectId, locale: articles.locale, translationKey: articles.translationKey })
+                .from(articles)
+                .where(eq(articles.id, pipelineInput.articleId))
+                .limit(1);
+              const existingSibling = articleForSibling ? await findSibling(articleForSibling) : null;
 
-            if (!existingSibling) {
-              await enqueueTranslationPipeline({
-                sourceArticleId: pipelineInput.articleId,
-                projectId:       pipelineInput.projectId,
-                mode:            "fresh_translation",
-              });
-              log.info({ articleId: pipelineInput.articleId, articleLocale, targetBcp47 }, "[blog] auto-triggered translation");
-            } else {
-              log.info({ articleId: pipelineInput.articleId, siblingId: existingSibling.id }, "[blog] sibling already exists — skipping auto-translation");
+              if (!existingSibling) {
+                await enqueueTranslationPipeline({
+                  sourceArticleId: pipelineInput.articleId,
+                  projectId:       pipelineInput.projectId,
+                  mode:            "fresh_translation",
+                });
+                log.info({ articleId: pipelineInput.articleId, articleLocale, targetBcp47 }, "[blog] auto-triggered translation");
+              } else {
+                log.info({ articleId: pipelineInput.articleId, siblingId: existingSibling.id }, "[blog] sibling already exists — skipping auto-translation");
+              }
             }
           }
         }

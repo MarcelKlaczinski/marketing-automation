@@ -12,6 +12,7 @@ import { SelfReviewStep } from "../steps/self-review.ts";
 import { ToolLinkerStep } from "../tool-linker/step.ts";
 import { ToolRelevanceStep } from "../tool-linker/resolve-step.ts";
 import { findEnSibling } from "../translation/sibling.ts";
+import { shouldSkipAutoTranslation } from "../translation/skip-gate.ts";
 import { RefreshIntakeStep, type RefreshIntakeOutput } from "./intake-step.ts";
 
 const log = createLogger("pipelines:refresh");
@@ -196,25 +197,40 @@ export class RefreshPipeline extends Pipeline<
       log.warn({ err: e, articleId: pipelineInput.articleId }, "Schema extension enqueue failed after refresh");
     }
 
-    // Propagate refresh to sibling if one exists (bidirectional: DE→EN and EN→DE)
+    // Propagate refresh to sibling if one exists (bidirectional: DE→EN and EN→DE).
+    // Spec 62.0a-followup Issue 1: per-article skip flag short-circuits sibling
+    // propagation just like fresh translations — same semantics, both directions.
     try {
       const [article] = await db
-        .select({ id: articles.id, projectId: articles.projectId, locale: articles.locale, translationKey: articles.translationKey })
+        .select({
+          id: articles.id,
+          projectId: articles.projectId,
+          locale: articles.locale,
+          translationKey: articles.translationKey,
+          skipAutoTranslationUntil: articles.skipAutoTranslationUntil,
+        })
         .from(articles)
         .where(eq(articles.id, pipelineInput.articleId))
         .limit(1);
 
       if (article) {
-        const sibling = await findEnSibling(article);
-        if (sibling) {
-          const { enqueueTranslationPipeline } = await import("../translation/trigger.ts");
-          await enqueueTranslationPipeline({
-            sourceArticleId: article.id,
-            targetArticleId: sibling.id,
-            projectId:       article.projectId,
-            mode:            "refresh_propagation",
-          });
-          log.info({ articleId: article.id, siblingId: sibling.id, siblingLocale: sibling.locale }, "[refresh] sibling refresh enqueued");
+        if (shouldSkipAutoTranslation(article.skipAutoTranslationUntil ?? null)) {
+          log.info(
+            { articleId: article.id, skipUntil: article.skipAutoTranslationUntil },
+            "[refresh] skipping sibling propagation — skip_auto_translation_until is in the future"
+          );
+        } else {
+          const sibling = await findEnSibling(article);
+          if (sibling) {
+            const { enqueueTranslationPipeline } = await import("../translation/trigger.ts");
+            await enqueueTranslationPipeline({
+              sourceArticleId: article.id,
+              targetArticleId: sibling.id,
+              projectId:       article.projectId,
+              mode:            "refresh_propagation",
+            });
+            log.info({ articleId: article.id, siblingId: sibling.id, siblingLocale: sibling.locale }, "[refresh] sibling refresh enqueued");
+          }
         }
       }
     } catch (e) {
