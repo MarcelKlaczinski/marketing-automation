@@ -39,6 +39,9 @@ export default {
       clusterHelper: "Optional: Artikel einem bestehenden Cluster zuordnen",
       wordCount: "Zielwortanzahl",
       approvalMode: "Freigabe-Modus",
+      toolSlugs: "Verglichene Tools",
+      toolSlugsHelper: "2 bis 4 Tools aus der Tools-Collection auswählen",
+      toolSlugsEmpty: "Keine Tools in dieser Collection verfügbar",
     },
     noCluster: "Kein Cluster (eigenständig)",
     placeholders: {

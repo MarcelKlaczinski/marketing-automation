@@ -1,6 +1,7 @@
 export default {
   unsavedChanges: "Unsaved changes",
   saving: "Saving…",
+  loading: "Loading…",
   savedAt: "Saved {time}",
   justNow: "just now",
   minutesAgo: "{n} min ago",

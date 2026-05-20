@@ -39,6 +39,9 @@ export default {
       clusterHelper: "Optional: assign article to an existing cluster",
       wordCount: "Target word count",
       approvalMode: "Approval mode",
+      toolSlugs: "Tools to compare",
+      toolSlugsHelper: "Select 2 to 4 tools from the tools collection",
+      toolSlugsEmpty: "No tools available in this collection",
     },
     noCluster: "No cluster (standalone)",
     placeholders: {
