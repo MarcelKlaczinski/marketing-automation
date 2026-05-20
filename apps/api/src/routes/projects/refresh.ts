@@ -16,6 +16,7 @@ import {
   topicBriefs,
 } from "@marketing-auto/db";
 import { COST_OPS, estimateCostEur, assertCostBudget } from "@marketing-auto/core";
+import { effectiveFreshnessSql } from "@marketing-auto/cost-tracker";
 import { enqueueRefreshPipeline } from "@marketing-auto/pipelines";
 import { markArticleRefreshed } from "@marketing-auto/db";
 import {
@@ -67,12 +68,13 @@ projectRefreshRoutes.get(
       Date.now() - project.refreshStalenessThresholdDays * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    // Effective freshness = lastRefreshedAt OR publishedAt OR updatedAt — must match
-    // the worker's `detectStaleArticles` filter so the two views never diverge.
+    // Canonical effective-freshness expression (frontmatterUpdatedAt → lastRefreshedAt →
+    // publishedAt → updatedAt). Must stay in sync with `detectStaleArticles` (worker)
+    // + `/discovery-counts` or the views diverge.
     const conditions = [
       eq(articles.projectId, project.id),
       eq(articles.status, "published"),
-      sql`coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}) < ${cutoff}`,
+      sql`${effectiveFreshnessSql} < ${cutoff}`,
       isNull(refreshDismissed.id),
     ];
 
@@ -91,9 +93,7 @@ projectRefreshRoutes.get(
         clusterId: articles.clusterId,
         publishedAt: articles.publishedAt,
         updatedAt: articles.updatedAt,
-        daysSinceLastUpdate: sql<number>`
-          EXTRACT(DAY FROM NOW() - coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}))::int
-        `,
+        daysSinceLastUpdate: sql<number>`EXTRACT(DAY FROM NOW() - ${effectiveFreshnessSql})::int`,
       })
       .from(articles)
       .leftJoin(

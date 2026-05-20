@@ -30,6 +30,7 @@
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/adapter-vendor-rss": "workspace:*",
         "@marketing-auto/core": "workspace:*",
+        "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/pipelines": "workspace:*",
         "@marketing-auto/shared": "workspace:*",

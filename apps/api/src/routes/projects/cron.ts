@@ -13,6 +13,7 @@ import {
   topicBriefs,
 } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import { effectiveFreshnessSql } from "@marketing-auto/cost-tracker";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
@@ -218,14 +219,14 @@ projectCronRoutes.get("/:slug/discovery-counts", async (c) => {
           eq(refreshDismissed.articleId, articles.id)
         )
       )
-      // Effective freshness: frontmatterUpdatedAt (Astro `updated:` author edit-marker)
-      // wins over lastRefreshedAt — must match `detectStaleArticles` + `/refresh-candidates`
-      // or the sidebar badge, the suggestions list and the queue list will disagree.
+      // Effective freshness via the canonical shared expression — must stay in sync with
+      // `detectStaleArticles` (worker) + `/refresh-candidates` or the sidebar badge,
+      // suggestions list and queue list will disagree.
       .where(
         and(
           eq(articles.projectId, project.id),
           eq(articles.status, "published"),
-          sql`coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}) < ${cutoffIso}`,
+          sql`${effectiveFreshnessSql} < ${cutoffIso}`,
           isNull(refreshDismissed.id)
         )
       ),

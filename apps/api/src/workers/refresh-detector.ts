@@ -15,6 +15,7 @@ import {
   sql,
 } from "@marketing-auto/db";
 import { publishPipelineEvent } from "@marketing-auto/core/events";
+import { effectiveFreshnessSql } from "@marketing-auto/cost-tracker";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 
 const log = createLogger("refresh-detector");
@@ -84,13 +85,9 @@ export async function detectStaleArticles(projectId: string): Promise<RefreshDet
   const cutoff = new Date(Date.now() - thresholdDays * 24 * 60 * 60 * 1000);
   const cutoffIso = cutoff.toISOString();
 
-  // Effective freshness = frontmatterUpdatedAt (Astro `updated:` field, set by author)
-  //                       OR lastRefreshedAt (pipeline refresh marker)
-  //                       OR publishedAt
-  //                       OR updatedAt (DB-touch fallback for never-published rows).
-  // Ordering matters: a re-import that bumps `updated:` in frontmatter must un-stale the article.
-  const effectiveDate = sql<string>`coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt})`;
-
+  // Effective-freshness expression — the canonical definition lives in
+  // @marketing-auto/cost-tracker so refresh-detector, /refresh-candidates,
+  // /discovery-counts and the weekly-budget planner all agree.
   const stale = await db
     .select({
       id: articles.id,
@@ -101,7 +98,7 @@ export async function detectStaleArticles(projectId: string): Promise<RefreshDet
       clusterId: articles.clusterId,
       publishedAt: articles.publishedAt,
       updatedAt: articles.updatedAt,
-      effectiveDate: effectiveDate.as("effective_date"),
+      effectiveDate: sql<string>`${effectiveFreshnessSql}`.as("effective_date"),
     })
     .from(articles)
     .leftJoin(
@@ -115,7 +112,7 @@ export async function detectStaleArticles(projectId: string): Promise<RefreshDet
       and(
         eq(articles.projectId, projectId),
         eq(articles.status, "published"),
-        sql`coalesce(${articles.frontmatterUpdatedAt}, ${articles.lastRefreshedAt}, ${articles.publishedAt}, ${articles.updatedAt}) < ${cutoffIso}`,
+        sql`${effectiveFreshnessSql} < ${cutoffIso}`,
         isNull(refreshDismissed.id)
       )
     )
