@@ -1,4 +1,5 @@
 import { type SelfReviewIssue, articleVersions, articles, cornerstoneSpecs, db } from "@marketing-auto/db";
+import { ARTICLE_COLLECTION_TYPES } from "@marketing-auto/shared";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -21,6 +22,8 @@ const InputSchema = z.object({
   subcategory: z.string().optional(),
   tags: z.array(z.string()).optional(),
   frontmatterExtras: z.record(z.unknown()).optional(),
+  // Spec 61.1: collection type from pipeline input; defaults to 'blog' when absent
+  collectionType: z.enum(ARTICLE_COLLECTION_TYPES).optional(),
 });
 
 const OutputSchema = z.object({
@@ -93,6 +96,8 @@ export class PersistArticleStep extends BaseStep<
           ...(input.subcategory ? { subcategory: input.subcategory } : {}),
           ...(input.tags ? { tags: input.tags } : {}),
           ...(input.frontmatterExtras ? { frontmatterExtras: input.frontmatterExtras } : {}),
+          // Spec 61.1: write collection type when provided by the pipeline
+          ...(input.collectionType ? { collectionType: input.collectionType } : {}),
         })
         .where(eq(articles.id, input.articleId));
 

@@ -1,5 +1,5 @@
 import { articles, db, eq, projects } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
+import { type ArticleCollectionType, ARTICLE_COLLECTION_TYPES, createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { enqueueSchemaExtension } from "../../schema-extension/trigger.ts";
@@ -46,6 +46,8 @@ type BlogPipelineInput = {
   // Spec 54.10: present when triggered by chain orchestrator (blog chain step)
   chainId?: string;
   chainStep?: string;
+  // Spec 61.1: collection type drives Astro folder routing; defaults to 'blog'
+  collectionType?: ArticleCollectionType;
 };
 
 const BlogPipelineInputSchema = z.object({
@@ -55,6 +57,7 @@ const BlogPipelineInputSchema = z.object({
   modelOverride: z.enum(["claude-opus-4-7", "claude-sonnet-4-6"]).optional(),
   chainId: z.string().uuid().optional(),
   chainStep: z.string().optional(),
+  collectionType: z.enum(ARTICLE_COLLECTION_TYPES).optional(),
 }) as z.ZodType<BlogPipelineInput>;
 
 const BlogPipelineOutputSchema = z.object({
@@ -289,7 +292,7 @@ export class BlogPipeline extends Pipeline<
       const sr = getStepOutput<SelfReviewOutput>("self-review")!;
       const hero = getStepOutput<HeroImageOutput>("hero-image")!;
       const asm = output as AssemblyOutput;
-      return {
+      const base = {
         articleId: pipelineInput.articleId,
         bodyMd: linked.bodyMd,
         wordCount: d.wordCount,
@@ -300,6 +303,11 @@ export class BlogPipeline extends Pipeline<
         selfReviewIssues: sr.issues,
         schemaJsonLd: asm.schemaJsonLd,
       };
+      // Spec 61.1: carry collectionType so PersistArticleStep can write it to DB
+      if (pipelineInput.collectionType) {
+        return { ...base, collectionType: pipelineInput.collectionType };
+      }
+      return base;
     }
 
     return output;
