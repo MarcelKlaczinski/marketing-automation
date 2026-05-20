@@ -419,24 +419,23 @@ class MyPipeline extends Pipeline<PipelineInput, ...> {
 ## Testing Pipeline Steps
 
 **Unit tests** (no LLM/API calls) call `step.execute(input, ctx)` directly against a real DB.
-Use this `mockCtx` pattern:
+Use the `makeMockCtx()` factory from `packages/pipelines/test/fixtures/mock-ctx.ts` (Spec
+62.0a-followup Issue 6):
 
 ```typescript
-import { createLogger } from "@marketing-auto/shared";
-import type { StepContext } from "../src/engine/step.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
-const mockCtx = (projectId: string): StepContext => ({
-  projectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",          // Spec 61.4 — required
-  runMode: "production",    // Spec 62.0a — required
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+// Override only the fields your test cares about. All other required StepContext
+// fields (llmMode, runMode, log, reportProgress, getStepOutput, etc.) are defaulted.
+const mockCtx = (projectId: string) => makeMockCtx({ projectId });
 ```
+
+**Adding a new required field to `StepContext`?** Update the defaults in
+`packages/pipelines/test/fixtures/mock-ctx.ts` — no test file changes needed.
+Cross-package tests (e.g. `packages/adapters/astro-sync/test/`) cannot import from
+the pipelines test/ tree (not exported); they keep a thin local wrapper that
+duplicates the defaults — search for the comment marker `Spec 62.0a-followup Issue 6`
+to find and update them when the field set widens.
 
 **Runner-mechanic tests** (e.g. step-pause + idempotency end-to-end on the runner itself, not on a single step) use the `TestPipeline` fixture in `test/fixtures/test-pipeline.ts`:
 
@@ -574,10 +573,11 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT add a new `@type` to `BuildJsonLdStep` without updating all four places: (1) `OutputSchema.addedTypes` z.enum, (2) the local `addedTypes` array type annotation, (3) the `existingMinusOurs` filter cast, (4) a `buildXxx()` helper function. Missing any one of them causes either a TypeScript error or a stale entry being left in `schemaJsonLd` on re-runs.
 - DO NOT write a new optional last-step input/output schema narrower than the preceding step's output when the pipeline output schema reads the last step directly — `BlogPipelineOutputSchema` expects `{ articleId, wordCount, selfReviewScore }` and the runner passes the final step's Zod-validated output as the pipeline result without calling `bridge()`. When the new step becomes the last step, include those fields as pass-through in both its input and output schemas. See `SocialGenerationStep` in `src/article/steps/social-generation.step.ts` for the canonical pattern.
 - DO NOT put the "should this step run?" guard inside `execute()` — implement `shouldRun(ctx): Promise<boolean>` on the step class instead. The engine calls `shouldRun()` before `execute()` and invokes `skipOutput(input)` when it returns false, giving the pipeline a valid output shape with zero cost. Never bypass this pattern with an `if` at the top of `execute()`. See `SocialGenerationStep` (Pattern 102, Spec 60.7).
-- DO NOT use exceptions to signal batch API suspension from a step — return `{ batchPending: true, batchRequestId }` from `execute()` instead (Pattern 118, Spec 61.4). The runner detects the object shape before `outputSchema.parse()`, checkpoints to `pipeline_runs.batchCheckpoint`, and returns `ok:false/suspended:true`. Throwing an exception would mark the BullMQ job as failed and trigger retries.
+- DO NOT use exceptions to signal batch API suspension from a step — return `{ batchPending: true, batchRequestId }` from `execute()` instead (Pattern 118, Spec 61.4). The runner detects the object shape before `outputSchema.parse()`, checkpoints to `pipeline_runs.suspensionCheckpoint` (renamed from `batchCheckpoint` in Spec 62.0a-followup), and returns `ok:false/suspended:true`. Throwing an exception would mark the BullMQ job as failed and trigger retries.
 - DO NOT check `ctx.resumeFromStep === step.name` inside a step to detect the batch resume path — check `ctx.batchResult?.stepKey === step.name` instead. `resumeFromStep` drives the runner's skip loop; `ctx.batchResult` carries the cached LLM content for exactly the one step being resumed. A step must check `ctx.batchResult` BEFORE calling `batchLlmCall()` to avoid a second LLM call on resume. See `OutlineStep` in `src/article/steps/outline.ts` for the canonical check.
-- DO NOT add a required field to `StepContext` without grepping for every `mockCtx` literal in the workspace and patching them — Spec 62.0a added `runMode: "production" | "debug"` and broke 11 test fixtures across `packages/pipelines/test/`, `packages/adapters/astro-sync/test/`, and one inline literal in `apps/api/src/routes/projects.ts`. Pattern: `grep -rn 'llmMode: "sync"' --include="*.test.ts"` finds the canonical pivot point in mocks. Patch in one batched commit; the workspace typecheck will catch any miss.
+- DO NOT add a required field to `StepContext` without updating `makeMockCtx()` defaults in `packages/pipelines/test/fixtures/mock-ctx.ts` AND every cross-package wrapper marked with the comment `Spec 62.0a-followup Issue 6` (currently `packages/adapters/astro-sync/test/gap-detection-includes-generated.test.ts`). The factory was introduced in Spec 62.0a-followup specifically to eliminate per-test churn — historically `runMode: "production" | "debug"` (added Spec 62.0a) broke 11 mockCtx literals before the factory existed. Today: one factory edit + one or two wrapper edits + workspace typecheck. Production code building real `StepContext` (`packages/pipelines/src/engine/runner.ts`, `apps/api/src/routes/projects.ts`) is intentionally NOT routed through the factory — patch those sites directly.
 - DO NOT declare a new `PipelineRunOptions` field with shape derived from a Zod schema's `z.unknown()` / `z.string().optional()` and expect the interface side to use `field?: T` under `exactOptionalPropertyTypes` — Zod infers optionals as `T | undefined` which is incompatible. Either declare the interface to match Zod's inferred shape (`storedOutput?: unknown`, `editedPrompt?: string`) AND mark a single justified `as Parameters<typeof runPipeline>[2]` cast at the worker dispatch site, OR define the schema once in a shared file and use `z.infer<typeof X>` as the canonical type. Canonical example: `StepPauseResume` in [runner.ts](src/engine/runner.ts) + `stepPauseResumeSchema` in [queue.ts](src/engine/queue.ts) (Spec 62.0a Session 2).
+- DO NOT add a new pipeline that enqueues `article:translation` in `afterComplete` without consulting `shouldSkipAutoTranslation(article.skipAutoTranslationUntil)` from `src/article/translation/skip-gate.ts` first (Spec 62.0a-followup Issue 1). Per-article skip-until takes precedence over project-level `translationAutoTrigger`. Currently wired in `BlogPipeline.afterComplete` (fresh translation) and `RefreshPipeline.afterComplete` (sibling propagation). If you add a third translation-enqueue site, copy the same DB select for `skipAutoTranslationUntil` and gate on the helper.
 
 ## Batch Mode Step Contract (Spec 61.4)
 
@@ -693,7 +693,7 @@ export async function enrichToolUseCaseTokens(
 
 A future refactor to make these `BaseStep` classes would let them pick up the override mechanism too. Out of 62.0a's scope.
 
-**Checkpoint storage**: `pipeline_runs.batchCheckpoint` (jsonb) now stores BOTH batch and step-pause suspension checkpoints. The step-pause variant carries a `kind: "step_pause"` discriminator plus `stepPauseId`. The column name is historical (Spec 61.4) — treat it as a generic suspension checkpoint. The resolve service reads `batchCheckpoint.accumulatedOutput` to rebuild `PipelineRunOptions.priorOutput` at re-enqueue.
+**Checkpoint storage**: `pipeline_runs.suspensionCheckpoint` (jsonb, renamed from `batchCheckpoint` in Spec 62.0a-followup migration 0069) stores BOTH batch and step-pause suspension checkpoints. The TypeScript type is the discriminated union `SuspensionCheckpoint` from `packages/db/src/schema/batch.ts` — `kind: "batch"` carries `batchRequestId`; `kind: "step_pause"` carries `stepPauseId`. Both shapes share `stepKey` + `accumulatedOutput`. The resolve service reads `suspensionCheckpoint.accumulatedOutput` to rebuild `PipelineRunOptions.priorOutput` at re-enqueue. Rows written before Spec 62.0a-followup do not have the `kind` field — read paths fall back to `batchRequestId`/`stepPauseId` presence to discriminate.
 
 ## Trend Discovery Topic Source (Spec 54.5+)
 
