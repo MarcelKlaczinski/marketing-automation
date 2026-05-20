@@ -24,28 +24,17 @@ import {
   projects,
   schemaExtensionRuns,
 } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import { runPipeline } from "../../src/engine/runner.ts";
-import type { StepContext } from "../../src/engine/step.ts";
 import { SchemaExtensionPipeline } from "../../src/schema-extension/pipeline.ts";
 import { LoadArticleStep } from "../../src/schema-extension/steps/load-article.ts";
 import { PersistSchemaStep } from "../../src/schema-extension/steps/persist-schema.ts";
 import { SchemaExtensionError } from "../../src/schema-extension/types.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
 const LIVE = process.env.RUN_LIVE_SCHEMA_EXTENSION === "1";
 
-const mockCtx = (projectId: string): StepContext => ({
-  projectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = (projectId: string) => makeMockCtx({ projectId });
 
 // ───── Shared DB fixtures ─────────────────────────────────────────────────────
 

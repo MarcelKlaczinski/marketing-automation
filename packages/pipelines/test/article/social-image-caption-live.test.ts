@@ -10,9 +10,8 @@
 import { beforeAll, describe, expect, it } from "bun:test";
 import { db, eq } from "@marketing-auto/db";
 import { projects } from "@marketing-auto/db/schema";
-import { createLogger } from "@marketing-auto/shared";
-import type { StepContext } from "../../src/engine/step.ts";
 import { GenerateCaptionStep } from "../../src/article/social-image/steps.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
 const LIVE = process.env.RUN_LIVE_ARTICLE_PIPELINE === "1";
 
@@ -24,17 +23,7 @@ beforeAll(async () => {
   liveProjectId = rows[0]?.id ?? crypto.randomUUID();
 });
 
-const mockCtx = (): StepContext => ({
-  projectId: liveProjectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = () => makeMockCtx({ projectId: liveProjectId });
 
 const resolvedTools = [
   { slug: "cursor", rank: 1, name: "Cursor", domain: "cursor.sh", eyebrow: "01 · CURSOR", tagline: "KI-first Code-Editor.", strengths: ["Autocomplete", "Chat"], pricing: { tier: "freemium" as const, label: "ab 0$/Monat" } },

@@ -82,29 +82,18 @@ mock.module("@marketing-auto/adapter-anthropic", () => ({
 // ─── Remaining imports (after mock registration) ─────────────────────────────
 
 import { articles, db, projects, socialPosts } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
-import type { StepContext } from "../../src/engine/step.ts";
 import {
   ExtractToolsStep,
   GenerateCaptionStep,
   LoadArticleStep,
   ResolveAssetsStep,
 } from "../../src/article/social-image/steps.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const mockCtx = (projectId: string): StepContext => ({
-  projectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = (projectId: string) => makeMockCtx({ projectId });
 
 /** Minimal valid input matching LoadArticleOutputSchema */
 const makeBaseInput = (overrides: Partial<{

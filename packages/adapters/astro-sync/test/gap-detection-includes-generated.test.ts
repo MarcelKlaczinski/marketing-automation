@@ -21,16 +21,21 @@ import { DetectContentGapsStep } from "../src/import/steps/detect-content-gaps.t
 import { createLogger } from "@marketing-auto/shared";
 import type { StepContext } from "@marketing-auto/pipelines";
 
-const mockCtx = (projectId: string): StepContext => ({
+// Spec 62.0a-followup Issue 6: local wrapper mirrors `makeMockCtx()` in
+// `packages/pipelines/test/fixtures/mock-ctx.ts`. Cross-package imports from
+// pipelines/test/ are not exported; when a new required field is added to
+// StepContext, update both places (pipelines fixture + this wrapper).
+const mockCtx = (projectId: string, overrides: Partial<StepContext> = {}): StepContext => ({
   projectId,
   pipelineRunId: crypto.randomUUID(),
   stepRunId: crypto.randomUUID(),
   pipelineName: "test",
+  llmMode: "sync",
+  runMode: "production",
   log: createLogger("test"),
   reportProgress: async () => {},
   getStepOutput: () => undefined,
-  llmMode: "sync",
-  runMode: "production",
+  ...overrides,
 });
 
 describe("DetectContentGapsStep — generated articles count (Spec 54.3)", () => {

@@ -1,21 +1,15 @@
 // Spec 62.0a Section 4.4 unit tests for resolvePrompt.
 import { describe, expect, it } from "bun:test";
-import { createLogger } from "@marketing-auto/shared";
 import { resolvePrompt } from "../../src/engine/prompt-resolver.ts";
-import type { StepContext } from "../../src/engine/step.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
-const baseCtx = (override?: Record<string, string>): StepContext => ({
-  projectId: "00000000-0000-0000-0000-000000000000",
-  pipelineRunId: "00000000-0000-0000-0000-000000000000",
-  stepRunId: "00000000-0000-0000-0000-000000000000",
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-  ...(override !== undefined ? { promptOverride: override } : {}),
-});
+const baseCtx = (override?: Record<string, string>) =>
+  makeMockCtx({
+    projectId: "00000000-0000-0000-0000-000000000000",
+    pipelineRunId: "00000000-0000-0000-0000-000000000000",
+    stepRunId: "00000000-0000-0000-0000-000000000000",
+    ...(override !== undefined ? { promptOverride: override } : {}),
+  });
 
 describe("resolvePrompt", () => {
   it("returns the default when no override is set", () => {

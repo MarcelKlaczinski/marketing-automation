@@ -1,21 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { articles, clusters, contentPillars, db, eq, projects, topicBriefs } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { TopicIntakeStep } from "../../src/article/steps/topic-intake.ts";
 import { ArticlePipelineError } from "../../src/article/types.ts";
-import type { StepContext } from "../../src/engine/step.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
-const mockCtx = (projectId: string): StepContext => ({
-  projectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = (projectId: string) => makeMockCtx({ projectId });
 
 describe("TopicIntakeStep", () => {
   let projectId: string;

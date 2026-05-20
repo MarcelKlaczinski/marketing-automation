@@ -1,19 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { createLogger } from "@marketing-auto/shared";
-import type { StepContext } from "../../src/engine/step.ts";
 import { BuildJsonLdStep } from "../../src/schema-extension/steps/build-jsonld.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
-const mockCtx = (): StepContext => ({
-  projectId: crypto.randomUUID(),
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = () => makeMockCtx({ projectId: crypto.randomUUID() });
 
 const BASE_ARTICLE = {
   title: "KI-Tools im Vergleich",

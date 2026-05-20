@@ -1,23 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { db, projects } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import { SelfReviewStep } from "../../src/article/steps/self-review.ts";
-import type { StepContext } from "../../src/engine/step.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
 const LIVE = process.env.RUN_LIVE_ARTICLE_PIPELINE === "1";
 
-const mockCtx = (projectId: string): StepContext => ({
-  projectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = (projectId: string) => makeMockCtx({ projectId });
 
 const SAMPLE_ARTICLE_MD = `
 ## Was KI-Schreibtools wirklich leisten

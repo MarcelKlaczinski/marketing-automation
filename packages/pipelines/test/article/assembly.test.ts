@@ -1,23 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import { AssemblyStep } from "../../src/article/steps/assembly.ts";
 import { ArticlePipelineError } from "../../src/article/types.ts";
 import type { ArticleOutline } from "../../src/article/types.ts";
-import type { StepContext } from "../../src/engine/step.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
-const mockCtx = (projectId: string): StepContext => ({
-  projectId,
-  pipelineRunId: crypto.randomUUID(),
-  stepRunId: crypto.randomUUID(),
-  pipelineName: "test",
-  llmMode: "sync",
-  runMode: "production",
-  log: createLogger("test"),
-  reportProgress: async () => {},
-  getStepOutput: () => undefined,
-});
+const mockCtx = (projectId: string) => makeMockCtx({ projectId });
 
 const SAMPLE_OUTLINE: ArticleOutline = {
   title: "Die besten KI-Schreibtools 2024 im Vergleich",

@@ -1,10 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
 import { PersistOutlineStep } from "../../src/article/steps/persist-outline.ts";
 import type { ArticleOutline } from "../../src/article/types.ts";
-import type { StepContext } from "../../src/engine/step.ts";
+import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 
 const OUTLINE: ArticleOutline = {
   title: "KI-Schreibtools im Vergleich: Was wirklich hilft",
@@ -55,17 +54,8 @@ describe("PersistOutlineStep", () => {
   let articleId: string;
   const pipelineRunId = crypto.randomUUID();
 
-  const ctx = (): StepContext => ({
-    projectId,
-    pipelineRunId,
-    stepRunId: crypto.randomUUID(),
-    pipelineName: "article:outline",
-    llmMode: "sync",
-    runMode: "production",
-    log: createLogger("test"),
-    reportProgress: async () => {},
-    getStepOutput: () => undefined,
-  });
+  const ctx = () =>
+    makeMockCtx({ projectId, pipelineRunId, pipelineName: "article:outline" });
 
   beforeAll(async () => {
     const [p] = await db
