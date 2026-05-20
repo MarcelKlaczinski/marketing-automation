@@ -165,6 +165,13 @@ const routes = [
         component: () => import("src/pages/refresh/RefreshQueuePage.vue"),
       },
 
+      // 62.0a: Step-paused runs queue — Stub page, full UI lands in 62.6
+      {
+        path: "paused-runs",
+        name: "paused-runs",
+        component: () => import("src/pages/paused-runs/PausedRunsStubPage.vue"),
+      },
+
     ],
   },
 

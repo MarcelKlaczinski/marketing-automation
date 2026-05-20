@@ -276,3 +276,6 @@ export async function pruneOldNotifications(): Promise<{
     unreadPruned: unreadRows.length,
   };
 }
+
+// Spec 62.0a: step-pause notification helper + canonical type constant.
+export { notifyStepPaused, STEP_PAUSED_NOTIFICATION_TYPE } from "./step-pause.ts";

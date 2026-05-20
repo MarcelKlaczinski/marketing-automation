@@ -77,6 +77,13 @@ Routes defined in `src/router/routes.ts`:
 17. `/projects/:slug/social/admin`     — Social posts admin + batch re-render (Spec 52b)
 18. `/cold-start/new`                  — New project onboarding entry (Spec 56.4)
 19. `/cold-start/:draftId/phase-[1-5]` — 5-phase onboarding wizard (Spec 56.4, outside AppShell)
+20. `/projects/:slug/paused-runs`      — Stub for step-pause inspector (Spec 62.0a; full UI in 62.6)
+
+## Command Palette Static Actions (Spec 62.0a)
+
+`CommandPalette.vue` surfaces static actions (not search results) via an `actionItems` computed that returns `SearchResultItem[]` when the palette opens with an empty query. The idle-state template branch renders a `CommandPaletteSection` titled "Actions" before the minChars hint.
+
+Currently one entry — "Show paused runs" → `/projects/:slug/paused-runs`. Future actions follow the same shape: add a row to `actionItems`, add i18n keys under `search.action*`. If the action list grows beyond ~5 items, promote to a registry (own composable) to keep the palette component lean.
 
 ## Cold-Start Wizard (Spec 56.4)
 

@@ -72,10 +72,18 @@
           />
         </template>
 
-        <!-- Idle (empty query) -->
-        <div v-else class="cmd-idle text-xs text-dim">
-          {{ $t('search.minChars') }}
-        </div>
+        <!-- Idle (empty query) — Spec 62.0a stub: show "Show paused runs" action. -->
+        <template v-else>
+          <CommandPaletteSection
+            v-if="actionItems.length"
+            :title="$t('search.actions') as string"
+            :items="actionItems"
+            @select="onSelect"
+          />
+          <div class="cmd-idle text-xs text-dim">
+            {{ $t('search.minChars') }}
+          </div>
+        </template>
       </div>
     </div>
   </q-dialog>
@@ -166,6 +174,21 @@ export default defineComponent({
         ...(c.primaryKeyword !== null && { subtitle: c.primaryKeyword }),
         ...(c.generationStatus !== null && { badge: c.generationStatus }),
       }));
+    },
+
+    // Spec 62.0a Section 7: static actions surfaced on the idle palette state.
+    // Full debug-run inspector UI lands in Spec 62.6; this entry deep-links to the stub page.
+    actionItems(): SearchResultItem[] {
+      const slug = this.projectStore.currentSlug;
+      if (!slug) return [];
+      return [
+        {
+          id: "action-paused-runs",
+          title: this.$t("search.actionPausedRuns") as string,
+          subtitle: this.$t("search.actionPausedRunsSubtitle") as string,
+          href: `/projects/${slug}/paused-runs`,
+        },
+      ];
     },
   },
 

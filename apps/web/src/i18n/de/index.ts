@@ -31,6 +31,7 @@ import search from "./search";
 import forms from "./forms";
 import articleTools from "./articleTools";
 import refresh from "./refresh";
+import pausedRuns from "./pausedRuns";
 
 export default {
   app,
@@ -66,4 +67,5 @@ export default {
   forms,
   articleTools,
   refresh,
+  pausedRuns,
 };

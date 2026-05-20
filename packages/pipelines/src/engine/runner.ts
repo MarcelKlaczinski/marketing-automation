@@ -1,4 +1,5 @@
 import { publishPipelineEvent } from "@marketing-auto/core/events";
+import { notifyStepPaused } from "@marketing-auto/core/notifications";
 import {
   autoDismissStepPauses,
   db,
@@ -550,6 +551,14 @@ export async function runPipeline<TInput, TOutput>(
           { stepPauseId: stepPauseRow.id, stepName: step.name },
           "Pipeline suspended — step paused awaiting user resolution"
         );
+        // Spec 62.0a Section 7: notify owners (fire-and-forget; helper coalesces per run).
+        void notifyStepPaused({
+          projectId: options.projectId,
+          pipelineRunId: runId,
+          pipelineName: pipeline.name,
+          stepName: step.name,
+          stepPauseId: stepPauseRow.id,
+        });
         return {
           ok: false,
           suspended: true,
