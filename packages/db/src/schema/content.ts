@@ -642,6 +642,12 @@ export const templateRenders = pgTable(
     error:       text("error"),
     createdAt:   timestamp("created_at",   { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+
+    // Spec 60.6: suggestion tracking for LLM template recommendation accuracy
+    suggestedTemplate:    text("suggested_template"),
+    suggestionConfidence: numeric("suggestion_confidence", { precision: 3, scale: 2 }),
+    suggestionReason:     text("suggestion_reason"),
+    userOverride:         boolean("user_override").notNull().default(false),
   },
   (t) => ({
     articleIdx:     index("template_renders_article_id_idx").on(t.articleId),

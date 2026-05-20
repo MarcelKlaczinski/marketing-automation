@@ -442,6 +442,13 @@
       "when": 1784000000000,
       "tag": "0062_rename_social_template_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1784100000000,
+      "tag": "0063_suggestion_tracking_template_renders",
+      "breakpoints": true
     }
   ]
 }
