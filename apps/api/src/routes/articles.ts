@@ -35,7 +35,7 @@ import {
   enqueueLocalizeArticlePipeline,
   slugify,
 } from "@marketing-auto/pipelines";
-import { createLogger } from "@marketing-auto/shared";
+import { ARTICLE_COLLECTION_TYPES, createLogger } from "@marketing-auto/shared";
 import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
@@ -1823,6 +1823,9 @@ const GenerateBodySchema = z.object({
   cornerstoneSlug: z.string().min(1),
   approvalMode: z.enum(["manual", "auto"]).default("manual"),
   modelOverride: z.enum(["claude-opus-4-7", "claude-sonnet-4-6"]).optional(),
+  // Spec 61.1: accepted for forward-compat. This legacy route enqueues article:outline (deprecated);
+  // collectionType is honored by the blog pipeline via enqueueBlogGenerationPipeline in newer routes.
+  collectionType: z.enum(ARTICLE_COLLECTION_TYPES).optional().default("blog"),
 });
 
 export const legacyArticleRoutes = new Hono();
