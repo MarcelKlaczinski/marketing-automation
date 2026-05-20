@@ -15,6 +15,10 @@ export type PipelineRunOptions = {
   jobId?: string;
   /** Pre-created pipeline_runs row ID. Runner will UPDATE it instead of INSERT a new row. */
   preRunId?: string;
+  // Spec 61.4: batch resume — skip completed steps and inject cached LLM content
+  resumeFromStep?: string;
+  batchResult?: { stepKey: string; content: string };
+  priorOutput?: Record<string, unknown>;
 };
 
 export type PipelineRunResult<TOutput> =
@@ -110,11 +114,42 @@ export async function runPipeline<TInput, TOutput>(
   let currentInput: unknown = validatedInput;
   let lastStepName = "(none)";
 
+  // Spec 61.4: pre-populate stepOutputs from batch resume checkpoint so the runner
+  // can skip steps that already completed before the pipeline suspended.
+  if (options.priorOutput) {
+    for (const [k, v] of Object.entries(options.priorOutput)) {
+      stepOutputs[k] = v;
+    }
+  }
+
   try {
     for (let i = 0; i < pipeline.steps.length; i++) {
       const step = pipeline.steps[i] as BaseStep<unknown, unknown>;
       const overallProgress = Math.round((i / pipeline.steps.length) * 100);
       await reportJobProgress?.(overallProgress);
+
+      // Spec 61.4 Pattern 118: skip steps whose output is already in the checkpoint (batch resume).
+      // We replay completed steps without re-running them to avoid duplicate LLM charges.
+      if (
+        options.resumeFromStep &&
+        step.name !== options.resumeFromStep &&
+        stepOutputs[step.name] !== undefined
+      ) {
+        const cachedOutput = stepOutputs[step.name];
+        if (i < pipeline.steps.length - 1) {
+          const nextStep = pipeline.steps[i + 1] as BaseStep<unknown, unknown>;
+          currentInput = pipeline.bridge(
+            step,
+            nextStep,
+            cachedOutput,
+            validatedInput,
+            <T>(name: string) => stepOutputs[name] as T | undefined
+          );
+        } else {
+          currentInput = cachedOutput;
+        }
+        continue;
+      }
 
       const stepLog = pipelineLog.child({ step: step.name });
       stepLog.info({ stepIndex: i }, "Step starting");
@@ -140,12 +175,17 @@ export async function runPipeline<TInput, TOutput>(
       if (idemKey)
         stepLog.debug({ idemKey }, "Idempotency key computed (caching not yet implemented)");
 
+      // Spec 61.4: pass batchResult into ctx when this is the step being resumed.
+      const stepBatchResult =
+        options.batchResult?.stepKey === step.name ? options.batchResult : undefined;
+
       const ctx: StepContext = {
         projectId: options.projectId,
         pipelineRunId: runId,
         stepRunId,
         pipelineName: pipeline.name,
         llmMode,
+        ...(stepBatchResult !== undefined ? { batchResult: stepBatchResult } : {}),
         log: stepLog,
         reportProgress: async (percent, message) => {
           await db

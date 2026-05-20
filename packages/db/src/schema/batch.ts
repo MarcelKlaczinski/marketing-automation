@@ -11,7 +11,6 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { articles } from "./content.ts";
-import { pipelineRuns } from "./operations.ts";
 import { projects } from "./projects.ts";
 
 export const batchRequests = pgTable(

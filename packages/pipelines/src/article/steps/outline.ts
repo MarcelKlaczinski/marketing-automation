@@ -200,6 +200,13 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       estimatedCostEur: this.estimatedCostEur(),
     };
 
+    // Spec 61.4 resume path: batch result injected by the runner — parse cached content directly.
+    if (ctx.batchResult?.stepKey === "outline") {
+      log.info({ articleId: input.articleId }, "outline: using cached batch result (resume path)");
+      const parsed = JSON.parse(ctx.batchResult.content) as unknown;
+      return ArticleOutlineSchema.parse(parsed);
+    }
+
     // Spec 61.4: batch mode — enqueue for Anthropic Batch API, suspend pipeline (Pattern 118)
     if (ctx.llmMode === "batch") {
       const batchResult = await batchLlmCall({

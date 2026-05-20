@@ -16,6 +16,12 @@ export type StepContext = {
    * Steps that call LLMs must check this and return batchPending: true when mode === 'batch'.
    */
   llmMode: "sync" | "batch";
+  /**
+   * Spec 61.4: cached LLM content injected by the batch resume path.
+   * Present only for the step named batchResult.stepKey on pipeline resume.
+   * Steps that call LLMs must check this first and bypass the actual LLM call.
+   */
+  batchResult?: { stepKey: string; content: string };
   /** ID of this step's pipeline_runs row (sub-run of the pipeline run) */
   stepRunId: string;
   /** Pipeline name for logging */
