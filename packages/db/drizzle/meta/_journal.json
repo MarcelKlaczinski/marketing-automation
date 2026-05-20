@@ -470,6 +470,13 @@
       "when": 1784400000000,
       "tag": "0066_batch_api_worker_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1784500000000,
+      "tag": "0067_step_pause_foundation",
+      "breakpoints": true
     }
   ]
 }

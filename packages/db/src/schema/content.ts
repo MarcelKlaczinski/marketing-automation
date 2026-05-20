@@ -234,6 +234,9 @@ export const articles = pgTable(
     lastSyncedFromSiblingAt: timestamp("last_synced_from_sibling_at", { withTimezone: true }),
     // Spec 59.2: set by PATCH /articles/:id and POST /articles/:id/body (user edits only, NOT pipelines)
     lastEditedAt: timestamp("last_edited_at", { withTimezone: true }),
+    // Spec 62.0a: per-article auto-translation skip — BlogPipeline.afterComplete + RefreshPipeline
+    // must not enqueue translation while now() < this timestamp.
+    skipAutoTranslationUntil: timestamp("skip_auto_translation_until", { withTimezone: true }),
 
     // Spec 54.2: links article to the project_configurations row active when it was generated
     // FK declared via raw SQL migration (project-config.ts → projects.ts; no circular dep,

@@ -261,7 +261,7 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
       id: pr.id,
       source: "pipeline_runs",
       type: classifyPipelineName(pr.pipelineName),
-      status: pr.status,
+      status: normalizeStatus(pr.status),
       projectId: pr.projectId,
       projectName: project.name,
       projectSlug: project.slug,

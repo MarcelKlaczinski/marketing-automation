@@ -5,11 +5,13 @@ import {
   jsonb,
   numeric,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { isNull } from "drizzle-orm";
 import { approvalActionEnum, costServiceEnum, pipelineRunStatusEnum } from "./_enums.ts";
 import { users } from "./auth.ts";
 import { articles, socialPosts } from "./content.ts";
@@ -345,6 +347,92 @@ export const astroImportRuns = pgTable(
     statusIdx: index("astro_import_runs_status_idx").on(t.projectId, t.status),
   })
 );
+
+// Spec 62.0a: one row per pause-resume cycle of a step-run.
+// A step suspends in debug mode; the user resolves it via one of the 7 actions,
+// and the runner re-enqueues the pipeline with a stepPauseResume payload.
+// `stepRunId` is unique — re-execution creates a NEW pipeline_runs row, and the previous
+// substep is set to status='superseded' (see Section 4.5 of Spec 62.0a).
+export const stepPauses = pgTable(
+  "step_pauses",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pipelineRunId: uuid("pipeline_run_id")
+      .notNull()
+      .references(() => pipelineRuns.id, { onDelete: "cascade" }),
+    stepRunId: uuid("step_run_id")
+      .notNull()
+      .references(() => pipelineRuns.id, { onDelete: "cascade" }),
+    stepName: text("step_name").notNull(),
+    pipelineName: text("pipeline_name").notNull(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+
+    // Frozen at suspend
+    stepInput: jsonb("step_input").$type<Record<string, unknown>>().notNull(),
+    stepOutput: jsonb("step_output").$type<Record<string, unknown>>().notNull(),
+    promptUsed: text("prompt_used"),
+
+    // User decision — one of: approve, edit-output, edit-prompt, edit-input, abort,
+    // promote-golden, extract-for-optimization, auto-dismissed.
+    action: text("action"),
+    editedInput: jsonb("edited_input").$type<Record<string, unknown>>(),
+    editedOutput: jsonb("edited_output").$type<Record<string, unknown>>(),
+    editedPrompt: text("edited_prompt"),
+    userNote: text("user_note"),
+
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: text("resolved_by"),
+  },
+  (t) => ({
+    stepRunUnique: uniqueIndex("step_pauses_step_run_id_unique").on(t.stepRunId),
+    pipelineRunIdx: index("step_pauses_pipeline_run_id_idx").on(t.pipelineRunId),
+    // Partial index — must match the migration WHERE clause exactly (Pattern: drizzle .where()
+    // needs an SQL expression, not a bare column ref).
+    unresolvedIdx: index("step_pauses_unresolved_idx")
+      .on(t.projectId, t.requestedAt)
+      .where(isNull(t.resolvedAt)),
+  })
+);
+
+export type StepPause = typeof stepPauses.$inferSelect;
+export type NewStepPause = typeof stepPauses.$inferInsert;
+
+// Spec 62.0a: step-level idempotency cache.
+// Key = (pipelineName, stepName, projectId, idempotencyKey).
+// Lookup HIT means: step's computed output is reused and execute() is skipped.
+// All inserts MUST use onConflictDoNothing (benign write race vs cache-check).
+export const idempotencyOutputs = pgTable(
+  "idempotency_outputs",
+  {
+    idempotencyKey: text("idempotency_key").notNull(),
+    pipelineName: text("pipeline_name").notNull(),
+    stepName: text("step_name").notNull(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    stepOutput: jsonb("step_output").$type<Record<string, unknown>>().notNull(),
+    costEur: numeric("cost_eur", { precision: 10, scale: 6 }).$type<string>().notNull().default("0"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (t) => ({
+    pk: primaryKey({
+      columns: [t.idempotencyKey, t.pipelineName, t.stepName, t.projectId],
+    }),
+    lookupIdx: index("idempotency_outputs_lookup_idx").on(
+      t.pipelineName,
+      t.stepName,
+      t.projectId,
+      t.createdAt
+    ),
+  })
+);
+
+export type IdempotencyOutput = typeof idempotencyOutputs.$inferSelect;
+export type NewIdempotencyOutput = typeof idempotencyOutputs.$inferInsert;
 
 export const approvals = pgTable(
   "approvals",

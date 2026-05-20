@@ -30,7 +30,14 @@ export type ActivityType =
   | "link_rebuild"
   | "other";
 
-export type NormalizedStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "batch_pending";
+export type NormalizedStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "batch_pending"
+  | "paused";  // Spec 62.0a: step paused in debug mode awaiting user action
 
 export interface ActivityEntry {
   id: string;
@@ -79,6 +86,11 @@ export function normalizeStatus(raw: string): NormalizedStatus {
     budget_exceeded: "failed",
     cancelled: "cancelled",
     batch_pending: "batch_pending",
+    paused: "paused",
+    // Spec 62.0a: superseded is an internal cleanup state for replaced substeps; UI does not
+    // surface it as its own status — map to failed so it appears in the activity feed as a
+    // terminal/non-success row.
+    superseded: "failed",
   };
   return map[raw] ?? "failed";
 }
@@ -323,7 +335,7 @@ pipelineRunsRoutes.get("/active", async (c) => {
       id: pr.id,
       source: "pipeline_runs",
       type: classifyPipelineName(pr.pipelineName),
-      status: pr.status,
+      status: normalizeStatus(pr.status),
       projectId: pr.projectId,
       projectName: pr.projectName ?? null,
       projectSlug: pr.projectSlug ?? null,
