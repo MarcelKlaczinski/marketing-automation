@@ -1,4 +1,5 @@
 import {
+  boolean,
   decimal,
   index,
   integer,
@@ -11,7 +12,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { isNull } from "drizzle-orm";
+import { isNull, sql } from "drizzle-orm";
 import { approvalActionEnum, costServiceEnum, pipelineRunStatusEnum } from "./_enums.ts";
 import { users } from "./auth.ts";
 import { articles, socialPosts } from "./content.ts";
@@ -435,6 +436,94 @@ export const idempotencyOutputs = pgTable(
 
 export type IdempotencyOutput = typeof idempotencyOutputs.$inferSelect;
 export type NewIdempotencyOutput = typeof idempotencyOutputs.$inferInsert;
+
+// Spec 62.0b: promoted prompt overrides ("goldens") per (step, project).
+// body = systemSuffix replacement only (cacheable foundation stays intact).
+//
+// MULTI-TENANT EXCEPTION: `project_id` is nullable here, breaking the usual non-nullable
+// FK convention. Documented exception in Spec 62.0b Section 4.1 — `projectId IS NULL`
+// represents a GLOBAL golden that applies across all projects (Tier 3 of the hybrid
+// resolution chain). A project-specific golden (Tier 2) always has a non-null project_id.
+// The partial unique index uses COALESCE(project_id::text, 'GLOBAL') to keep the
+// "one active golden per (step, scope)" invariant for both shapes.
+export const promptVersions = pgTable(
+  "prompt_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stepName: text("step_name").notNull(),
+    projectId: uuid("project_id").references(() => projects.id, { onDelete: "cascade" }),
+
+    body: text("body").notNull(),
+    sourcePauseId: uuid("source_pause_id").references(() => stepPauses.id, {
+      onDelete: "set null",
+    }),
+
+    isGolden: boolean("is_golden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBy: text("created_by"),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+    promoteNote: text("promote_note"),
+  },
+  (t) => ({
+    // At most one golden per (step, project). NULL project_id stays comparable via COALESCE.
+    oneGoldenPerStep: uniqueIndex("prompt_versions_one_golden_per_step")
+      .on(sql`${t.stepName}`, sql`COALESCE(${t.projectId}::text, 'GLOBAL')`)
+      .where(sql`${t.isGolden} = true`),
+    stepProjectIdx: index("prompt_versions_step_project_idx").on(
+      t.stepName,
+      t.projectId,
+      t.createdAt
+    ),
+  })
+);
+
+export type PromptVersion = typeof promptVersions.$inferSelect;
+export type NewPromptVersion = typeof promptVersions.$inferInsert;
+
+// Spec 62.0b: "this output wasn't good, here's why".
+// Frozen snapshot of the step_pauses row at request time so the source pause can mutate
+// later (or be auto-dismissed by a parent-run cancellation) without invalidating audit.
+export const stepOptimizationRequests = pgTable(
+  "step_optimization_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stepPauseId: uuid("step_pause_id")
+      .notNull()
+      .references(() => stepPauses.id, { onDelete: "cascade" }),
+    stepName: text("step_name").notNull(),
+    pipelineName: text("pipeline_name").notNull(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+
+    stepInput: jsonb("step_input").$type<Record<string, unknown>>().notNull(),
+    stepOutput: jsonb("step_output").$type<Record<string, unknown>>().notNull(),
+    promptUsed: text("prompt_used"),
+
+    userNote: text("user_note").notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    requestedBy: text("requested_by"),
+
+    // 'open' | 'addressed' | 'discarded'. Plain text column: future statuses can be added
+    // without a DDL migration (per Spec 62.0b design).
+    status: text("status").notNull().default("open"),
+    addressedAt: timestamp("addressed_at", { withTimezone: true }),
+    addressedNote: text("addressed_note"),
+  },
+  (t) => ({
+    openIdx: index("step_optimization_requests_open_idx")
+      .on(t.projectId, t.requestedAt)
+      .where(sql`${t.status} = 'open'`),
+    stepIdx: index("step_optimization_requests_step_idx").on(
+      t.stepName,
+      t.projectId,
+      t.requestedAt
+    ),
+  })
+);
+
+export type StepOptimizationRequest = typeof stepOptimizationRequests.$inferSelect;
+export type NewStepOptimizationRequest = typeof stepOptimizationRequests.$inferInsert;
 
 export const approvals = pgTable(
   "approvals",

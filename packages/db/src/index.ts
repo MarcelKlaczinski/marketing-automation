@@ -8,3 +8,7 @@ export * from "./helpers/step-pause-read.ts";
 export * from "./helpers/step-pause-write.ts";
 export * from "./helpers/idempotency-read.ts";
 export * from "./helpers/idempotency-write.ts";
+export * from "./helpers/prompt-version-read.ts";
+export * from "./helpers/prompt-version-write.ts";
+export * from "./helpers/step-optimization-request-read.ts";
+export * from "./helpers/step-optimization-request-write.ts";
