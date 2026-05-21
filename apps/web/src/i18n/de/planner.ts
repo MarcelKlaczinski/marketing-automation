@@ -104,6 +104,10 @@ export default {
     breakdownFloor: "Floor",
     breakdownOverage: "Overage",
     breakdownSibling: "Sibling",
+    // Spec 62.5.1: shown when the plan was generated with llmMode='batch'
+    batchPill: "Batch",
+    batchTooltip:
+      "Plan wurde mit Batch-Modus generiert. LLM-Schritte nutzen Anthropics Batch-API (~50 % günstiger, bis zu 24 h Latenz).",
   },
 
   // Empty / no-plan state

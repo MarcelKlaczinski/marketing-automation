@@ -60,6 +60,7 @@ export class TranslationDecisionStep extends BaseStep<
   readonly name = "translation-decision";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur() { return 0.005; }
 

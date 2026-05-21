@@ -18,6 +18,18 @@ import { effectiveFreshness } from "./article-freshness.ts";
 /** Default safety buffer applied to the aggregated estimate. */
 export const BUFFER_FACTOR = 1.15;
 
+/**
+ * Spec 62.5.1: Anthropic Batch API discount factor.
+ *
+ * Anthropic charges roughly 50 % of sync rates for Batch API requests. When the
+ * project's `llmMode === 'batch'`, every step flagged `llmBound = true` has its
+ * tier-1 step-sum estimate multiplied by this factor. Historical (tier 2) and
+ * default (tier 3) estimates are NOT discounted — they're already aggregated
+ * across past runs and may include a mix of sync/batch, so the historical
+ * average is already empirically batch-aware (or not, depending on the run mix).
+ */
+export const BATCH_DISCOUNT_FACTOR = 0.5;
+
 /** Look-back window for the tier-2 historical-average query (`cost_logs` join). */
 export const HISTORICAL_LOOKBACK_DAYS = 30;
 
@@ -96,6 +108,14 @@ export interface WeeklyBudgetEstimate {
 /** Minimal step shape used to invoke `estimatedCostEur`. Avoids depending on the pipelines package. */
 export interface EstimatorStep {
   estimatedCostEur: (input: unknown) => number;
+  /**
+   * Spec 62.5.1: marks steps whose cost is dominated by an Anthropic LLM call.
+   * When the project's `llmMode === 'batch'`, the estimator multiplies this
+   * step's contribution by `BATCH_DISCOUNT_FACTOR`. Mixed-cost steps
+   * (e.g. ResearchStep with DataForSEO + LLM) keep this false because only
+   * part of their cost benefits from the batch discount.
+   */
+  llmBound?: boolean;
 }
 
 /** Callback to look up a pipeline's step list. Caller wires this to `pipelineRegistry.get(name)?.steps`. */
@@ -114,6 +134,12 @@ export interface EstimateWeeklyPlanCostInput {
   resolvePipelineSteps?: PipelineStepResolver;
   /** Refresh items younger than this are skipped (€0). Default: 30 days. */
   freshSkipThresholdDays?: number;
+  /**
+   * Spec 62.5.1: LLM execution mode for this project. When `"batch"`, tier-1
+   * step-sum estimates are multiplied by `BATCH_DISCOUNT_FACTOR` for every step
+   * flagged `llmBound = true`. Defaults to `"sync"` (no discount applied).
+   */
+  llmMode?: "sync" | "batch";
 }
 
 /**
@@ -156,7 +182,14 @@ export async function estimateWeeklyPlanCost(
     if (input.resolvePipelineSteps) {
       const steps = input.resolvePipelineSteps(item.pipelineName);
       if (steps && steps.length > 0) {
-        const sum = steps.reduce((acc, s) => acc + (s.estimatedCostEur(item.predictedInput) || 0), 0);
+        const isBatch = input.llmMode === "batch";
+        const sum = steps.reduce((acc, s) => {
+          const raw = s.estimatedCostEur(item.predictedInput) || 0;
+          // Spec 62.5.1: apply batch discount per-step so mixed pipelines
+          // (some llmBound steps, some not) get a partial discount.
+          const factor = isBatch && s.llmBound === true ? BATCH_DISCOUNT_FACTOR : 1;
+          return acc + raw * factor;
+        }, 0);
         if (sum > 0) {
           breakdown.push({
             itemId: item.id,

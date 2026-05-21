@@ -1,7 +1,15 @@
 <template>
   <div class="budget-bar" :class="`status-${colorStatus}`">
     <div class="budget-header">
-      <span class="budget-label">{{ $t("planner.budget.label") as string }}</span>
+      <div class="budget-label-row">
+        <span class="budget-label">{{ $t("planner.budget.label") as string }}</span>
+        <span v-if="isBatch" class="batch-pill">
+          {{ $t("planner.budget.batchPill") as string }}
+          <q-tooltip anchor="bottom middle" self="top middle" :offset="[0, 6]">
+            {{ $t("planner.budget.batchTooltip") as string }}
+          </q-tooltip>
+        </span>
+      </div>
       <span class="budget-amounts mono">
         {{ $t("planner.budget.used", { used: usedDisplay, total: totalDisplay }) as string }}
         <span class="budget-percent">
@@ -41,9 +49,18 @@ export default defineComponent({
     floorEur: { type: Number, default: 0 },
     overageEur: { type: Number, default: 0 },
     siblingEur: { type: Number, default: 0 },
+    /**
+     * Spec 62.5.1: LLM execution mode the plan was generated under. When
+     * `"batch"`, the bar renders a "Batch" pill + tooltip explaining the
+     * ~50% Batch API discount baked into the estimate.
+     */
+    llmMode: { type: String as () => "sync" | "batch", default: "sync" },
   },
 
   computed: {
+    isBatch(): boolean {
+      return this.llmMode === "batch";
+    },
     rawPercent(): number {
       if (this.budgetEur <= 0) return 0;
       return (this.spentEur / this.budgetEur) * 100;
@@ -102,12 +119,33 @@ export default defineComponent({
   gap: var(--space-3);
 }
 
+.budget-label-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .budget-label {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-tertiary);
+}
+
+.batch-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: color-mix(in oklch, var(--status-running, #16d97e) 18%, transparent);
+  color: var(--status-running, #16d97e);
+  border: 1px solid color-mix(in oklch, var(--status-running, #16d97e) 35%, transparent);
+  cursor: help;
 }
 
 .budget-amounts {

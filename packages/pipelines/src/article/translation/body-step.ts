@@ -107,6 +107,7 @@ export class TranslationBodyStep extends BaseStep<
   readonly name = "translation-body";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     return 0.22; // literal ~0.20, adaptive ~0.30 — use midpoint

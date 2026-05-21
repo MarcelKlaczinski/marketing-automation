@@ -121,6 +121,11 @@ export const plannerConfigSnapshotSchema = z.object({
   maxOveragePerSignal: z.number().int().min(0),
   signalMaxAgeHours: z.number().int().min(0),
   excludedPipelines: z.array(z.string()),
+  // Spec 62.5.1: LLM execution mode at plan-generation time. Required for
+  // reproducibility — a snapshot replayed under a different llmMode would
+  // produce different cost estimates. Defaults to "sync" for back-compat
+  // with snapshots written before 62.5.1.
+  llmMode: z.enum(["sync", "batch"]).default("sync"),
 });
 export type PlannerConfigSnapshot = z.infer<typeof plannerConfigSnapshotSchema>;
 

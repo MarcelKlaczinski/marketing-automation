@@ -126,4 +126,16 @@ export abstract class BaseStep<TInput, TOutput> {
   pausableInDebug(): boolean {
     return true;
   }
+
+  /**
+   * Spec 62.5.1: whether this step's cost is dominated by an Anthropic LLM call.
+   * Default: false. Override to `true` on every step whose `estimatedCostEur`
+   * is primarily LLM tokens — the Planner uses this flag to apply the Batch API
+   * discount (~50%) when the project's `llmMode === 'batch'`.
+   *
+   * Keep this `false` for mixed-cost steps (e.g. ResearchStep, which mixes
+   * DataForSEO SERP fetches with an LLM call) — the discount only fairly
+   * applies to the LLM portion, and tier-1 sums the step's full estimate.
+   */
+  readonly llmBound: boolean = false;
 }

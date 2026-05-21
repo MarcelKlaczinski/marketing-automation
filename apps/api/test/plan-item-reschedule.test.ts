@@ -63,6 +63,7 @@ async function seedPlan(
           maxOveragePerSignal: 1,
           signalMaxAgeHours: 168,
           excludedPipelines: [],
+          llmMode: "sync" as const,
         },
         signalRefreshResult: {
           projectId,

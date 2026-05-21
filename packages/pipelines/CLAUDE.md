@@ -586,6 +586,32 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT declare a new `PipelineRunOptions` field with shape derived from a Zod schema's `z.unknown()` / `z.string().optional()` and expect the interface side to use `field?: T` under `exactOptionalPropertyTypes` — Zod infers optionals as `T | undefined` which is incompatible. Either declare the interface to match Zod's inferred shape (`storedOutput?: unknown`, `editedPrompt?: string`) AND mark a single justified `as Parameters<typeof runPipeline>[2]` cast at the worker dispatch site, OR define the schema once in a shared file and use `z.infer<typeof X>` as the canonical type. Canonical example: `StepPauseResume` in [runner.ts](src/engine/runner.ts) + `stepPauseResumeSchema` in [queue.ts](src/engine/queue.ts) (Spec 62.0a Session 2).
 - DO NOT add a new pipeline that enqueues `article:translation` in `afterComplete` without consulting `shouldSkipAutoTranslation(article.skipAutoTranslationUntil)` from `src/article/translation/skip-gate.ts` first (Spec 62.0a-followup Issue 1). Per-article skip-until takes precedence over project-level `translationAutoTrigger`. Currently wired in `BlogPipeline.afterComplete` (fresh translation) and `RefreshPipeline.afterComplete` (sibling propagation). If you add a third translation-enqueue site, copy the same DB select for `skipAutoTranslationUntil` and gate on the helper.
 
+## llmBound Flag (Spec 62.5.1)
+
+`BaseStep.llmBound: boolean = false` is a class field declaring whether the step's cost is dominated by an Anthropic LLM call. The Planner's cost estimator multiplies these steps' contributions by `BATCH_DISCOUNT_FACTOR` (0.5) when the project's `llmMode === 'batch'`.
+
+```typescript
+export class DraftStep extends BaseStep<Input, Output> {
+  readonly name = "draft";
+  readonly inputSchema = InputSchema;
+  readonly outputSchema = OutputSchema;
+  override readonly llmBound = true;   // ← add for any step that calls anthropic.messages
+  ...
+}
+```
+
+**Pattern**: place `override readonly llmBound = true` immediately after the schema declarations, before `estimatedCostEur()`. The `override` keyword is required because `BaseStep` declares a non-abstract default; omitting it triggers TS4114 under `noImplicitOverride`.
+
+**When to flag (`true`)**: every step whose `estimatedCostEur` is dominated by Anthropic tokens. Currently 11 steps: `DraftStep`, `OutlineStep`, `SelfReviewStep`, `TranslationBodyStep`, `TranslationDecisionStep`, `LocalizeArticleStep`, `ExtractToolsStep`, `GenerateComparisonGrid4Step`, `GenerateCaptionStep`, `AnalyzeLinksStep`, `DetectRichTypesStep`.
+
+**When NOT to flag (`false` — the default)**:
+- Mixed-cost steps. `ResearchStep` calls DataForSEO (SERP) AND an LLM — the SERP cost can't benefit from the batch discount, so flagging would over-discount.
+- DB-only / asset-only steps (`LoadArticleStep`, `ResolveAssetsStep`, `RenderSlidesStep`, etc.) — no LLM cost.
+- Cold-start steps — they don't run via the Planner.
+- Free-function LLM calls (`cluster/full-plan/llm-call.ts`, `cluster-creator/propose.ts`, `topic-sources/trend-discovery/*`, `article/discovery/llmEnrichment.ts`) — no `BaseStep`, no flag surface. Future refactor to `BaseStep` would pick up the discount.
+
+**Reading `llmMode` in planner steps**: never query `projects.llmMode` directly in steps after `SnapshotInputsStep`. The snapshot step persists `llmMode` into `inputSnapshot.config.llmMode` for reproducibility. Downstream steps (`EstimateCostStep`) read it back via `ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>("snapshot-inputs")?.snapshot.config.llmMode ?? "sync"`. The `?? "sync"` fallback lets pre-62.5.1 plans replay safely.
+
 ## Batch Mode Step Contract (Spec 61.4)
 
 Steps that support Anthropic Batch API follow this pattern:

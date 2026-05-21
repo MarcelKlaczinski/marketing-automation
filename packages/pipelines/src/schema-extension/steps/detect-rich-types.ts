@@ -20,6 +20,7 @@ export class DetectRichTypesStep extends BaseStep<
   readonly inputSchema = InputSchema;
   // ZodType cast — DetectionResultSchema has .default([]) on arrays (Spec 21 lesson #6)
   readonly outputSchema = DetectionResultSchema as z.ZodType<z.infer<typeof DetectionResultSchema>>;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     return 0.05;

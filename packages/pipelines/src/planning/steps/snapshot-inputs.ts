@@ -4,7 +4,7 @@
 // produce the same planned_items — that property is what makes 62.6's
 // debug UI useful.
 
-import type { ProjectGoal, ProjectPlannerConfig, TopicBrief } from "@marketing-auto/db";
+import { db, eq, projects, type ProjectGoal, type ProjectPlannerConfig, type TopicBrief } from "@marketing-auto/db";
 import { type SignalRefreshResult, computeSignalTopN } from "@marketing-auto/planner";
 import type {
   GoalSnapshotEntry,
@@ -59,6 +59,17 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       isActive: g.isActive,
     }));
 
+    // Spec 62.5.1: capture projects.llmMode in the snapshot so cost estimates
+    // are reproducible — replaying the snapshot under a different llmMode
+    // would produce different per-item costs.
+    const projectRow = await db
+      .select({ llmMode: projects.llmMode })
+      .from(projects)
+      .where(eq(projects.id, input.projectId))
+      .limit(1);
+    const llmMode: "sync" | "batch" =
+      projectRow[0]?.llmMode === "batch" ? "batch" : "sync";
+
     const configSnap: PlannerConfigSnapshot = {
       weeklyBudgetEur: Number(config.weeklyBudgetEur),
       perTypeMaxEur: config.perTypeMaxEur ?? null,
@@ -66,6 +77,7 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       maxOveragePerSignal: config.maxOveragePerSignal,
       signalMaxAgeHours: config.signalMaxAgeHours,
       excludedPipelines: config.excludedPipelines,
+      llmMode,
     };
 
     const briefSnap: TopicBriefSnapshotEntry[] = briefs.map((b) => ({

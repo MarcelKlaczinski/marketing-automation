@@ -91,6 +91,27 @@ When the callback is omitted, tier 1 is skipped and the estimator falls straight
 
 **Tier-1 zero-sum behaviour**: a pipeline whose every step returns 0 from `estimatedCostEur()` falls through to tier 2/3. Intentional — a pipeline with overrides that all happen to be 0 should be reported with the same default as one with no overrides. The edge case: a future pipeline that genuinely costs €0 (e.g. pure DB-rotation chain) will be tagged with the itemType default. Mark such pipelines with an explicit `estimatedCostEur(): number { return 0.0001; }` if you want tier 1 to "stick", or document the false positive.
 
+## Batch-Mode Discount (Spec 62.5.1)
+
+`BATCH_DISCOUNT_FACTOR = 0.5` is exported alongside `BUFFER_FACTOR`. When `EstimateWeeklyPlanCostInput.llmMode === "batch"`, the tier-1 step-sum multiplies each step's contribution by `BATCH_DISCOUNT_FACTOR` **only if** `step.llmBound === true`. The discount is applied per-step (not per-pipeline) so mixed pipelines with both LLM-bound and non-LLM-bound steps get a partial discount that reflects reality.
+
+```typescript
+// EstimatorStep gained an optional flag
+export interface EstimatorStep {
+  estimatedCostEur: (input: unknown) => number;
+  llmBound?: boolean;  // undefined = false (treated as "not LLM-bound")
+}
+
+await estimateWeeklyPlanCost({
+  ...,
+  llmMode: "batch",  // omitted defaults to "sync" (no discount)
+});
+```
+
+**Tiers 2 + 3 NOT discounted**: historical averages aggregate past runs whose mode mix is empirically baked in; defaults are conservative fallbacks where the discount is in the noise. Discounting them would double-count when a project switches from sync to batch (the historical avg is already lower if past runs were batch).
+
+**Callers must thread `llmMode` from the snapshot, not the live project**: see Spec 62.5.1 — `EstimateCostStep` (in `packages/pipelines`) reads from `inputSnapshot.config.llmMode` so the displayed cost is frozen at plan-generation time. Don't query `projects.llmMode` from the estimator's call sites.
+
 ## Common Mistakes
 
 - DO NOT skip `track()` for "small" operations — 1000 small calls add up

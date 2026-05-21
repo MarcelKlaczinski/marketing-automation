@@ -40,6 +40,7 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
   readonly name = "draft";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     return 0.8;

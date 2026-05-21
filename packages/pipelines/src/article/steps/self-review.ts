@@ -82,6 +82,7 @@ export class SelfReviewStep extends BaseStep<
   readonly name = "self-review";
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     return 0.05;

@@ -75,6 +75,7 @@ class LocalizeArticleStep extends BaseStep<
   readonly name = "localize-article";
   readonly inputSchema = StepInputSchema;
   readonly outputSchema = StepOutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     // translate mode: large input + large output (full article body)

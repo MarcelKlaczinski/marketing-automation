@@ -260,6 +260,7 @@ export class ExtractToolsStep extends BaseStep<
   readonly name = "extract-tools";
   readonly inputSchema = ExtractToolsInputSchema;
   readonly outputSchema = ExtractToolsOutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number { return 0.005; }
 
@@ -666,6 +667,7 @@ export class GenerateComparisonGrid4Step extends BaseStep<
   readonly name = "generate-comparison-grid-4";
   readonly inputSchema = GenerateComparisonGrid4InputSchema;
   readonly outputSchema = GenerateComparisonGrid4OutputSchema;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number { return 0.028; }
 
@@ -887,6 +889,7 @@ export class GenerateCaptionStep extends BaseStep<
   readonly name = "generate-caption";
   readonly inputSchema = GenerateCaptionInputSchema;
   readonly outputSchema = GenerateCaptionOutputSchema;
+  override readonly llmBound = true;
 
   // Cost scales with locale count; pipeline registers base estimate per step
   override estimatedCostEur(): number { return 0.028; }

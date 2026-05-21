@@ -33,6 +33,7 @@ export class AnalyzeLinksStep extends BaseStep<z.infer<typeof InputSchema>, Anal
   readonly name = "analyze-links";
   readonly inputSchema = InputSchema;
   readonly outputSchema = AnalyzeLinksOutputSchemaOutput;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     return 0.3;

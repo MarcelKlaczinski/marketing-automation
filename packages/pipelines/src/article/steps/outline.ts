@@ -42,6 +42,7 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
   readonly name = "outline";
   readonly inputSchema = InputSchema;
   readonly outputSchema = ArticleOutlineSchemaOutput;
+  override readonly llmBound = true;
 
   override estimatedCostEur(): number {
     return 0.07; // Sonnet 4.6 @ up to 8k output tokens

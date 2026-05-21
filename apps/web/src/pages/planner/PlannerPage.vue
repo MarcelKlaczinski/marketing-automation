@@ -75,6 +75,7 @@
         v-if="plan"
         :spent-eur="planSpentEur"
         :budget-eur="weeklyBudgetEur"
+        :llm-mode="planLlmMode"
       />
 
       <PlannerActionBar
@@ -319,6 +320,18 @@ export default defineComponent({
       const raw = this.plan.actualCostEur ?? this.plan.estimatedCostEur;
       const parsed = Number.parseFloat(raw);
       return Number.isFinite(parsed) ? parsed : 0;
+    },
+    /**
+     * Spec 62.5.1: LLM mode the plan was generated under. Read from the
+     * frozen `inputSnapshot.config.llmMode`, not from current `projects.llmMode`
+     * — the latter could change between generation and viewing, and the budget
+     * bar must reflect the assumptions baked into the estimate.
+     */
+    planLlmMode(): "sync" | "batch" {
+      const snapshot = this.plan?.inputSnapshot;
+      if (!snapshot || typeof snapshot !== "object") return "sync";
+      const config = (snapshot as { config?: { llmMode?: string } }).config;
+      return config?.llmMode === "batch" ? "batch" : "sync";
     },
     pendingItemCount(): number {
       return this.items.filter((i) => i.status === "pending").length;

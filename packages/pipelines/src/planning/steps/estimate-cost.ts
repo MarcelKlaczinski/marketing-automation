@@ -12,6 +12,7 @@ import {
   type WeeklyBudgetEstimate,
 } from "@marketing-auto/cost-tracker";
 import type { ProjectPlannerConfig } from "@marketing-auto/db";
+import type { WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import type { PlanningItemDraft } from "../types.ts";
@@ -49,6 +50,15 @@ export class EstimateCostStep extends BaseStep<Input, Output> {
       throw new Error("estimate-cost: validate-goals.config missing");
     }
 
+    // Spec 62.5.1: read llmMode from the snapshot so the estimator can apply
+    // the Batch API discount (~50%) to llmBound steps when batch mode is on.
+    // SnapshotInputsStep loaded it once from projects.llmMode and persisted it
+    // into inputSnapshot.config.llmMode for reproducibility.
+    const snapshot = ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>(
+      "snapshot-inputs",
+    )?.snapshot;
+    const llmMode: "sync" | "batch" = snapshot?.config.llmMode ?? "sync";
+
     const opts: Parameters<typeof estimateWeeklyPlanCost>[0] = {
       plannedItems: distributedItems.map((it) => ({
         id: it.draftId,
@@ -58,6 +68,7 @@ export class EstimateCostStep extends BaseStep<Input, Output> {
       })),
       weeklyBudgetEur: Number(config.weeklyBudgetEur),
       projectId: input.projectId,
+      llmMode,
     };
     if (this.resolvePipelineSteps !== undefined) {
       opts.resolvePipelineSteps = this.resolvePipelineSteps;

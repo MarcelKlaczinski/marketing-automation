@@ -8,6 +8,7 @@ export {
   effectiveFreshnessAgeDays,
 } from "./article-freshness.ts";
 export {
+  BATCH_DISCOUNT_FACTOR,
   BUFFER_FACTOR,
   HISTORICAL_LOOKBACK_DAYS,
   DEFAULT_COST_BY_ITEM_TYPE,
