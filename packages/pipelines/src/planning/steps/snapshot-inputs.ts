@@ -100,13 +100,17 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
     const refreshSnap: SignalRefreshResultSnapshot | null = refreshResult
       ? {
           projectId: refreshResult.projectId,
-          triggeredAt: refreshResult.triggeredAt.toISOString(),
+          // Spec 62.6: when this step is reached via a debug-mode resume, the
+          // upstream refresh-signals output came through JSONB on the parent
+          // run's suspensionCheckpoint — every Date is now a string. In a
+          // production run it's still a real Date in memory. Normalize both.
+          triggeredAt: toIsoString(refreshResult.triggeredAt),
           sourceResults: refreshResult.sourceResults.map((r) => {
             const base: SignalRefreshResultSnapshot["sourceResults"][number] = {
               source: r.source,
               status: r.status,
               rowsAdded: r.rowsAdded,
-              lastCollectedAt: r.lastCollectedAt ? r.lastCollectedAt.toISOString() : null,
+              lastCollectedAt: toIsoStringOrNull(r.lastCollectedAt),
             };
             if (r.notes !== undefined) base.notes = r.notes;
             if (r.error !== undefined) base.error = r.error;
@@ -134,4 +138,23 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
 
     return { snapshot };
   }
+}
+
+/**
+ * Normalize a Date OR an ISO-string into an ISO-string. Required because the
+ * upstream step output may arrive either way: in-memory during a production
+ * run (Date), or via JSONB on `pipeline_runs.suspensionCheckpoint` during a
+ * debug-mode resume (string). Returns "" for null/undefined since the caller
+ * always wants a real ISO string in that branch.
+ */
+function toIsoString(value: Date | string | null | undefined): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") return value;
+  return new Date().toISOString();
+}
+
+function toIsoStringOrNull(value: Date | string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value.toISOString();
+  return value;
 }
