@@ -156,10 +156,14 @@ export async function transitionWeeklyPlanStatus(input: {
     if (!current) return null;
 
     if (input.toStatus === "approved" && current.status !== "draft") return null;
+    // Allow cancel from any non-terminal state: a `running` plan can be
+    // cancelled by the user mid-execution (in-flight items keep running per
+    // 62.8 §5.5; pending+enqueued get cleaned up below).
     if (
       input.toStatus === "cancelled" &&
       current.status !== "draft" &&
-      current.status !== "approved"
+      current.status !== "approved" &&
+      current.status !== "running"
     ) {
       return null;
     }
@@ -178,6 +182,24 @@ export async function transitionWeeklyPlanStatus(input: {
       .set(patch)
       .where(eq(weeklyPlans.id, input.planId))
       .returning();
+
+    // When the plan is cancelled, sweep pending+enqueued items to 'cancelled'
+    // in the same transaction. In-progress items keep running — BullMQ can't
+    // reliably stop a job mid-flight. Without this sweep, cancelled plans
+    // leave behind dangling pending items that show up as "Datenmüll" in any
+    // future audit query and could confuse the user about plan state.
+    if (input.toStatus === "cancelled" && updated) {
+      await tx
+        .update(plannedItems)
+        .set({ status: "cancelled", updatedAt: new Date() })
+        .where(
+          and(
+            eq(plannedItems.weeklyPlanId, input.planId),
+            inArray(plannedItems.status, ["pending", "enqueued"]),
+          ),
+        );
+    }
+
     return updated ?? null;
   });
 }

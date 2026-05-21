@@ -165,8 +165,23 @@ describe("reschedulePlannedItem", () => {
     expect(result.reason).toBe("wrong_item_status");
   });
 
-  it("cancelled plan → wrong_plan_status", async () => {
+  it("cancelled plan sweeps pending items → reschedule rejects with wrong_item_status", async () => {
+    // After the cancel-sweep change (2026-05-21), cancelling a plan also
+    // cancels its pending+enqueued items in the same transaction. The
+    // reschedule helper checks item.status before plan.status, so the
+    // rejection now surfaces earlier as `wrong_item_status` — semantically
+    // equivalent (rescheduling a cancelled-item-in-a-cancelled-plan is
+    // disallowed for the same underlying reason).
     await transitionWeeklyPlanStatus({ planId, toStatus: "cancelled" });
+
+    // Verify the sweep actually fired before the reschedule check.
+    const [itemAfterCancel] = await db
+      .select({ status: plannedItems.status })
+      .from(plannedItems)
+      .where(eq(plannedItems.id, itemId))
+      .limit(1);
+    expect(itemAfterCancel?.status).toBe("cancelled");
+
     const result = await reschedulePlannedItem({
       planId,
       itemId,
@@ -174,7 +189,7 @@ describe("reschedulePlannedItem", () => {
     });
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected failure");
-    expect(result.reason).toBe("wrong_plan_status");
+    expect(result.reason).toBe("wrong_item_status");
   });
 
   it("unknown item id → not_found", async () => {
@@ -206,6 +221,71 @@ describe("reschedulePlannedItem", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("expected failure");
     expect(result.reason).toBe("not_found");
+  });
+});
+
+describe("transitionWeeklyPlanStatus cancel sweep (2026-05-21 fix)", () => {
+  it("running → cancelled is now allowed and sweeps pending+enqueued items", async () => {
+    // Promote draft → approved → running so we hit the new branch.
+    await transitionWeeklyPlanStatus({ planId, toStatus: "approved", approvedBy: "test" });
+    await db
+      .update(weeklyPlans)
+      .set({ status: "running" })
+      .where(eq(weeklyPlans.id, planId));
+
+    // Seed a second item in `enqueued` state to verify the IN-list sweep.
+    const [enqueuedItem] = await db
+      .insert(plannedItems)
+      .values({
+        weeklyPlanId: planId,
+        projectId,
+        contentType: "comparison",
+        pipelineName: "article:blog",
+        slotDate: DAY_INSIDE_WEEK,
+        sourceKind: "floor",
+        pipelineInput: {},
+        estimatedCostEur: "0.300000",
+        status: "enqueued",
+      })
+      .returning();
+
+    const updated = await transitionWeeklyPlanStatus({ planId, toStatus: "cancelled" });
+    expect(updated?.status).toBe("cancelled");
+
+    const rows = await db
+      .select({ id: plannedItems.id, status: plannedItems.status })
+      .from(plannedItems)
+      .where(eq(plannedItems.weeklyPlanId, planId));
+    const byId = new Map(rows.map((r) => [r.id, r.status]));
+    expect(byId.get(itemId)).toBe("cancelled");
+    expect(byId.get(enqueuedItem!.id)).toBe("cancelled");
+  });
+
+  it("cancel sweep leaves in_progress items untouched", async () => {
+    await transitionWeeklyPlanStatus({ planId, toStatus: "approved", approvedBy: "test" });
+    // Manually flip the seed item to in_progress to simulate a job mid-flight.
+    await db
+      .update(plannedItems)
+      .set({ status: "in_progress" })
+      .where(eq(plannedItems.id, itemId));
+
+    await transitionWeeklyPlanStatus({ planId, toStatus: "cancelled" });
+
+    const [row] = await db
+      .select({ status: plannedItems.status })
+      .from(plannedItems)
+      .where(eq(plannedItems.id, itemId))
+      .limit(1);
+    expect(row?.status).toBe("in_progress");
+  });
+
+  it("completed/superseded plans cannot be cancelled", async () => {
+    await db
+      .update(weeklyPlans)
+      .set({ status: "completed" })
+      .where(eq(weeklyPlans.id, planId));
+    const result = await transitionWeeklyPlanStatus({ planId, toStatus: "cancelled" });
+    expect(result).toBeNull();
   });
 });
 

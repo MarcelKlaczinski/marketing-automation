@@ -67,10 +67,14 @@ export function useWeeklyPlan(input: UseWeeklyPlanInput): {
   });
 
   // Pick the first active plan (status NOT IN superseded/cancelled).
+  // If only inactive plans exist for the week, return null so the empty-state
+  // with the Generate button appears. The previous `?? list[0]` fallback
+  // incorrectly surfaced cancelled plans as "active", hiding the Generate
+  // button and giving the impression that the week was permanently locked.
   const activePlanFromList = computed<WeeklyPlan | null>(() => {
     const list = plansListQuery.data.value ?? [];
     const INACTIVE: WeeklyPlanStatus[] = ["superseded", "cancelled"];
-    return list.find((p) => !INACTIVE.includes(p.status)) ?? list[0] ?? null;
+    return list.find((p) => !INACTIVE.includes(p.status)) ?? null;
   });
 
   // Fetch full detail (plan + items) when we have a plan id. `enabled` gates
