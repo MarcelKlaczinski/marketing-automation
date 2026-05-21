@@ -14,8 +14,8 @@ import {
   GOAL_VALIDATION_ERROR_CODES,
   validateProjectGoals,
   weeklyCountFromGoal,
-  type EstimatorStep,
 } from "../src/index.ts";
+import type { EstimatorStep } from "@marketing-auto/cost-tracker";
 
 const step = (cost: number): EstimatorStep => ({ estimatedCostEur: () => cost });
 

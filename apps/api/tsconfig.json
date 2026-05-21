@@ -17,6 +17,7 @@
       "@marketing-auto/core/events": ["../../packages/core/src/events/index.ts"],
       "@marketing-auto/core/*": ["../../packages/core/src/*.ts"],
       "@marketing-auto/cost-tracker": ["../../packages/cost-tracker/src/index.ts"],
+      "@marketing-auto/planner": ["../../packages/planner/src/index.ts"],
       "@marketing-auto/adapter-anthropic": ["../../packages/adapters/anthropic/src/index.ts"],
       "@marketing-auto/adapter-anthropic/verify": [
         "../../packages/adapters/anthropic/src/verify.ts"

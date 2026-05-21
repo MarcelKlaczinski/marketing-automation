@@ -33,6 +33,7 @@
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/pipelines": "workspace:*",
+        "@marketing-auto/planner": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
         "@marketing-auto/social": "workspace:*",
         "bullmq": "^5.76.8",
@@ -306,6 +307,16 @@
         "simple-icons": "^16.19.0",
         "yaml": "^2.6.0",
         "zod": "^3.23.8",
+      },
+    },
+    "packages/planner": {
+      "name": "@marketing-auto/planner",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/cost-tracker": "workspace:*",
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "drizzle-orm": "^0.36.0",
       },
     },
     "packages/shared": {
@@ -682,6 +693,8 @@
     "@marketing-auto/db": ["@marketing-auto/db@workspace:packages/db"],
 
     "@marketing-auto/pipelines": ["@marketing-auto/pipelines@workspace:packages/pipelines"],
+
+    "@marketing-auto/planner": ["@marketing-auto/planner@workspace:packages/planner"],
 
     "@marketing-auto/shared": ["@marketing-auto/shared@workspace:packages/shared"],
 

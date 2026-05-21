@@ -22,10 +22,8 @@ import {
   softDeleteProjectGoal,
   upsertProjectPlannerConfig,
 } from "@marketing-auto/db";
-import {
-  type EstimatorStep,
-  validateProjectGoals,
-} from "@marketing-auto/cost-tracker";
+import type { EstimatorStep } from "@marketing-auto/cost-tracker";
+import { validateProjectGoals } from "@marketing-auto/planner";
 import { pipelineRegistry } from "@marketing-auto/pipelines";
 import {
   createLogger,

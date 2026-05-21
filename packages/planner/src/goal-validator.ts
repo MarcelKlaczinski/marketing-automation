@@ -1,12 +1,14 @@
 // Spec 62.2: Library-export validator for project goals + planner config.
+// Spec 62.3.5: migrated from packages/cost-tracker (boundary cleanup).
 //
 // Consumed by:
 //   - GET /projects/:slug/goals/validate (HTTP)
 //   - 62.4 Planner-Engine as its first pre-flight check before generating a plan
 //
-// Stays in `packages/cost-tracker` (leaf) so 62.4 can depend on it without pulling in
-// `apps/api` (Lesson D15 from 62.0a). The pipeline-step lookup is injected via the
-// same `PipelineStepResolver` callback used by `estimateWeeklyPlanCost`.
+// Lives in `packages/planner`. May depend on `packages/cost-tracker`
+// (`estimateWeeklyPlanCost`) — directed dep, no cycle. Must NOT depend on
+// `packages/pipelines` (Lesson D15 from 62.0a). Pipeline-step lookup is injected
+// via a `PipelineStepResolver` callback.
 //
 // Returns advisory warnings alongside hard errors. `valid` is true iff `errors.length === 0`.
 
@@ -20,7 +22,7 @@ import {
   estimateWeeklyPlanCost,
   type PipelineStepResolver,
   type PlannedItem,
-} from "./weekly-budget.ts";
+} from "@marketing-auto/cost-tracker";
 
 export const GOAL_VALIDATION_ERROR_CODES = [
   "NO_GOALS_DEFINED",

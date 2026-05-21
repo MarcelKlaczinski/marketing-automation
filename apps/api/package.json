@@ -49,6 +49,7 @@
     "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/pipelines": "workspace:*",
+    "@marketing-auto/planner": "workspace:*",
     "@marketing-auto/shared": "workspace:*",
     "@marketing-auto/social": "workspace:*",
     "bullmq": "^5.76.8",
