@@ -83,8 +83,10 @@
         :plan-status="plan.status"
         :selected-count="selectedIds.size"
         :pending-count="pendingItemCount"
+        :cancellable-count="cancellableItemCount"
         @approve="onApproveClicked"
         @cancel-plan="onCancelPlanClicked"
+        @cancel-pending="onCancelPendingClicked"
         @regenerate="onRegenerateClicked"
       />
     </header>
@@ -121,6 +123,7 @@
         @open-item="openItemDetail"
         @toggle-select="onToggleSelect"
         @reschedule="onReschedule"
+        @retry-item="onRetryItem"
       />
       <PlannerListView
         v-else
@@ -131,6 +134,7 @@
         :show-checkboxes="canEditItems"
         @open-item="openItemDetail"
         @toggle-select="onToggleSelect"
+        @retry-item="onRetryItem"
       />
     </div>
 
@@ -160,6 +164,26 @@
           </GlassButton>
           <GlassButton variant="primary" :loading="regenerateDialog.busy" @click="onRegenerateConfirmed">
             {{ $t("planner.regenerateConfirm.confirm") as string }}
+          </GlassButton>
+        </div>
+      </div>
+    </q-dialog>
+
+    <!-- Spec 62.8: cancel pending items confirm dialog -->
+    <q-dialog v-model="cancelPendingDialog.open">
+      <div class="confirm-card">
+        <h2 class="confirm-title">{{ $t("planner.execution.cancelPendingConfirm.title") as string }}</h2>
+        <p class="confirm-body text-secondary">{{ $t("planner.execution.cancelPendingConfirm.body") as string }}</p>
+        <div class="confirm-actions">
+          <GlassButton variant="ghost" @click="cancelPendingDialog.open = false">
+            {{ $t("planner.execution.cancelPendingConfirm.cancel") as string }}
+          </GlassButton>
+          <GlassButton
+            variant="danger"
+            :loading="cancelPendingDialog.busy"
+            @click="onCancelPendingConfirmed"
+          >
+            {{ $t("planner.execution.cancelPendingConfirm.confirm") as string }}
           </GlassButton>
         </div>
       </div>
@@ -275,6 +299,7 @@ export default defineComponent({
       resizeHandler: null as (() => void) | null,
       selectedIds: new Set<string>(),
       cancelPlanDialog: { open: false, busy: false },
+      cancelPendingDialog: { open: false, busy: false },
       regenerateDialog: { open: false, busy: false },
       approveSelectedDialog: {
         open: false,
@@ -334,6 +359,14 @@ export default defineComponent({
     },
     pendingItemCount(): number {
       return this.items.filter((i) => i.status === "pending").length;
+    },
+    // Spec 62.8: drives the "Cancel pending" action visibility. The
+    // /cancel-pending endpoint cancels both 'pending' and 'enqueued' rows;
+    // 'in_progress' items are intentionally left running.
+    cancellableItemCount(): number {
+      return this.items.filter(
+        (i) => i.status === "pending" || i.status === "enqueued",
+      ).length;
     },
     canEditItems(): boolean {
       const status: WeeklyPlanStatus | undefined = this.plan?.status;
@@ -503,6 +536,42 @@ export default defineComponent({
     },
     onCancelPlanClicked(): void {
       this.cancelPlanDialog = { open: true, busy: false };
+    },
+    // Spec 62.8: cancel-pending bulk action — separate from "cancel plan".
+    onCancelPendingClicked(): void {
+      this.cancelPendingDialog = { open: true, busy: false };
+    },
+    async onCancelPendingConfirmed(): Promise<void> {
+      if (!this.plan) return;
+      this.cancelPendingDialog.busy = true;
+      try {
+        const result = await this.actions.cancelPendingItems(this.plan.id);
+        this.notify(
+          this.$t("planner.execution.cancelPendingSuccess", {
+            cancelled: result.cancelled,
+            generatingUntouched: result.generatingUntouched,
+          }) as string,
+          "positive",
+        );
+        this.cancelPendingDialog.open = false;
+      } catch (err) {
+        void err;
+        this.notify(this.$t("planner.toast.actionFailed") as string, "negative");
+      } finally {
+        this.cancelPendingDialog.busy = false;
+      }
+    },
+    // Spec 62.8: per-item manual retry. Surface result via toast; cache patch
+    // already applied by usePlanItemActions.retryItem.
+    async onRetryItem(itemId: string): Promise<void> {
+      if (!this.plan) return;
+      try {
+        await this.actions.retryItem(this.plan.id, itemId);
+        this.notify(this.$t("planner.execution.retrySuccess") as string, "positive");
+      } catch (err) {
+        void err;
+        this.notify(this.$t("planner.toast.actionFailed") as string, "negative");
+      }
     },
     async onCancelPlanConfirmed(): Promise<void> {
       if (!this.plan) return;

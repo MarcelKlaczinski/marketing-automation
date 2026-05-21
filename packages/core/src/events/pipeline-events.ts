@@ -124,4 +124,25 @@ export type PipelineEvent =
       oldStatus: string;
       newStatus: string;
       timestamp: string;
+    }
+  // Spec 62.8: Planner production-run execution lifecycle events.
+  | {
+      type: "plan.item.statusChanged";
+      planId: string;
+      itemId: string;
+      oldStatus: string;
+      newStatus: string;
+      /** Set when newStatus = 'skipped' — currently always 'budget_gate'. */
+      blockReason?: string;
+      /** Set when newStatus = 'failed'. */
+      failureReason?: string;
+      pipelineRunId?: string;
+      timestamp: string;
+    }
+  | {
+      type: "plan.statusChanged";
+      planId: string;
+      oldStatus: string;
+      newStatus: string;
+      timestamp: string;
     };

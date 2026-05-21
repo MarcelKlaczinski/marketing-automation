@@ -28,6 +28,9 @@ export const PLANNED_ITEM_STATUSES = [
   "failed",
   "skipped",
   "cancelled",
+  // Spec 62.8: terminal state set by Phase E Distribution. 62.8 never writes
+  // it directly — only Distribution flips 'completed' → 'published'.
+  "published",
 ] as const;
 export const plannedItemStatusSchema = z.enum(PLANNED_ITEM_STATUSES);
 export type PlannedItemStatus = z.infer<typeof plannedItemStatusSchema>;

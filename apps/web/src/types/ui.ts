@@ -41,7 +41,10 @@ export type PipelineEventType =
   // Spec 62.6: Step-pause + run lifecycle events
   | "step.paused"
   | "step.resolved"
-  | "run.statusChanged";
+  | "run.statusChanged"
+  // Spec 62.8: Planner production-run execution events
+  | "plan.item.statusChanged"
+  | "plan.statusChanged";
 
 /** A single SSE pipeline event */
 export interface PipelineEvent {
@@ -346,7 +349,9 @@ export type PlannedItemStatus =
   | "completed"
   | "failed"
   | "skipped"
-  | "cancelled";
+  | "cancelled"
+  // Spec 62.8: terminal state set by Phase E Distribution.
+  | "published";
 
 export type PlannedItemSourceKind = "floor" | "overage_signal" | "sibling_locale";
 
@@ -396,6 +401,12 @@ export interface PlannedItem {
   status: PlannedItemStatus;
   pipelineRunId: string | null;
   failureReason: string | null;
+  // Spec 62.8: execution-tracking columns
+  attempts: number;
+  blockReason: string | null;
+  enqueuedAt: string | null;
+  generationStartedAt: string | null;
+  generationCompletedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

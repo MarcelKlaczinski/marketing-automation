@@ -353,6 +353,18 @@ The cleanup-hook registry (`registerRerunCleanupHook(pipelineName, hook)`) is fo
 
 **SSE events emitted by the resolve flow**: `step.resolved` (always), `run.statusChanged` (paused → running on re-enqueue, paused → cancelled on abort). The runner emits `step.paused` + `run.statusChanged` (running → paused) after persisting a new pause. All three are added to `PipelineEvent` in `packages/core/src/events/pipeline-events.ts` and mirrored in `apps/web/src/types/ui.ts`.
 
+## Plan Execution Worker (Spec 62.8)
+
+`startPlanExecutionWorker()` in `src/workers/plan-execution.worker.ts` consumes the `plan-execution` queue (defined in `packages/pipelines/src/execution/plan-execution-queue.ts`). `concurrency: 1`, `attempts: 1`. The worker validates `{ planId, triggeredBy? }` via Zod and calls `executePlan(planId)` from `@marketing-auto/pipelines/execute-plan`. Registered in `workers/index.ts` alongside the other BullMQ workers.
+
+**New endpoints in `routes/projects/plans.ts`:**
+- `PATCH /:slug/plans/:planId` — extended so a `status=approved` transition enqueues `plan-execution` (deterministic jobId `plan-exec-${planId}`); response carries `executionEnqueued: boolean`.
+- `POST /:slug/plans/:planId/cancel-pending` — bulk cancels pending + enqueued items via `cancelPendingItemsForPlan`. Returns `{ cancelled, generatingUntouched }`.
+- `POST /:slug/planned-items/:itemId/retry` — only items in `failed` state. 409 on wrong-state, then re-enqueues plan-execution.
+- `GET /:slug/plans/:planId/progress` — aggregated item counts (`getPlanItemCounts`) + current plan status. Cheap GROUP BY backed by the partial-indexed `status` column.
+
+**SSE events emitted from plan execution**: `plan.item.statusChanged` (every status flip, with `blockReason` / `failureReason` when relevant) and `plan.statusChanged` (when `maybeFinalizePlanStatus` rolls the plan to completed / partially_failed). Both added to `PipelineEvent` in `packages/core/src/events/pipeline-events.ts` + `apps/web/src/types/ui.ts` + listener `handlePlannerExecutionEvent` in `usePipelineEvents.ts`.
+
 ## Notifications Deploy Checklist (Spec 40)
 
 When deploying to production for the first time (after local development):

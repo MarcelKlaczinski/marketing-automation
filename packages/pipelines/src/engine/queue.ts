@@ -1,6 +1,12 @@
 import { registerQueuePauser } from "@marketing-auto/core/cost";
 import { createNotification } from "@marketing-auto/core/notifications";
-import { db, pipelineRuns, users } from "@marketing-auto/db";
+import { db, pipelineRuns, plannedItems, users } from "@marketing-auto/db";
+import {
+  emitPlanStatusIfFinalized,
+  transitionItemCompleted,
+  transitionItemFailed,
+  transitionItemInProgress,
+} from "../execution/status-publisher.ts";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { type JobsOptions, Queue, Worker } from "bullmq";
 import { eq } from "drizzle-orm";
@@ -55,6 +61,19 @@ const jobDataSchema = z.object({
 });
 
 const log = createLogger("pipeline-queue");
+
+/**
+ * Spec 62.8: every planner-dispatched job carries `plannedItemId` inside its
+ * `input` payload (see `getPipelineForItem`). The shared worker reads it once
+ * to drive the planned_item status flips around runPipeline — see usage below.
+ *
+ * Returns `null` for non-planner runs so the status-flip block is skipped.
+ */
+function extractPlannedItemId(input: unknown): string | null {
+  if (input === null || typeof input !== "object") return null;
+  const v = (input as Record<string, unknown>).plannedItemId;
+  return typeof v === "string" ? v : null;
+}
 
 let _connection: IORedis | null = null;
 function getConnection(): IORedis {
@@ -184,6 +203,34 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         throw new Error(`Pipeline not registered: ${pipelineName}`);
       }
 
+      // Spec 62.8: when the pipeline input carries a `plannedItemId`, the run
+      // is part of a planner-driven plan-execution pass. We flip the row
+      // enqueued → in_progress before runPipeline and finalize completed /
+      // failed below — centralised here so every content pipeline picks the
+      // hooks up without per-pipeline afterComplete wiring.
+      const plannedItemId = extractPlannedItemId(input);
+      let plannedItemPlanId: string | null = null;
+      if (plannedItemId !== null) {
+        const [row] = await db
+          .select({ weeklyPlanId: plannedItems.weeklyPlanId })
+          .from(plannedItems)
+          .where(eq(plannedItems.id, plannedItemId))
+          .limit(1);
+        plannedItemPlanId = row?.weeklyPlanId ?? null;
+        if (plannedItemPlanId === null) {
+          log.warn(
+            { plannedItemId, pipelineName, jobId: String(job.id) },
+            "planned_item referenced by job payload not found — skipping status hooks",
+          );
+        } else {
+          await transitionItemInProgress({
+            projectId,
+            planId: plannedItemPlanId,
+            itemId: plannedItemId,
+          });
+        }
+      }
+
       // Zod's z.string().optional() infers as `string | undefined`; the runner's
       // StepPauseResume interface uses `editedPrompt?: string` (exactOptionalPropertyTypes).
       // The cast resolves the variance — runtime values are equivalent.
@@ -201,18 +248,62 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         ...(stepInputOverride !== undefined ? { stepInputOverride } : {}),
       } as Parameters<typeof runPipeline>[2];
 
-      const result = await runPipeline(
-        pipeline as Pipeline<unknown, unknown>,
-        input,
-        runOpts,
-        async (percent) => {
-          await job.updateProgress(percent);
+      let result: Awaited<ReturnType<typeof runPipeline>>;
+      try {
+        result = await runPipeline(
+          pipeline as Pipeline<unknown, unknown>,
+          input,
+          runOpts,
+          async (percent) => {
+            await job.updateProgress(percent);
+          }
+        );
+      } catch (err) {
+        // Spec 62.8: surface mid-run throws to the planned_item as 'failed' so
+        // the planner UI doesn't show forever-in-progress rows when the
+        // pipeline crashes outside the runner's normal error path.
+        if (plannedItemId !== null && plannedItemPlanId !== null) {
+          const reason = err instanceof Error ? err.message : "pipeline threw";
+          await transitionItemFailed({
+            projectId,
+            planId: plannedItemPlanId,
+            itemId: plannedItemId,
+            reason,
+          }).catch(() => false);
         }
-      );
+        throw err;
+      }
 
-      // Spec 61.4: batch suspension — BullMQ job completes cleanly, processor resumes later
+      // Spec 61.4: batch suspension — BullMQ job completes cleanly, processor resumes later.
+      // Planned-item status remains 'in_progress' across the suspension; the
+      // resumed run will land here again on completion.
       if (isPipelineSuspended(result)) {
         return { runId: result.runId, output: null };
+      }
+
+      // Spec 62.8: finalize planned_item status before re-throwing on failure
+      // so the row reflects the failure even though we let BullMQ see the
+      // throw (downstream notifications + on('failed') handler still fire).
+      if (plannedItemId !== null && plannedItemPlanId !== null) {
+        if (result.ok) {
+          await transitionItemCompleted({
+            projectId,
+            planId: plannedItemPlanId,
+            itemId: plannedItemId,
+          });
+        } else {
+          await transitionItemFailed({
+            projectId,
+            planId: plannedItemPlanId,
+            itemId: plannedItemId,
+            reason: `failed at step "${result.failedAtStep}": ${result.error}`,
+          });
+        }
+        // transitionItemCompleted / transitionItemFailed already finalize plan
+        // status on the inner emit — but call once more here as a belt-and-
+        // suspenders fallback in case the inner emit was skipped (e.g. when
+        // the item was already in a terminal state from a prior retry).
+        await emitPlanStatusIfFinalized(projectId, plannedItemPlanId).catch(() => undefined);
       }
 
       if (!result.ok) {

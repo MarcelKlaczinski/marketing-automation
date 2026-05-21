@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/vue-query";
-import { apiPatch } from "src/lib/api";
+import { apiPatch, apiPost } from "src/lib/api";
 import { useProjectStore } from "src/stores/project";
 import type { PlannedItem, WeeklyPlan } from "src/types/ui";
 
@@ -22,6 +22,9 @@ export function usePlanItemActions(): {
     keepIds: ReadonlySet<string>,
     allPendingIds: readonly string[],
   ) => Promise<{ cancelledCount: number; approved: WeeklyPlan }>;
+  // Spec 62.8
+  retryItem: (planId: string, itemId: string) => Promise<PlannedItem>;
+  cancelPendingItems: (planId: string) => Promise<{ cancelled: number; generatingUntouched: number }>;
 } {
   const projectStore = useProjectStore();
   const queryClient = useQueryClient();
@@ -112,12 +115,57 @@ export function usePlanItemActions(): {
     return { cancelledCount, approved };
   }
 
+  // Spec 62.8: manual retry of a single failed item. The backend resets the
+  // row to 'pending' and re-enqueues the plan-execution worker (deterministic
+  // jobId dedups when a dispatch is already in flight).
+  async function retryItem(planId: string, itemId: string): Promise<PlannedItem> {
+    try {
+      const res = await apiPost<{ item?: PlannedItem } | PlannedItem>(
+        `/projects/${projectStore.currentSlug}/planned-items/${itemId}/retry`,
+      );
+      // apiPost unwraps `{ ok, data }` to the inner payload. The route returns
+      // `{ ok: true, data: <PlannedItem>, executionEnqueued: boolean }` so the
+      // inner is the PlannedItem itself.
+      const updated = (res as PlannedItem) ?? null;
+      if (updated) {
+        patchItemInCache(queryClient, projectStore.currentSlug, planId, itemId, () => updated);
+      } else {
+        await queryClient.invalidateQueries({ queryKey: ["planner"] });
+      }
+      return updated as PlannedItem;
+    } catch (err) {
+      await queryClient.invalidateQueries({ queryKey: ["planner"] });
+      throw err;
+    }
+  }
+
+  // Spec 62.8 §5.5: bulk-cancel all pending + enqueued items.
+  async function cancelPendingItems(
+    planId: string,
+  ): Promise<{ cancelled: number; generatingUntouched: number }> {
+    try {
+      const result = await apiPost<{ cancelled: number; generatingUntouched: number }>(
+        `/projects/${projectStore.currentSlug}/plans/${planId}/cancel-pending`,
+        {},
+      );
+      // Reset every cached pending/enqueued item to 'cancelled'. The server
+      // already committed — patching the cache keeps the UI snappy.
+      qcSetCancelledForPending(queryClient, projectStore.currentSlug, planId);
+      return result;
+    } catch (err) {
+      await queryClient.invalidateQueries({ queryKey: ["planner"] });
+      throw err;
+    }
+  }
+
   return {
     cancelItem,
     rescheduleItem,
     approvePlan,
     cancelPlan,
     approveSelected,
+    retryItem,
+    cancelPendingItems,
   };
 }
 
@@ -135,6 +183,30 @@ function patchItemInCache(
     (prev) => {
       if (!prev) return prev;
       const items = prev.items.map((it) => (it.id === itemId ? patch(it) : it));
+      return { ...prev, items };
+    },
+  );
+}
+
+/**
+ * Spec 62.8: flip every cached item that is currently pending or enqueued to
+ * 'cancelled'. Mirrors the server-side `cancelPendingItemsForPlan` WHERE
+ * clause so the optimistic update stays consistent.
+ */
+function qcSetCancelledForPending(
+  qc: ReturnType<typeof useQueryClient>,
+  slug: string,
+  planId: string,
+): void {
+  qc.setQueryData<{ plan: WeeklyPlan; items: PlannedItem[] } | undefined>(
+    ["planner", "plan-detail", slug, planId],
+    (prev) => {
+      if (!prev) return prev;
+      const items = prev.items.map((it) =>
+        it.status === "pending" || it.status === "enqueued"
+          ? { ...it, status: "cancelled" as const }
+          : it,
+      );
       return { ...prev, items };
     },
   );

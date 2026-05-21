@@ -73,6 +73,33 @@ export default {
     failed: "Failed",
     skipped: "Skipped",
     cancelled: "Cancelled",
+    published: "Published",
+  },
+
+  // Spec 62.8: execution lifecycle UI controls
+  execution: {
+    retry: "Retry",
+    retryAria: "Retry this item",
+    retrySuccess: "Item re-queued for retry",
+    viewRun: "View pipeline run",
+    viewRunAria: "Open pipeline run detail",
+    blockReasons: {
+      budget_gate: "Skipped: weekly budget would exceed 90%",
+    },
+    failureTooltip: "Error: {reason}",
+    cancelPending: "Cancel pending items",
+    cancelPendingConfirm: {
+      title: "Cancel pending items?",
+      body: "All pending and queued items will be cancelled. Items currently running will NOT be stopped. This cannot be undone.",
+      confirm: "Cancel pending",
+      cancel: "Back",
+    },
+    cancelPendingSuccess: "{cancelled} items cancelled, {generatingUntouched} still running",
+    progress: {
+      label: "{completed} / {total} done",
+      detail: "{inProgress} running · {enqueued} waiting · {failed} failed",
+    },
+    clusterNeedsReview: "Plan proposed — approve in the Clusters tab",
   },
 
   // Source-kind badges. Spec 62.4-followup Issue 3.

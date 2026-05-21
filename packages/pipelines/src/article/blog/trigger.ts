@@ -12,6 +12,12 @@ export type EnqueueBlogGenerationInput = {
   modelOverride?: "claude-opus-4-7" | "claude-sonnet-4-6";
   /** Pre-created pipeline_runs row ID (preRunId pattern for UI polling). */
   preRunId?: string;
+  /**
+   * Spec 62.8: planner-dispatched runs carry the planned_items row id so the
+   * shared pipeline worker flips planned_item.status enqueued → in_progress
+   * → completed/failed around runPipeline.
+   */
+  plannedItemId?: string;
 };
 
 export type EnqueueBlogGenerationResult = {
@@ -57,6 +63,9 @@ export async function enqueueBlogGeneration(
   };
   if (input.modelOverride) {
     pipelineInput.modelOverride = input.modelOverride;
+  }
+  if (input.plannedItemId) {
+    pipelineInput.plannedItemId = input.plannedItemId;
   }
 
   const enqueueOpts: Parameters<typeof enqueuePipeline>[0] = {

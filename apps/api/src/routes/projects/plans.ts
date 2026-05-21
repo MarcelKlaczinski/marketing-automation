@@ -9,17 +9,23 @@
 import { zValidator } from "@hono/zod-validator";
 import {
   PlanAlreadyExistsError,
+  and,
+  cancelPendingItemsForPlan,
   cancelPlannedItem,
   db,
   eq,
+  getPlanItemCounts,
   getWeeklyPlanById,
   listPlannedItemsByPlan,
   listWeeklyPlans,
+  markPlannedItemForRetry,
+  plannedItems,
   projects,
   reschedulePlannedItem,
   transitionWeeklyPlanStatus,
 } from "@marketing-auto/db";
 import { enqueuePlanWeekPipeline } from "@marketing-auto/pipelines";
+import { enqueuePlanExecution } from "@marketing-auto/pipelines/plan-execution-queue";
 import {
   createLogger,
   generatePlanPayloadSchema,
@@ -198,9 +204,119 @@ planRoutes.patch(
     if (!updated) {
       return c.json({ ok: false, error: "invalid_transition", currentStatus: plan.status }, 409);
     }
-    return c.json({ ok: true, data: updated });
+
+    // Spec 62.8: kick off plan-execution when the transition lands on
+    // 'approved'. Deterministic jobId (`plan-exec-${planId}`) ensures
+    // repeated approve clicks dedup at the BullMQ level. The execution
+    // worker (concurrency:1) iterates pending items, runs the budget gate,
+    // and dispatches via the pipeline-router.
+    let executionEnqueued = false;
+    if (updated.status === "approved") {
+      try {
+        const triggeredBy = c.var.user?.email ?? "system";
+        await enqueuePlanExecution({ planId, triggeredBy });
+        executionEnqueued = true;
+      } catch (err) {
+        log.error({ err, planId }, "failed to enqueue plan-execution");
+        // Do NOT fail the approve. The user can re-PATCH to retry; the
+        // dedup-jobId keeps it idempotent. Surface the partial-success.
+      }
+    }
+    return c.json({ ok: true, data: updated, executionEnqueued });
   }
 );
+
+// ─── POST /:slug/plans/:planId/cancel-pending ─────────────────────────────────
+// Spec 62.8 §5.5: bulk-cancel all pending + enqueued items. In-flight
+// (in_progress) items keep running — BullMQ can't reliably stop a job
+// mid-flight, and content already partially generated is worth preserving.
+
+planRoutes.post("/:slug/plans/:planId/cancel-pending", async (c) => {
+  const slug = c.req.param("slug");
+  const planId = c.req.param("planId");
+  if (!slug || !planId) return c.json({ ok: false, error: "missing param" }, 400);
+  const proj = await resolveProject(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const plan = await getWeeklyPlanById(planId);
+  if (!plan || plan.projectId !== proj.id) {
+    return c.json({ ok: false, error: "plan_not_found" }, 404);
+  }
+
+  const result = await cancelPendingItemsForPlan(planId);
+  log.info(
+    { planId, projectId: proj.id, ...result },
+    "cancel-pending applied",
+  );
+  return c.json({ ok: true, data: result });
+});
+
+// ─── POST /:slug/planned-items/:itemId/retry ──────────────────────────────────
+// Spec 62.8 §2.7: manual retry of a single failed item. Resets the row to
+// 'pending' so the next plan-execution pass picks it up — the plan-execution
+// worker runs again via re-enqueue (or the next plan approve), but for an
+// immediate retry we directly enqueue plan-execution here.
+
+planRoutes.post("/:slug/planned-items/:itemId/retry", async (c) => {
+  const slug = c.req.param("slug");
+  const itemId = c.req.param("itemId");
+  if (!slug || !itemId) return c.json({ ok: false, error: "missing param" }, 400);
+  const proj = await resolveProject(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  // Project-membership guard
+  const [item] = await db
+    .select()
+    .from(plannedItems)
+    .where(and(eq(plannedItems.id, itemId), eq(plannedItems.projectId, proj.id)))
+    .limit(1);
+  if (!item) return c.json({ ok: false, error: "item_not_found" }, 404);
+  if (item.status !== "failed") {
+    return c.json(
+      { ok: false, error: "invalid_item_state_for_retry", currentStatus: item.status },
+      409,
+    );
+  }
+
+  const updated = await markPlannedItemForRetry({ itemId });
+  if (!updated) {
+    // Race: status changed between SELECT and UPDATE. Caller can re-fetch.
+    return c.json({ ok: false, error: "concurrent_status_change" }, 409);
+  }
+
+  // Re-trigger plan-execution. Same deterministic jobId — BullMQ will dedup
+  // if a dispatch is already in flight, which is the desired behaviour
+  // (the running pass will pick up the freshly-pending item).
+  const triggeredBy = c.var.user?.email ?? "system";
+  let executionEnqueued = false;
+  try {
+    await enqueuePlanExecution({ planId: updated.weeklyPlanId, triggeredBy });
+    executionEnqueued = true;
+  } catch (err) {
+    log.error({ err, itemId, planId: updated.weeklyPlanId }, "retry: re-enqueue failed");
+  }
+  return c.json({ ok: true, data: updated, executionEnqueued });
+});
+
+// ─── GET /:slug/plans/:planId/progress ────────────────────────────────────────
+// Spec 62.8 §5.2: aggregated item-status counts for the PlannerCalendar
+// progress header. Cheap GROUP BY query on the partial-indexed status column.
+
+planRoutes.get("/:slug/plans/:planId/progress", async (c) => {
+  const slug = c.req.param("slug");
+  const planId = c.req.param("planId");
+  if (!slug || !planId) return c.json({ ok: false, error: "missing param" }, 400);
+  const proj = await resolveProject(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const plan = await getWeeklyPlanById(planId);
+  if (!plan || plan.projectId !== proj.id) {
+    return c.json({ ok: false, error: "plan_not_found" }, 404);
+  }
+
+  const counts = await getPlanItemCounts(planId);
+  return c.json({ ok: true, data: { planStatus: plan.status, counts } });
+});
 
 // ─── PATCH /:slug/plans/:planId/items/:itemId ─────────────────────────────────
 

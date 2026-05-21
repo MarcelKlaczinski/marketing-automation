@@ -119,6 +119,21 @@ export function usePipelineEvents() {
     void queryClient.invalidateQueries({ queryKey: ["pipeline-runs"] });
   }
 
+  // Spec 62.8: planner production-run execution events. PlannerPage + the
+  // PlannerCalendar item cards subscribe to these so item status icons +
+  // progress headers update without a manual refresh.
+  function handlePlannerExecutionEvent(e: MessageEvent): void {
+    const event = JSON.parse(e.data as string) as PipelineEvent;
+    eventsStore.addEvent(event);
+
+    const payload = event.payload as { planId?: string };
+    if (payload?.planId) {
+      void queryClient.invalidateQueries({ queryKey: ["weekly-plan", payload.planId] });
+      void queryClient.invalidateQueries({ queryKey: ["plan-progress", payload.planId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["weekly-plans"] });
+  }
+
   function connect(): void {
     cleanup();
 
@@ -173,6 +188,12 @@ export function usePipelineEvents() {
     const runLifecycleEvents = ["step.paused", "step.resolved", "run.statusChanged"] as const;
     for (const name of runLifecycleEvents) {
       eventSource.addEventListener(name, handleRunLifecycleEvent);
+    }
+
+    // Spec 62.8
+    const plannerExecutionEvents = ["plan.item.statusChanged", "plan.statusChanged"] as const;
+    for (const name of plannerExecutionEvents) {
+      eventSource.addEventListener(name, handlePlannerExecutionEvent);
     }
 
     eventSource.onerror = () => {

@@ -20,6 +20,7 @@
             :checked="selectedIds.has(item.id)"
             @open="$emit('open-item', $event)"
             @toggle-select="onToggleSelect"
+            @retry="$emit('retry-item', $event)"
           />
         </li>
       </ul>
@@ -51,7 +52,7 @@ export default defineComponent({
 
   components: { PlannerItemCard },
 
-  emits: ["open-item", "toggle-select"],
+  emits: ["open-item", "toggle-select", "retry-item"],
 
   props: {
     year: { type: Number, required: true },

@@ -729,9 +729,19 @@ export const plannedItems = pgTable(
         | "failed"
         | "skipped"
         | "cancelled"
+        | "published"
       >(),
     pipelineRunId: uuid("pipeline_run_id"),
     failureReason: text("failure_reason"),
+
+    // Spec 62.8: execution-tracking columns. `attempts` increments on each
+    // BullMQ-job attempt; `blockReason` records why a pending item was skipped
+    // (currently only 'budget_gate'). Status flips drive the three timestamps.
+    attempts: integer("attempts").notNull().default(0),
+    blockReason: text("block_reason"),
+    enqueuedAt: timestamp("enqueued_at", { withTimezone: true }),
+    generationStartedAt: timestamp("generation_started_at", { withTimezone: true }),
+    generationCompletedAt: timestamp("generation_completed_at", { withTimezone: true }),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -742,6 +752,14 @@ export const plannedItems = pgTable(
     pipelineRunIdx: index("planned_items_pipeline_run_idx")
       .on(t.pipelineRunId)
       .where(sql`${t.pipelineRunId} IS NOT NULL`),
+    // Spec 62.8: worker reads "next pending item per plan" — partial index
+    // matches the WHERE clause of `loadPendingItemsForPlan`.
+    pendingByPlanIdx: index("planned_items_by_plan_pending_idx")
+      .on(t.weeklyPlanId, t.slotDate)
+      .where(sql`${t.status} = 'pending'`),
+    activeIdx: index("planned_items_active_idx")
+      .on(t.projectId, t.status, t.slotDate)
+      .where(sql`${t.status} IN ('pending', 'enqueued', 'in_progress')`),
   }),
 );
 

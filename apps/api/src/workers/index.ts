@@ -57,6 +57,7 @@ import {
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
+import { startPlanExecutionWorker } from "./plan-execution.worker.ts";
 import {
   seedStepPauseCleanupCron,
   startStepPauseCleanupWorker,
@@ -314,6 +315,7 @@ async function main() {
   const batchProcessorWorker = startBatchProcessorWorker();
   const stepPauseCleanupWorker = startStepPauseCleanupWorker();
   const plannerWeeklyGenerationWorker = startPlannerWeeklyGenerationWorker();
+  const planExecutionWorker = startPlanExecutionWorker();
   // Spec 62.0a Section 4.5.3 + 62.7: seed cron_state rows on startup (idempotent).
   // The orchestrator's next tick (within 60s) picks them up and creates the BullMQ
   // repeat job. Seed lives in code, not SQL migration, because PostgreSQL forbids
@@ -342,6 +344,7 @@ async function main() {
     await closeBatchProcessorInfrastructure();
     await stepPauseCleanupWorker.close();
     await plannerWeeklyGenerationWorker.close();
+    await planExecutionWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

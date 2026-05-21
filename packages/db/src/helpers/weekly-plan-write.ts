@@ -7,7 +7,7 @@
 // "PUT replace = full state must be transactional" rule from
 // `replaceProjectGoals` in `project-goal-write.ts`.
 
-import { and, eq, inArray, notInArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db, type Transaction } from "../client.ts";
 import {
   plannedItems,
@@ -269,10 +269,18 @@ function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// ─── 62.8 execution lifecycle ─────────────────────────────────────────────────
+// pending → enqueued → in_progress → completed | failed | skipped(budget) | cancelled
+//                                              ↘ retry: failed → pending
+// All transitions are CAS-style — the WHERE clause specifies the expected prior
+// status, so a stale or racing call is silently a no-op. Returns `true` when the
+// row was updated, `false` when no row matched the (id, prior-status) tuple.
+
 /**
- * Used at the start of an item's BullMQ job (62.8). Returns true if the
- * status flip was applied, false if the row was already past 'pending'
- * (idempotent: a stale enqueue won't clobber an item already in_progress).
+ * pending → enqueued. Called by `executePlan()` after the per-item BullMQ
+ * `enqueue()` succeeds. Records the pipelineRunId we pre-created via
+ * `triggerWithPreRunId` so the UI can deep-link to the run immediately.
+ * Sets `enqueuedAt`, increments `attempts`.
  */
 export async function markPlannedItemEnqueued(input: {
   itemId: string;
@@ -283,10 +291,316 @@ export async function markPlannedItemEnqueued(input: {
     .set({
       status: "enqueued",
       pipelineRunId: input.pipelineRunId,
+      enqueuedAt: new Date(),
+      attempts: sql`${plannedItems.attempts} + 1`,
       updatedAt: new Date(),
     })
     .where(and(eq(plannedItems.id, input.itemId), eq(plannedItems.status, "pending")))
     .returning({ id: plannedItems.id });
   return result.length > 0;
+}
+
+/**
+ * enqueued → in_progress. Called by the shared pipeline-worker layer when a
+ * pipeline run actually starts (just before `runPipeline()`). Sets
+ * `generationStartedAt`. Idempotent: a re-entrancy (BullMQ retry) on a row
+ * already in_progress is a no-op.
+ */
+export async function markPlannedItemInProgress(input: {
+  itemId: string;
+}): Promise<boolean> {
+  const result = await db
+    .update(plannedItems)
+    .set({
+      status: "in_progress",
+      generationStartedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(plannedItems.id, input.itemId), eq(plannedItems.status, "enqueued")))
+    .returning({ id: plannedItems.id });
+  return result.length > 0;
+}
+
+/**
+ * in_progress → completed. Called from the shared pipeline-worker layer when
+ * the content pipeline succeeds (or, per spec choice, from each pipeline's
+ * `afterComplete`). Sets `generationCompletedAt`.
+ */
+export async function markPlannedItemCompleted(input: {
+  itemId: string;
+  actualCostEur?: string;
+}): Promise<boolean> {
+  const patch: Partial<NewPlannedItem> = {
+    status: "completed",
+    generationCompletedAt: new Date(),
+    updatedAt: new Date(),
+  };
+  if (input.actualCostEur !== undefined) patch.actualCostEur = input.actualCostEur;
+  const result = await db
+    .update(plannedItems)
+    .set(patch)
+    .where(
+      and(
+        eq(plannedItems.id, input.itemId),
+        inArray(plannedItems.status, ["in_progress", "enqueued"]),
+      ),
+    )
+    .returning({ id: plannedItems.id });
+  return result.length > 0;
+}
+
+/**
+ * (pending | enqueued | in_progress) → failed. Called from the shared
+ * pipeline-worker layer when the content pipeline throws or returns ok=false
+ * (and is not a batch/step-pause suspension). Also called by `executePlan`
+ * when the router throws (e.g. unknown content_type or missing briefId) —
+ * the item is still 'pending' at that point, so the WHERE clause includes it.
+ * Sets `generationCompletedAt` + `failureReason`.
+ */
+export async function markPlannedItemFailed(input: {
+  itemId: string;
+  reason: string;
+}): Promise<boolean> {
+  const result = await db
+    .update(plannedItems)
+    .set({
+      status: "failed",
+      failureReason: input.reason,
+      generationCompletedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(plannedItems.id, input.itemId),
+        inArray(plannedItems.status, ["pending", "enqueued", "in_progress"]),
+      ),
+    )
+    .returning({ id: plannedItems.id });
+  return result.length > 0;
+}
+
+/**
+ * pending → skipped. Used by the budget-gate path in `executePlan()` when the
+ * 90%-of-weekly-budget threshold would be crossed by enqueuing this item.
+ * Records the reason so the UI can show "skipped (budget gate)" with tooltip.
+ */
+export async function markPlannedItemBlocked(input: {
+  itemId: string;
+  reason: string;
+}): Promise<boolean> {
+  const result = await db
+    .update(plannedItems)
+    .set({
+      status: "skipped",
+      blockReason: input.reason,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(plannedItems.id, input.itemId), eq(plannedItems.status, "pending")))
+    .returning({ id: plannedItems.id });
+  return result.length > 0;
+}
+
+/**
+ * failed → pending. Manual retry endpoint (POST /planned-items/:id/retry).
+ * Clears failure metadata so the next pass starts clean; preserves `attempts`
+ * (it'll bump on the next enqueue) and the prior pipelineRunId for audit.
+ * Returns the updated row or null if the item wasn't in 'failed' state.
+ */
+export async function markPlannedItemForRetry(input: {
+  itemId: string;
+}): Promise<PlannedItem | null> {
+  const [updated] = await db
+    .update(plannedItems)
+    .set({
+      status: "pending",
+      failureReason: null,
+      generationStartedAt: null,
+      generationCompletedAt: null,
+      // Keep `attempts` and `pipelineRunId` for history visibility.
+      updatedAt: new Date(),
+    })
+    .where(and(eq(plannedItems.id, input.itemId), eq(plannedItems.status, "failed")))
+    .returning();
+  return updated ?? null;
+}
+
+/**
+ * Bulk-cancel all pending + enqueued items for a plan. Spec 62.8 §5.5
+ * "Cancel All Pending" UI action. Items in 'in_progress' are left alone —
+ * BullMQ can't reliably stop a job mid-flight. Returns counts so the route
+ * can render the dialog with accurate before/after numbers.
+ */
+export async function cancelPendingItemsForPlan(planId: string): Promise<{
+  cancelled: number;
+  generatingUntouched: number;
+}> {
+  return db.transaction(async (tx) => {
+    const generating = await tx
+      .select({ id: plannedItems.id })
+      .from(plannedItems)
+      .where(
+        and(
+          eq(plannedItems.weeklyPlanId, planId),
+          eq(plannedItems.status, "in_progress"),
+        ),
+      );
+
+    const cancelledRows = await tx
+      .update(plannedItems)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(
+        and(
+          eq(plannedItems.weeklyPlanId, planId),
+          inArray(plannedItems.status, ["pending", "enqueued"]),
+        ),
+      )
+      .returning({ id: plannedItems.id });
+
+    return {
+      cancelled: cancelledRows.length,
+      generatingUntouched: generating.length,
+    };
+  });
+}
+
+// ─── 62.8 plan-status aggregation ─────────────────────────────────────────────
+
+export interface PlanItemCounts {
+  total: number;
+  pending: number;
+  enqueued: number;
+  inProgress: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+  cancelled: number;
+  published: number;
+}
+
+/**
+ * Aggregate the item-status counts for one plan. Used by the plan-status
+ * aggregation hook AND by the frontend progress header.
+ */
+export async function getPlanItemCounts(planId: string): Promise<PlanItemCounts> {
+  const rows = await db
+    .select({
+      status: plannedItems.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(plannedItems)
+    .where(eq(plannedItems.weeklyPlanId, planId))
+    .groupBy(plannedItems.status);
+
+  const counts: PlanItemCounts = {
+    total: 0,
+    pending: 0,
+    enqueued: 0,
+    inProgress: 0,
+    completed: 0,
+    failed: 0,
+    skipped: 0,
+    cancelled: 0,
+    published: 0,
+  };
+  for (const r of rows) {
+    counts.total += r.count;
+    switch (r.status) {
+      case "pending":     counts.pending = r.count; break;
+      case "enqueued":    counts.enqueued = r.count; break;
+      case "in_progress": counts.inProgress = r.count; break;
+      case "completed":   counts.completed = r.count; break;
+      case "failed":      counts.failed = r.count; break;
+      case "skipped":     counts.skipped = r.count; break;
+      case "cancelled":   counts.cancelled = r.count; break;
+      case "published":   counts.published = r.count; break;
+    }
+  }
+  return counts;
+}
+
+/**
+ * Flip `weekly_plans.status` to `completed` (no failures) or `partially_failed`
+ * (≥1 failed item) when all items are in a terminal state. No-op when items
+ * are still pending/enqueued/in_progress. Returns the updated row when the
+ * plan transitions, else null. Idempotent — call from every item-status-flip
+ * site without guarding.
+ *
+ * Terminal states for this purpose:
+ *   - completed, failed, skipped, cancelled, published
+ * Non-terminal:
+ *   - pending, enqueued, in_progress
+ *
+ * Spec note: existing `weekly_plans` CHECK already accepts both 'completed' and
+ * 'partially_failed' (migration 0074), so 62.8 needs no enum widening migration.
+ */
+export async function maybeFinalizePlanStatus(
+  planId: string,
+): Promise<WeeklyPlan | null> {
+  return db.transaction(async (tx) => {
+    const [plan] = await tx
+      .select()
+      .from(weeklyPlans)
+      .where(eq(weeklyPlans.id, planId))
+      .limit(1);
+    if (!plan) return null;
+    // Only roll forward from 'approved' or 'running'. A plan still in 'draft'
+    // can't have items in flight (Phase 0 invariant). 'completed' /
+    // 'partially_failed' / 'cancelled' / 'superseded' are already terminal.
+    if (plan.status !== "approved" && plan.status !== "running") return null;
+
+    const rows = await tx
+      .select({
+        status: plannedItems.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(plannedItems)
+      .where(eq(plannedItems.weeklyPlanId, planId))
+      .groupBy(plannedItems.status);
+
+    let nonTerminal = 0;
+    let failed = 0;
+    let hadAnyItem = false;
+    for (const r of rows) {
+      hadAnyItem = true;
+      if (r.status === "pending" || r.status === "enqueued" || r.status === "in_progress") {
+        nonTerminal += r.count;
+      }
+      if (r.status === "failed") {
+        failed += r.count;
+      }
+    }
+    if (!hadAnyItem) return null;
+    if (nonTerminal > 0) return null;
+
+    const nextStatus: WeeklyPlan["status"] =
+      failed > 0 ? "partially_failed" : "completed";
+    const [updated] = await tx
+      .update(weeklyPlans)
+      .set({
+        status: nextStatus,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(weeklyPlans.id, planId))
+      .returning();
+    return updated ?? null;
+  });
+}
+
+// ─── 62.8 read helper for the executor ────────────────────────────────────────
+
+/**
+ * Load all pending items for one plan in the order the executor should
+ * enqueue them: by slot_date asc, then by created_at asc as a stable
+ * tiebreaker. Matches the partial unique index `planned_items_by_plan_pending_idx`.
+ */
+export async function loadPendingItemsForPlan(planId: string): Promise<PlannedItem[]> {
+  return db
+    .select()
+    .from(plannedItems)
+    .where(
+      and(eq(plannedItems.weeklyPlanId, planId), eq(plannedItems.status, "pending")),
+    )
+    .orderBy(plannedItems.slotDate, plannedItems.createdAt);
 }
 

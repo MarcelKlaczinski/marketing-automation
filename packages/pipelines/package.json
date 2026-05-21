@@ -14,7 +14,9 @@
     "./skills": "./src/skills/index.ts",
     "./cold-start": "./src/cold-start/index.ts",
     "./cold-start/shared": "./src/cold-start/shared/index.ts",
-    "./config": "./src/config/index.ts"
+    "./config": "./src/config/index.ts",
+    "./plan-execution-queue": "./src/execution/plan-execution-queue.ts",
+    "./execute-plan": "./src/execution/execute-plan.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

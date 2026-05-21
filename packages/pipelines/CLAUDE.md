@@ -515,6 +515,22 @@ This works whenever the hook's side-effect (DB insert, queue enqueue) precedes a
 
 5. **Live tests that call `anthropic.messages()` require a real `projectId` from the DB.** The cost tracker inserts into `cost_logs` which has a FK on `projects.id`. A random `crypto.randomUUID()` projectId causes a FK violation that the step catches as a step failure, firing the fallback. In live-gated test files, resolve the real project ID in `beforeAll` with a DB query and pass it through `mockCtx()`. See `packages/pipelines/test/article/social-image-caption-live.test.ts` for the pattern.
 
+## Plan Execution (Spec 62.8)
+
+`src/execution/` contains the production-run executor that turns approved
+`weekly_plans` into per-item dispatches. Module map:
+
+- **`plan-execution-queue.ts`** — `getPlanExecutionQueue()` + `enqueuePlanExecution({ planId })`. One BullMQ queue, one job per `planId` with deterministic `plan-exec-${planId}` jobId for idempotency. `concurrency: 1`.
+- **`execute-plan.ts`** — `executePlan(planId)` is the orchestrator: load plan + frozen `inputSnapshot.config.llmMode`, iterate pending items via `loadPendingItemsForPlan`, per item: budget gate → `getPipelineForItem` → pre-INSERT `pipeline_runs` row → dispatch (enqueue or inline cluster run). Flips `weekly_plans.status` approved → running on first pass, then `maybeFinalizePlanStatus` rolls to completed / partially_failed when all items terminate.
+- **`weekly-spend.ts`** — `getWeeklySpendEur` + `getWeeklyBudgetEur` + `checkWeeklyBudgetGate({ allowed, reason })`. Hard 90% gate; breaks the dispatch loop on first block (caller awaits the loop).
+- **`status-publisher.ts`** — `transitionItemEnqueued/InProgress/Completed/Failed/Blocked` + `emitPlanStatusIfFinalized`. Each wrapper calls the CAS-style DB helper and then fires the matching `plan.item.statusChanged` / `plan.statusChanged` SSE event via `publishPipelineEvent`. **This is the canonical call site for status flips inside plan execution** — never call the raw `markPlannedItem*` helpers from new pipeline code; route through the publisher so the UI gets live updates.
+
+`packages/db` cannot depend on `@marketing-auto/core/events`, so events live one level up in `packages/pipelines/src/execution/`. DB helpers stay pure CAS updates.
+
+**Cluster inline path:** `runClusterFullPlanFromBrief()` in `src/cluster/full-plan/run-from-brief.ts` is the reusable extract of the HTTP route at `apps/api/src/routes/projects/cluster-full-plan.ts`. The executor calls it directly for `kind: "inline"` routes (cluster items) because `cluster:full-plan` is not a registered BullMQ pipeline (Memory D127). The existing HTTP route is unchanged — duplication is a known follow-up.
+
+**Shared queue worker integration:** `startPipelineWorker()` in `engine/queue.ts` reads `plannedItemId` from `job.data.input` (via `extractPlannedItemId`) and uses the `status-publisher` wrappers to flip enqueued → in_progress → completed/failed around `runPipeline`. New trigger wrappers (`enqueueBlogGeneration`, `enqueueSocialImagePipeline`) accept an optional `plannedItemId` parameter that gets folded into `pipelineInput` — no per-pipeline `afterComplete`/`afterError` hook needed for status tracking.
+
 ## Cost Enforcement Integration (Spec 41)
 
 `getPipelineQueue()` registers the BullMQ pause/resume callbacks with `registerQueuePauser` from `@marketing-auto/core/cost`. This must fire before any cost limit can be hit, so:

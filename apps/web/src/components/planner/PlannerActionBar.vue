@@ -23,6 +23,15 @@
       <GlassButton variant="secondary" @click="onViewRuns">
         {{ $t("planner.actions.viewRuns") as string }}
       </GlassButton>
+      <!-- Spec 62.8: bulk-cancel still-pending items without cancelling the
+           whole plan. Shown when the plan has dispatched + some items linger. -->
+      <GlassButton
+        v-if="hasCancellableItems"
+        variant="ghost"
+        @click="$emit('cancel-pending')"
+      >
+        {{ $t("planner.execution.cancelPending") as string }}
+      </GlassButton>
       <GlassButton variant="ghost" @click="$emit('cancel-plan')">
         {{ $t("planner.actions.cancelPlan") as string }}
       </GlassButton>
@@ -32,6 +41,13 @@
     <template v-else-if="planStatus === 'running' || planStatus === 'partially_failed'">
       <GlassButton variant="secondary" @click="onViewRuns">
         {{ $t("planner.actions.viewRuns") as string }}
+      </GlassButton>
+      <GlassButton
+        v-if="hasCancellableItems"
+        variant="ghost"
+        @click="$emit('cancel-pending')"
+      >
+        {{ $t("planner.execution.cancelPending") as string }}
       </GlassButton>
       <GlassButton variant="danger" @click="$emit('cancel-plan')">
         {{ $t("planner.actions.cancelPlan") as string }}
@@ -58,7 +74,7 @@ export default defineComponent({
 
   components: { GlassButton },
 
-  emits: ["approve", "cancel-plan", "regenerate"],
+  emits: ["approve", "cancel-plan", "regenerate", "cancel-pending"],
 
   props: {
     planStatus: { type: String as PropType<WeeklyPlanStatus>, required: true },
@@ -66,6 +82,13 @@ export default defineComponent({
     selectedCount: { type: Number, default: 0 },
     /** total pending-item count — controls disabled state when nothing to approve */
     pendingCount: { type: Number, default: 0 },
+    /**
+     * Spec 62.8: pending + enqueued count. The cancel-pending endpoint cancels
+     * both states, so the "Cancel pending" button must show as long as either
+     * is non-zero. Defaults to `pendingCount` to keep the parent simple when
+     * only one count is meaningful.
+     */
+    cancellableCount: { type: Number, default: 0 },
   },
 
   computed: {
@@ -79,6 +102,10 @@ export default defineComponent({
       // Nothing pending → nothing to approve. Otherwise enable (approveAll covers
       // the zero-selection case; selectedCount > 0 enables approve-selected).
       return this.pendingCount === 0;
+    },
+    /** Spec 62.8: show "Cancel pending" when there's something cancellable. */
+    hasCancellableItems(): boolean {
+      return this.cancellableCount > 0;
     },
   },
 

@@ -66,3 +66,10 @@ export {
   SOCIAL_ELIGIBLE_COLLECTIONS,
   type SocialEligibleCollection,
 } from "./social-eligible-collections.ts";
+
+// Spec 62.8: production-run execution
+export {
+  getPipelineForItem,
+  type LlmMode,
+  type RoutedJob,
+} from "./execution/pipeline-router.ts";

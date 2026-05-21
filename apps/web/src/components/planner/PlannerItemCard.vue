@@ -64,16 +64,73 @@
 
       <div class="item-row-bottom">
         <span class="cost mono">€{{ costDisplay }}</span>
-        <span class="item-status-icon" :title="$t(`planner.itemStatus.${item.status}`) as string" aria-hidden="true">
-          <span v-if="item.status === 'pending'">⏳</span>
-          <span v-else-if="item.status === 'enqueued'">▶</span>
-          <span v-else-if="item.status === 'in_progress'">🔄</span>
-          <span v-else-if="item.status === 'completed'">✓</span>
-          <span v-else-if="item.status === 'failed'">✗</span>
-          <span v-else-if="item.status === 'skipped'">⏭</span>
-          <span v-else-if="item.status === 'cancelled'">⊘</span>
-        </span>
+        <div class="item-status-actions">
+          <!-- Spec 62.8: View-run link for any item that has been dispatched. -->
+          <q-btn
+            v-if="item.pipelineRunId"
+            class="run-link-btn"
+            flat
+            dense
+            size="xs"
+            icon="open_in_new"
+            :aria-label="$t('planner.execution.viewRunAria') as string"
+            @click.stop="openRunDetail"
+          >
+            <q-tooltip anchor="top middle" self="bottom middle" :delay="200">
+              {{ $t('planner.execution.viewRun') }}
+            </q-tooltip>
+          </q-btn>
+          <!-- Spec 62.8: Inline retry for failed items. -->
+          <q-btn
+            v-if="item.status === 'failed'"
+            class="retry-btn"
+            flat
+            dense
+            size="xs"
+            icon="refresh"
+            :aria-label="$t('planner.execution.retryAria') as string"
+            @click.stop="$emit('retry', item.id)"
+          >
+            <q-tooltip anchor="top middle" self="bottom middle" :delay="200">
+              {{ $t('planner.execution.retry') }}
+            </q-tooltip>
+          </q-btn>
+          <span
+            class="item-status-icon"
+            :title="statusIconTitle"
+            aria-hidden="true"
+          >
+            <span v-if="item.status === 'pending'">⏳</span>
+            <span v-else-if="item.status === 'enqueued'">▶</span>
+            <span v-else-if="item.status === 'in_progress'">🔄</span>
+            <span v-else-if="item.status === 'completed'">✓</span>
+            <span v-else-if="item.status === 'failed'">✗</span>
+            <span v-else-if="item.status === 'skipped'">⏭</span>
+            <span v-else-if="item.status === 'cancelled'">⊘</span>
+            <span v-else-if="item.status === 'published'">📤</span>
+            <!-- Spec 62.8: tooltip surfaces block reason (skipped) or
+                 failure reason (failed) for at-a-glance debugging. -->
+            <q-tooltip
+              v-if="statusTooltipText"
+              anchor="top middle"
+              self="bottom middle"
+              :delay="200"
+              max-width="300px"
+            >
+              {{ statusTooltipText }}
+            </q-tooltip>
+          </span>
+        </div>
       </div>
+
+      <!-- Spec 62.8: cluster items finish in plan_proposed — surface that
+           Marcel still needs to approve the cluster plan in a separate tab. -->
+      <p
+        v-if="showClusterReviewHint"
+        class="cluster-review-hint"
+      >
+        {{ $t('planner.execution.clusterNeedsReview') }}
+      </p>
     </div>
   </div>
 </template>
@@ -101,7 +158,7 @@ const KNOWN_CONTENT_TYPE_KEYS = new Set([
 export default defineComponent({
   name: "PlannerItemCard",
 
-  emits: ["open", "toggle-select"],
+  emits: ["open", "toggle-select", "retry"],
 
   props: {
     item: { type: Object as PropType<PlannedItem>, required: true },
@@ -136,11 +193,38 @@ export default defineComponent({
       if (!Number.isFinite(parsed)) return "0.00";
       return parsed.toFixed(2);
     },
+    statusIconTitle(): string {
+      return this.$t(`planner.itemStatus.${this.item.status}`) as string;
+    },
+    statusTooltipText(): string | null {
+      if (this.item.status === "skipped" && this.item.blockReason) {
+        const key = `planner.execution.blockReasons.${this.item.blockReason}`;
+        const localized = this.$t(key) as string;
+        // Fallback to the raw value if the key doesn't exist (forwards-compat
+        // for future block reasons that haven't been i18n'd yet).
+        return localized && localized !== key ? localized : this.item.blockReason;
+      }
+      if (this.item.status === "failed" && this.item.failureReason) {
+        return this.$t("planner.execution.failureTooltip", {
+          reason: this.item.failureReason,
+        }) as string;
+      }
+      return null;
+    },
+    /** Spec 62.8: cluster items finish in plan_proposed (not auto-spokes). */
+    showClusterReviewHint(): boolean {
+      return this.item.contentType === "cluster" && this.item.status === "completed";
+    },
   },
 
   methods: {
     onCardClick(): void {
       this.$emit("open", this.item.id);
+    },
+    openRunDetail(): void {
+      const runId = this.item.pipelineRunId;
+      if (!runId) return;
+      void this.$router.push(`/projects/${this.$route.params.slug ?? ""}/runs/${runId}`);
     },
   },
 });
@@ -285,6 +369,32 @@ export default defineComponent({
 .item-status-icon {
   font-size: 12px;
   line-height: 1;
+}
+
+/* Spec 62.8: inline action row beside the status icon */
+.item-status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.retry-btn,
+.run-link-btn {
+  min-height: 20px;
+  padding: 2px;
+  color: var(--text-secondary);
+}
+
+.retry-btn:hover,
+.run-link-btn:hover {
+  color: var(--accent-primary);
+}
+
+.cluster-review-hint {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-style: italic;
 }
 
 /* Cancelled state — grey out and strike through */

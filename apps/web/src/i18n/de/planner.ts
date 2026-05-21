@@ -73,6 +73,36 @@ export default {
     failed: "Fehlgeschlagen",
     skipped: "Übersprungen",
     cancelled: "Abgebrochen",
+    // Spec 62.8: terminal state set by Phase E Distribution.
+    published: "Veröffentlicht",
+  },
+
+  // Spec 62.8: execution lifecycle UI controls
+  execution: {
+    retry: "Wiederholen",
+    retryAria: "Item erneut ausführen",
+    retrySuccess: "Item zur Wiederholung in die Warteschlange gestellt",
+    viewRun: "Pipeline-Run ansehen",
+    viewRunAria: "Pipeline-Run-Details öffnen",
+    blockReasons: {
+      budget_gate: "Übersprungen: Wochenbudget zu 90 % ausgeschöpft",
+    },
+    failureTooltip: "Fehler: {reason}",
+    cancelPending: "Ausstehende Items abbrechen",
+    cancelPendingConfirm: {
+      title: "Ausstehende Items abbrechen?",
+      body: "Alle wartenden und in der Warteschlange befindlichen Items werden abgebrochen. Bereits laufende Items werden NICHT gestoppt. Das kann nicht rückgängig gemacht werden.",
+      confirm: "Abbrechen",
+      cancel: "Zurück",
+    },
+    cancelPendingSuccess: "{cancelled} Items abgebrochen, {generatingUntouched} laufen weiter",
+    progress: {
+      label: "{completed} / {total} fertig",
+      detail: "{inProgress} laufen · {enqueued} warten · {failed} fehlgeschlagen",
+    },
+    // Spec 62.8 deviation: cluster items finish in 'plan_proposed' status —
+    // Marcel still reviews them in the Clusters-Tab before Hub+Spokes generieren.
+    clusterNeedsReview: "Plan vorgeschlagen — im Cluster-Tab freigeben",
   },
 
   // Source-kind badges. Spec 62.4-followup Issue 3: user-friendly labels
