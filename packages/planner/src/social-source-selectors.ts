@@ -117,14 +117,16 @@ export async function pickFromSuggestionPool(
   // Articles WHERE NOT EXISTS recent template_render. Implemented as a
   // correlated NOT EXISTS subquery via Drizzle's `sql` template. Excluding
   // articles already picked from the refresh pool is opportunistic — when
-  // the list is empty the AND clause is dropped.
+  // the list is empty we pass `undefined` so Drizzle's `and()` drops the
+  // slot entirely. An empty `sql\`\`` would emit a stray `and ` and crash
+  // the query with "syntax error at or near \")\"".
   const excludeClause =
     input.excludeArticleIds && input.excludeArticleIds.length > 0
-      ? sql`AND ${articles.id} NOT IN (${sql.join(
+      ? sql`${articles.id} NOT IN (${sql.join(
           input.excludeArticleIds.map((id) => sql`${id}`),
           sql`, `,
         )})`
-      : sql``;
+      : undefined;
 
   const rows = await db
     .select({
