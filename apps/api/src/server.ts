@@ -38,6 +38,7 @@ import { scopedPillarRoutes } from "./routes/projects/pillars.ts";
 import { scopedPipelineRunsRoutes } from "./routes/projects/pipeline-runs.ts";
 import { articleStandaloneRoutes } from "./routes/projects/articles-standalone.ts";
 import { promptVersionsRoutes } from "./routes/prompt-versions.ts";
+import { projectGoalsRoutes } from "./routes/project-goals.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -91,6 +92,7 @@ app.route("/api/pillars", pillarRoutes);
 app.route("/api/clusters", clusterRoutes);
 app.route("/api", cornerstoneSpecRoutes);
 app.route("/api", promptVersionsRoutes);
+app.route("/api", projectGoalsRoutes);
 app.route("/api/notifications", notificationRoutes);
 app.route("/api/push", pushSubscriptionRoutes);
 app.route("/api/admin", adminRoutes);

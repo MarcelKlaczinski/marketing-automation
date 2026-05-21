@@ -188,6 +188,12 @@ export default defineComponent({
           subtitle: this.$t("search.actionPausedRunsSubtitle") as string,
           href: `/projects/${slug}/paused-runs`,
         },
+        {
+          id: "action-planner-goals",
+          title: this.$t("search.actionPlannerGoals") as string,
+          subtitle: this.$t("search.actionPlannerGoalsSubtitle") as string,
+          href: `/projects/${slug}/settings/planner`,
+        },
       ];
     },
   },

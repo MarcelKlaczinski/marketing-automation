@@ -10,4 +10,6 @@ export default {
   loading: "Suche…",
   actionPausedRuns: "Pausierte Runs anzeigen",
   actionPausedRunsSubtitle: "Stub — wird in Spec 62.6 voll ausgebaut",
+  actionPlannerGoals: "Planner-Ziele bearbeiten",
+  actionPlannerGoalsSubtitle: "Wöchentliche Cadence + Budget des Content-Planners",
 };

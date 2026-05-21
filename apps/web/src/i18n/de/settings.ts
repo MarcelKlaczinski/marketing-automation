@@ -7,6 +7,7 @@ export default {
     "brand-assets": "Brand-Assets",
     credentials: "Zugangsdaten",
     "signal-sources": "Signal-Quellen",
+    planner: "Planner-Ziele",
   },
 
   project: {
@@ -344,6 +345,73 @@ export default {
     sync: "Sync – sofort (Standard)",
     batch: "Batch – 24h Verzögerung, 50% günstiger",
     batchWarning: "Im Batch-Modus werden Artikel innerhalb von 24h generiert. Kein sofortiges Ergebnis.",
+  },
+
+  planner: {
+    title: "Planner-Ziele",
+    description:
+      "Lege fest, wie viel Content der Planner pro Woche generieren soll, und setze ein Wochenbudget.",
+    saving: "Speichere…",
+    saveAll: "Alle Änderungen speichern",
+    goalsSection: {
+      title: "Cadence-Ziele",
+      description:
+        "Pro Content-Typ ein Ziel. Min ist der Floor (Pflicht), Max ist die Obergrenze für Übererfüllung (leer = unbegrenzt, nur vom Budget gedeckelt).",
+      add: "Ziel hinzufügen",
+      remove: "Entfernen",
+      empty: "Noch keine Ziele angelegt.",
+    },
+    configSection: {
+      title: "Wochenbudget & Übererfüllung",
+      description:
+        "Globales Budget gilt hart. Sub-Budgets pro Typ sind optionale Sanity-Checks. Top-N erlaubt Übererfüllung pro qualifiziertem Signal.",
+      weeklyBudgetLabel: "Wochenbudget (€)",
+      topNLabel: "Top-N Signale für Übererfüllung",
+      maxOverageLabel: "Extra-Items pro Signal",
+      perTypeLabel: "Sub-Budgets pro Content-Typ (optional)",
+      perTypeHelp: "€-Cap pro Typ; leer lassen für keinen typenspezifischen Cap.",
+    },
+    validation: {
+      title: "Konfigurationsstatus",
+      loading: "Prüfe…",
+      validHeading: "Konfiguration gültig.",
+      validBody: "Geschätzte Floor-Kosten: €{floorEur}/Woche.",
+      errorsHeading: "Konfiguration unvollständig",
+      warningsHeading: "Warnungen",
+    },
+    errorCodes: {
+      NO_GOALS_DEFINED: "Es sind keine aktiven Ziele definiert.",
+      NO_PLANNER_CONFIG: "Kein Wochenbudget konfiguriert.",
+      FLOOR_EXCEEDS_BUDGET: "Floor-Kosten übersteigen das Wochenbudget.",
+      INVALID_CADENCE_UNIT: "Ein Ziel hat eine ungültige Cadence-Einheit.",
+      INVALID_MIN_MAX: "Ein Ziel hat Max < Min.",
+    },
+    warningCodes: {
+      FLOOR_NEAR_BUDGET: "Floor verbraucht ≥85% des Budgets — wenig Spielraum für Übererfüllung.",
+      SUB_BUDGETS_OVER_GLOBAL: "Sub-Budgets überschreiten in Summe das globale Budget.",
+      ALL_GOALS_INACTIVE_OR_ZERO: "Alle Ziele haben Min = 0 — der Planner wird nichts produzieren.",
+    },
+    contentTypes: {
+      cluster: "Cluster",
+      comparison: "Vergleichsartikel",
+      social_post: "Social-Post",
+      ki_wissen: "KI-Wissen",
+    },
+    cadenceUnits: {
+      per_day: "pro Tag",
+      per_week: "pro Woche",
+    },
+    fields: {
+      contentType: "Content-Typ",
+      cadenceUnit: "Cadence",
+      minCount: "Min",
+      maxCount: "Max",
+      note: "Notiz (optional)",
+      isActive: "Aktiv",
+    },
+    saved: "Gespeichert.",
+    saveError: "Speichern fehlgeschlagen.",
+    confirmDelete: "Dieses Ziel deaktivieren?",
   },
 
   notifications: {

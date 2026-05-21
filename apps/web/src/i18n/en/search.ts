@@ -10,4 +10,6 @@ export default {
   loading: "Searching…",
   actionPausedRuns: "Show paused runs",
   actionPausedRunsSubtitle: "Stub — full UI lands in Spec 62.6",
+  actionPlannerGoals: "Edit planner goals",
+  actionPlannerGoalsSubtitle: "Content Planner weekly cadence + budget",
 };

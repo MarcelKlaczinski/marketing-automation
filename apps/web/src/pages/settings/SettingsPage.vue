@@ -38,6 +38,7 @@ export default defineComponent({
         { key: "brand-assets" },
         { key: "credentials" },
         { key: "signal-sources" },
+        { key: "planner" },
       ];
     },
   },

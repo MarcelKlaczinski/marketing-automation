@@ -1,0 +1,76 @@
+import { z } from "zod";
+
+/**
+ * Spec 62.2: content-type discriminator for project_goals rows.
+ *
+ * Extensible — add new entries as new content types are introduced. Stored as plain text
+ * at the DB layer (62.0a Lesson D12 — no pgEnum), so adding a value here is a code-only
+ * change with no migration.
+ */
+export const CONTENT_TYPES = ["cluster", "comparison", "social_post", "ki_wissen"] as const;
+export const contentTypeSchema = z.enum(CONTENT_TYPES);
+export type ContentType = z.infer<typeof contentTypeSchema>;
+
+/** per_day = "in the daily average"; per_week = "over the calendar week". */
+export const CADENCE_UNITS = ["per_day", "per_week"] as const;
+export const cadenceUnitSchema = z.enum(CADENCE_UNITS);
+export type CadenceUnit = z.infer<typeof cadenceUnitSchema>;
+
+/**
+ * One goal row. `maxCount` is the cap for overage (NULL = uncapped except by global budget).
+ * `minCount === 0` is allowed and means "explicitly no floor for this type" (Planner will
+ * still consider it for signal-driven overage).
+ */
+export const projectGoalSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    contentType: contentTypeSchema,
+    cadenceUnit: cadenceUnitSchema,
+    minCount: z.number().int().min(0),
+    maxCount: z.number().int().min(0).nullable(),
+    isActive: z.boolean().default(true),
+    note: z.string().max(2000).nullable().optional(),
+  })
+  .refine((g) => g.maxCount === null || g.maxCount >= g.minCount, {
+    message: "maxCount must be >= minCount or null",
+    path: ["maxCount"],
+  });
+export type ProjectGoalInput = z.infer<typeof projectGoalSchema>;
+
+/** PUT /goals body — full replace; server diffs against active rows. */
+export const putProjectGoalsPayloadSchema = z.object({
+  goals: z.array(projectGoalSchema).max(50),
+});
+export type PutProjectGoalsPayload = z.infer<typeof putProjectGoalsPayloadSchema>;
+
+/** PATCH /goals/:goalId — partial update of one row. */
+export const patchProjectGoalPayloadSchema = z
+  .object({
+    cadenceUnit: cadenceUnitSchema.optional(),
+    minCount: z.number().int().min(0).optional(),
+    maxCount: z.number().int().min(0).nullable().optional(),
+    isActive: z.boolean().optional(),
+    note: z.string().max(2000).nullable().optional(),
+  })
+  .refine(
+    (p) =>
+      p.maxCount === undefined ||
+      p.maxCount === null ||
+      p.minCount === undefined ||
+      p.maxCount >= p.minCount,
+    { message: "maxCount must be >= minCount or null", path: ["maxCount"] }
+  );
+export type PatchProjectGoalPayload = z.infer<typeof patchProjectGoalPayloadSchema>;
+
+/** Sub-budget map; keys must be valid content types. */
+export const perTypeMaxEurSchema = z.record(contentTypeSchema, z.number().positive());
+export type PerTypeMaxEur = z.infer<typeof perTypeMaxEurSchema>;
+
+/** PUT /planner-config — full upsert (any missing field is taken as default). */
+export const projectPlannerConfigSchema = z.object({
+  weeklyBudgetEur: z.number().positive(),
+  perTypeMaxEur: perTypeMaxEurSchema.nullable().optional(),
+  topNSignalsAllowedOverage: z.number().int().min(0).default(3),
+  maxOveragePerSignal: z.number().int().min(0).default(1),
+});
+export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

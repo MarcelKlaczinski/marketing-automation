@@ -7,6 +7,7 @@ export default {
     "brand-assets": "Brand Assets",
     credentials: "Credentials",
     "signal-sources": "Signal Sources",
+    planner: "Planner Goals",
   },
 
   project: {
@@ -343,6 +344,73 @@ export default {
     sync: "Sync – immediate (default)",
     batch: "Batch – 24h delay, 50% cheaper",
     batchWarning: "In batch mode articles are generated within 24 hours. No immediate results.",
+  },
+
+  planner: {
+    title: "Planner Goals",
+    description:
+      "Decide how much content the Planner should generate per week and set a weekly budget.",
+    saving: "Saving…",
+    saveAll: "Save all changes",
+    goalsSection: {
+      title: "Cadence Goals",
+      description:
+        "One goal per content type. Min is the floor (required), Max is the cap for overage (blank = uncapped except by global budget).",
+      add: "Add goal",
+      remove: "Remove",
+      empty: "No goals yet.",
+    },
+    configSection: {
+      title: "Weekly Budget & Overage",
+      description:
+        "Global budget is a hard cap. Per-type sub-budgets are optional sanity checks. Top-N allows overage per qualifying signal.",
+      weeklyBudgetLabel: "Weekly budget (€)",
+      topNLabel: "Top-N signals allowed overage",
+      maxOverageLabel: "Extra items per signal",
+      perTypeLabel: "Per-type sub-budgets (optional)",
+      perTypeHelp: "€ cap per type; leave blank for no per-type cap.",
+    },
+    validation: {
+      title: "Configuration Status",
+      loading: "Checking…",
+      validHeading: "Configuration valid.",
+      validBody: "Estimated floor cost: €{floorEur}/week.",
+      errorsHeading: "Configuration incomplete",
+      warningsHeading: "Warnings",
+    },
+    errorCodes: {
+      NO_GOALS_DEFINED: "No active goals defined.",
+      NO_PLANNER_CONFIG: "No weekly budget configured.",
+      FLOOR_EXCEEDS_BUDGET: "Floor cost exceeds the weekly budget.",
+      INVALID_CADENCE_UNIT: "A goal has an invalid cadence unit.",
+      INVALID_MIN_MAX: "A goal has Max < Min.",
+    },
+    warningCodes: {
+      FLOOR_NEAR_BUDGET: "Floor consumes ≥85% of the budget — little room for overage.",
+      SUB_BUDGETS_OVER_GLOBAL: "Sub-budgets in total exceed the global budget.",
+      ALL_GOALS_INACTIVE_OR_ZERO: "All goals have Min = 0 — the Planner will not generate anything.",
+    },
+    contentTypes: {
+      cluster: "Cluster",
+      comparison: "Comparison",
+      social_post: "Social post",
+      ki_wissen: "Knowledge article",
+    },
+    cadenceUnits: {
+      per_day: "per day",
+      per_week: "per week",
+    },
+    fields: {
+      contentType: "Content type",
+      cadenceUnit: "Cadence",
+      minCount: "Min",
+      maxCount: "Max",
+      note: "Note (optional)",
+      isActive: "Active",
+    },
+    saved: "Saved.",
+    saveError: "Save failed.",
+    confirmDelete: "Deactivate this goal?",
   },
 
   notifications: {

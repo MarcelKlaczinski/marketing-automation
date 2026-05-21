@@ -91,6 +91,28 @@ When the callback is omitted, tier 1 is skipped and the estimator falls straight
 
 **Tier-1 zero-sum behaviour**: a pipeline whose every step returns 0 from `estimatedCostEur()` falls through to tier 2/3. Intentional — a pipeline with overrides that all happen to be 0 should be reported with the same default as one with no overrides. The edge case: a future pipeline that genuinely costs €0 (e.g. pure DB-rotation chain) will be tagged with the itemType default. Mark such pipelines with an explicit `estimatedCostEur(): number { return 0.0001; }` if you want tier 1 to "stick", or document the false positive.
 
+## Project Goal Validator (Spec 62.2)
+
+`validateProjectGoals(projectId, { resolvePipelineSteps? })` is the canonical pre-flight check for the Content Planner (Spec 62.4). Loads `project_goals` + `project_planner_config`, runs sanity checks, and returns:
+
+```typescript
+{
+  valid: boolean;                                  // true iff errors.length === 0
+  errors: Array<{ code, message, details? }>;      // 5 codes; see GOAL_VALIDATION_ERROR_CODES
+  warnings: Array<{ code, message, details? }>;    // 3 codes; see GOAL_VALIDATION_WARNING_CODES
+  resolvedGoals: ProjectGoal[];
+  config: ProjectPlannerConfig | null;
+  estimatedWeeklyFloorEur: number | null;          // null if no config or no goals
+}
+```
+
+**Error codes:** `NO_GOALS_DEFINED`, `NO_PLANNER_CONFIG`, `FLOOR_EXCEEDS_BUDGET`, `INVALID_CADENCE_UNIT`, `INVALID_MIN_MAX`.
+**Warning codes:** `FLOOR_NEAR_BUDGET` (≥85% of budget), `SUB_BUDGETS_OVER_GLOBAL`, `ALL_GOALS_INACTIVE_OR_ZERO`.
+
+**`CONTENT_TYPE_TO_PIPELINE` map**: each `content_type` is expanded into N synthetic `PlannedItem` rows for `estimateWeeklyPlanCost` (e.g. `cluster` → `cluster:full-plan`, `comparison`/`ki_wissen` → `article:blog`, `social_post` → `article:social-image`). When adding a new content type to the `CONTENT_TYPES` enum in `packages/shared/src/types/project-goals.ts`, also extend the map in `goal-validator.ts` or cost estimation will return 0 for that type.
+
+**Same leaf-package contract as `estimateWeeklyPlanCost`**: the validator delegates pipeline-step lookup to a `PipelineStepResolver` callback so cost-tracker stays free of any `@marketing-auto/pipelines` import. API routes wire it from `pipelineRegistry.get(name)?.steps`; CLI scripts can omit the callback and fall through to historical/default tiers.
+
 ## Common Mistakes
 
 - DO NOT skip `track()` for "small" operations — 1000 small calls add up

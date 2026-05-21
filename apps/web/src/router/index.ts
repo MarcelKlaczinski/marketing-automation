@@ -122,6 +122,11 @@ const routes = [
             name: "settings-signal-sources",
             component: () => import("src/pages/settings/SettingsSignalSourcesPage.vue"),
           },
+          {
+            path: "planner",
+            name: "settings-planner",
+            component: () => import("src/pages/settings/SettingsPlannerPage.vue"),
+          },
           // Redirect bare /settings to /settings/project
           {
             path: "",

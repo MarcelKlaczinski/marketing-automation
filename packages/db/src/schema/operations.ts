@@ -525,6 +525,62 @@ export const stepOptimizationRequests = pgTable(
 export type StepOptimizationRequest = typeof stepOptimizationRequests.$inferSelect;
 export type NewStepOptimizationRequest = typeof stepOptimizationRequests.$inferInsert;
 
+// Spec 62.2: per-project, per-content-type cadence definitions.
+// `content_type` is text (not pgEnum) per 62.0a Lesson D12 — Zod gates validation at the
+// API/service layer. The partial unique index allows multiple inactive rows for the same
+// (project, content_type) but only one active row.
+export const projectGoals = pgTable(
+  "project_goals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    contentType: text("content_type").notNull(),
+    cadenceUnit: text("cadence_unit").$type<"per_day" | "per_week">().notNull(),
+    minCount: integer("min_count").notNull(),
+    maxCount: integer("max_count"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    note: text("note"),
+  },
+  (t) => ({
+    oneActivePerType: uniqueIndex("project_goals_one_active_per_type")
+      .on(t.projectId, t.contentType)
+      .where(sql`${t.isActive} = true`),
+    projectIdx: index("project_goals_project_idx")
+      .on(t.projectId)
+      .where(sql`${t.isActive} = true`),
+  })
+);
+
+export type ProjectGoal = typeof projectGoals.$inferSelect;
+export type NewProjectGoal = typeof projectGoals.$inferInsert;
+
+// Spec 62.2: per-project planner-wide settings (budget + overage policy).
+// Singleton-per-project (project_id is PK). Separate from `projects` so 62.4/62.5/62.7 can
+// add columns additively without crowding the projects schema.
+//
+// `weeklyBudgetEur` is Drizzle `numeric(10,2)` → returned/written as string (Drizzle convention
+// for numeric). Helpers coerce at the boundary.
+export const projectPlannerConfig = pgTable("project_planner_config", {
+  projectId: uuid("project_id")
+    .primaryKey()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  weeklyBudgetEur: numeric("weekly_budget_eur", { precision: 10, scale: 2 })
+    .$type<string>()
+    .notNull(),
+  perTypeMaxEur: jsonb("per_type_max_eur").$type<Record<string, number>>(),
+  topNSignalsAllowedOverage: integer("top_n_signals_allowed_overage").notNull().default(3),
+  maxOveragePerSignal: integer("max_overage_per_signal").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type ProjectPlannerConfig = typeof projectPlannerConfig.$inferSelect;
+export type NewProjectPlannerConfig = typeof projectPlannerConfig.$inferInsert;
+
 export const approvals = pgTable(
   "approvals",
   {
