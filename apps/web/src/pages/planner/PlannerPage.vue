@@ -207,7 +207,7 @@
 </template>
 
 <script lang="ts">
-import { LocalStorage, useQuasar } from "quasar";
+import { LocalStorage } from "quasar";
 import PlannerActionBar from "src/components/planner/PlannerActionBar.vue";
 import PlannerBudgetBar from "src/components/planner/PlannerBudgetBar.vue";
 import PlannerGenerateButton from "src/components/planner/PlannerGenerateButton.vue";
@@ -259,12 +259,11 @@ export default defineComponent({
     const planQuery = useWeeklyPlan({ year: nav.year, isoWeek: nav.isoWeek });
     const generation = usePlanGeneration();
     const actions = usePlanItemActions();
-    const $q = useQuasar();
     // Spec 62.7: badge count for the Quarantine tab. Same TanStack query key
     // the child PlannerQuarantineTab uses (default limit=20, offset=0) so when
     // the user opens the tab the data is already warm and dedupes the request.
     const quarantine = useQuarantineRuns();
-    return { nav, planQuery, generation, actions, quarantine, $q };
+    return { nav, planQuery, generation, actions, quarantine };
   },
 
   data: () => {
