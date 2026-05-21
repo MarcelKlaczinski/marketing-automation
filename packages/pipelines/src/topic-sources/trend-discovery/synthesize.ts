@@ -67,23 +67,47 @@ export async function synthesizeTopics(
 
   log.debug({ projectId, signalCount: signals.length }, "calling Opus for trend synthesis");
 
+  // claude-opus-4-7 (like claude-sonnet-4-6) rejects assistant-message prefill,
+  // so jsonMode: true would HTTP 400. Instead, instruct via systemSuffix and
+  // extract the JSON object from the raw response manually.
   const result = await anthropic.messages({
     projectId,
     operation: "trend-synthesis",
     model: "claude-opus-4-7",
     systemPrefix: systemPrompt.cacheablePrefix,
-    systemSuffix: systemPrompt.variableSuffix,
+    systemSuffix: `${systemPrompt.variableSuffix}\n\nRespond with only a valid JSON object. No markdown fences, no prose preamble.`,
     userMessage,
     maxTokens: 8000,
-    jsonMode: true,
     estimatedCostEur: 0.40,
     ...(pipelineRunId !== undefined && { pipelineRunId }),
   });
 
-  const parsed = SynthesisOutputSchema.safeParse(result.json);
+  const raw = result.raw ?? "";
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end < start) {
+    log.error(
+      { projectId, rawPreview: raw.slice(0, 500) },
+      "synthesis output contained no JSON object — throwing for BullMQ retry",
+    );
+    throw new Error("Synthesis output contained no JSON object");
+  }
+
+  let jsonValue: unknown;
+  try {
+    jsonValue = JSON.parse(raw.slice(start, end + 1));
+  } catch (err) {
+    log.error(
+      { projectId, err, rawPreview: raw.slice(0, 500) },
+      "synthesis output JSON parse failed — throwing for BullMQ retry",
+    );
+    throw new Error(`Synthesis output JSON parse failed: ${(err as Error).message}`);
+  }
+
+  const parsed = SynthesisOutputSchema.safeParse(jsonValue);
   if (!parsed.success) {
     log.error(
-      { projectId, issues: parsed.error.issues, raw: JSON.stringify(result.json).slice(0, 500) },
+      { projectId, issues: parsed.error.issues, raw: JSON.stringify(jsonValue).slice(0, 500) },
       "synthesis output failed Zod validation — throwing for BullMQ retry",
     );
     throw new Error(`Synthesis output validation failed: ${parsed.error.message}`);
