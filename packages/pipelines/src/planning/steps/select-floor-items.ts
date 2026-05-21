@@ -122,9 +122,41 @@ function pipelineInputFromBrief(
     projectId,
     title: brief.suggestedTitle ?? brief.topicTitle,
   };
-  if (contentType === "comparison") input.collectionType = "comparisons";
+  if (contentType === "comparison") input.collectionType = "comparison";
   if (contentType === "ki_wissen") input.collectionType = "ki-wissen";
+  // Spec 63.7b: cluster items need cluster_action + cluster_id + intent_type
+  // available at execution time so `getPipelineForItem` (pure router) can
+  // decide between cluster:full-plan (create_new — phantom-cluster generation)
+  // and article:blog (append_to_existing — spoke under brief.clusterId)
+  // WITHOUT a re-query of topic_briefs. Stamped only for cluster items;
+  // comparison + ki_wissen items don't use these.
+  if (contentType === "cluster") {
+    input.clusterAction = brief.clusterAction;
+    if (brief.clusterId !== null) input.clusterId = brief.clusterId;
+    if (brief.intentType !== null) input.intentType = brief.intentType;
+  }
   return input;
+}
+
+/**
+ * Spec 63.7b: per-item pipelineName selector. Cluster items with
+ * `cluster_action='append_to_existing'` execute as `article:blog` (spoke
+ * generation under brief.clusterId), not `cluster:full-plan`. Persisting the
+ * correct pipelineName at plan-generation time lets the cost estimator's
+ * tier-1 step-sum reflect the cheaper article:blog cost instead of the
+ * cluster:full-plan default.
+ *
+ * Keep in sync with `pipeline-router.ts` `case "cluster":` — same predicate.
+ */
+function pipelineNameForItem(brief: TopicBrief, contentType: PlanningContentType): string {
+  if (
+    contentType === "cluster" &&
+    brief.clusterAction === "append_to_existing" &&
+    brief.clusterId !== null
+  ) {
+    return "article:blog";
+  }
+  return PIPELINE_NAME_BY_CONTENT_TYPE[contentType];
 }
 
 export class SelectFloorItemsStep extends BaseStep<Input, Output> {
@@ -189,7 +221,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         floorItems.push({
           draftId: randomUUID(),
           contentType,
-          pipelineName: PIPELINE_NAME_BY_CONTENT_TYPE[contentType],
+          pipelineName: pipelineNameForItem(brief, contentType),
           sourceKind: "floor",
           sourceBriefId: brief.id,
           sourceSignalId: null,

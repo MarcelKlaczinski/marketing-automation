@@ -18,6 +18,15 @@ export type EnqueueBlogGenerationInput = {
    * → completed/failed around runPipeline.
    */
   plannedItemId?: string;
+  /**
+   * Spec 63.7b: Astro collection for the generated article. Threaded by the
+   * planner executor when the brief routes to article:blog (comparison,
+   * ki-wissen, append_to_existing cluster spokes). Defaults to `"blog"` when
+   * absent — preserves legacy behaviour for non-planner triggers. Forwarded
+   * to `createBlogArticleFromBrief` (initial collection) AND the pipelineInput
+   * (so the bridge → PersistArticleStep sets the final collection too).
+   */
+  collectionType?: ArticleCollectionType;
 };
 
 export type EnqueueBlogGenerationResult = {
@@ -52,8 +61,9 @@ export async function enqueueBlogGeneration(
     );
   }
 
-  const createOpts: { approvalMode?: "manual" | "auto" } = {};
+  const createOpts: { approvalMode?: "manual" | "auto"; collection?: ArticleCollectionType } = {};
   if (input.approvalMode !== undefined) createOpts.approvalMode = input.approvalMode;
+  if (input.collectionType !== undefined) createOpts.collection = input.collectionType;
   const articleId = await createBlogArticleFromBrief(brief, createOpts);
 
   const pipelineInput: Record<string, unknown> = {
@@ -66,6 +76,9 @@ export async function enqueueBlogGeneration(
   }
   if (input.plannedItemId) {
     pipelineInput.plannedItemId = input.plannedItemId;
+  }
+  if (input.collectionType) {
+    pipelineInput.collectionType = input.collectionType;
   }
 
   const enqueueOpts: Parameters<typeof enqueuePipeline>[0] = {

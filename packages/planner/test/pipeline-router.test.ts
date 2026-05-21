@@ -18,10 +18,15 @@ function mkItem(overrides: Partial<RouterItem>): RouterItem {
 }
 
 describe("getPipelineForItem", () => {
-  it("routes cluster items to the inline cluster:full-plan path", () => {
+  it("routes cluster items to the inline cluster:full-plan path (create_new default)", () => {
     const item = mkItem({
       contentType: "cluster",
-      pipelineInput: { briefId: "brief-99", projectId: "proj-1", title: "AI Coding" },
+      pipelineInput: {
+        briefId: "brief-99",
+        projectId: "proj-1",
+        title: "AI Coding",
+        clusterAction: "create_new",
+      },
     });
     const route = getPipelineForItem(item, "sync");
     expect(route.kind).toBe("inline");
@@ -29,6 +34,16 @@ describe("getPipelineForItem", () => {
       expect(route.action).toBe("cluster:full-plan");
       expect(route.briefId).toBe("brief-99");
     }
+  });
+
+  it("routes cluster items inline when clusterAction missing (legacy plan back-compat)", () => {
+    const item = mkItem({
+      contentType: "cluster",
+      // No clusterAction stamped — pre-63.7b planned_items behaved this way.
+      pipelineInput: { briefId: "brief-legacy", projectId: "proj-1", title: "Legacy" },
+    });
+    const route = getPipelineForItem(item, "sync");
+    expect(route.kind).toBe("inline");
   });
 
   it("throws when a cluster item has no briefId", () => {
@@ -39,13 +54,100 @@ describe("getPipelineForItem", () => {
     expect(() => getPipelineForItem(item, "sync")).toThrow(/missing/);
   });
 
-  it("routes comparison → article:blog with collectionType=comparisons", () => {
+  // Spec 63.7b: append_to_existing routes to article:blog spoke generation.
+  it("routes cluster append_to_existing + clusterId → article:blog (Spec 63.7b)", () => {
+    const item = mkItem({
+      contentType: "cluster",
+      pipelineInput: {
+        briefId: "brief-spoke",
+        projectId: "proj-1",
+        title: "Claude vs GPT — RAG patterns",
+        clusterAction: "append_to_existing",
+        clusterId: "cluster-rag",
+        intentType: "tutorial",
+      },
+    });
+    const route = getPipelineForItem(item, "sync");
+    expect(route.kind).toBe("enqueue");
+    if (route.kind === "enqueue") {
+      expect(route.pipelineName).toBe("article:blog");
+      expect(route.jobData.briefId).toBe("brief-spoke");
+      expect(route.jobData.projectId).toBe("proj-1");
+      expect(route.jobData.plannedItemId).toBe(item.id);
+      // tutorial intent → blog collection default
+      expect(route.jobData.collectionType).toBe("blog");
+      expect(route.jobData.llmMode).toBe("sync");
+    }
+  });
+
+  it("routes cluster append_to_existing + knowledge intent → article:blog with ki-wissen collection", () => {
+    // Spec 63.4 hub-spoke: a knowledge brief matched to any cluster falls under
+    // ki-wissen by intent (matchBriefToContentType routes it to ki_wissen bucket,
+    // so this path is rare for knowledge — but the helper's mapping is the
+    // contract that future intents can rely on).
+    const item = mkItem({
+      contentType: "cluster",
+      pipelineInput: {
+        briefId: "brief-know",
+        projectId: "proj-1",
+        clusterAction: "append_to_existing",
+        clusterId: "cluster-ai",
+        intentType: "knowledge",
+      },
+    });
+    const route = getPipelineForItem(item, "batch");
+    expect(route.kind).toBe("enqueue");
+    if (route.kind === "enqueue") {
+      expect(route.jobData.collectionType).toBe("ki-wissen");
+      expect(route.jobData.llmMode).toBe("batch");
+    }
+  });
+
+  it("routes cluster append_to_existing + use_case intent → article:blog with usecases collection", () => {
+    const item = mkItem({
+      contentType: "cluster",
+      pipelineInput: {
+        briefId: "brief-uc",
+        projectId: "proj-1",
+        clusterAction: "append_to_existing",
+        clusterId: "cluster-uc",
+        intentType: "use_case",
+      },
+    });
+    const route = getPipelineForItem(item, "sync");
+    if (route.kind === "enqueue") {
+      expect(route.jobData.collectionType).toBe("usecases");
+    }
+  });
+
+  it("falls back to inline cluster:full-plan when append_to_existing missing clusterId", () => {
+    // Defensive: a misclassified brief (action says append, but no cluster set)
+    // must NOT enqueue a spoke against a NULL cluster. The router falls through
+    // to cluster:full-plan which will create a fresh cluster.
+    const item = mkItem({
+      contentType: "cluster",
+      pipelineInput: {
+        briefId: "brief-misc",
+        projectId: "proj-1",
+        clusterAction: "append_to_existing",
+        // clusterId intentionally absent
+      },
+    });
+    const route = getPipelineForItem(item, "sync");
+    expect(route.kind).toBe("inline");
+  });
+
+  it("routes comparison → article:blog with collectionType=comparison (Spec 63.7b enum fix)", () => {
+    // Pre-63.7b this returned the Astro folder name "comparisons" (plural),
+    // which was dead code (executor dropped it). Now the executor threads it
+    // through, so it must match the `ArticleCollectionType` enum value
+    // ("comparison" singular) or `BlogPipelineInputSchema` validation rejects it.
     const item = mkItem({ contentType: "comparison" });
     const route = getPipelineForItem(item, "sync");
     expect(route.kind).toBe("enqueue");
     if (route.kind === "enqueue") {
       expect(route.pipelineName).toBe("article:blog");
-      expect(route.jobData.collectionType).toBe("comparisons");
+      expect(route.jobData.collectionType).toBe("comparison");
       expect(route.jobData.plannedItemId).toBe(item.id);
       expect(route.jobData.llmMode).toBe("sync");
     }

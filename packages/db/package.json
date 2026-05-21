@@ -13,7 +13,7 @@
     "migrate": "bun --env-file ../../.env src/migrate.ts",
     "studio": "drizzle-kit studio --env-file ../../.env",
     "push": "drizzle-kit push --env-file ../../.env",
-    "check": "drizzle-kit check --env-file ../../.env",
+    "check": "bun --env-file ../../.env src/scripts/run-drizzle-kit.ts check",
     "test": "cd ../.. && bun test packages/db/test",
     "typecheck": "tsc --noEmit",
     "seed-platform": "bun --env-file ../../.env src/scripts/seed-platform.ts",

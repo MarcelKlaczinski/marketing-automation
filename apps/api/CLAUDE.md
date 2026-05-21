@@ -135,23 +135,20 @@ Worker wartet bis aktive Jobs draining sind — kann bis zu `lockDuration` dauer
 - **`/me` response shape**: `{ ok: true, data: { id, email } }` — only id and email. `name` and `role` are available on the DB user row but not currently exposed; add them if RBAC is needed.
 - **Email shim** (`src/lib/email.ts`): always return `SendEmailResult` (not `void`) so callers can check `.delivered` to detect the SMTP-not-configured dev fallback and log the verify URL.
 
-## Trend Synthesizer Worker (Spec 54.5)
+## Trend Synthesizer Worker (Spec 54.5 + 63.4 refactor)
 
-`src/workers/trend-synthesizer.ts` — daily synthesis of `external_signals` into `topic_briefs`.
+`src/workers/trend-synthesizer.ts` — synthesis of `external_signals` into `topic_briefs`. Spec 63.4 collapsed the original 3-stage fan-out (`schedule-daily → synthesize-all → synthesize-project`) into a single per-project handler driven by the `cron_state` orchestrator pattern (parallel to `planner-weekly-generation` from 62.7 and `comparison-discovery` from 63.3b).
 
-### Three job types (mirrors signal-collector pattern)
+### Single job shape
 
-```
-schedule-daily  →  synthesize-all  →  synthesize-project (one per project)
-```
+The worker validates `{ projectId, type?: "cron-triggered" | "synthesize-project" }` via Zod `.passthrough()` so both entry points reduce to `handleSynthesizeProject(projectId)`:
 
-- `schedule-daily`: fans out to a single `synthesize-all` job
-- `synthesize-all`: queries all projects, fans out one `synthesize-project` per project
-- `synthesize-project`: runs the full per-project synthesis pipeline (janitor + `TrendDiscoveryTopicSource.emit()` + brief insert)
+1. **Per-project cron tick** (Spec 63.4) — `cron-orchestrator` adds a repeatable BullMQ job named `trends_synthesizer:<projectId>` with data `{ projectId, type: "cron-triggered" }` whenever `cron_state.is_active = true` for that project.
+2. **Legacy manual `synthesize-project`** — still accepted so the CLI script (`bun --filter @marketing-auto/api trends:synthesize <slug>`) and the 2 HTTP manual-trigger routes (`apps/api/src/routes/trends.ts`, `apps/api/src/routes/projects/cron.ts`) keep working without changes.
 
 ### Janitor
 
-Each `synthesize-project` run stamps signals older than 14 days that were never processed:
+Each run stamps signals older than 14 days that were never processed:
 
 ```typescript
 await db.update(externalSignals)
@@ -164,11 +161,13 @@ await db.update(externalSignals)
   .returning({ id: externalSignals.id });
 ```
 
-### Cron
+### Cron (per-project via cron_state)
 
-Registered in `src/workers/index.ts` via `registerTrendSynthesizerCron()`:
-- Default: `30 1 * * *` (01:30 UTC — 60 min after signal-collector at 00:30)
-- Override: `TREND_SYNTHESIZER_CRON` env var
+The cron_job_type enum value `trends_synthesizer` (note: plural) pre-exists since Spec 56.6 — **no enum-widening migration is needed**. `seedTrendSynthesizerCron()` runs at worker startup and on project create (`routes/projects.ts`) to idempotently insert a `cron_state` row with `is_active: false` and the default pattern `0 1 * * *` (daily 01:00 UTC). Marcel toggles per-project in SettingsPlannerPage.
+
+The Spec 54.5 global `registerTrendSynthesizerCron()` + the `TREND_SYNTHESIZER_CRON` env var were removed in 63.4 — no migration needed since the function was already commented-out at worker startup, leaving no BullMQ repeatable to clean up.
+
+Cadence granularity is daily-or-weekly: `project_planner_config.trend_synth_cron_day_of_week` is `nullable integer` — `null` → daily (`0 H * * *`), `0..6` → weekly (`0 H * * DOW`). Helper: `buildTrendSynthCronPattern(dayOrNull, hour)` in `packages/db/src/helpers/project-planner-config-write.ts`.
 
 ### Brief persistence pattern
 

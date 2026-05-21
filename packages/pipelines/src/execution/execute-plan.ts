@@ -27,7 +27,7 @@ import {
   weeklyPlans,
 } from "@marketing-auto/db";
 import { getPipelineForItem, isoWeekStartDate, type LlmMode } from "@marketing-auto/planner";
-import { createLogger } from "@marketing-auto/shared";
+import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 import { enqueueSocialImagePipeline } from "../article/social-image/trigger.ts";
 import { runClusterFullPlanFromBrief } from "../cluster/full-plan/run-from-brief.ts";
 import type { PlanExecutionJobResult } from "./plan-execution-queue.ts";
@@ -192,7 +192,7 @@ export async function executePlan(planId: string): Promise<PlanExecutionJobResul
             briefId?: string;
             articleId?: string;
             projectId?: string;
-            collectionType?: "comparisons" | "ki-wissen" | "blog" | "ki-wissensraum";
+            collectionType?: ArticleCollectionType;
           };
           // briefId is required by enqueueBlogGenerationPipeline. Planner
           // emits it via pipelineInputFromBrief — fail loud if missing.
@@ -209,20 +209,23 @@ export async function executePlan(planId: string): Promise<PlanExecutionJobResul
           // — Two-step path: import enqueueBlogGeneration lazily to avoid
           // circular module-load with the trigger file.
           const { enqueueBlogGeneration } = await import("../article/blog/trigger.ts");
-          const result = await enqueueBlogGeneration({
+          // Spec 63.7b: thread collectionType from the router decision into
+          // article creation + pipelineInput. Router emits enum values
+          // ("blog" | "comparison" | "ki-wissen" | "usecases") matching
+          // `ArticleCollectionType`; createBlogArticleFromBrief maps the enum
+          // to the Astro folder name for articles.collection, and the bridge
+          // → PersistArticleStep also writes the final collection. Omitted
+          // when undefined (back-compat for unrouted callers).
+          const enqueueBlogInput: Parameters<typeof enqueueBlogGeneration>[0] = {
             briefId: blogInput.briefId,
             projectId: plan.projectId,
             preRunId: runId,
             plannedItemId: item.id,
-            // collectionType is set in jobData via the router; we don't pass
-            // it through enqueueBlogGeneration here because that trigger reads
-            // collection from the brief's downstream article setup. For
-            // planner-driven comparison/ki_wissen briefs the article-creation
-            // path (createBlogArticleFromBrief) reads collectionType from
-            // brief metadata. If collectionType handling is needed at this
-            // layer in the future, switch to enqueueBlogGenerationPipeline
-            // with a pre-created articleId.
-          });
+          };
+          if (blogInput.collectionType !== undefined) {
+            enqueueBlogInput.collectionType = blogInput.collectionType;
+          }
+          const result = await enqueueBlogGeneration(enqueueBlogInput);
           await markPlannedItemEnqueued({ itemId: item.id, pipelineRunId: runId });
           stats.enqueued += 1;
           log.info(

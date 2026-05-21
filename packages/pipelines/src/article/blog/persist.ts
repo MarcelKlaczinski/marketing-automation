@@ -1,6 +1,6 @@
 import { articles, and, db, eq, topicBriefs } from "@marketing-auto/db";
 import type { TopicBrief } from "@marketing-auto/db";
-import { createLogger } from "@marketing-auto/shared";
+import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 
 export class BlogPipelineError extends Error {
   constructor(message: string) {
@@ -11,6 +11,18 @@ export class BlogPipelineError extends Error {
 
 const log = createLogger("pipelines:blog-persist");
 
+// Spec 63.7b: enum → Astro folder name. Mirror of `COLLECTION_ASTRO_NAME` in
+// `packages/pipelines/src/article/steps/persist-article.ts` (Pattern 107 — each
+// concern owns its constant rather than importing across step boundaries). When
+// adding a new collection, update BOTH maps in lockstep.
+const COLLECTION_ASTRO_NAME: Record<ArticleCollectionType, string> = {
+  blog: "blog",
+  comparison: "comparisons",
+  "ki-wissen": "ki-wissen",
+  tools: "tools",
+  usecases: "usecases",
+};
+
 /**
  * Create the article row for a blog brief if it does not already exist.
  * Called by the blog trigger before enqueueing the pipeline.
@@ -20,6 +32,17 @@ export async function createBlogArticleFromBrief(
   brief: TopicBrief,
   opts: {
     approvalMode?: "manual" | "auto";
+    /**
+     * Spec 63.7b: collection enum for the article row. Defaults to `"blog"`
+     * for back-compat (legacy callers that always create blog articles).
+     * Planner-routed append_to_existing items pass `"ki-wissen"` / `"usecases"`
+     * derived from `brief.intentType`. Mapped to the Astro folder name via
+     * `COLLECTION_ASTRO_NAME` before being written to `articles.collection`.
+     * `PersistArticleStep` (step 13 of `article:blog`) writes the final value
+     * too — this initial INSERT sets the correct one so any intermediate read
+     * by collection sees the right value before the final step lands.
+     */
+    collection?: ArticleCollectionType;
   } = {},
 ): Promise<string> {
   if (brief.routedArticleId) {
@@ -32,6 +55,7 @@ export async function createBlogArticleFromBrief(
   }
 
   const locale = (brief.locale as "de" | "en" | null) ?? "de";
+  const collectionAstroName = COLLECTION_ASTRO_NAME[opts.collection ?? "blog"];
 
   const [created] = await db
     .insert(articles)
@@ -44,7 +68,7 @@ export async function createBlogArticleFromBrief(
       cornerstoneKeyword: brief.primaryKeyword ?? brief.topicTitle,
       locale,
       source: "generated",
-      collection: "blog",
+      collection: collectionAstroName,
       status: "generating",
       intentType: brief.intentType ?? null,
       approvalMode: opts.approvalMode ?? "manual",

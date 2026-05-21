@@ -64,6 +64,21 @@ import {
 
 Shortfall (`target - emitted`) is logged + surfaced in `generation_notes` so the user sees thin pools rather than missing items.
 
+## Pipeline Router (Spec 62.8 + 63.7b)
+
+`getPipelineForItem(item, llmMode)` in `src/execution/pipeline-router.ts` is the pure routing function consumed by `executePlan()`. Returns a `RoutedJob` discriminated union (`kind: "enqueue"` for BullMQ-backed pipelines, `kind: "inline"` for free-function pipelines like `cluster:full-plan` per Memory D127). The router reads `planned_items.pipeline_input` (jsonb) for routing decisions — never re-queries.
+
+**Cluster items branch on `pipelineInput.clusterAction` since Spec 63.7b:**
+- `"append_to_existing"` + `clusterId` set → `enqueue article:blog` with `collectionType` derived from `intent_type` (knowledge → ki-wissen, use_case → usecases, default → blog). The resulting article becomes a spoke under the existing cluster via `articles.cluster_id` (already wired by `persist.ts:40`).
+- `"create_new"` (or any legacy planned_item missing the stamped fields) → `inline cluster:full-plan` (unchanged behaviour).
+- Missing `clusterId` despite `append_to_existing` → falls through to `cluster:full-plan` (safe default for misclassified briefs).
+
+**Three fields must be stamped into `pipelineInput` at plan-generation time** for the router to make the decision: `clusterAction`, `clusterId`, `intentType`. The select step (`SelectFloorItemsStep`) does this only for `contentType === "cluster"` items.
+
+**`pipelineNameForItem()` in `select-floor-items.ts` must mirror the router's predicate** — when `append_to_existing` + `clusterId`, the persisted `planned_items.pipeline_name` becomes `article:blog` (not `cluster:full-plan`) so the cost estimator's tier-1 step-sum reflects the cheaper spoke cost. If you change the router's cluster-branch predicate, change `pipelineNameForItem` in lockstep.
+
+**`collectionType` in jobData MUST be an `ArticleCollectionType` enum value, NOT the Astro folder name.** I.e. `"comparison"` (singular) not `"comparisons"` (plural). `BlogPipelineInputSchema` validates against the enum and rejects the folder name. Pre-63.7b this was dead code (executor dropped `collectionType` before `enqueueBlogGeneration`) and the typo went undetected. Since 63.7b the value is threaded through, so `deriveCollectionFromIntent` returns `ArticleCollectionType` and the comparison/ki_wissen branches assign via a typed `const collectionType: ArticleCollectionType` to keep the typo out at compile time. The Astro folder mapping (`"comparison"` → `"comparisons"`) happens later in `COLLECTION_ASTRO_NAME` inside the article pipeline.
+
 ## Comparison-Pair Discovery (Spec 62.3 + 63.3b)
 
 `discoverComparisonPairs({ projectId, ...weights })` produces pending `topic_briefs` with `source='comparison_discovery'` from co-mention matrices in `article_discovery`. Algorithm + persistence detailed in `src/comparison-discovery.ts` header. Two things callers commonly want to tune:

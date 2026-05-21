@@ -785,7 +785,9 @@ buzz=15, growth=15, official=25, serp=20, diversity=25, coverage_penalty=40
 
 **Coverage thresholds:** sim > 0.85 → covered (reject), sim < 0.60 → new (accept), 0.60–0.85 → Haiku tiebreaker.
 
-**Cluster-match threshold:** 0.65 → `cluster_action = 'append_to_existing'`; below → `cluster_action = 'create_new'`.
+**Cluster-match threshold:** 0.65 → `cluster_action = 'append_to_existing'`; below → `cluster_action = 'create_new'` (non-knowledge intents) or `'standalone'` (knowledge intent, Spec 63.4 Hub-Spoke). The knowledge branch in `emit-brief.ts` is the only place where `'standalone'` gets emitted from trend-discovery — non-knowledge intents keep the legacy `matched ? append : create_new` mapping.
+
+**Spec 63.4 knowledge routing:** `intent_type='knowledge'` always routes to the `ki_wissen` bucket in `matchBriefToContentType` regardless of `cluster_action`. With a Hub-Spoke match the brief carries `cluster_id=<matched-cluster-id>` AND `collection='ki-wissen'` downstream — `tool-linker/pre-generation.ts` will inject the matched cluster's tools into the draft prompt, and `author-picker/index.ts` will score authors against that cluster's historic posts. This is intentional (editorial review via Spec 63.6 plan_pending workflow is the mitigation). See root CLAUDE.md memory rule for the don't-"fix" pin.
 
 **Embedding backfill pattern (articles + clusters):** Queries `WHERE embedding IS NULL`, embeds `title + meta_description` (articles) or `name + primary_keyword` (clusters), writes back via raw SQL `UPDATE ... SET embedding = '...'::vector`. Failures are logged as `warn` and skipped — backfill is opportunistic.
 

@@ -341,6 +341,108 @@ describe("SelectFloorItemsStep", () => {
     expect(item.pipelineInput["title"]).toBe("Raw Headline");
   });
 
+  // Spec 63.7b: cluster items stamp clusterAction/clusterId/intentType into
+  // pipelineInput so the pipeline-router can decide between cluster:full-plan
+  // (create_new) and article:blog (append_to_existing) without re-querying.
+  it("stamps clusterAction + clusterId + intentType into cluster pipelineInput (Spec 63.7b)", async () => {
+    const briefs = [
+      brief({
+        clusterAction: "append_to_existing",
+        clusterId: "22222222-2222-2222-2222-222222222222",
+        intentType: "tutorial",
+        topicTitle: "spoke topic",
+      }),
+    ];
+    const goals = [goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1 })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{
+      contentType: string;
+      pipelineName: string;
+      pipelineInput: Record<string, unknown>;
+    }>;
+    const item = items[0];
+    if (!item) throw new Error("expected one item");
+    expect(item.contentType).toBe("cluster");
+    expect(item.pipelineInput["clusterAction"]).toBe("append_to_existing");
+    expect(item.pipelineInput["clusterId"]).toBe("22222222-2222-2222-2222-222222222222");
+    expect(item.pipelineInput["intentType"]).toBe("tutorial");
+    // Spec 63.7b: pipelineName overrides to article:blog so the cost estimator's
+    // tier-1 step sum reflects the cheaper spoke cost.
+    expect(item.pipelineName).toBe("article:blog");
+  });
+
+  it("keeps pipelineName='cluster:full-plan' for create_new cluster items (Spec 63.7b)", async () => {
+    const briefs = [
+      brief({
+        clusterAction: "create_new",
+        clusterId: null,
+        intentType: null,
+      }),
+    ];
+    const goals = [goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1 })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{
+      pipelineName: string;
+      pipelineInput: Record<string, unknown>;
+    }>;
+    const item = items[0];
+    if (!item) throw new Error("expected one item");
+    expect(item.pipelineName).toBe("cluster:full-plan");
+    expect(item.pipelineInput["clusterAction"]).toBe("create_new");
+    // null cluster_id / intent_type are omitted (not stamped) to keep the
+    // jsonb payload tight and to let the router's `typeof === "string"`
+    // narrowing skip them cleanly.
+    expect(item.pipelineInput["clusterId"]).toBeUndefined();
+    expect(item.pipelineInput["intentType"]).toBeUndefined();
+  });
+
+  it("does NOT stamp cluster fields on comparison/ki_wissen items (Spec 63.7b scope)", async () => {
+    const briefs = [
+      brief({ clusterAction: "comparison", clusterId: "ccc11111-1111-1111-1111-111111111111" }),
+      brief({
+        clusterAction: "append_to_existing",
+        clusterId: "kkk22222-2222-2222-2222-222222222222",
+        intentType: "knowledge",
+      }),
+    ];
+    const goals = [
+      goal({ contentType: "comparison", cadenceUnit: "per_week", minCount: 1 }),
+      goal({ contentType: "ki_wissen", cadenceUnit: "per_week", minCount: 1 }),
+    ];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{
+      contentType: string;
+      pipelineInput: Record<string, unknown>;
+    }>;
+    for (const item of items) {
+      // Only cluster items carry the routing-decision fields.
+      expect(item.pipelineInput["clusterAction"]).toBeUndefined();
+      expect(item.pipelineInput["clusterId"]).toBeUndefined();
+      expect(item.pipelineInput["intentType"]).toBeUndefined();
+    }
+  });
+
   it("preserves brief.locale for non-cluster content types", async () => {
     const briefs = [
       brief({ clusterAction: "comparison", locale: "de" }),
