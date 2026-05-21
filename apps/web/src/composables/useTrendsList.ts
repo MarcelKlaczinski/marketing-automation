@@ -58,6 +58,7 @@ export function useTrendsList() {
   const projectStore = useProjectStore();
   const queryClient = useQueryClient();
   const synthesizing = ref(false);
+  const collecting = ref(false);
 
   const query = useQuery({
     queryKey: computed(() => ["trends-pending", projectStore.currentSlug]),
@@ -85,6 +86,22 @@ export function useTrendsList() {
       void pollSynthesisStatus();
     } catch {
       synthesizing.value = false;
+    }
+  }
+
+  /**
+   * Fetches fresh signals from every enabled adapter (PH/HN/RSS/Reddit/GitHub)
+   * into the pool. Returns once the synchronous refresh call completes — there
+   * is no separate "collecting" job, so we just await the POST. Synthesis is
+   * a separate explicit step the user triggers via `triggerSynthesis`.
+   */
+  async function triggerCollect(): Promise<void> {
+    if (collecting.value) return;
+    collecting.value = true;
+    try {
+      await apiPost(`/projects/${projectStore.currentSlug}/signals/refresh`, {});
+    } finally {
+      collecting.value = false;
     }
   }
 
@@ -121,7 +138,9 @@ export function useTrendsList() {
     isLoading: query.isPending,
     cronStatus: computed(() => cronQuery.data.value ?? null),
     synthesizing,
+    collecting,
     triggerSynthesis,
+    triggerCollect,
     findTrend,
     invalidate: () =>
       queryClient.invalidateQueries({

@@ -5,14 +5,30 @@
       <header class="pane-header">
         <div class="header-top">
           <h1 class="page-title">{{ $t("trends.title") as string }}</h1>
-          <GlassButton
-            variant="primary"
-            size="sm"
-            :loading="synthesizing"
-            @click="onTriggerSynthesis"
-          >
-            {{ $t("trends.synthesis.runNow") as string }}
-          </GlassButton>
+          <div class="action-row">
+            <GlassButton
+              variant="secondary"
+              size="sm"
+              :loading="collecting"
+              @click="onTriggerCollect"
+            >
+              {{ $t("trends.synthesis.collect") as string }}
+              <q-tooltip max-width="260px" anchor="bottom middle" self="top middle">
+                {{ $t("trends.synthesis.collectTooltip") as string }}
+              </q-tooltip>
+            </GlassButton>
+            <GlassButton
+              variant="primary"
+              size="sm"
+              :loading="synthesizing"
+              @click="onTriggerSynthesis"
+            >
+              {{ $t("trends.synthesis.runNow") as string }}
+              <q-tooltip max-width="260px" anchor="bottom middle" self="top middle">
+                {{ $t("trends.synthesis.runNowTooltip") as string }}
+              </q-tooltip>
+            </GlassButton>
+          </div>
         </div>
 
         <!-- Cron status chip -->
@@ -121,6 +137,13 @@ export default defineComponent({
       await this.triggerSynthesis();
     },
 
+    async onTriggerCollect(): Promise<void> {
+      await this.triggerCollect();
+      // After a fresh collect, immediately re-fetch the briefs list — the
+      // pool may now show new unprocessed signals visible in the side-panel.
+      this.invalidate();
+    },
+
     relativeTime(iso: string): string {
       const diff = Date.now() - new Date(iso).getTime();
       const mins = Math.floor(diff / 60_000);
@@ -163,6 +186,13 @@ export default defineComponent({
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .page-title {

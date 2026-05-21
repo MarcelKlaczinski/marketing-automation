@@ -109,7 +109,15 @@ export default {
     lastRun: "Last run",
     never: "Never",
     poolSize: "Signal pool",
-    runNow: "Run Synthesis Now",
+    runNow: "Synthesize Pending Signals",
+    runNowTooltip:
+      "Processes already-collected, unprocessed signals into new trend briefs. Does NOT collect new signals.",
+    collect: "Fetch Signals",
+    collectTooltip:
+      "Pulls fresh signals from every enabled source (ProductHunt, RSS, HackerNews, …) into the pool. Run synthesis afterwards manually.",
+    collecting: "Collecting...",
+    collectCompleted: "Signal fetch completed.",
+    collectFailed: "Signal fetch failed. Check the logs.",
     running: "Running...",
     completed: "Completed",
     failed: "Failed",
