@@ -106,6 +106,14 @@ exit'et (signal 0 returns ESRCH). Falls nach 20s noch lebt → SIGKILL.
 **Diagnostik bei "worker:restart wirkt nicht"**: `bun --filter @marketing-auto/api worker:status` —
 zeigt PID-File-Inhalt, Process-Liveness, Redis-Connectivity und BullMQ-Queue-Counts (active/waiting/delayed).
 
+**Symptom "alter Code läuft trotz Restart"** (z.B. ein bereits gefixter Step crasht weiter):
+mehrere Worker-Prozesse koexistieren als Geister aus früheren fehlgeschlagenen Restarts.
+BullMQ load-balanced über alle connected Workers — einer davon hat noch den alten Code.
+Diagnose: `ps aux | grep "bun.*workers/index" | grep -v grep` — wenn mehr als eine Zeile,
+manuell den falschen killen (`kill -TERM <pid>`, fall-through SIGKILL). Danach `tmp/worker.pid`
+checken — falls leer/falsch, einen frischen Start machen. Der `1cfe5bd` Hardening-Fix
+verhindert NEUE Geister, kann aber existierende nicht rückwirkend einsammeln.
+
 **BullMQ `lockDuration`**: Auf 10 Minuten gesetzt (default: 30s). LLM-Jobs dauern bis zu 15 min.
 Würde der Lock ablaufen, könnte BullMQ den Job als "stalled" markieren und einem anderen Worker
 geben — was doppelte API-Kosten verursachen würde. `maxStalledCount: 0` deaktiviert Auto-Retry
@@ -247,6 +255,8 @@ if (blocked) return guardErrorToResponse(c, blocked);
 HTTP semantics: 202 = new run, 200 = deduped (run already exists), 402 = cost limit, 423 = project paused.
 
 **Adapter-specific audit tables + `checkTriggerAllowed`**: when a pipeline maintains its own audit table (e.g. `astroImportRuns`) in addition to `pipelineRuns`, use `checkTriggerAllowed`. When it returns `deduped: true`, it gives back the `pipelineRuns.id`, not the adapter audit row ID. Query the adapter table separately — `SELECT id FROM astro_import_runs WHERE project_id = $1 AND status IN ('pending','running') LIMIT 1` — to return the correct ID to the frontend.
+
+**Cron-workers may also call `triggerWithPreRunId`** (Spec 62.7). Workers in `src/workers/*.worker.ts` are inside the API package and can import from `routes/_lib/trigger-helpers.ts` directly. Use this when a scheduled job must respect the same three guards an HTTP-triggered run would — instead of calling `enqueuePipeline` / `enqueueXxxPipeline` directly, which skips pause/cost/idempotency. Canonical example: `planner-weekly-generation.worker.ts` triggers `planning:weekly` with `{ planKey: \`${year}-${week}\` }` as the uniqueKey, so multiple fires in the same week dedupe automatically.
 
 DO NOT add a new trigger endpoint that bypasses these helpers — cost + idempotency must always be enforced at the HTTP boundary.
 
