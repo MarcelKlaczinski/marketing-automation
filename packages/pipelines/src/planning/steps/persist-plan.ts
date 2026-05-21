@@ -108,12 +108,17 @@ export class PersistPlanStep extends BaseStep<Input, Output> {
     // null parent_item_id on partial failure). Drizzle allows overriding the
     // column's `defaultRandom()` by passing `id` explicitly.
     const itemRows: Array<Omit<NewPlannedItem, "weeklyPlanId">> = items.map((it) => {
+      // Spec 62.6: on debug-mode resume the upstream step output came through
+      // JSONB on pipeline_runs.suspensionCheckpoint — Date is now an ISO string.
+      // Drizzle's date({mode:"date"}) column calls value.toISOString() on insert
+      // and crashes when it sees a string. Normalize back to Date.
+      const itemSlotDate = toDate(it.slotDate) ?? weekStart;
       const row: Omit<NewPlannedItem, "weeklyPlanId"> = {
         id: it.draftId,
         projectId: input.projectId,
         contentType: it.contentType,
         pipelineName: it.pipelineName,
-        slotDate: it.slotDate ?? weekStart,
+        slotDate: itemSlotDate,
         // Spec 62.4-followup Issue 1: locale persisted (nullable). null means
         // the pipeline produces both locales internally; 'de'/'en' marks an
         // explicit single-locale planned_item (e.g. comparison, ki_wissen).
@@ -170,4 +175,16 @@ function buildGenerationNotes(input: {
     );
   }
   return lines.join("\n");
+}
+
+/**
+ * Normalize a Date OR an ISO-string into a Date. On debug-mode resume the
+ * upstream step output arrives via JSONB so every Date is now a string;
+ * in a production end-to-end run it stays a real Date in memory. Returns
+ * null when the input is null/undefined (caller decides the fallback).
+ */
+function toDate(value: Date | string | null | undefined): Date | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value;
+  return new Date(value);
 }
