@@ -54,11 +54,37 @@ interface SynthesisStatusResponse {
   jobId: string | null;
 }
 
+export type SignalRefreshStatus =
+  | "fresh"
+  | "refreshed"
+  | "skipped"
+  | "no_credentials"
+  | "filter_no_results"
+  | "error";
+
+export interface SignalRefreshSourceResult {
+  source: "producthunt" | "hackernews" | "vendor_rss" | "reddit" | "github";
+  status: SignalRefreshStatus;
+  rowsAdded: number;
+  lastCollectedAt: string | null;
+  notes?: string;
+  error?: string;
+}
+
+export interface SignalRefreshResult {
+  projectId: string;
+  triggeredAt: string;
+  sourceResults: SignalRefreshSourceResult[];
+  totalRowsAdded: number;
+  durationMs: number;
+}
+
 export function useTrendsList() {
   const projectStore = useProjectStore();
   const queryClient = useQueryClient();
   const synthesizing = ref(false);
   const collecting = ref(false);
+  const lastRefreshResult = ref<SignalRefreshResult | null>(null);
 
   const query = useQuery({
     queryKey: computed(() => ["trends-pending", projectStore.currentSlug]),
@@ -91,15 +117,19 @@ export function useTrendsList() {
 
   /**
    * Fetches fresh signals from every enabled adapter (PH/HN/RSS/Reddit/GitHub)
-   * into the pool. Returns once the synchronous refresh call completes — there
-   * is no separate "collecting" job, so we just await the POST. Synthesis is
-   * a separate explicit step the user triggers via `triggerSynthesis`.
+   * into the pool. Returns the per-source result so the caller can render it.
+   * Pass `force: true` to bypass the `signal_max_age_hours` staleness gate.
    */
-  async function triggerCollect(): Promise<void> {
-    if (collecting.value) return;
+  async function triggerCollect(opts?: { force?: boolean }): Promise<SignalRefreshResult | null> {
+    if (collecting.value) return null;
     collecting.value = true;
     try {
-      await apiPost(`/projects/${projectStore.currentSlug}/signals/refresh`, {});
+      const result = await apiPost<SignalRefreshResult>(
+        `/projects/${projectStore.currentSlug}/signals/refresh`,
+        { force: opts?.force === true },
+      );
+      lastRefreshResult.value = result;
+      return result;
     } finally {
       collecting.value = false;
     }
@@ -139,6 +169,7 @@ export function useTrendsList() {
     cronStatus: computed(() => cronQuery.data.value ?? null),
     synthesizing,
     collecting,
+    lastRefreshResult,
     triggerSynthesis,
     triggerCollect,
     findTrend,

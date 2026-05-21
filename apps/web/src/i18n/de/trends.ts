@@ -127,6 +127,26 @@ export default {
     unprocessedCount: "{n} unverarbeitetes Signal | {n} unverarbeitete Signale",
   },
 
+  refresh: {
+    panelTitle: "Letzter Signal-Abruf",
+    summaryNew: "{n} neues Signal hinzugefügt | {n} neue Signale hinzugefügt",
+    summaryNone: "Keine neuen Signale.",
+    allFreshNotice:
+      "Alle aktiven Quellen sind aktuell. Der Abruf wurde übersprungen, um API-Limits zu schonen.",
+    forceButton: "Trotzdem erzwingen",
+    forceButtonTooltip:
+      "Ignoriert den Frische-Check und ruft jede aktive Quelle erneut auf. Kostet API-Aufrufe.",
+    sourceStatus: {
+      refreshed: "Aktualisiert ({n} neu)",
+      fresh: "Frisch",
+      skipped: "Übersprungen",
+      no_credentials: "Keine Credentials",
+      filter_no_results: "Keine Treffer",
+      error: "Fehler",
+    },
+    dismissPanel: "Schließen",
+  },
+
   noRejected: "Keine abgelehnten Kandidaten für den aktuellen Filter.",
 
   signalPool: {

@@ -127,6 +127,26 @@ export default {
     unprocessedCount: "{n} unprocessed signal | {n} unprocessed signals",
   },
 
+  refresh: {
+    panelTitle: "Last signal fetch",
+    summaryNew: "{n} new signal added | {n} new signals added",
+    summaryNone: "No new signals.",
+    allFreshNotice:
+      "All enabled sources are fresh. Fetch skipped to conserve API quotas.",
+    forceButton: "Force fetch anyway",
+    forceButtonTooltip:
+      "Bypasses the freshness check and calls every enabled source again. Costs API calls.",
+    sourceStatus: {
+      refreshed: "Refreshed ({n} new)",
+      fresh: "Fresh",
+      skipped: "Skipped",
+      no_credentials: "No credentials",
+      filter_no_results: "No results",
+      error: "Error",
+    },
+    dismissPanel: "Dismiss",
+  },
+
   noRejected: "No rejected candidates match the current filter.",
 
   signalPool: {

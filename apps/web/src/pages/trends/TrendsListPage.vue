@@ -56,6 +56,67 @@
           {{ trends.length }}
           {{ $t("trends.briefs") as string }}
         </p>
+
+        <!-- Refresh result panel -->
+        <div v-if="lastRefreshResult" class="refresh-panel">
+          <div class="refresh-panel-header">
+            <span class="refresh-panel-title mono">
+              {{ $t("trends.refresh.panelTitle") as string }}
+            </span>
+            <button
+              type="button"
+              class="refresh-panel-dismiss"
+              :aria-label="$t('trends.refresh.dismissPanel') as string"
+              @click="dismissRefreshPanel"
+            >
+              ×
+            </button>
+          </div>
+          <p class="refresh-panel-summary">
+            <template v-if="lastRefreshResult.totalRowsAdded > 0">
+              {{
+                $t(
+                  "trends.refresh.summaryNew",
+                  { n: lastRefreshResult.totalRowsAdded },
+                  lastRefreshResult.totalRowsAdded,
+                ) as string
+              }}
+            </template>
+            <template v-else>
+              {{ $t("trends.refresh.summaryNone") as string }}
+            </template>
+          </p>
+          <ul class="refresh-panel-list">
+            <li
+              v-for="row in lastRefreshResult.sourceResults"
+              :key="row.source"
+              class="refresh-panel-row"
+            >
+              <span class="refresh-source-name">
+                {{ $t(`trends.sources.${row.source}`) as string }}
+              </span>
+              <span class="refresh-source-status" :class="statusClass(row.status)">
+                {{ statusLabel(row) }}
+              </span>
+            </li>
+          </ul>
+          <div v-if="allEnabledFresh" class="refresh-panel-force">
+            <p class="refresh-panel-notice">
+              {{ $t("trends.refresh.allFreshNotice") as string }}
+            </p>
+            <GlassButton
+              variant="secondary"
+              size="sm"
+              :loading="collecting"
+              @click="onForceCollect"
+            >
+              {{ $t("trends.refresh.forceButton") as string }}
+              <q-tooltip max-width="260px" anchor="bottom middle" self="top middle">
+                {{ $t("trends.refresh.forceButtonTooltip") as string }}
+              </q-tooltip>
+            </GlassButton>
+          </div>
+        </div>
       </header>
 
       <!-- List content -->
@@ -96,7 +157,11 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import { useTrendsList } from "src/composables/useTrendsList";
+import {
+  useTrendsList,
+  type SignalRefreshSourceResult,
+  type SignalRefreshStatus,
+} from "src/composables/useTrendsList";
 import TrendCard from "src/components/trends/TrendCard.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import EmptyState from "src/components/ui/EmptyState.vue";
@@ -114,6 +179,27 @@ export default defineComponent({
   data: () => ({
     selectedId: null as string | null,
   }),
+
+  computed: {
+    /**
+     * True iff the last refresh reported every result as `fresh` AND there
+     * was at least one such row. In that case the staleness gate blocked
+     * every enabled source, and the user can opt-in to force a re-fetch.
+     */
+    allEnabledFresh(): boolean {
+      const result = this.lastRefreshResult;
+      if (!result) return false;
+      const freshRows = result.sourceResults.filter((r) => r.status === "fresh");
+      if (freshRows.length === 0) return false;
+      const blockingStatuses: SignalRefreshStatus[] = [
+        "refreshed",
+        "no_credentials",
+        "error",
+        "filter_no_results",
+      ];
+      return !result.sourceResults.some((r) => blockingStatuses.includes(r.status));
+    },
+  },
 
   watch: {
     "$route.params.trendId": {
@@ -142,6 +228,26 @@ export default defineComponent({
       // After a fresh collect, immediately re-fetch the briefs list — the
       // pool may now show new unprocessed signals visible in the side-panel.
       this.invalidate();
+    },
+
+    async onForceCollect(): Promise<void> {
+      await this.triggerCollect({ force: true });
+      this.invalidate();
+    },
+
+    dismissRefreshPanel(): void {
+      this.lastRefreshResult = null;
+    },
+
+    statusLabel(row: SignalRefreshSourceResult): string {
+      if (row.status === "refreshed") {
+        return this.$t("trends.refresh.sourceStatus.refreshed", { n: row.rowsAdded }) as string;
+      }
+      return this.$t(`trends.refresh.sourceStatus.${row.status}`) as string;
+    },
+
+    statusClass(status: SignalRefreshStatus): string {
+      return `status-${status}`;
     },
 
     relativeTime(iso: string): string {
@@ -234,6 +340,115 @@ export default defineComponent({
   font-size: 11px;
   color: var(--text-tertiary);
   margin: 0;
+}
+
+/* Refresh result panel */
+.refresh-panel {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--bg-glass);
+}
+
+.refresh-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.refresh-panel-title {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.refresh-panel-dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 4px;
+  transition: color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .refresh-panel-dismiss:hover {
+    color: var(--text-primary);
+  }
+}
+
+.refresh-panel-summary {
+  font-size: 12px;
+  color: var(--text-primary);
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.refresh-panel-list {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.refresh-panel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.refresh-source-name {
+  color: var(--text-secondary);
+}
+
+.refresh-source-status {
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-glass-strong);
+  color: var(--text-tertiary);
+}
+
+.refresh-source-status.status-refreshed {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.refresh-source-status.status-fresh {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.refresh-source-status.status-error,
+.refresh-source-status.status-no_credentials {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.refresh-panel-force {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.refresh-panel-notice {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
 }
 
 .list-scroll {

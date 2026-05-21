@@ -55,6 +55,7 @@ Delays: 0/45/90/135/180/215/245ms. Keep delays short — 30-80ms per item is the
 - Error handling uses `src/lib/http-error.ts` (`HttpError` class with `originalCause`, NOT `cause`).
 - 5xx and network errors auto-surface via Quasar Notify in the interceptor.
 - 4xx (including 401) are NOT auto-handled — the call site or route guard handles them.
+- **DO NOT call `await apiPost(...)` and drop the response** for endpoints that return per-source / per-item operation status (refresh results, batch runs, anything with a `sourceResults` / `items` array). The user has no other channel to see whether the operation skipped, deduped, or partially failed. Capture `const result = await apiPost<T>(...)`, store it in a composable ref, and render it. Caught when "Signals abrufen" appeared to do nothing — the backend was returning `status: "fresh"` per source (staleness gate), but the frontend discarded the response so the user saw only a spinner toggling. See [useTrendsList.ts](src/composables/useTrendsList.ts) `triggerCollect` + `lastRefreshResult` for the canonical pattern.
 
 ## Screen Inventory (Phase 4)
 Routes defined in `src/router/routes.ts`:
