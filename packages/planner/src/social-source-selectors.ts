@@ -32,12 +32,22 @@ import {
   db,
   desc,
   eq,
+  inArray,
   isNull,
-  ne,
   refreshSuggestions,
   sql,
   templateRenders,
 } from "@marketing-auto/db";
+import {
+  SOCIAL_ELIGIBLE_COLLECTIONS,
+  type SocialEligibleCollection,
+} from "./social-eligible-collections.ts";
+
+// Drizzle's `inArray()` rejects `readonly` tuples (CLAUDE.md root rule). Spread
+// the const tuple into a mutable, typed array once at module-load.
+const SOCIAL_ELIGIBLE_COLLECTIONS_ARR: SocialEligibleCollection[] = [
+  ...SOCIAL_ELIGIBLE_COLLECTIONS,
+];
 
 export interface RefreshPoolCandidate {
   /** Source row id (refresh_suggestions.id). */
@@ -91,8 +101,10 @@ export async function pickFromRefreshSuggestions(
         eq(refreshSuggestions.projectId, input.projectId),
         isNull(refreshSuggestions.dismissedAt),
         isNull(refreshSuggestions.approvedAt),
-        // Spec 63.1: author profiles are reference data, not social-post candidates.
-        ne(articles.collection, "authors"),
+        // Spec 63.2: only collections with at least one social template.
+        // Supersedes Spec 63.1's explicit `authors` exclusion (authors is
+        // simply not in the allow-list).
+        inArray(articles.collection, SOCIAL_ELIGIBLE_COLLECTIONS_ARR),
       ),
     )
     .orderBy(desc(refreshSuggestions.generatedAt))
@@ -145,8 +157,9 @@ export async function pickFromSuggestionPool(
         // translation; the social pipeline still picks them up via the
         // sibling lookup at run time.
         eq(articles.locale, "de"),
-        // Spec 63.1: author profiles are reference data, not social-post candidates.
-        ne(articles.collection, "authors"),
+        // Spec 63.2: only collections with at least one social template.
+        // Supersedes Spec 63.1's explicit `authors` exclusion.
+        inArray(articles.collection, SOCIAL_ELIGIBLE_COLLECTIONS_ARR),
         sql`NOT EXISTS (
           SELECT 1 FROM ${templateRenders}
           WHERE ${templateRenders.articleId} = ${articles.id}
@@ -180,8 +193,9 @@ export async function countSuggestionPool(input: {
         eq(articles.projectId, input.projectId),
         eq(articles.status, "published"),
         eq(articles.locale, "de"),
-        // Spec 63.1: author profiles are reference data, not social-post candidates.
-        ne(articles.collection, "authors"),
+        // Spec 63.2: only collections with at least one social template.
+        // Supersedes Spec 63.1's explicit `authors` exclusion.
+        inArray(articles.collection, SOCIAL_ELIGIBLE_COLLECTIONS_ARR),
         sql`NOT EXISTS (
           SELECT 1 FROM ${templateRenders}
           WHERE ${templateRenders.articleId} = ${articles.id}

@@ -74,6 +74,9 @@ describe("pickFromSuggestionPool — exclude-list edge cases", () => {
           projectId,
           slug: "kept",
           title: "Kept article",
+          // Spec 63.2: pool filters to tools/comparisons; default 'blog' would
+          // be excluded by the allow-list.
+          collection: "tools",
           locale: "de",
           status: "published",
           publishedAt: new Date(),
@@ -82,6 +85,7 @@ describe("pickFromSuggestionPool — exclude-list edge cases", () => {
           projectId,
           slug: "excluded",
           title: "Excluded article",
+          collection: "tools",
           locale: "de",
           status: "published",
           publishedAt: new Date(),
@@ -111,8 +115,8 @@ describe("authors collection exclusion (Spec 63.1)", () => {
         {
           projectId,
           slug: "blog-post",
-          title: "Blog candidate",
-          collection: "blog",
+          title: "Tool candidate",
+          collection: "tools",
           locale: "de",
           status: "published",
           publishedAt: new Date(),
@@ -130,7 +134,7 @@ describe("authors collection exclusion (Spec 63.1)", () => {
       .returning({ id: articles.id, collection: articles.collection });
 
     const authorId = inserted.find((r) => r.collection === "authors")!.id;
-    const blogId = inserted.find((r) => r.collection === "blog")!.id;
+    const blogId = inserted.find((r) => r.collection === "tools")!.id;
 
     const rows = await pickFromSuggestionPool({ projectId, limit: 10 });
     const ids = rows.map((r) => r.articleId);
@@ -144,8 +148,8 @@ describe("authors collection exclusion (Spec 63.1)", () => {
       {
         projectId,
         slug: "blog-post",
-        title: "Blog candidate",
-        collection: "blog",
+        title: "Tool candidate",
+        collection: "tools",
         locale: "de",
         status: "published",
         publishedAt: new Date(),
@@ -172,8 +176,8 @@ describe("authors collection exclusion (Spec 63.1)", () => {
         {
           projectId,
           slug: "blog-post",
-          title: "Blog candidate",
-          collection: "blog",
+          title: "Tool candidate",
+          collection: "tools",
           locale: "de",
           status: "published",
           publishedAt: new Date(),
@@ -190,7 +194,7 @@ describe("authors collection exclusion (Spec 63.1)", () => {
       ])
       .returning({ id: articles.id, collection: articles.collection });
 
-    const blogId = inserted.find((r) => r.collection === "blog")!.id;
+    const blogId = inserted.find((r) => r.collection === "tools")!.id;
     const authorId = inserted.find((r) => r.collection === "authors")!.id;
 
     await db.insert(refreshSuggestions).values([
@@ -213,5 +217,111 @@ describe("authors collection exclusion (Spec 63.1)", () => {
 
     expect(articleIds).toContain(blogId);
     expect(articleIds).not.toContain(authorId);
+  });
+});
+
+// Spec 63.2: source-pool selectors must only return articles from collections
+// that have at least one social template (currently `tools` and `comparisons`).
+// Articles from non-eligible collections (ki-wissen, usecases, blog, …) would
+// die at generation time on the per-article eligibility check and inflate the
+// plan cost / item count.
+describe("social-eligible collections filter (Spec 63.2)", () => {
+  async function seedMixedCollectionPool() {
+    return db
+      .insert(articles)
+      .values([
+        {
+          projectId,
+          slug: "tool-spotlight",
+          title: "Tool spotlight",
+          collection: "tools",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          projectId,
+          slug: "tool-vs-tool",
+          title: "Tool comparison",
+          collection: "comparisons",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          projectId,
+          slug: "ki-explainer",
+          title: "Was ist Transfer Learning",
+          collection: "ki-wissen",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          projectId,
+          slug: "marketing-use-case",
+          title: "ChatGPT für Marketing",
+          collection: "usecases",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          projectId,
+          slug: "vanilla-blog",
+          title: "Generic blog post",
+          collection: "blog",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      ])
+      .returning({ id: articles.id, collection: articles.collection });
+  }
+
+  it("pickFromSuggestionPool returns only tools + comparisons rows", async () => {
+    const inserted = await seedMixedCollectionPool();
+
+    const rows = await pickFromSuggestionPool({ projectId, limit: 10 });
+    const ids = new Set(rows.map((r) => r.articleId));
+    const byCollection = (collection: string) =>
+      inserted.find((r) => r.collection === collection)!.id;
+
+    expect(ids).toContain(byCollection("tools"));
+    expect(ids).toContain(byCollection("comparisons"));
+    expect(ids).not.toContain(byCollection("ki-wissen"));
+    expect(ids).not.toContain(byCollection("usecases"));
+    expect(ids).not.toContain(byCollection("blog"));
+  });
+
+  it("countSuggestionPool counts only tools + comparisons rows", async () => {
+    await seedMixedCollectionPool();
+
+    const count = await countSuggestionPool({ projectId });
+    expect(count).toBe(2);
+  });
+
+  it("pickFromRefreshSuggestions returns only tools + comparisons rows", async () => {
+    const inserted = await seedMixedCollectionPool();
+
+    await db.insert(refreshSuggestions).values(
+      inserted.map((row) => ({
+        projectId,
+        articleId: row.id,
+        source: "time" as const,
+        reasoning: "test fixture",
+      })),
+    );
+
+    const rows = await pickFromRefreshSuggestions({ projectId, limit: 10 });
+    const ids = new Set(rows.map((r) => r.articleId));
+    const byCollection = (collection: string) =>
+      inserted.find((r) => r.collection === collection)!.id;
+
+    expect(ids).toContain(byCollection("tools"));
+    expect(ids).toContain(byCollection("comparisons"));
+    expect(ids).not.toContain(byCollection("ki-wissen"));
+    expect(ids).not.toContain(byCollection("usecases"));
+    expect(ids).not.toContain(byCollection("blog"));
   });
 });

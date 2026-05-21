@@ -61,3 +61,8 @@ export {
   type RefreshPoolCandidate,
   type SuggestionPoolCandidate,
 } from "./social-source-selectors.ts";
+
+export {
+  SOCIAL_ELIGIBLE_COLLECTIONS,
+  type SocialEligibleCollection,
+} from "./social-eligible-collections.ts";
