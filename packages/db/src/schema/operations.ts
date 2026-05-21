@@ -606,6 +606,19 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   trendSynthCronEnabled: boolean("trend_synth_cron_enabled").notNull().default(false),
   trendSynthCronDayOfWeek: integer("trend_synth_cron_day_of_week"),
   trendSynthCronHourUtc: integer("trend_synth_cron_hour_utc").notNull().default(1),
+  // Spec 63.5: per-project diversity-modifier knobs for the Floor + Overage +
+  // Social-post selectors. Both stored as numeric(4,3) ($type<string>() —
+  // Drizzle numeric convention) with CHECK constraints declared in migration
+  // 0085. `diversity_malus_weight = '0' ` disables the diversity modifier
+  // entirely (existing FIFO / score-only behaviour).
+  diversityThreshold: numeric("diversity_threshold", { precision: 4, scale: 3 })
+    .$type<string>()
+    .notNull()
+    .default("0.5"),
+  diversityMalusWeight: numeric("diversity_malus_weight", { precision: 4, scale: 3 })
+    .$type<string>()
+    .notNull()
+    .default("0.5"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

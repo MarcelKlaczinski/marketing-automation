@@ -10,6 +10,10 @@ import {
   SelectOverageItemsStep,
 } from "../../src/planning/index.ts";
 import { makeMockCtx } from "../fixtures/mock-ctx.ts";
+import {
+  createNullBriefProvider,
+  createNullSignalProvider,
+} from "./lib/null-providers.ts";
 
 const projectId = "00000000-0000-0000-0000-0000000000ab";
 
@@ -34,6 +38,9 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     trendSynthCronEnabled: false,
     trendSynthCronDayOfWeek: null,
     trendSynthCronHourUtc: 1,
+    // Spec 63.5: numeric(4,3) on the DB side → string at the Drizzle boundary.
+    diversityThreshold: "0.5",
+    diversityMalusWeight: "0.5",
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -96,7 +103,10 @@ describe("inferContentTypeFromSignal", () => {
 });
 
 describe("SelectOverageItemsStep", () => {
-  const step = new SelectOverageItemsStep();
+  const step = new SelectOverageItemsStep({
+    createBriefEmbeddingProvider: createNullBriefProvider,
+    createSignalEmbeddingProvider: createNullSignalProvider,
+  });
 
   it("emits maxOveragePerSignal items per qualifying signal", async () => {
     const sigs = [signal({ source: "producthunt" }), signal({ source: "hackernews" })];

@@ -10,6 +10,10 @@ import type {
 } from "../../src/planning/index.ts";
 import { SelectSocialPostItemsStep } from "../../src/planning/index.ts";
 import { makeMockCtx } from "../fixtures/mock-ctx.ts";
+import {
+  createNullArticleProvider,
+  createNullBriefProvider,
+} from "./lib/null-providers.ts";
 
 const projectId = "00000000-0000-0000-0000-0000000000a1";
 
@@ -54,7 +58,11 @@ function emptyDeps(): SelectSocialPostDeps {
     pickFromSuggestionPool: async () => [],
     // Default to no-op so tests don't accidentally hit the DB. Tests that
     // need title-stamping pass an override here.
-    loadArticleTitles: async () => new Map<string, string>(),
+    loadArticleMeta: async () => new Map(),
+    // Spec 63.5: null providers keep the diversity picker offline (returns
+    // null embeddings → no malus → equivalent to FIFO ordering).
+    createBriefEmbeddingProvider: createNullBriefProvider,
+    createArticleEmbeddingProvider: createNullArticleProvider,
   };
 }
 
@@ -108,7 +116,9 @@ describe("SelectSocialPostItemsStep", () => {
         { suggestionId: suggestionA, articleId: articleA, generatedAt: new Date() },
       ],
       pickFromSuggestionPool: async () => [],
-      loadArticleTitles: async () => new Map<string, string>(),
+      loadArticleMeta: async () => new Map(),
+      createBriefEmbeddingProvider: createNullBriefProvider,
+      createArticleEmbeddingProvider: createNullArticleProvider,
     };
     const step = new SelectSocialPostItemsStep(deps);
     const ctx = makeMockCtx({
@@ -141,7 +151,9 @@ describe("SelectSocialPostItemsStep", () => {
         excludedSeen = input.excludeArticleIds;
         return [{ articleId: articlePool, publishedAt: new Date() }];
       },
-      loadArticleTitles: async () => new Map<string, string>(),
+      loadArticleMeta: async () => new Map(),
+      createBriefEmbeddingProvider: createNullBriefProvider,
+      createArticleEmbeddingProvider: createNullArticleProvider,
     };
     const step = new SelectSocialPostItemsStep(deps);
     const ctx = makeMockCtx({
@@ -231,13 +243,31 @@ describe("SelectSocialPostItemsStep", () => {
       pickFromSuggestionPool: async () => [
         { articleId: articlePool, publishedAt: new Date() },
       ],
-      loadArticleTitles: async (ids) => {
+      loadArticleMeta: async (ids: string[]) => {
         loaderArgs = ids;
-        return new Map<string, string>([
-          [articleRefresh, "Refresh Article Title"],
-          [articlePool, "Pool Article Title"],
+        return new Map([
+          [
+            articleRefresh,
+            {
+              id: articleRefresh,
+              title: "Refresh Article Title",
+              embeddingText: "Refresh Article Title",
+              clusterId: null,
+            },
+          ],
+          [
+            articlePool,
+            {
+              id: articlePool,
+              title: "Pool Article Title",
+              embeddingText: "Pool Article Title",
+              clusterId: null,
+            },
+          ],
         ]);
       },
+      createBriefEmbeddingProvider: createNullBriefProvider,
+      createArticleEmbeddingProvider: createNullArticleProvider,
     };
     const step = new SelectSocialPostItemsStep(deps);
     const ctx = makeMockCtx({
@@ -267,7 +297,9 @@ describe("SelectSocialPostItemsStep", () => {
         { suggestionId: "s1", articleId, generatedAt: new Date() },
       ],
       pickFromSuggestionPool: async () => [],
-      loadArticleTitles: async () => new Map<string, string>(),
+      loadArticleMeta: async () => new Map(),
+      createBriefEmbeddingProvider: createNullBriefProvider,
+      createArticleEmbeddingProvider: createNullArticleProvider,
     };
     const step = new SelectSocialPostItemsStep(deps);
     const ctx = makeMockCtx({

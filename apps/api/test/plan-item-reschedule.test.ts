@@ -64,6 +64,9 @@ async function seedPlan(
           signalMaxAgeHours: 168,
           excludedPipelines: [],
           llmMode: "sync" as const,
+          // Spec 63.5: diversity-modifier knobs frozen into the snapshot.
+          diversityThreshold: 0.5,
+          diversityMalusWeight: 0.5,
         },
         signalRefreshResult: {
           projectId,

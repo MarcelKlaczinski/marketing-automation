@@ -200,6 +200,10 @@ projectGoalsRoutes.put(
       trendSynthCronEnabled: body.trendSynthCronEnabled,
       trendSynthCronDayOfWeek: body.trendSynthCronDayOfWeek,
       trendSynthCronHourUtc: body.trendSynthCronHourUtc,
+      // Spec 63.5: planner topic-diversity knobs. Forwarded as JS numbers;
+      // the helper does .toFixed(3) → numeric(4,3) string coercion.
+      diversityThreshold: body.diversityThreshold,
+      diversityMalusWeight: body.diversityMalusWeight,
     });
 
     log.info(

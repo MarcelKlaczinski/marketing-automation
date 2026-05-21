@@ -12,8 +12,18 @@
 
 import { randomUUID } from "node:crypto";
 import type { ProjectGoal, TopicBrief } from "@marketing-auto/db";
+import type { WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import {
+  createPlanRunEmbeddingProvider,
+  type BriefEmbeddingProvider,
+} from "../lib/diversity-embedding.ts";
+import {
+  normalizeBriefBaseScore,
+  pickWithDiversity,
+  type DiversityPickReason,
+} from "../lib/pick-with-diversity.ts";
 import {
   PIPELINE_NAME_BY_CONTENT_TYPE,
   PLANNING_CONTENT_TYPES,
@@ -159,10 +169,41 @@ function pipelineNameForItem(brief: TopicBrief, contentType: PlanningContentType
   return PIPELINE_NAME_BY_CONTENT_TYPE[contentType];
 }
 
+/**
+ * Spec 63.5: content types that go through the diversity-aware picker. Other
+ * types (comparison, ki_wissen) keep the historic FIFO drain — comparison
+ * already has pair-uniqueness, ki_wissen pools tend to be small enough that
+ * adding a malus would risk underfilling cadence. social_post Floor items are
+ * never produced here (matchBriefToContentType never returns "social_post"
+ * — see SelectSocialPostItemsStep for that path), but listing it here keeps
+ * the predicate symmetrical with Overage / Social-post selectors.
+ */
+const DIVERSITY_FLOOR_CONTENT_TYPES: ReadonlySet<PlanningContentType> = new Set([
+  "cluster",
+  "social_post",
+]);
+
+/**
+ * Spec 63.5: optional dep-injection for the embedding provider. Real runs
+ * use the Voyage-backed provider from `createPlanRunEmbeddingProvider`;
+ * tests can pass a stub that returns null synchronously so the picker
+ * degrades to FIFO without hitting Voyage / cost_logs.
+ */
+export interface SelectFloorDeps {
+  createEmbeddingProvider?: typeof createPlanRunEmbeddingProvider;
+}
+
 export class SelectFloorItemsStep extends BaseStep<Input, Output> {
   readonly name = "select-floor-items";
   readonly inputSchema = selectFloorInputSchema;
   readonly outputSchema = selectFloorOutputSchema;
+  private readonly createEmbeddingProvider: typeof createPlanRunEmbeddingProvider;
+
+  constructor(deps?: SelectFloorDeps) {
+    super();
+    this.createEmbeddingProvider =
+      deps?.createEmbeddingProvider ?? createPlanRunEmbeddingProvider;
+  }
 
   async execute(input: Input, ctx: StepContext): Promise<Output> {
     const goals =
@@ -170,16 +211,42 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
     const briefs =
       ctx.getStepOutput<{ topicBriefs: TopicBrief[] }>("load-topic-briefs")?.topicBriefs ?? [];
 
-    // Bucket briefs by matched content type once, then drain FIFO per goal.
+    // Spec 63.5: read diversity knobs from the frozen snapshot so replays
+    // reproduce the same picks even if Marcel later moves the sliders.
+    // Falls back to (0.5, 0.5) when the snapshot is missing the field —
+    // covers pre-63.5 plans being re-executed.
+    const snapshot = ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>(
+      "snapshot-inputs",
+    )?.snapshot;
+    const diversityConfig = {
+      threshold: snapshot?.config.diversityThreshold ?? 0.5,
+      malusWeight: snapshot?.config.diversityMalusWeight ?? 0.5,
+    };
+    // Per-step embedding provider. The Overage selector spins up its own
+    // provider and pays Voyage twice for the briefs Floor already picked —
+    // ~€0.001 per plan-run, accepted in exchange for not sharing mutable
+    // state across step instances. The provider's per-brief cache still
+    // dominates within a single step (the iterative picker re-scores the
+    // remaining pool each round → ~target × pool lookups).
+    const embeddingProvider: BriefEmbeddingProvider = this.createEmbeddingProvider({
+      projectId: input.projectId,
+      ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+    });
+
+    // Bucket briefs by matched content type once, then drain per goal.
     const buckets: Record<PlanningContentType, TopicBrief[]> = {
       cluster: [],
       comparison: [],
       ki_wissen: [],
       social_post: [],
     };
+    const bucketIndex = new Map<string, number>(); // brief.id → original pool index
     for (const b of briefs) {
       const ct = matchBriefToContentType(b);
-      if (ct !== null) buckets[ct].push(b);
+      if (ct !== null) {
+        bucketIndex.set(b.id, buckets[ct].length);
+        buckets[ct].push(b);
+      }
     }
 
     const floorItems: PlanningItemDraft[] = [];
@@ -208,7 +275,41 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       }
       const target = targetWeeklyCount(goal);
       const pool = buckets[contentType] ?? [];
-      const picked = pool.splice(0, target);
+
+      // Spec 63.5: cluster items go through the diversity-aware picker;
+      // comparison + ki_wissen stay on FIFO. Diversity is also a no-op when
+      // malusWeight is 0 OR when the pool is too small to matter — the
+      // picker will just produce the same FIFO order in that case.
+      const useDiversity =
+        DIVERSITY_FLOOR_CONTENT_TYPES.has(contentType) &&
+        diversityConfig.malusWeight > 0 &&
+        pool.length > target;
+
+      let picked: TopicBrief[];
+      let diversityReasons: DiversityPickReason[] = [];
+      if (useDiversity) {
+        const poolSnapshot = [...pool]; // freeze pool index for base-score normalization
+        const result = await pickWithDiversity<TopicBrief>({
+          pool: poolSnapshot,
+          target,
+          embeddingProvider,
+          config: diversityConfig,
+          getBaseScore: (brief) => {
+            const idx = bucketIndex.get(brief.id) ?? 0;
+            return normalizeBriefBaseScore(brief, idx, poolSnapshot.length);
+          },
+          getItemId: (brief) => brief.id,
+        });
+        picked = result.picked;
+        diversityReasons = result.reasons;
+        // Remove picked briefs from the bucket so the next goal iteration
+        // (if any sharing this content type) sees the remaining pool — same
+        // semantics as the old `pool.splice` drain.
+        const pickedIds = new Set(picked.map((b) => b.id));
+        buckets[contentType] = pool.filter((b) => !pickedIds.has(b.id));
+      } else {
+        picked = pool.splice(0, target);
+      }
 
       let pickedIndex = 0;
       for (const brief of picked) {
@@ -218,6 +319,14 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         // emits DE+EN internally. Comparison + ki_wissen retain the brief's
         // own locale; auto-translation propagates the sibling on completion.
         const itemLocale = contentType === "cluster" ? null : briefLocale(brief);
+        // Spec 63.5: when diversity was applied, append the audit detail
+        // (base/malus/sim/final) so Marcel can see in the detail page why a
+        // brief was picked or de-prioritised. The card UI keeps the friendly
+        // sourceKind label.
+        const reasonSuffix = diversityReasons[pickedIndex - 1]?.reason;
+        const selectionReason = reasonSuffix
+          ? `Floor ${contentType} #${pickedIndex}/${target} — ${reasonSuffix}`
+          : `Floor ${contentType} #${pickedIndex}/${target}`;
         floorItems.push({
           draftId: randomUUID(),
           contentType,
@@ -229,11 +338,12 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
           locale: itemLocale,
           pipelineInput: pipelineInputFromBrief(brief, contentType, input.projectId),
           slotDate: null,
-          selectionScore: null,
-          // selectionReason carries audit detail (item index / cadence target)
-          // for the detail-page hover tooltip — Card UI shows a friendly label
-          // ("Geplant") instead (Spec 62.4-followup Issue 3).
-          selectionReason: `Floor ${contentType} #${pickedIndex}/${target}`,
+          selectionScore: diversityReasons[pickedIndex - 1]?.adjustedScore ?? null,
+          // selectionReason carries audit detail (item index / cadence target
+          // / diversity malus) for the detail-page hover tooltip — Card UI
+          // shows a friendly label ("Geplant") instead (Spec 62.4-followup
+          // Issue 3).
+          selectionReason,
           estimatedCostEur: null,
         });
       }

@@ -89,5 +89,10 @@ export const projectPlannerConfigSchema = z.object({
   trendSynthCronEnabled: z.boolean().default(false),
   trendSynthCronDayOfWeek: z.number().int().min(0).max(6).nullable().default(null),
   trendSynthCronHourUtc: z.number().int().min(0).max(23).default(1),
+  // Spec 63.5: planner topic-diversity modifier. Stored as numeric(4,3) on
+  // the DB side; the API takes / returns JS numbers and the helper coerces
+  // at the boundary. Both default to 0.5 (moderate diversity, half-weight).
+  diversityThreshold: z.number().min(0).max(1).default(0.5),
+  diversityMalusWeight: z.number().min(0).max(2).default(0.5),
 });
 export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

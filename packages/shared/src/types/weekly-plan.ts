@@ -129,6 +129,12 @@ export const plannerConfigSnapshotSchema = z.object({
   // produce different cost estimates. Defaults to "sync" for back-compat
   // with snapshots written before 62.5.1.
   llmMode: z.enum(["sync", "batch"]).default("sync"),
+  // Spec 63.5: planner topic-diversity modifier (Floor + Overage + Social-post
+  // selectors). Frozen at plan-generation time so replays reproduce the same
+  // picks under the same data. Both default to 0.5 for back-compat with
+  // snapshots written before 63.5.
+  diversityThreshold: z.number().min(0).max(1).default(0.5),
+  diversityMalusWeight: z.number().min(0).max(2).default(0.5),
 });
 export type PlannerConfigSnapshot = z.infer<typeof plannerConfigSnapshotSchema>;
 

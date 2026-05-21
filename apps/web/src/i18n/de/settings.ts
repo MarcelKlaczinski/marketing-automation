@@ -451,6 +451,19 @@ export default {
       costHint:
         "Kosten ~€0,05–0,15 pro Lauf (1 Opus-Call pro Signal-Gruppe). Daily ~€2–5/Monat, Weekly ~€0,50–1/Monat. Bei kleinem Signal-Volumen reicht Weekly.",
     },
+    // Spec 63.5: planner topic-diversity modifier.
+    diversitySection: {
+      title: "Diversität (Themen-Vielfalt im Plan)",
+      description:
+        'Reduziert den Score von Briefs, die thematisch sehr ähnlich zu bereits gepickten sind. Aktiv für Cluster- und Social-Items im Floor / Overage / Social-Post-Selector. Verhindert Themen-Dopplungen wie „3× OpenAI Codex“ in einer Plan-Woche.',
+      thresholdLabel: "Schwellwert",
+      thresholdHint:
+        "Cosine-Similarity, ab der der Malus greift (0–1). Niedriger = strikter (Malus schon bei moderater Ähnlichkeit). Default 0,5.",
+      malusWeightLabel: "Malus-Gewicht",
+      malusWeightHint:
+        "Stärke der Score-Reduktion oberhalb des Schwellwerts (0–2). 0 = Diversität aus (zurück zum FIFO-Verhalten). Default 0,5.",
+      offHint: "Diversität ist aktuell aus (Malus-Gewicht = 0).",
+    },
     daysOfWeek: {
       "0": "Sonntag",
       "1": "Montag",

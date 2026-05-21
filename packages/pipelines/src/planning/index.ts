@@ -45,3 +45,24 @@ export {
   enqueuePlanWeekPipeline,
   type EnqueuePlanWeekInput,
 } from "./trigger.ts";
+
+// Spec 63.5: diversity lib — exposed for downstream selectors + tests.
+export {
+  adjustScoreWithDiversity,
+  cosineSimilarity,
+  type DiversityAdjustment,
+  type DiversityConfig,
+} from "./lib/diversity-score.ts";
+export {
+  buildEmbeddingText,
+  createPlanRunEmbeddingProvider,
+  type EmbeddingProvider,
+  type EmbeddingProviderOptions,
+} from "./lib/diversity-embedding.ts";
+export {
+  normalizeBriefBaseScore,
+  pickWithDiversity,
+  type DiversityPickReason,
+  type PickWithDiversityOptions,
+  type PickWithDiversityResult,
+} from "./lib/pick-with-diversity.ts";

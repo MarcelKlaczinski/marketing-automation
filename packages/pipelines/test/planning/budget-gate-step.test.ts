@@ -34,6 +34,9 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     trendSynthCronEnabled: false,
     trendSynthCronDayOfWeek: null,
     trendSynthCronHourUtc: 1,
+    // Spec 63.5: numeric(4,3) on the DB side → string at the Drizzle boundary.
+    diversityThreshold: "0.5",
+    diversityMalusWeight: "0.5",
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

@@ -32,6 +32,18 @@ export interface UpsertProjectPlannerConfigInput {
   trendSynthCronDayOfWeek?: number | null;
   /** Spec 63.4: 0-23 UTC. Omit to keep DB default (1). */
   trendSynthCronHourUtc?: number;
+  /**
+   * Spec 63.5: cosine-similarity threshold above which the planner's
+   * diversity modifier applies a malus. 0..1, default 0.5. Stored as
+   * numeric(4,3) → string at the Drizzle boundary; callers pass a JS number
+   * for ergonomics, the helper coerces with `.toFixed(3)`.
+   */
+  diversityThreshold?: number;
+  /**
+   * Spec 63.5: linear malus slope above the threshold. 0..2, default 0.5.
+   * `0` disables diversity (existing FIFO / score-only behaviour).
+   */
+  diversityMalusWeight?: number;
 }
 
 /**
@@ -78,6 +90,13 @@ export async function upsertProjectPlannerConfig(
 ): Promise<ProjectPlannerConfig> {
   const now = new Date();
   const weeklyBudgetEur = input.weeklyBudgetEur.toFixed(2);
+  // Spec 63.5: numeric(4,3) → string with 3 fractional digits. `.toFixed(3)`
+  // also clamps trailing-floating-point noise so the DB doesn't see
+  // "0.5000000000000001" from a slider drag.
+  const diversityThreshold =
+    input.diversityThreshold !== undefined ? input.diversityThreshold.toFixed(3) : undefined;
+  const diversityMalusWeight =
+    input.diversityMalusWeight !== undefined ? input.diversityMalusWeight.toFixed(3) : undefined;
   const insertValues = {
     projectId: input.projectId,
     weeklyBudgetEur,
@@ -107,6 +126,8 @@ export async function upsertProjectPlannerConfig(
     ...(input.trendSynthCronHourUtc !== undefined
       ? { trendSynthCronHourUtc: input.trendSynthCronHourUtc }
       : {}),
+    ...(diversityThreshold !== undefined ? { diversityThreshold } : {}),
+    ...(diversityMalusWeight !== undefined ? { diversityMalusWeight } : {}),
   };
   const updateSet = {
     weeklyBudgetEur,
@@ -136,6 +157,8 @@ export async function upsertProjectPlannerConfig(
     ...(input.trendSynthCronHourUtc !== undefined
       ? { trendSynthCronHourUtc: input.trendSynthCronHourUtc }
       : {}),
+    ...(diversityThreshold !== undefined ? { diversityThreshold } : {}),
+    ...(diversityMalusWeight !== undefined ? { diversityMalusWeight } : {}),
   };
   const rows = await db
     .insert(projectPlannerConfig)

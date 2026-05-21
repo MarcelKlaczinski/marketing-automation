@@ -9,6 +9,7 @@ import {
   targetWeeklyCount,
 } from "../../src/planning/index.ts";
 import { makeMockCtx } from "../fixtures/mock-ctx.ts";
+import { createNullBriefProvider } from "./lib/null-providers.ts";
 
 const projectId = "00000000-0000-0000-0000-0000000000aa";
 
@@ -169,7 +170,11 @@ describe("targetWeeklyCount", () => {
 });
 
 describe("SelectFloorItemsStep", () => {
-  const step = new SelectFloorItemsStep();
+  // Spec 63.5: inject a null embedding provider so the diversity-aware
+  // cluster bucket falls back to FIFO without hitting Voyage / cost_logs.
+  const step = new SelectFloorItemsStep({
+    createEmbeddingProvider: createNullBriefProvider,
+  });
 
   it("picks the first N briefs FIFO when supply is enough", async () => {
     const briefs = [

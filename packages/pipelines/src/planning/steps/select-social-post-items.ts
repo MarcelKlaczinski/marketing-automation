@@ -27,32 +27,77 @@ import {
   type RefreshPoolCandidate,
   type SuggestionPoolCandidate,
 } from "@marketing-auto/planner";
-import { articles, db, inArray, type ProjectGoal } from "@marketing-auto/db";
+import {
+  articles,
+  db,
+  inArray,
+  type ProjectGoal,
+  type TopicBrief,
+} from "@marketing-auto/db";
+import type { WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import {
+  createArticleEmbeddingProvider,
+  createPlanRunEmbeddingProvider,
+  type ArticleLike,
+} from "../lib/diversity-embedding.ts";
+import { pickWithDiversity } from "../lib/pick-with-diversity.ts";
 import {
   PIPELINE_NAME_BY_CONTENT_TYPE,
   type PlanningItemDraft,
 } from "../types.ts";
 
 /**
- * Default DB-backed batch lookup for article titles, used by the
- * refresh + pool social-post sub-cases to stamp `pipelineInput.title`.
- * Returns a `Map<articleId, title>` skipping rows with NULL/empty title so
- * the card cascade falls through to `selectionReason` instead of stamping
- * an empty string. Injected via `SelectSocialPostDeps` for offline tests.
+ * Spec 63.5: extended article-row shape used by the social-post selector.
+ * Carries title (for pipelineInput.title), embeddingText (for the diversity
+ * picker — title + meta_description), and clusterId (for cluster-embedding
+ * fallback when the article is too sparse to embed on its own). Both
+ * embeddingText and clusterId are optional — sparse articles still get a
+ * planned_item, they just contribute no diversity signal.
  */
-async function defaultLoadArticleTitles(
+export interface ArticleSocialMeta {
+  id: string;
+  title: string | null;
+  embeddingText: string | null;
+  clusterId: string | null;
+}
+
+/**
+ * Default DB-backed batch lookup for article metadata, used by the
+ * refresh + pool social-post sub-cases. Returns one entry per requested id
+ * with the full ArticleSocialMeta shape (title may still be null — caller
+ * decides whether to stamp `pipelineInput.title`).
+ *
+ * Spec 63.5: replaces the title-only loader so the diversity picker has
+ * embedding text + cluster id available without a second DB roundtrip.
+ * Injected via `SelectSocialPostDeps` for offline tests.
+ */
+async function defaultLoadArticleMeta(
   articleIds: string[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, ArticleSocialMeta>> {
   if (articleIds.length === 0) return new Map();
   const rows = await db
-    .select({ id: articles.id, title: articles.title })
+    .select({
+      id: articles.id,
+      title: articles.title,
+      metaDescription: articles.metaDescription,
+      clusterId: articles.clusterId,
+    })
     .from(articles)
     .where(inArray(articles.id, articleIds));
-  const out = new Map<string, string>();
+  const out = new Map<string, ArticleSocialMeta>();
   for (const r of rows) {
-    if (typeof r.title === "string" && r.title.length > 0) out.set(r.id, r.title);
+    const title = typeof r.title === "string" && r.title.length > 0 ? r.title : null;
+    const meta = typeof r.metaDescription === "string" ? r.metaDescription.trim() : "";
+    const titleText = title ? title.trim() : "";
+    const embeddingText = [titleText, meta].filter((s) => s.length > 0).join(" ") || null;
+    out.set(r.id, {
+      id: r.id,
+      title,
+      embeddingText,
+      clusterId: r.clusterId ?? null,
+    });
   }
   return out;
 }
@@ -75,7 +120,19 @@ type Output = z.infer<typeof selectSocialPostOutputSchema>;
 export interface SelectSocialPostDeps {
   pickFromRefreshSuggestions?: typeof defaultPickFromRefreshSuggestions;
   pickFromSuggestionPool?: typeof defaultPickFromSuggestionPool;
-  loadArticleTitles?: typeof defaultLoadArticleTitles;
+  /**
+   * Spec 63.5: extended from the legacy title-only loader to also return
+   * embedding text + cluster id for the diversity picker. Backwards-compat
+   * shim: tests that injected the old `loadArticleTitles` shape (returning
+   * `Map<string, string>`) should migrate to `loadArticleMeta`.
+   */
+  loadArticleMeta?: typeof defaultLoadArticleMeta;
+  /**
+   * Spec 63.5: embedding-provider factories. Real runs use the Voyage-backed
+   * implementations; tests pass stubs to stay offline.
+   */
+  createBriefEmbeddingProvider?: typeof createPlanRunEmbeddingProvider;
+  createArticleEmbeddingProvider?: typeof createArticleEmbeddingProvider;
 }
 
 export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
@@ -84,13 +141,19 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
   readonly outputSchema = selectSocialPostOutputSchema;
   private readonly pickRefresh: typeof defaultPickFromRefreshSuggestions;
   private readonly pickPool: typeof defaultPickFromSuggestionPool;
-  private readonly loadArticleTitles: typeof defaultLoadArticleTitles;
+  private readonly loadArticleMeta: typeof defaultLoadArticleMeta;
+  private readonly createBriefEmbeddingProvider: typeof createPlanRunEmbeddingProvider;
+  private readonly createArticleEmbeddingProvider: typeof createArticleEmbeddingProvider;
 
   constructor(deps?: SelectSocialPostDeps) {
     super();
     this.pickRefresh = deps?.pickFromRefreshSuggestions ?? defaultPickFromRefreshSuggestions;
     this.pickPool = deps?.pickFromSuggestionPool ?? defaultPickFromSuggestionPool;
-    this.loadArticleTitles = deps?.loadArticleTitles ?? defaultLoadArticleTitles;
+    this.loadArticleMeta = deps?.loadArticleMeta ?? defaultLoadArticleMeta;
+    this.createBriefEmbeddingProvider =
+      deps?.createBriefEmbeddingProvider ?? createPlanRunEmbeddingProvider;
+    this.createArticleEmbeddingProvider =
+      deps?.createArticleEmbeddingProvider ?? createArticleEmbeddingProvider;
   }
 
   async execute(input: Input, ctx: StepContext): Promise<Output> {
@@ -172,15 +235,15 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
           })
         : [];
 
-    // Batch-load article titles for both refresh and pool sub-cases in a
-    // single SQL roundtrip. Articles without a title (imported drafts) are
-    // omitted from the map; their planned_items omit the `title` field and
-    // the card cascade falls back to selectionReason.
+    // Batch-load article meta (title + embeddingText + clusterId) for both
+    // refresh and pool sub-cases in a single SQL roundtrip. Spec 63.5
+    // extended from the title-only helper so the diversity picker has the
+    // embedding text without a second DB hit.
     const allArticleIds = [
       ...refreshArticleIds,
       ...poolRows.map((r: SuggestionPoolCandidate) => r.articleId),
     ];
-    const articleTitleById = await this.loadArticleTitles(allArticleIds);
+    const articleMetaById = await this.loadArticleMeta(allArticleIds);
 
     const buildArticleInput = (articleId: string, extras: Record<string, unknown>) => {
       const out: Record<string, unknown> = {
@@ -188,42 +251,144 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
         articleId,
         ...extras,
       };
-      const title = articleTitleById.get(articleId);
-      if (title !== undefined) out.title = title;
+      const meta = articleMetaById.get(articleId);
+      if (meta?.title) out.title = meta.title;
       return out;
     };
 
-    const fromRefresh: PlanningItemDraft[] = refreshRows.map((row: RefreshPoolCandidate) => ({
-      draftId: randomUUID(),
-      contentType: "social_post",
-      pipelineName: PIPELINE_NAME_BY_CONTENT_TYPE.social_post,
-      sourceKind: "floor",
-      sourceBriefId: null,
-      sourceSignalId: null,
-      parentDraftId: null,
-      locale: null,
-      pipelineInput: buildArticleInput(row.articleId, { refreshSuggestionId: row.suggestionId }),
-      slotDate: null,
-      selectionScore: null,
-      selectionReason: `Social repurpose from refresh suggestion ${row.suggestionId}`,
-      estimatedCostEur: null,
-    }));
+    // Spec 63.5: diversity-aware ordering for the refresh + pool sub-cases.
+    // fromTodayPlans is NOT re-ordered — it already inherits diversity from
+    // the Floor cluster picks (parent linkage). Refresh + pool are
+    // article-sourced and benefit from a per-article embedding compared
+    // against Floor cluster + social embeddings.
+    const snapshot = ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>(
+      "snapshot-inputs",
+    )?.snapshot;
+    const diversityConfig = {
+      threshold: snapshot?.config.diversityThreshold ?? 0.5,
+      malusWeight: snapshot?.config.diversityMalusWeight ?? 0.5,
+    };
+    const briefs =
+      ctx.getStepOutput<{ topicBriefs: TopicBrief[] }>("load-topic-briefs")?.topicBriefs ?? [];
+    const briefById = new Map<string, TopicBrief>(briefs.map((b) => [b.id, b]));
 
-    const fromPool: PlanningItemDraft[] = poolRows.map((row: SuggestionPoolCandidate) => ({
-      draftId: randomUUID(),
-      contentType: "social_post",
-      pipelineName: PIPELINE_NAME_BY_CONTENT_TYPE.social_post,
-      sourceKind: "floor",
-      sourceBriefId: null,
-      sourceSignalId: null,
-      parentDraftId: null,
-      locale: null,
-      pipelineInput: buildArticleInput(row.articleId, {}),
-      slotDate: null,
-      selectionScore: null,
-      selectionReason: `Social repurpose from suggestion pool`,
-      estimatedCostEur: null,
-    }));
+    const articleProvider = this.createArticleEmbeddingProvider({
+      projectId: input.projectId,
+      ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+    });
+    const briefProvider = this.createBriefEmbeddingProvider({
+      projectId: input.projectId,
+      ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+    });
+
+    // Seed initialPickedEmbeddings with Floor cluster + social_post brief
+    // embeddings so the article-sourced picks avoid re-covering Floor topics.
+    // fromTodayPlans is also counted: each carries a parent cluster brief id
+    // that we can resolve to a vector.
+    const seedBriefIds = clusterItems
+      .map((it) => it.sourceBriefId)
+      .filter((id): id is string => id !== null);
+    const initialEmbeddings: (number[] | null)[] = [];
+    for (const briefId of seedBriefIds) {
+      const brief = briefById.get(briefId);
+      if (brief) initialEmbeddings.push(await briefProvider.getForBrief(brief));
+    }
+
+    // Adapter: { articleId, source, ...meta } → diversity item shape.
+    interface ArticleCandidate {
+      articleId: string;
+      embeddingText: string | null;
+      clusterId: string | null;
+      kind: "refresh" | "pool";
+      refreshSuggestionId?: string;
+    }
+    const articleCandidates: ArticleCandidate[] = [
+      ...refreshRows.map((row: RefreshPoolCandidate) => {
+        const meta = articleMetaById.get(row.articleId);
+        return {
+          articleId: row.articleId,
+          embeddingText: meta?.embeddingText ?? null,
+          clusterId: meta?.clusterId ?? null,
+          kind: "refresh" as const,
+          refreshSuggestionId: row.suggestionId,
+        };
+      }),
+      ...poolRows.map((row: SuggestionPoolCandidate) => {
+        const meta = articleMetaById.get(row.articleId);
+        return {
+          articleId: row.articleId,
+          embeddingText: meta?.embeddingText ?? null,
+          clusterId: meta?.clusterId ?? null,
+          kind: "pool" as const,
+        };
+      }),
+    ];
+
+    const useDiversity =
+      diversityConfig.malusWeight > 0 && articleCandidates.length > 1;
+    let orderedCandidates: { candidate: ArticleCandidate; auditReason: string | null }[];
+    if (useDiversity) {
+      const picked = await pickWithDiversity<ArticleCandidate>({
+        pool: articleCandidates,
+        // Re-order, don't filter — the diversity picker covers the whole
+        // pool. Capping happens upstream via perSourceCap.
+        target: articleCandidates.length,
+        embeddingProvider: {
+          getForItem: (c) =>
+            articleProvider.getForItem({
+              id: c.articleId,
+              embeddingText: c.embeddingText,
+              clusterId: c.clusterId,
+            } satisfies ArticleLike),
+        },
+        config: diversityConfig,
+        // Refresh suggestions outrank pool picks via the base-score weighting
+        // (refresh=1.0, pool=0.6). Inside each band, pool order is preserved.
+        getBaseScore: (c) => (c.kind === "refresh" ? 1.0 : 0.6),
+        getItemId: (c) => c.articleId,
+        initialPickedEmbeddings: initialEmbeddings,
+      });
+      orderedCandidates = picked.picked.map((c, i) => ({
+        candidate: c,
+        auditReason: picked.reasons[i]?.reason ?? null,
+      }));
+    } else {
+      orderedCandidates = articleCandidates.map((c) => ({ candidate: c, auditReason: null }));
+    }
+
+    const fromRefresh: PlanningItemDraft[] = [];
+    const fromPool: PlanningItemDraft[] = [];
+    for (const { candidate, auditReason } of orderedCandidates) {
+      const baseReason =
+        candidate.kind === "refresh"
+          ? `Social repurpose from refresh suggestion ${candidate.refreshSuggestionId}`
+          : `Social repurpose from suggestion pool`;
+      const reason = auditReason ? `${baseReason} — ${auditReason}` : baseReason;
+      const extras =
+        candidate.kind === "refresh" && candidate.refreshSuggestionId !== undefined
+          ? { refreshSuggestionId: candidate.refreshSuggestionId }
+          : {};
+      const planned: PlanningItemDraft = {
+        draftId: randomUUID(),
+        contentType: "social_post",
+        pipelineName: PIPELINE_NAME_BY_CONTENT_TYPE.social_post,
+        sourceKind: "floor",
+        sourceBriefId: null,
+        sourceSignalId: null,
+        parentDraftId: null,
+        locale: null,
+        pipelineInput: buildArticleInput(candidate.articleId, extras),
+        slotDate: null,
+        selectionScore: null,
+        selectionReason: reason,
+        estimatedCostEur: null,
+      };
+      if (candidate.kind === "refresh") {
+        fromRefresh.push(planned);
+      } else {
+        fromPool.push(planned);
+      }
+    }
 
     const socialItems = [...fromTodayPlans, ...fromRefresh, ...fromPool];
     const shortfall = Math.max(0, target - socialItems.length);

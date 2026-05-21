@@ -16,8 +16,14 @@ import { EstimateCostStep } from "./steps/estimate-cost.ts";
 import { LoadTopicBriefsStep } from "./steps/load-topic-briefs.ts";
 import { PersistPlanStep } from "./steps/persist-plan.ts";
 import { RefreshSignalsStep, type RefreshSignalsDeps } from "./steps/refresh-signals.ts";
-import { SelectFloorItemsStep } from "./steps/select-floor-items.ts";
-import { SelectOverageItemsStep } from "./steps/select-overage-items.ts";
+import {
+  SelectFloorItemsStep,
+  type SelectFloorDeps,
+} from "./steps/select-floor-items.ts";
+import {
+  SelectOverageItemsStep,
+  type SelectOverageDeps,
+} from "./steps/select-overage-items.ts";
 import {
   SelectSocialPostItemsStep,
   type SelectSocialPostDeps,
@@ -35,6 +41,13 @@ export interface PlanWeekPipelineDeps {
   resolvePipelineSteps?: PipelineStepResolver;
   refreshDeps: RefreshSignalsDeps;
   socialPostDeps?: SelectSocialPostDeps;
+  /**
+   * Spec 63.5: optional embedding-provider injection points so tests can run
+   * the planner offline. Real runs leave these undefined — each step then
+   * uses the Voyage-backed default.
+   */
+  floorDeps?: SelectFloorDeps;
+  overageDeps?: SelectOverageDeps;
 }
 
 export class PlanWeekPipeline extends Pipeline<PlanWeekPipelineInput, PlanWeekPipelineOutput> {
@@ -49,8 +62,8 @@ export class PlanWeekPipeline extends Pipeline<PlanWeekPipelineInput, PlanWeekPi
     const refresh = new RefreshSignalsStep(deps.refreshDeps);
     const loadBriefs = new LoadTopicBriefsStep();
     const snapshot = new SnapshotInputsStep();
-    const selectFloor = new SelectFloorItemsStep();
-    const selectOverage = new SelectOverageItemsStep();
+    const selectFloor = new SelectFloorItemsStep(deps.floorDeps);
+    const selectOverage = new SelectOverageItemsStep(deps.overageDeps);
     const selectSocial = new SelectSocialPostItemsStep(deps.socialPostDeps);
     const distribute = new DistributeSlotDatesStep();
     const estimate = new EstimateCostStep(deps.resolvePipelineSteps);

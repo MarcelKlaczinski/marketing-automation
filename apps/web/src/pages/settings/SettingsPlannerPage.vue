@@ -369,6 +369,54 @@
       </p>
     </section>
 
+    <!-- Spec 63.5: Topic-diversity modifier -->
+    <section class="form-card">
+      <h2 class="section-title">{{ $t("settings.planner.diversitySection.title") as string }}</h2>
+      <p class="section-description">
+        {{ $t("settings.planner.diversitySection.description") as string }}
+      </p>
+
+      <div class="diversity-grid">
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.diversitySection.thresholdLabel") as string }}
+          </span>
+          <input
+            v-model.number="config.diversityThreshold"
+            type="number"
+            min="0"
+            max="1"
+            step="0.05"
+            class="input input-narrow"
+          />
+          <span class="field-hint">
+            {{ $t("settings.planner.diversitySection.thresholdHint") as string }}
+          </span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.diversitySection.malusWeightLabel") as string }}
+          </span>
+          <input
+            v-model.number="config.diversityMalusWeight"
+            type="number"
+            min="0"
+            max="2"
+            step="0.05"
+            class="input input-narrow"
+          />
+          <span class="field-hint">
+            {{ $t("settings.planner.diversitySection.malusWeightHint") as string }}
+          </span>
+        </label>
+      </div>
+
+      <p v-if="diversityOff" class="cron-hint cron-hint-cost">
+        {{ $t("settings.planner.diversitySection.offHint") as string }}
+      </p>
+    </section>
+
     <div class="actions">
       <button
         type="button"
@@ -415,6 +463,9 @@ interface ConfigState {
   trendSynthCronEnabled: boolean;
   trendSynthCronDayOfWeek: number | null;
   trendSynthCronHourUtc: number;
+  // Spec 63.5: planner topic-diversity modifier.
+  diversityThreshold: number;
+  diversityMalusWeight: number;
 }
 
 interface FetchedGoal {
@@ -443,6 +494,10 @@ interface FetchedConfig {
   trendSynthCronEnabled?: boolean;
   trendSynthCronDayOfWeek?: number | null;
   trendSynthCronHourUtc?: number;
+  // Spec 63.5: planner topic-diversity modifier (numeric(4,3) → string from
+  // the DB, coerced back to number at the boundary). Both default to 0.5.
+  diversityThreshold?: string | number;
+  diversityMalusWeight?: string | number;
 }
 
 interface ValidationIssue {
@@ -485,6 +540,10 @@ export default defineComponent({
       trendSynthCronEnabled: false,
       trendSynthCronDayOfWeek: null,
       trendSynthCronHourUtc: 1,
+      // Spec 63.5: moderate diversity / half-weight malus baseline. malusWeight=0
+      // turns the diversity modifier off entirely (back to FIFO + raw score).
+      diversityThreshold: 0.5,
+      diversityMalusWeight: 0.5,
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
@@ -572,6 +631,9 @@ export default defineComponent({
     },
     // Spec 63.4: hint text. Daily cadence renders a separate i18n key so the
     // sentence reads naturally in DE and EN without a stray day-of-week token.
+    diversityOff(): boolean {
+      return !this.config.diversityMalusWeight || this.config.diversityMalusWeight <= 0;
+    },
     trendSynthCronHintText(): string {
       const hourUtc = this.formatHourUtc(this.config.trendSynthCronHourUtc);
       const { label: hourLocal, tz } = this.formatHourLocal(this.config.trendSynthCronHourUtc);
@@ -644,6 +706,21 @@ export default defineComponent({
           this.config.trendSynthCronEnabled = config.trendSynthCronEnabled ?? false;
           this.config.trendSynthCronDayOfWeek = config.trendSynthCronDayOfWeek ?? null;
           this.config.trendSynthCronHourUtc = config.trendSynthCronHourUtc ?? 1;
+          // Spec 63.5: coerce the numeric(4,3) string from the DB back to a
+          // JS number for the slider inputs. Pre-migration rows fall through
+          // to the (0.5, 0.5) defaults.
+          this.config.diversityThreshold =
+            config.diversityThreshold === undefined
+              ? 0.5
+              : typeof config.diversityThreshold === "string"
+                ? Number.parseFloat(config.diversityThreshold)
+                : config.diversityThreshold;
+          this.config.diversityMalusWeight =
+            config.diversityMalusWeight === undefined
+              ? 0.5
+              : typeof config.diversityMalusWeight === "string"
+                ? Number.parseFloat(config.diversityMalusWeight)
+                : config.diversityMalusWeight;
         }
         await this.runValidation();
       } catch (err) {
@@ -732,6 +809,10 @@ export default defineComponent({
             trendSynthCronEnabled: this.config.trendSynthCronEnabled,
             trendSynthCronDayOfWeek: this.config.trendSynthCronDayOfWeek,
             trendSynthCronHourUtc: this.config.trendSynthCronHourUtc,
+            // Spec 63.5: diversity-modifier knobs. JS numbers; the API helper
+            // coerces with .toFixed(3) → numeric(4,3) string at the DB boundary.
+            diversityThreshold: this.config.diversityThreshold,
+            diversityMalusWeight: this.config.diversityMalusWeight,
           }),
         ]);
 
@@ -1008,6 +1089,14 @@ export default defineComponent({
   grid-template-columns: auto 1fr 1fr;
   gap: 12px;
   align-items: end;
+  margin-bottom: 12px;
+}
+
+/* Spec 63.5: planner topic-diversity sliders + hint columns. */
+.diversity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
   margin-bottom: 12px;
 }
 

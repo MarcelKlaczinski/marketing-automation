@@ -450,6 +450,19 @@ export default {
       costHint:
         "Cost ~€0.05–0.15 per run (one Opus call per signal cluster). Daily ~€2–5/month, weekly ~€0.50–1/month. Weekly is fine when signal volume is low.",
     },
+    // Spec 63.5: planner topic-diversity modifier.
+    diversitySection: {
+      title: "Diversity (topic spread in the plan)",
+      description:
+        "Reduces the score of briefs that are topically very similar to ones already picked. Active for cluster + social items across the Floor / Overage / Social-post selectors. Prevents topic-spam like \"3× OpenAI Codex\" in a single plan week.",
+      thresholdLabel: "Threshold",
+      thresholdHint:
+        "Cosine similarity above which the malus kicks in (0-1). Lower = stricter (penalises moderately similar briefs). Default 0.5.",
+      malusWeightLabel: "Malus weight",
+      malusWeightHint:
+        "Strength of the score deduction above the threshold (0-2). 0 = diversity off (back to FIFO behaviour). Default 0.5.",
+      offHint: "Diversity is currently off (malus weight = 0).",
+    },
     daysOfWeek: {
       "0": "Sunday",
       "1": "Monday",

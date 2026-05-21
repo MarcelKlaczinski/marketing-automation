@@ -78,6 +78,12 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       signalMaxAgeHours: config.signalMaxAgeHours,
       excludedPipelines: config.excludedPipelines,
       llmMode,
+      // Spec 63.5: freeze diversity-modifier knobs into the snapshot so a
+      // replay reproduces the same Floor / Overage / Social-post picks even
+      // if Marcel later moves the sliders. Stored as numeric(4,3) on the DB
+      // side → string at the Drizzle boundary; coerced to JS number here.
+      diversityThreshold: Number(config.diversityThreshold),
+      diversityMalusWeight: Number(config.diversityMalusWeight),
     };
 
     const briefSnap: TopicBriefSnapshotEntry[] = briefs.map((b) => ({
