@@ -23,6 +23,9 @@ export default {
   content: "Content",
   discovery: "Discovery",
   platform: "Platform",
+  // 62.5 planner nav
+  planner: "Planner",
+  plannerSection: "Planner",
   // discovery nav items
   refreshQueue: "Refresh-Warteschlange",
   // status filter chips

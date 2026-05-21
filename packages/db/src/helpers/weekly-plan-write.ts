@@ -205,6 +205,71 @@ export async function cancelPlannedItem(itemId: string): Promise<PlannedItem | n
 }
 
 /**
+ * 62.5: Reschedule a pending planned_item to a new slot_date inside its plan
+ * week. All four guards run inside one transaction so the constraint set is
+ * checked against a consistent snapshot:
+ *   - item must exist + belong to `planId`
+ *   - item.status must be 'pending'
+ *   - plan.status must be in {'draft', 'approved'}
+ *   - newSlotDate must satisfy weekStartDate ≤ newSlotDate ≤ weekEndDate
+ *
+ * Returns a discriminated result so the route handler can pick the right HTTP
+ * status: success → 200, ineligible-state → 409, out-of-range → 422.
+ */
+export type ReschedulePlannedItemResult =
+  | { ok: true; item: PlannedItem }
+  | { ok: false; reason: "not_found" | "wrong_item_status" | "wrong_plan_status" | "out_of_range" };
+
+export async function reschedulePlannedItem(input: {
+  planId: string;
+  itemId: string;
+  /** UTC date — interpreted as the local plan-day. */
+  newSlotDate: Date;
+}): Promise<ReschedulePlannedItemResult> {
+  return db.transaction(async (tx): Promise<ReschedulePlannedItemResult> => {
+    const [item] = await tx
+      .select()
+      .from(plannedItems)
+      .where(and(eq(plannedItems.id, input.itemId), eq(plannedItems.weeklyPlanId, input.planId)))
+      .limit(1);
+    if (!item) return { ok: false, reason: "not_found" };
+    if (item.status !== "pending") return { ok: false, reason: "wrong_item_status" };
+
+    const [plan] = await tx
+      .select()
+      .from(weeklyPlans)
+      .where(eq(weeklyPlans.id, input.planId))
+      .limit(1);
+    if (!plan) return { ok: false, reason: "not_found" };
+    if (plan.status !== "draft" && plan.status !== "approved") {
+      return { ok: false, reason: "wrong_plan_status" };
+    }
+
+    // Compare on date strings (YYYY-MM-DD) to avoid TZ drift — both columns are
+    // `date` (not `timestamp`) so Drizzle returns Date objects normalized to
+    // UTC midnight.
+    const newIso = toIsoDate(input.newSlotDate);
+    const startIso = toIsoDate(plan.weekStartDate);
+    const endIso = toIsoDate(plan.weekEndDate);
+    if (newIso < startIso || newIso > endIso) {
+      return { ok: false, reason: "out_of_range" };
+    }
+
+    const [updated] = await tx
+      .update(plannedItems)
+      .set({ slotDate: input.newSlotDate, updatedAt: new Date() })
+      .where(eq(plannedItems.id, input.itemId))
+      .returning();
+    if (!updated) return { ok: false, reason: "not_found" };
+    return { ok: true, item: updated };
+  });
+}
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
  * Used at the start of an item's BullMQ job (62.8). Returns true if the
  * status flip was applied, false if the row was already past 'pending'
  * (idempotent: a stale enqueue won't clobber an item already in_progress).

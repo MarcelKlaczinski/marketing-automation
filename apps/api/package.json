@@ -28,7 +28,8 @@
     "article:validate-pagespeed": "bun --env-file ../../.env src/scripts/article/validate-pagespeed.ts",
     "article:extend-schema": "bun --env-file ../../.env src/scripts/article/extend-schema.ts",
     "cluster:rebuild-links": "bun --env-file ../../.env src/scripts/cluster/rebuild-links.ts",
-    "seed-toolwiki-goals": "bun --env-file ../../.env src/scripts/seed-toolwiki-goals.ts"
+    "seed-toolwiki-goals": "bun --env-file ../../.env src/scripts/seed-toolwiki-goals.ts",
+    "plan:generate": "bun --env-file ../../.env src/scripts/generate-plan.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",

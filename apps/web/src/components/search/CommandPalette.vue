@@ -194,6 +194,19 @@ export default defineComponent({
           subtitle: this.$t("search.actionPlannerGoalsSubtitle") as string,
           href: `/projects/${slug}/settings/planner`,
         },
+        // 62.5 planner deep links
+        {
+          id: "action-planner",
+          title: this.$t("search.actionPlanner") as string,
+          subtitle: this.$t("search.actionPlannerSubtitle") as string,
+          href: `/projects/${slug}/planner`,
+        },
+        {
+          id: "action-planner-generate",
+          title: this.$t("search.actionPlannerGenerate") as string,
+          subtitle: this.$t("search.actionPlannerGenerateSubtitle") as string,
+          href: `/projects/${slug}/planner?generate=current`,
+        },
       ];
     },
   },

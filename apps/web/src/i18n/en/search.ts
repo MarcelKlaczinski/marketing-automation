@@ -12,4 +12,8 @@ export default {
   actionPausedRunsSubtitle: "Stub — full UI lands in Spec 62.6",
   actionPlannerGoals: "Edit planner goals",
   actionPlannerGoalsSubtitle: "Content Planner weekly cadence + budget",
+  actionPlanner: "Open planner",
+  actionPlannerSubtitle: "View and approve the weekly plan",
+  actionPlannerGenerate: "Generate new plan",
+  actionPlannerGenerateSubtitle: "Generate a plan for the current week",
 };

@@ -12,4 +12,8 @@ export default {
   actionPausedRunsSubtitle: "Stub — wird in Spec 62.6 voll ausgebaut",
   actionPlannerGoals: "Planner-Ziele bearbeiten",
   actionPlannerGoalsSubtitle: "Wöchentliche Cadence + Budget des Content-Planners",
+  actionPlanner: "Planner öffnen",
+  actionPlannerSubtitle: "Wochenplan ansehen und freigeben",
+  actionPlannerGenerate: "Neuen Plan erzeugen",
+  actionPlannerGenerateSubtitle: "Plan für die aktuelle KW generieren",
 };

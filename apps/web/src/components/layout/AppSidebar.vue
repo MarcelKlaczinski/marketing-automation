@@ -14,6 +14,17 @@
         />
       </div>
 
+      <!-- === Planner section (62.5) === -->
+      <div class="nav-section">
+        <p class="nav-section-label label-caps">{{ $t("nav.plannerSection") as string }}</p>
+
+        <NavItem
+          :to="`/projects/${slug}/planner`"
+          icon="planner"
+          :label="$t('nav.planner') as string"
+        />
+      </div>
+
       <!-- === Content section === -->
       <div class="nav-section">
         <p class="nav-section-label label-caps">{{ $t("nav.content") }}</p>

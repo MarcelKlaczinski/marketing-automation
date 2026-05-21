@@ -37,4 +37,6 @@ export default {
   add: "Hinzufügen",
   remove: "Entfernen",
   addKeyword: "Keyword hinzufügen",
+  loading: "Lädt …",
+  notFound: "Nicht gefunden",
 };

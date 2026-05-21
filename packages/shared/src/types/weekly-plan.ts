@@ -160,8 +160,26 @@ export const patchWeeklyPlanPayloadSchema = z.object({
 });
 export type PatchWeeklyPlanPayload = z.infer<typeof patchWeeklyPlanPayloadSchema>;
 
-/** PATCH /api/projects/:slug/plans/:planId/items/:itemId. */
-export const patchPlannedItemPayloadSchema = z.object({
-  status: z.enum(["cancelled"]),
-});
+/**
+ * PATCH /api/projects/:slug/plans/:planId/items/:itemId.
+ *
+ * Two mutually-exclusive operations (62.5):
+ *   - { status: 'cancelled' }              cancel the item (62.4)
+ *   - { slotDate: 'YYYY-MM-DD' }           reschedule the item within the plan week (62.5)
+ *
+ * The handler dispatches on which field is present. Both fields together are
+ * rejected (`.refine`) — keeps the route logic single-action per request.
+ */
+export const patchPlannedItemPayloadSchema = z
+  .object({
+    status: z.enum(["cancelled"]).optional(),
+    slotDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "slotDate must be ISO date YYYY-MM-DD")
+      .optional(),
+  })
+  .refine(
+    (v) => (v.status !== undefined) !== (v.slotDate !== undefined),
+    { message: "Provide exactly one of `status` or `slotDate`" },
+  );
 export type PatchPlannedItemPayload = z.infer<typeof patchPlannedItemPayloadSchema>;

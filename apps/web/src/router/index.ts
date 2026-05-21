@@ -177,6 +177,18 @@ const routes = [
         component: () => import("src/pages/paused-runs/PausedRunsStubPage.vue"),
       },
 
+      // 62.5: Planner calendar — week view of weekly_plans + planned_items
+      {
+        path: "planner",
+        name: "planner",
+        component: () => import("src/pages/planner/PlannerPage.vue"),
+      },
+      {
+        path: "planner/items/:itemId",
+        name: "planner-item-detail",
+        component: () => import("src/pages/planner/PlannerItemDetailPage.vue"),
+      },
+
     ],
   },
 

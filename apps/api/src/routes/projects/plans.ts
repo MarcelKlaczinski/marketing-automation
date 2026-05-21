@@ -16,6 +16,7 @@ import {
   listWeeklyPlans,
   PlanAlreadyExistsError,
   projects,
+  reschedulePlannedItem,
   transitionWeeklyPlanStatus,
 } from "@marketing-auto/db";
 import { enqueuePlanWeekPipeline } from "@marketing-auto/pipelines";
@@ -225,13 +226,43 @@ planRoutes.patch(
     const proj = await resolveProject(slug);
     if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
 
-    // The transition helper enforces the pre-execution-only rule; we just
-    // need to confirm the plan belongs to this project (defence-in-depth).
+    // Project-membership guard (defence-in-depth). The helpers below enforce
+    // item-vs-plan + status guards atomically.
     const plan = await getWeeklyPlanById(planId);
     if (!plan || plan.projectId !== proj.id) {
       return c.json({ ok: false, error: "plan_not_found" }, 404);
     }
 
+    const body = c.req.valid("json");
+
+    // 62.5 reschedule path — body validation already enforced exclusive-or
+    // between `status` and `slotDate`.
+    if (body.slotDate !== undefined) {
+      const newSlotDate = new Date(`${body.slotDate}T00:00:00.000Z`);
+      const result = await reschedulePlannedItem({
+        planId,
+        itemId,
+        newSlotDate,
+      });
+      if (!result.ok) {
+        if (result.reason === "not_found") {
+          return c.json({ ok: false, error: "item_not_found" }, 404);
+        }
+        if (result.reason === "out_of_range") {
+          return c.json(
+            { ok: false, error: "slot_date_outside_plan_week" },
+            422,
+          );
+        }
+        return c.json({ ok: false, error: result.reason }, 409);
+      }
+      if (result.item.projectId !== proj.id) {
+        return c.json({ ok: false, error: "item_does_not_belong_to_project" }, 409);
+      }
+      return c.json({ ok: true, data: result.item });
+    }
+
+    // 62.4 cancel path.
     const updated = await cancelPlannedItem(itemId);
     if (!updated) {
       return c.json({ ok: false, error: "invalid_item_state_or_missing" }, 409);

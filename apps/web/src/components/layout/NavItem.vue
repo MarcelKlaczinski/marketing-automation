@@ -72,6 +72,13 @@
         <path d="M13.5 8a5.5 5.5 0 1 1-1.1-3.3" />
         <polyline points="11,2 13.5,4.7 11,7" />
       </svg>
+      <!-- Planner (calendar grid) -->
+      <svg v-else-if="icon === 'planner'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="12" height="11" rx="1.5" />
+        <line x1="2" y1="6.5" x2="14" y2="6.5" />
+        <line x1="5" y1="1.5" x2="5" y2="4" />
+        <line x1="11" y1="1.5" x2="11" y2="4" />
+      </svg>
       <!-- Fallback generic dot -->
       <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="3" fill="currentColor" opacity="0.5" />

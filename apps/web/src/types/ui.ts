@@ -323,3 +323,81 @@ export interface BriefsListResponse {
   nextCursor: string | null;
   hasMore: boolean;
 }
+
+// ─── Planner types (Spec 62.5) ────────────────────────────────────────────────
+
+export type WeeklyPlanStatus =
+  | "draft"
+  | "approved"
+  | "running"
+  | "completed"
+  | "partially_failed"
+  | "cancelled"
+  | "superseded";
+
+export type PlannedItemStatus =
+  | "pending"
+  | "enqueued"
+  | "in_progress"
+  | "completed"
+  | "failed"
+  | "skipped"
+  | "cancelled";
+
+export type PlannedItemSourceKind = "floor" | "overage_signal" | "sibling_locale";
+
+/**
+ * A single weekly_plans row as returned by GET /plans/:id.
+ * Dates/timestamps are ISO strings (the API JSON-encodes pg columns).
+ * Numeric columns arrive as strings — callers parseFloat for arithmetic.
+ */
+export interface WeeklyPlan {
+  id: string;
+  projectId: string;
+  year: number;
+  isoWeek: number;
+  weekStartDate: string;
+  weekEndDate: string;
+  status: WeeklyPlanStatus;
+  triggeredAt: string;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  completedAt: string | null;
+  supersededAt: string | null;
+  supersededBy: string | null;
+  estimatedCostEur: string;
+  actualCostEur: string | null;
+  inputSnapshot: Record<string, unknown>;
+  generationNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlannedItem {
+  id: string;
+  weeklyPlanId: string;
+  projectId: string;
+  contentType: string;
+  pipelineName: string;
+  slotDate: string;
+  sourceKind: PlannedItemSourceKind;
+  sourceBriefId: string | null;
+  sourceSignalId: string | null;
+  parentItemId: string | null;
+  pipelineInput: Record<string, unknown>;
+  estimatedCostEur: string;
+  actualCostEur: string | null;
+  selectionScore: string | null;
+  selectionReason: string | null;
+  status: PlannedItemStatus;
+  pipelineRunId: string | null;
+  failureReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Response of GET /api/projects/:slug/plans/:planId. */
+export interface WeeklyPlanDetail {
+  plan: WeeklyPlan;
+  items: PlannedItem[];
+}
