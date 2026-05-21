@@ -8,12 +8,17 @@
 
 import { publishPipelineEvent } from "@marketing-auto/core/events";
 import {
+  and,
+  db,
+  eq,
   markPlannedItemBlocked,
   markPlannedItemCompleted,
   markPlannedItemEnqueued,
   markPlannedItemFailed,
   markPlannedItemInProgress,
   maybeFinalizePlanStatus,
+  plannedItems,
+  topicBriefs,
 } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 
@@ -54,6 +59,12 @@ export async function transitionItemInProgress(input: {
 }): Promise<boolean> {
   const ok = await markPlannedItemInProgress({ itemId: input.itemId });
   if (ok) {
+    // Spec 63.6: if this item came from a plan_pending brief, flip the brief
+    // to 'routed' atomically with the in_progress transition. This is the
+    // 2-stage transition described in the spec: §3.1 — plan_pending stays
+    // until actual generation starts (so plan-cancel returns the brief to
+    // the pool intact).
+    await maybeRoutePlanPendingBrief(input.itemId);
     void publishPipelineEvent(input.projectId, {
       type: "plan.item.statusChanged",
       planId: input.planId,
@@ -64,6 +75,47 @@ export async function transitionItemInProgress(input: {
     });
   }
   return ok;
+}
+
+/**
+ * Spec 63.6: best-effort flip of the source brief from plan_pending → routed
+ * when its planned_item enters in_progress. CAS-guarded on `approval_status =
+ * 'plan_pending'` so concurrent immediate-dispatch or plan-cancel cannot
+ * regress the brief; failures here log a warning and are swallowed so they
+ * never escalate into pipeline-run failures (the brief link is informational,
+ * not invariant for execution).
+ */
+async function maybeRoutePlanPendingBrief(itemId: string): Promise<void> {
+  try {
+    const [item] = await db
+      .select({ sourceBriefId: plannedItems.sourceBriefId })
+      .from(plannedItems)
+      .where(eq(plannedItems.id, itemId))
+      .limit(1);
+    const briefId = item?.sourceBriefId;
+    if (!briefId) return;
+
+    const updated = await db
+      .update(topicBriefs)
+      .set({
+        approvalStatus: "routed",
+        routedViaPlanItemId: itemId,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(topicBriefs.id, briefId),
+          eq(topicBriefs.approvalStatus, "plan_pending"),
+        ),
+      )
+      .returning({ id: topicBriefs.id });
+
+    if (updated.length > 0) {
+      log.info({ itemId, briefId }, "brief flipped plan_pending → routed via plan-execute");
+    }
+  } catch (err) {
+    log.warn({ err, itemId }, "maybeRoutePlanPendingBrief failed");
+  }
 }
 
 export async function transitionItemCompleted(input: {

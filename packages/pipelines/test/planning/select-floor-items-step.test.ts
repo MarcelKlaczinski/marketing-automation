@@ -45,6 +45,7 @@ function brief(overrides: Partial<TopicBrief> = {}): TopicBrief {
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,
+    routedViaPlanItemId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -92,6 +93,38 @@ describe("matchBriefToContentType", () => {
 
   it("default cluster_action='create_new' → cluster", () => {
     expect(matchBriefToContentType(brief({ clusterAction: "create_new" }))).toBe("cluster");
+  });
+
+  // Spec 63.3b A.3: intent_type='comparison' routes ONLY when concrete tool slugs are present.
+  it("intentType='comparison' with ≥2 tool slugs in comparisonMetadata → comparison", () => {
+    const b = brief({
+      source: "trend_discovery",
+      clusterAction: "create_new",
+      intentType: "comparison",
+      comparisonMetadata: {
+        toolASlug: "claude",
+        toolBSlug: "gpt",
+        toolAName: "Claude",
+        toolBName: "GPT",
+        coMentionCount: 0,
+        coMentionArticleIds: [],
+        score: 0,
+        categoryOverlap: false,
+        recencyBoost: 0,
+        reason: "",
+      },
+    });
+    expect(matchBriefToContentType(b)).toBe("comparison");
+  });
+
+  it("intentType='comparison' without tool slugs falls through to cluster", () => {
+    const b = brief({
+      source: "trend_discovery",
+      clusterAction: "create_new",
+      intentType: "comparison",
+      comparisonMetadata: null,
+    });
+    expect(matchBriefToContentType(b)).toBe("cluster");
   });
 });
 

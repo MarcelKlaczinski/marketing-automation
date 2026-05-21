@@ -78,5 +78,10 @@ export const projectPlannerConfigSchema = z.object({
   cronEnabled: z.boolean().default(false),
   cronDayOfWeek: z.number().int().min(0).max(6).default(0),
   cronHourUtc: z.number().int().min(0).max(23).default(18),
+  // Spec 63.3b: per-project weekly cron trigger for discoverComparisonPairs().
+  // Default Sunday 06:00 UTC (12h before the planner cron) — OFF by default.
+  comparisonCronEnabled: z.boolean().default(false),
+  comparisonCronDayOfWeek: z.number().int().min(0).max(6).default(0),
+  comparisonCronHourUtc: z.number().int().min(0).max(23).default(6),
 });
 export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

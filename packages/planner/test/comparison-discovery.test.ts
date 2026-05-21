@@ -13,7 +13,7 @@ import {
   inArray,
   topicBriefs,
 } from "@marketing-auto/db";
-import { discoverComparisonPairs } from "../src/index.ts";
+import { computePairScore, discoverComparisonPairs } from "../src/index.ts";
 
 let projectId: string;
 const articleIds: string[] = [];
@@ -268,5 +268,64 @@ describe("discoverComparisonPairs", () => {
     const result = await discoverComparisonPairs({ projectId, minScore: 0 });
     expect(result.topPairs.length).toBeGreaterThanOrEqual(2);
     expect(result.topPairs[0]?.score).toBeGreaterThanOrEqual(result.topPairs[1]?.score ?? 0);
+  });
+});
+
+// Spec 63.3b: pure unit tests on the score formula (no DB).
+describe("computePairScore (Spec 63.3b)", () => {
+  it("same-category pair scores higher than cross-category pair with identical co-mentions", () => {
+    const sameCategory = computePairScore({
+      coMentionCount: 10,
+      maxCoMention: 28,
+      categoryOverlap: true,
+      recencyBoost: 1.0,
+    });
+    const crossCategory = computePairScore({
+      coMentionCount: 10,
+      maxCoMention: 28,
+      categoryOverlap: false,
+      recencyBoost: 1.0,
+    });
+    expect(sameCategory).toBeGreaterThan(crossCategory);
+    // Specific delta: bonus(0.4) - (-penalty(0.05)) = 0.45.
+    expect(sameCategory - crossCategory).toBeCloseTo(0.45, 3);
+  });
+
+  it("cross-category pair with mid co-mentions falls under default threshold (0.3)", () => {
+    // 8/28 ≈ 0.286 → 0.286*0.4 + (-0.05) + 1.0*0.2 = 0.114 + (-0.05) + 0.2 ≈ 0.264
+    const cross = computePairScore({
+      coMentionCount: 8,
+      maxCoMention: 28,
+      categoryOverlap: false,
+      recencyBoost: 1.0,
+    });
+    expect(cross).toBeLessThan(0.3);
+  });
+
+  it("strong same-category pair stays above default threshold (0.3)", () => {
+    // 12/28 ≈ 0.429 → 0.429*0.4 + 0.4 + 1.0*0.2 = 0.171 + 0.4 + 0.2 ≈ 0.771
+    const strong = computePairScore({
+      coMentionCount: 12,
+      maxCoMention: 28,
+      categoryOverlap: true,
+      recencyBoost: 1.0,
+    });
+    expect(strong).toBeGreaterThan(0.3);
+  });
+
+  it("honours bespoke weights (caller can tune knobs)", () => {
+    // With pre-63.3b weights (no penalty, 0.2 category bonus, 0.6 co-mention),
+    // the same cross-category mid-co-mention pair should score higher.
+    const pre633b = computePairScore(
+      { coMentionCount: 8, maxCoMention: 28, categoryOverlap: false, recencyBoost: 1.0 },
+      { coMentionWeight: 0.6, categoryOverlapBonus: 0.2, crossCategoryPenalty: 0, recencyWeight: 0.2 },
+    );
+    const post633b = computePairScore({
+      coMentionCount: 8,
+      maxCoMention: 28,
+      categoryOverlap: false,
+      recencyBoost: 1.0,
+    });
+    expect(pre633b).toBeGreaterThan(post633b);
   });
 });

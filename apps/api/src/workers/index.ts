@@ -54,6 +54,10 @@ import {
   seedPlannerWeeklyGenerationCron,
   startPlannerWeeklyGenerationWorker,
 } from "./planner-weekly-generation.worker.ts";
+import {
+  seedComparisonDiscoveryCron,
+  startComparisonDiscoveryWorker,
+} from "./comparison-discovery.worker.ts";
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
@@ -316,12 +320,15 @@ async function main() {
   const stepPauseCleanupWorker = startStepPauseCleanupWorker();
   const plannerWeeklyGenerationWorker = startPlannerWeeklyGenerationWorker();
   const planExecutionWorker = startPlanExecutionWorker();
-  // Spec 62.0a Section 4.5.3 + 62.7: seed cron_state rows on startup (idempotent).
-  // The orchestrator's next tick (within 60s) picks them up and creates the BullMQ
-  // repeat job. Seed lives in code, not SQL migration, because PostgreSQL forbids
-  // using a freshly-added enum value in the same session that added it.
+  const comparisonDiscoveryWorker = startComparisonDiscoveryWorker();
+  // Spec 62.0a Section 4.5.3 + 62.7 + 63.3b: seed cron_state rows on startup
+  // (idempotent). The orchestrator's next tick (within 60s) picks them up and
+  // creates the BullMQ repeat job. Seed lives in code, not SQL migration,
+  // because PostgreSQL forbids using a freshly-added enum value in the same
+  // session that added it.
   await seedStepPauseCleanupCron();
   await seedPlannerWeeklyGenerationCron();
+  await seedComparisonDiscoveryCron();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -345,6 +352,7 @@ async function main() {
     await stepPauseCleanupWorker.close();
     await plannerWeeklyGenerationWorker.close();
     await planExecutionWorker.close();
+    await comparisonDiscoveryWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

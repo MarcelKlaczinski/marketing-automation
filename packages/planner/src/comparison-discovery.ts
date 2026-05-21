@@ -37,12 +37,23 @@ export interface DiscoverComparisonPairsInput {
   projectId: string;
   /** Minimum number of co-mentioning articles required to consider a pair. Default 2. */
   minCoMentionCount?: number;
-  /** Minimum score (0–1) for a pair to be persisted. Default 0.3. */
+  /** Minimum score (0–1) for a pair to be persisted. Default 0.25 (Spec 63.3b: lowered from 0.3 to compensate for the new cross-category penalty pulling scores down ~0.05). */
   minScore?: number;
   /** Skip pairs already covered by a `collection='comparisons'` article. Default true. */
   excludeExistingComparisons?: boolean;
   /** Cap on rows persisted in one run. Default 50. */
   topNToPersist?: number;
+  // Spec 63.3b: score-formula knobs. Defaults shift weight from raw popularity
+  // (coMention) toward semantic fit (same-category) and add a small penalty for
+  // cross-category pairs. Marcel can re-tune post-merge without code changes.
+  /** Weight applied to coMentionCount / maxCoMention. Default 0.4 (was 0.6 pre-63.3b). */
+  coMentionWeight?: number;
+  /** Bonus added when both tools share the same primary category. Default 0.4 (was 0.2). */
+  categoryOverlapBonus?: number;
+  /** Penalty subtracted when categories differ. Default 0.05 (was 0). */
+  crossCategoryPenalty?: number;
+  /** Weight applied to recencyBoost (0..1). Default 0.2 (unchanged). */
+  recencyWeight?: number;
 }
 
 export interface ComparisonDiscoveryResult {
@@ -75,8 +86,55 @@ interface ToolInfo {
 }
 
 const DEFAULT_MIN_CO_MENTION = 2;
-const DEFAULT_MIN_SCORE = 0.3;
+// Spec 63.3b: lowered 0.3 → 0.25 because the new score formula adds a
+// cross-category penalty (-0.05) that pulls every pair down until tool-category
+// metadata is backfilled. The 0.05 delta restores the borderline behaviour the
+// pre-63.3b threshold (0.3 without penalty) was producing.
+const DEFAULT_MIN_SCORE = 0.25;
 const DEFAULT_TOP_N_PERSIST = 50;
+// Spec 63.3b: score-formula defaults (positive weights sum to 1.0).
+const DEFAULT_COMENTION_WEIGHT = 0.4;
+const DEFAULT_CATEGORY_OVERLAP_BONUS = 0.4;
+const DEFAULT_CROSS_CATEGORY_PENALTY = 0.05;
+const DEFAULT_RECENCY_WEIGHT = 0.2;
+
+export interface ScoreWeights {
+  coMentionWeight: number;
+  categoryOverlapBonus: number;
+  crossCategoryPenalty: number;
+  recencyWeight: number;
+}
+
+export interface ScoreInputs {
+  coMentionCount: number;
+  maxCoMention: number;
+  categoryOverlap: boolean;
+  recencyBoost: number;
+}
+
+/**
+ * Spec 63.3b: pure score computation, exported for unit-testing the formula
+ * independently of the DB pipeline. Defaults match the post-63.3b weights;
+ * call sites that need bespoke knobs pass them explicitly.
+ */
+export function computePairScore(inputs: ScoreInputs, weights?: Partial<ScoreWeights>): number {
+  const w = {
+    coMentionWeight: weights?.coMentionWeight ?? DEFAULT_COMENTION_WEIGHT,
+    categoryOverlapBonus: weights?.categoryOverlapBonus ?? DEFAULT_CATEGORY_OVERLAP_BONUS,
+    crossCategoryPenalty: weights?.crossCategoryPenalty ?? DEFAULT_CROSS_CATEGORY_PENALTY,
+    recencyWeight: weights?.recencyWeight ?? DEFAULT_RECENCY_WEIGHT,
+  };
+  const coMentionComponent =
+    inputs.maxCoMention > 0 ? inputs.coMentionCount / inputs.maxCoMention : 0;
+  const categoryComponent = inputs.categoryOverlap
+    ? w.categoryOverlapBonus
+    : -w.crossCategoryPenalty;
+  return round3(
+    coMentionComponent * w.coMentionWeight +
+      categoryComponent +
+      inputs.recencyBoost * w.recencyWeight,
+  );
+}
 
 export async function discoverComparisonPairs(
   input: DiscoverComparisonPairsInput,
@@ -89,6 +147,13 @@ export async function discoverComparisonPairs(
     excludeExistingComparisons = true,
     topNToPersist = DEFAULT_TOP_N_PERSIST,
   } = input;
+  // Spec 63.3b: pull score weights with the new defaults; callers can override.
+  const weights: ScoreWeights = {
+    coMentionWeight: input.coMentionWeight ?? DEFAULT_COMENTION_WEIGHT,
+    categoryOverlapBonus: input.categoryOverlapBonus ?? DEFAULT_CATEGORY_OVERLAP_BONUS,
+    crossCategoryPenalty: input.crossCategoryPenalty ?? DEFAULT_CROSS_CATEGORY_PENALTY,
+    recencyWeight: input.recencyWeight ?? DEFAULT_RECENCY_WEIGHT,
+  };
 
   // 1. Load co-mention raw data.
   const rawRows = await loadArticleTools(projectId);
@@ -111,7 +176,7 @@ export async function discoverComparisonPairs(
 
   // 5. Score and build payloads.
   const maxCoMention = Math.max(...survivors.map((a) => a.coMentionArticleIds.length));
-  const allScored = survivors.map((agg) => buildPayload(agg, toolInfoBySlug, maxCoMention));
+  const allScored = survivors.map((agg) => buildPayload(agg, toolInfoBySlug, maxCoMention, weights));
 
   // 6. Filter by minScore.
   const aboveThreshold = allScored.filter((p) => p.score >= minScore);
@@ -259,6 +324,7 @@ function buildPayload(
   agg: PairAggregate,
   toolInfoBySlug: Map<string, ToolInfo>,
   maxCoMention: number,
+  weights: ScoreWeights,
 ): ComparisonMetadata {
   const toolA = toolInfoBySlug.get(agg.toolASlug);
   const toolB = toolInfoBySlug.get(agg.toolBSlug);
@@ -268,8 +334,11 @@ function buildPayload(
   const recencyBoost = computeRecencyBoost(agg.mostRecentMentionAt);
   const coMentionCount = agg.coMentionArticleIds.length;
 
-  const coMentionComponent = maxCoMention > 0 ? coMentionCount / maxCoMention : 0;
-  const score = round3(coMentionComponent * 0.6 + (categoryOverlap ? 0.2 : 0) + recencyBoost * 0.2);
+  // Spec 63.3b: score formula extracted into computePairScore() with knobs.
+  const score = computePairScore(
+    { coMentionCount, maxCoMention, categoryOverlap, recencyBoost },
+    weights,
+  );
 
   return {
     toolASlug: agg.toolASlug,

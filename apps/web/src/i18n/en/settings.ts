@@ -423,6 +423,17 @@ export default {
       requiresValidConfig:
         "Goals + weekly budget must be valid before the cron can be enabled.",
     },
+    // Spec 63.3b: second cron section for comparison-pair discovery.
+    comparisonCronSection: {
+      title: "Comparison-Discovery trigger",
+      description:
+        "Weekly scan for new tool pairs co-mentioned across articles. Surfaces comparison topics for the planner queue. Recommended: run 12h before the planner trigger so you can review pairs before plan generation.",
+      enabledLabel: "Enabled",
+      dayOfWeekLabel: "Day of week",
+      hourUtcLabel: "Hour (UTC)",
+      localTimeHint:
+        "When enabled, the scan runs every {day} at {hourUtc} UTC (= {hourLocal} {tz}). New pairs land as pending briefs.",
+    },
     daysOfWeek: {
       "0": "Sunday",
       "1": "Monday",

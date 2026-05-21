@@ -18,20 +18,28 @@ const log = createLogger("brief-service");
 
 type Project = { id: string };
 
-type ApproveBriefResult =
+export type Dispatch = "plan" | "immediate";
+
+export type ApproveBriefResult =
   | { kind: "success"; runId: string; jobId: string }
+  | { kind: "plan_queued" }
   | { kind: "cluster_assignment_required" }
   | { kind: "skipped"; reason: string }
   | { kind: "error"; error: string };
 
 /**
- * Core approve-and-enqueue logic shared by single-approve and bulk-approve endpoints.
- * Loads the brief by id+projectId, validates it is pending, creates the article row,
- * and enqueues the blog generation pipeline.
+ * Spec 63.6: dispatch-aware brief approval. Default `'plan'` flips pending →
+ * plan_pending and lets the Planner pick the brief up at the next cycle (90%
+ * Budget-Gate active). `'immediate'` keeps the legacy direct-generate path:
+ * create the article row + enqueue article:blog inline.
+ *
+ * Both branches are idempotent at the CAS level (WHERE approval_status='pending').
+ * A second call on the same brief returns `kind: "skipped"`.
  */
-export async function approveBriefAndEnqueue(
+export async function approveBrief(
   briefId: string,
   project: Project,
+  dispatch: Dispatch = "plan",
 ): Promise<ApproveBriefResult> {
   const [brief] = await db
     .select()
@@ -49,8 +57,65 @@ export async function approveBriefAndEnqueue(
     return { kind: "skipped", reason: "not_found_or_not_pending" };
   }
 
-  // create_new briefs require Cluster Creator flow first
+  // create_new briefs require Cluster Creator flow first — applies to both dispatch modes.
   if (brief.clusterAction === "create_new" || !brief.clusterId) {
+    return { kind: "cluster_assignment_required" };
+  }
+
+  if (dispatch === "plan") {
+    return await markBriefPlanPending(briefId, project.id);
+  }
+
+  return await approveBriefAndEnqueueImmediate(brief, project);
+}
+
+/**
+ * Plan-dispatch branch: pending → plan_pending. No article row, no pipeline
+ * enqueue. The Planner's `loadPendingTopicBriefs` widens to include plan_pending
+ * (Spec 63.6) so the brief lands in the next weekly plan.
+ *
+ * CAS-guarded on `approval_status='pending'` — concurrent immediate-dispatch on
+ * the same brief loses the race and we return `skipped`.
+ */
+async function markBriefPlanPending(
+  briefId: string,
+  projectId: string,
+): Promise<ApproveBriefResult> {
+  const updated = await db
+    .update(topicBriefs)
+    .set({
+      approvalStatus: "plan_pending",
+      approvedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(topicBriefs.id, briefId),
+        eq(topicBriefs.projectId, projectId),
+        eq(topicBriefs.approvalStatus, "pending"),
+      ),
+    )
+    .returning({ id: topicBriefs.id });
+
+  if (updated.length === 0) {
+    return { kind: "skipped", reason: "not_found_or_not_pending" };
+  }
+
+  log.info({ briefId, projectId }, "brief flipped to plan_pending");
+  return { kind: "plan_queued" };
+}
+
+/**
+ * Immediate-dispatch branch: legacy approveBriefAndEnqueue behaviour — creates
+ * the article row via executeDecision (pending → routed inside the transaction)
+ * and enqueues article:blog. Bypasses the Planner / Budget-Gate; use sparingly.
+ */
+async function approveBriefAndEnqueueImmediate(
+  brief: typeof topicBriefs.$inferSelect,
+  project: Project,
+): Promise<ApproveBriefResult> {
+  if (!brief.clusterId) {
+    // Defensive — approveBrief already gated, but keep the type narrow for executeDecision.
     return { kind: "cluster_assignment_required" };
   }
 
@@ -83,7 +148,22 @@ export async function approveBriefAndEnqueue(
     return { kind: "error", error: triggerResult.error };
   }
 
-  log.info({ briefId, articleId: routeResult.articleId, projectId: project.id }, "brief approved");
+  log.info(
+    { briefId: brief.id, articleId: routeResult.articleId, projectId: project.id, dispatch: "immediate" },
+    "brief approved (immediate)",
+  );
 
   return { kind: "success", runId: triggerResult.runId, jobId: triggerResult.jobId };
+}
+
+/**
+ * Back-compat alias kept for any callers that didn't migrate to `approveBrief`
+ * yet. New code should call `approveBrief(id, project, dispatch)`.
+ * @deprecated — pass an explicit dispatch via `approveBrief()`.
+ */
+export async function approveBriefAndEnqueue(
+  briefId: string,
+  project: Project,
+): Promise<ApproveBriefResult> {
+  return await approveBrief(briefId, project, "immediate");
 }

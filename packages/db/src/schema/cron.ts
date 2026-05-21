@@ -12,6 +12,7 @@ export const cronJobTypeEnum = pgEnum("cron_job_type", [
   "signal_collector_vendor_rss",
   "step_pause_cleanup",  // Spec 62.0a Section 4.5.3 — reaps substeps stuck in 'running' >24h
   "planner_weekly_generation",  // Spec 62.7 — triggers PlanWeekPipeline once per week
+  "comparison_discovery",  // Spec 63.3b — weekly discoverComparisonPairs() pre-plan-run
 ]);
 
 export const cronState = pgTable(

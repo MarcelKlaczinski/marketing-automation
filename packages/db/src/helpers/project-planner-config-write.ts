@@ -17,12 +17,20 @@ export interface UpsertProjectPlannerConfigInput {
   cronDayOfWeek?: number;
   /** Spec 62.7: 0-23 UTC. Omit to keep DB default (18). */
   cronHourUtc?: number;
+  /** Spec 63.3b: weekly comparison-discovery cron toggle. Omit to keep DB default (false). */
+  comparisonCronEnabled?: boolean;
+  /** Spec 63.3b: 0=Sunday..6=Saturday. Omit to keep DB default (0). */
+  comparisonCronDayOfWeek?: number;
+  /** Spec 63.3b: 0-23 UTC. Omit to keep DB default (6). */
+  comparisonCronHourUtc?: number;
 }
 
 /**
  * Builds the cron pattern that the orchestrator consumes for
  * planner_weekly_generation jobs: `0 <hour> * * <dayOfWeek>`. Minute is fixed
  * to 0 so multi-worker setups can't fire mid-minute on each other.
+ *
+ * Spec 63.3b: also used for `comparison_discovery` cron — same shape.
  */
 export function buildPlannerCronPattern(dayOfWeek: number, hourUtc: number): string {
   return `0 ${hourUtc} * * ${dayOfWeek}`;
@@ -60,6 +68,15 @@ export async function upsertProjectPlannerConfig(
     ...(input.cronEnabled !== undefined ? { cronEnabled: input.cronEnabled } : {}),
     ...(input.cronDayOfWeek !== undefined ? { cronDayOfWeek: input.cronDayOfWeek } : {}),
     ...(input.cronHourUtc !== undefined ? { cronHourUtc: input.cronHourUtc } : {}),
+    ...(input.comparisonCronEnabled !== undefined
+      ? { comparisonCronEnabled: input.comparisonCronEnabled }
+      : {}),
+    ...(input.comparisonCronDayOfWeek !== undefined
+      ? { comparisonCronDayOfWeek: input.comparisonCronDayOfWeek }
+      : {}),
+    ...(input.comparisonCronHourUtc !== undefined
+      ? { comparisonCronHourUtc: input.comparisonCronHourUtc }
+      : {}),
   };
   const updateSet = {
     weeklyBudgetEur,
@@ -71,6 +88,15 @@ export async function upsertProjectPlannerConfig(
     ...(input.cronEnabled !== undefined ? { cronEnabled: input.cronEnabled } : {}),
     ...(input.cronDayOfWeek !== undefined ? { cronDayOfWeek: input.cronDayOfWeek } : {}),
     ...(input.cronHourUtc !== undefined ? { cronHourUtc: input.cronHourUtc } : {}),
+    ...(input.comparisonCronEnabled !== undefined
+      ? { comparisonCronEnabled: input.comparisonCronEnabled }
+      : {}),
+    ...(input.comparisonCronDayOfWeek !== undefined
+      ? { comparisonCronDayOfWeek: input.comparisonCronDayOfWeek }
+      : {}),
+    ...(input.comparisonCronHourUtc !== undefined
+      ? { comparisonCronHourUtc: input.comparisonCronHourUtc }
+      : {}),
   };
   const rows = await db
     .insert(projectPlannerConfig)
@@ -103,6 +129,28 @@ export async function upsertProjectPlannerConfig(
         and(
           eq(cronState.projectId, input.projectId),
           eq(cronState.jobType, "planner_weekly_generation"),
+        ),
+      );
+  }
+
+  // Spec 63.3b: same dance for comparison_discovery cron_state row.
+  const touchesComparisonCron =
+    input.comparisonCronEnabled !== undefined ||
+    input.comparisonCronDayOfWeek !== undefined ||
+    input.comparisonCronHourUtc !== undefined;
+  if (touchesComparisonCron) {
+    const pattern = buildPlannerCronPattern(row.comparisonCronDayOfWeek, row.comparisonCronHourUtc);
+    await db
+      .update(cronState)
+      .set({
+        cronPattern: pattern,
+        isActive: row.comparisonCronEnabled,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(cronState.projectId, input.projectId),
+          eq(cronState.jobType, "comparison_discovery"),
         ),
       );
   }

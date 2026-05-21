@@ -87,5 +87,9 @@ export default {
     label: "Source",
     all: "All",
     clear: "Clear filter",
+    readinessLabel: "Status",
+    readinessAll: "All",
+    readinessReady: "Approve-ready",
+    readinessUnready: "Not enriched",
   },
 };

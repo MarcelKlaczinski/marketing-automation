@@ -13,7 +13,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
-import { approveBriefAndEnqueue } from "../../lib/brief-service.ts";
+import { approveBrief } from "../../lib/brief-service.ts";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("briefs-route");
@@ -34,10 +34,30 @@ async function resolveProject(slug: string): Promise<{ id: string } | null> {
 
 // Approval status groups for section filtering.
 // Typed explicitly so inArray() gets the narrowed union rather than string[].
-type ApprovalStatus = "pending" | "approved" | "rejected" | "auto_approved" | "superseded" | "routed";
-const PENDING_STATUSES: Array<ApprovalStatus> = ["pending"];
+// Spec 63.6: `plan_pending` (Marcel approved, waiting on Planner pickup) lives
+// in `pending` so the BriefsPage chips can filter it via readiness=plan_ready
+// without splintering the section taxonomy.
+type ApprovalStatus =
+  | "pending"
+  | "plan_pending"
+  | "approved"
+  | "rejected"
+  | "auto_approved"
+  | "superseded"
+  | "routed";
+const PENDING_STATUSES: Array<ApprovalStatus> = ["pending", "plan_pending"];
 const IN_FLIGHT_STATUSES: Array<ApprovalStatus> = ["approved", "auto_approved", "routed"];
 const DONE_STATUSES: Array<ApprovalStatus> = ["rejected", "superseded"];
+
+// Brief source enum (mirrors topic_briefs.source values — see packages/db/src/schema/content.ts).
+const BRIEF_SOURCES = [
+  "gap_analysis",
+  "trend_discovery",
+  "refresh_detection",
+  "manual",
+  "comparison_discovery",
+] as const;
+type BriefSource = (typeof BRIEF_SOURCES)[number];
 
 // ─── GET /:slug/briefs ────────────────────────────────────────────────────────
 
@@ -45,6 +65,24 @@ const briefsListQuerySchema = z.object({
   section: z.enum(["pending", "in-flight", "done", "all"]).default("all"),
   limit: z.coerce.number().int().min(1).max(100).default(50),
   cursor: z.string().datetime().optional(),
+  // Comma-separated list of source values to filter by. Empty / absent = no filter.
+  source: z
+    .string()
+    .optional()
+    .transform((raw) => {
+      if (!raw) return undefined;
+      const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+      const valid = parts.filter((p): p is BriefSource =>
+        (BRIEF_SOURCES as readonly string[]).includes(p),
+      );
+      return valid.length > 0 ? valid : undefined;
+    }),
+  // Approve-readiness filter:
+  //   ready       → primary_keyword is set OR source = comparison_discovery (no keyword needed)
+  //   unready     → primary_keyword is NULL AND source != comparison_discovery
+  //   plan_ready  → approval_status = 'plan_pending' (Spec 63.6: Marcel approved, awaiting Planner pickup)
+  //   all/undef   → no filter
+  readiness: z.enum(["ready", "unready", "plan_ready", "all"]).optional(),
 });
 
 scopedBriefRoutes.get(
@@ -65,6 +103,22 @@ scopedBriefRoutes.get(
       conditions.push(inArray(topicBriefs.approvalStatus, IN_FLIGHT_STATUSES));
     } else if (q.section === "done") {
       conditions.push(inArray(topicBriefs.approvalStatus, DONE_STATUSES));
+    }
+
+    if (q.source && q.source.length > 0) {
+      conditions.push(inArray(topicBriefs.source, q.source));
+    }
+
+    if (q.readiness === "ready") {
+      conditions.push(
+        sql`(${topicBriefs.primaryKeyword} IS NOT NULL OR ${topicBriefs.source} = 'comparison_discovery')`,
+      );
+    } else if (q.readiness === "unready") {
+      conditions.push(
+        sql`(${topicBriefs.primaryKeyword} IS NULL AND ${topicBriefs.source} <> 'comparison_discovery')`,
+      );
+    } else if (q.readiness === "plan_ready") {
+      conditions.push(eq(topicBriefs.approvalStatus, "plan_pending"));
     }
 
     if (q.cursor) {
@@ -127,9 +181,15 @@ scopedBriefRoutes.get("/:slug/briefs/:briefId", async (c) => {
 
 // ─── POST /:slug/briefs/bulk-approve ─────────────────────────────────────────
 
+// Spec 63.6: `dispatch` defaults to 'plan' — the safer path that flips briefs
+// to plan_pending and lets the weekly Planner pick them up under the 90% Budget
+// Gate. `dispatch: 'immediate'` is the explicit Direct-Generate override (legacy
+// behaviour: article-INSERT + pipeline-enqueue inline). `mode` is the older
+// assist/auto field; both modes today drive identical server behaviour.
 const bulkApproveSchema = z.object({
   briefIds: z.array(z.string().uuid()).min(1).max(50),
   mode: z.enum(["assist", "auto"]).default("assist"),
+  dispatch: z.enum(["plan", "immediate"]).default("plan"),
 });
 
 scopedBriefRoutes.post(
@@ -137,13 +197,14 @@ scopedBriefRoutes.post(
   zValidator("json", bulkApproveSchema),
   async (c) => {
     const slug = c.req.param("slug");
-    const { briefIds, mode } = c.req.valid("json");
+    const { briefIds, mode, dispatch } = c.req.valid("json");
 
     const project = await resolveProject(slug);
     if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
 
     const results = {
       approved: [] as Array<{ briefId: string; runId: string; jobId: string }>,
+      planQueued: [] as Array<{ briefId: string }>,
       skipped: [] as Array<{ briefId: string; reason: string }>,
       failed: [] as Array<{ briefId: string; error: string }>,
     };
@@ -151,12 +212,14 @@ scopedBriefRoutes.post(
     // Sequential processing — predictable cost ordering, prevents budget overshoot
     for (const briefId of briefIds) {
       try {
-        const result = await approveBriefAndEnqueue(briefId, project);
+        const result = await approveBrief(briefId, project, dispatch);
 
         if (result.kind === "cluster_assignment_required") {
           results.skipped.push({ briefId, reason: "cluster_assignment_required" });
         } else if (result.kind === "skipped") {
           results.skipped.push({ briefId, reason: result.reason });
+        } else if (result.kind === "plan_queued") {
+          results.planQueued.push({ briefId });
         } else if (result.kind === "success") {
           results.approved.push({ briefId, runId: result.runId, jobId: result.jobId });
         } else {
@@ -174,8 +237,10 @@ scopedBriefRoutes.post(
       {
         slug,
         mode,
+        dispatch,
         total: briefIds.length,
         approved: results.approved.length,
+        planQueued: results.planQueued.length,
         skipped: results.skipped.length,
         failed: results.failed.length,
       },
@@ -186,8 +251,10 @@ scopedBriefRoutes.post(
       {
         ok: true,
         data: {
+          dispatch,
           total: briefIds.length,
           approvedCount: results.approved.length,
+          planQueuedCount: results.planQueued.length,
           skippedCount: results.skipped.length,
           failedCount: results.failed.length,
           results,

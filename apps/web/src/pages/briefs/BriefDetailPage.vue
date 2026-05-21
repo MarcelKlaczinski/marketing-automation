@@ -116,8 +116,18 @@ export default defineComponent({
         : null;
     },
     backRoute(): string {
+      // Preserve the list's source / readiness filter on Back navigation.
       const slug = this.$route.params.slug as string;
-      return `/projects/${slug}/briefs`;
+      const qs = new URLSearchParams();
+      for (const [key, value] of Object.entries(this.$route.query)) {
+        if (typeof value === "string") qs.set(key, value);
+        else if (Array.isArray(value)) {
+          const first = value.find((v) => typeof v === "string");
+          if (typeof first === "string") qs.set(key, first);
+        }
+      }
+      const suffix = qs.toString();
+      return `/projects/${slug}/briefs${suffix ? `?${suffix}` : ""}`;
     },
   },
 
@@ -126,25 +136,56 @@ export default defineComponent({
       if (!this.brief) return;
       try {
         const slug = this.$route.params.slug as string;
-        await apiPost(`/projects/${slug}/trends/briefs/${this.briefId}/approve`, {
+        // Universal endpoint — works for gap_analysis, trend_discovery, comparison_discovery, refresh_detection
+        // (single-element list; same approveBriefAndEnqueue() runs underneath as the bulk path).
+        const res = await apiPost<{
+          approvedCount: number;
+          skippedCount: number;
+          failedCount: number;
+          results: {
+            approved: Array<{ briefId: string }>;
+            skipped: Array<{ briefId: string; reason: string }>;
+            failed: Array<{ briefId: string; error: string }>;
+          };
+        }>(`/projects/${slug}/briefs/bulk-approve`, {
+          briefIds: [this.briefId],
           mode: "assist",
         });
         void this.queryClient.invalidateQueries({ queryKey: ["brief", this.briefId] });
-        this.$q.notify({ type: "positive", message: this.$t("briefs.actions.approveSuccess") as string });
-      } catch {
-        // handled by api.ts
+        void this.queryClient.invalidateQueries({ queryKey: ["briefs", slug] });
+        if (res.approvedCount > 0) {
+          this.$q.notify({ type: "positive", message: this.$t("briefs.actions.approveSuccess") as string });
+          void this.$router.push(this.backRoute);
+        } else if (res.skippedCount > 0) {
+          const reason = res.results.skipped[0]?.reason ?? "skipped";
+          this.$q.notify({ type: "warning", message: reason });
+        } else {
+          const err = res.results.failed[0]?.error ?? "approve_failed";
+          this.$q.notify({ type: "negative", message: err });
+        }
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "approve_failed",
+        });
       }
     },
     async onDismiss(): Promise<void> {
       if (!this.brief) return;
       try {
         const slug = this.$route.params.slug as string;
-        await apiPost(`/projects/${slug}/trends/briefs/${this.briefId}/dismiss`);
+        await apiPost(`/projects/${slug}/briefs/bulk-dismiss`, {
+          briefIds: [this.briefId],
+        });
         void this.queryClient.invalidateQueries({ queryKey: ["brief", this.briefId] });
+        void this.queryClient.invalidateQueries({ queryKey: ["briefs", slug] });
         this.$q.notify({ type: "info", message: this.$t("briefs.actions.dismissSuccess") as string });
         void this.$router.push(this.backRoute);
-      } catch {
-        // handled by api.ts
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "dismiss_failed",
+        });
       }
     },
   },

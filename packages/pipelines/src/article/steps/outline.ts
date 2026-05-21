@@ -1,4 +1,4 @@
-import { anthropic, JsonParseError } from "@marketing-auto/adapter-anthropic";
+import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
 import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
@@ -192,6 +192,10 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       "Now produce the outline.",
     ].join("\n");
 
+    // Sonnet 4.6 / Opus 4.7 reject assistant-message prefill (HTTP 400).
+    // Omit `jsonMode` and extract JSON manually from `result.raw`.
+    // The trailing instruction is a belt-and-suspenders signal alongside the
+    // schema example already in the step prompt.
     const callArgs = {
       projectId: ctx.projectId,
       pipelineRunId: ctx.pipelineRunId,
@@ -199,10 +203,11 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       operation: COST_OPS.ARTICLE_OUTLINE,
       model,
       systemPrefix: prompt.cacheablePrefix,
-      systemSuffix,
+      systemSuffix:
+        systemSuffix +
+        "\n\nRespond with only a valid JSON object. No markdown fences, no prose preamble.",
       userMessage: userMsg,
       maxTokens: 8000,
-      jsonMode: true,
       estimatedCostEur: this.estimatedCostEur(),
     };
 
@@ -232,16 +237,30 @@ Constraints: sections 4-12 items; keyPoints 2-10 per section; estimatedTotalWord
       }
     }
 
-    // Sync mode (default): retry once on non-JSON response — Sonnet occasionally returns malformed output
-    let result;
+    // Sync mode (default): manual JSON extract (Sonnet/Opus reject prefill).
+    // Retry once if first response doesn't contain a parseable JSON object.
+    const sliceJson = (raw: string): string => {
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start < 0 || end <= start) {
+        throw new SyntaxError("no JSON object braces in response");
+      }
+      return raw.slice(start, end + 1);
+    };
+
+    let parsed: unknown;
     try {
-      result = await anthropic.messages(callArgs);
+      const result = await anthropic.messages(callArgs);
+      parsed = JSON.parse(sliceJson(result.raw));
     } catch (err) {
-      if (!(err instanceof JsonParseError)) throw err;
-      log.warn({ articleId: input.articleId }, "outline: non-JSON on first attempt — retrying once");
-      result = await anthropic.messages({ ...callArgs, forceRefresh: true });
+      log.warn(
+        { articleId: input.articleId, err: err instanceof Error ? err.message : String(err) },
+        "outline: invalid JSON on first attempt — retrying once",
+      );
+      const result = await anthropic.messages({ ...callArgs, forceRefresh: true });
+      parsed = JSON.parse(sliceJson(result.raw));
     }
 
-    return ArticleOutlineSchema.parse(result.json);
+    return ArticleOutlineSchema.parse(parsed);
   }
 }

@@ -63,3 +63,24 @@ import {
 - remainder from `pickFromSuggestionPool` (excluding article IDs already picked from the refresh pool)
 
 Shortfall (`target - emitted`) is logged + surfaced in `generation_notes` so the user sees thin pools rather than missing items.
+
+## Comparison-Pair Discovery (Spec 62.3 + 63.3b)
+
+`discoverComparisonPairs({ projectId, ...weights })` produces pending `topic_briefs` with `source='comparison_discovery'` from co-mention matrices in `article_discovery`. Algorithm + persistence detailed in `src/comparison-discovery.ts` header. Two things callers commonly want to tune:
+
+**Score knobs** are exposed on `DiscoverComparisonPairsInput` (Spec 63.3b):
+
+```typescript
+discoverComparisonPairs({
+  projectId,
+  minScore: 0.3,                 // threshold for persistence
+  coMentionWeight: 0.4,          // raw popularity component
+  categoryOverlapBonus: 0.4,     // same-category boost
+  crossCategoryPenalty: 0.05,    // cross-category penalty (subtracted)
+  recencyWeight: 0.2,            // mostRecentMentionAt freshness
+});
+```
+
+Defaults shift weight toward semantic fit (same-category) over raw popularity. The pure `computePairScore(inputs, weights?)` is exported for unit testing the formula without DB fixtures. The HTTP route `POST /api/projects/:slug/comparison-discovery/run` accepts these in the request body too — Marcel can re-tune live before letting the weekly cron run.
+
+**Weekly cron** is registered by `apps/api/src/workers/comparison-discovery.worker.ts` (job_type `comparison_discovery`, default Sunday 06:00 UTC, OFF). The worker calls `discoverComparisonPairs()` directly — it's a free function, not a registered pipeline, so no `triggerWithPreRunId` / `pipeline_runs` row is involved. Settings UI lives in `SettingsPlannerPage.vue`; the toggle is independent of the planner cron's validity gate since discovery only writes pending briefs (no cost / no planned_item).

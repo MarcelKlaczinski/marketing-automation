@@ -39,6 +39,7 @@ function makeBrief(
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,
+    routedViaPlanItemId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

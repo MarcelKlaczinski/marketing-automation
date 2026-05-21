@@ -87,5 +87,9 @@ export default {
     label: "Quelle",
     all: "Alle",
     clear: "Filter zurücksetzen",
+    readinessLabel: "Status",
+    readinessAll: "Alle",
+    readinessReady: "Approve-bereit",
+    readinessUnready: "Nicht angereichert",
   },
 };

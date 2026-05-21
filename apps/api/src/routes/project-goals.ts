@@ -190,6 +190,10 @@ projectGoalsRoutes.put(
       cronEnabled: body.cronEnabled,
       cronDayOfWeek: body.cronDayOfWeek,
       cronHourUtc: body.cronHourUtc,
+      // Spec 63.3b: second cron (comparison_discovery), independent toggle.
+      comparisonCronEnabled: body.comparisonCronEnabled,
+      comparisonCronDayOfWeek: body.comparisonCronDayOfWeek,
+      comparisonCronHourUtc: body.comparisonCronHourUtc,
     });
 
     log.info(
@@ -198,6 +202,8 @@ projectGoalsRoutes.put(
         weeklyBudgetEur: body.weeklyBudgetEur,
         cronEnabled: body.cronEnabled,
         cronPattern: `0 ${body.cronHourUtc} * * ${body.cronDayOfWeek}`,
+        comparisonCronEnabled: body.comparisonCronEnabled,
+        comparisonCronPattern: `0 ${body.comparisonCronHourUtc} * * ${body.comparisonCronDayOfWeek}`,
       },
       "Planner config upserted",
     );

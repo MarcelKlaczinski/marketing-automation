@@ -40,6 +40,7 @@ type Output = z.infer<typeof selectFloorOutputSchema>;
  *
  * Mapping rules (kept deliberately conservative — refine with usage data):
  *   - source='comparison_discovery' OR cluster_action='comparison' → "comparison"
+ *   - intent_type='comparison' AND brief carries ≥2 concrete tool slugs → "comparison"  (Spec 63.3b)
  *   - cluster_action='translation' → null (auto-triggered by source pipeline)
  *   - cluster_action='refresh'     → null (refresh briefs go via the refresh pipeline directly)
  *   - intentType='knowledge'/'tutorial' on standalone briefs → "ki_wissen"
@@ -47,6 +48,14 @@ type Output = z.infer<typeof selectFloorOutputSchema>;
  */
 export function matchBriefToContentType(brief: TopicBrief): PlanningContentType | null {
   if (brief.source === "comparison_discovery" || brief.clusterAction === "comparison") {
+    return "comparison";
+  }
+  // Spec 63.3b A.3: trend briefs (and any future source) with intent_type='comparison'
+  // may demand a tool-comparison article. The comparison templates require concrete
+  // tool slugs (2-4) — without them the planned_item produces a degraded article. We
+  // gate the route on `getComparisonToolSlugs(brief).length >= 2` so off-topic /
+  // unstructured comparison-intent briefs fall through to the default cluster bucket.
+  if (brief.intentType === "comparison" && getComparisonToolSlugs(brief).length >= 2) {
     return "comparison";
   }
   if (brief.clusterAction === "translation" || brief.clusterAction === "refresh") {
@@ -59,6 +68,24 @@ export function matchBriefToContentType(brief: TopicBrief): PlanningContentType 
     return "ki_wissen";
   }
   return "cluster";
+}
+
+/**
+ * Spec 63.3b: return concrete tool slugs that anchor a comparison-bucket plan
+ * item. Today only `comparison_discovery` briefs carry these (in
+ * `comparisonMetadata.toolASlug` + `toolBSlug`); trend briefs with
+ * `intentType='comparison'` have no structured tool field yet. The helper is
+ * forward-compat: if a future trend-synthesis enhancement populates
+ * `comparisonMetadata` (or a sibling jsonb path) on trend briefs, extend this
+ * function in one place and the routing rule above will pick it up.
+ */
+function getComparisonToolSlugs(brief: TopicBrief): string[] {
+  const meta = brief.comparisonMetadata;
+  if (!meta) return [];
+  const slugs: string[] = [];
+  if (typeof meta.toolASlug === "string" && meta.toolASlug.length > 0) slugs.push(meta.toolASlug);
+  if (typeof meta.toolBSlug === "string" && meta.toolBSlug.length > 0) slugs.push(meta.toolBSlug);
+  return slugs;
 }
 
 /** Per-goal target weekly count. per_day goals are multiplied by 7. */

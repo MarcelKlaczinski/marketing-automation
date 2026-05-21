@@ -26,6 +26,10 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     cronEnabled: false,
     cronDayOfWeek: 0,
     cronHourUtc: 18,
+    // Spec 63.3b: second cron — same NOT-NULL-with-defaults requirement.
+    comparisonCronEnabled: false,
+    comparisonCronDayOfWeek: 0,
+    comparisonCronHourUtc: 6,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

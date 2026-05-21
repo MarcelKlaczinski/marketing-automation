@@ -273,6 +273,7 @@ function makeBrief(trendMeta?: { trendScore?: number; freshnessWindow?: "breakin
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,
+    routedViaPlanItemId: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

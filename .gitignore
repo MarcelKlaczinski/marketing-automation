@@ -62,3 +62,9 @@ apps/api/uploads/
 
 # Design reference bundle (local copy, not for version control)
 /packages/social/design-reference/bundle/
+
+# Local diagnostic scripts (kept on disk for re-use, not for version control).
+# Spec 63.3b — comparison-discovery score-tuning + tool-category audit.
+/apps/api/src/scripts/run-comparison-discovery.ts
+/apps/api/src/scripts/check-tool-categories.ts
+/apps/api/src/scripts/dump-app-categories.ts

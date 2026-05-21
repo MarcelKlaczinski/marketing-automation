@@ -424,6 +424,17 @@ export default {
       requiresValidConfig:
         "Goals + Wochenbudget müssen valide sein, bevor der Cron aktiviert werden kann.",
     },
+    // Spec 63.3b: second cron section for comparison-pair discovery.
+    comparisonCronSection: {
+      title: "Comparison-Discovery-Trigger",
+      description:
+        "Sucht wöchentlich nach neuen Tool-Paaren, die in Articles ko-erwähnt werden. Findet Vergleichsthemen für die Planner-Queue. Empfehlung: 12 h vor dem Plan-Trigger, damit du die gefundenen Pairs vor Plan-Generation reviewen kannst.",
+      enabledLabel: "Aktiviert",
+      dayOfWeekLabel: "Tag der Woche",
+      hourUtcLabel: "Uhrzeit (UTC)",
+      localTimeHint:
+        "Bei Aktivierung läuft die Suche jeden {day} um {hourUtc} UTC (= {hourLocal} {tz}). Neue Pairs landen als pending Briefs.",
+    },
     daysOfWeek: {
       "0": "Sonntag",
       "1": "Montag",

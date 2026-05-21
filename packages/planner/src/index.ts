@@ -23,9 +23,12 @@ export {
 } from "./signal-refresh.ts";
 
 export {
+  computePairScore,
   discoverComparisonPairs,
   type ComparisonDiscoveryResult,
   type DiscoverComparisonPairsInput,
+  type ScoreInputs,
+  type ScoreWeights,
 } from "./comparison-discovery.ts";
 
 export {

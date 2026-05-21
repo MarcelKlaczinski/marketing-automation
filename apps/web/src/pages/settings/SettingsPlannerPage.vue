@@ -269,6 +269,53 @@
       </p>
     </section>
 
+    <!-- Spec 63.3b: weekly comparison-discovery trigger -->
+    <section class="form-card">
+      <h2 class="section-title">{{ $t("settings.planner.comparisonCronSection.title") as string }}</h2>
+      <p class="section-description">
+        {{ $t("settings.planner.comparisonCronSection.description") as string }}
+      </p>
+
+      <div class="cron-grid">
+        <label class="field cron-enabled-field">
+          <span class="field-label">
+            {{ $t("settings.planner.comparisonCronSection.enabledLabel") as string }}
+          </span>
+          <input
+            v-model="config.comparisonCronEnabled"
+            type="checkbox"
+            class="cron-checkbox"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.comparisonCronSection.dayOfWeekLabel") as string }}
+          </span>
+          <select v-model.number="config.comparisonCronDayOfWeek" class="input">
+            <option v-for="d in dayOfWeekOptions" :key="d" :value="d">
+              {{ $t(`settings.planner.daysOfWeek.${d}`) as string }}
+            </option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.comparisonCronSection.hourUtcLabel") as string }}
+          </span>
+          <select v-model.number="config.comparisonCronHourUtc" class="input">
+            <option v-for="h in hourOptions" :key="h" :value="h">
+              {{ formatHourUtc(h) }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <p class="cron-hint">
+        {{ comparisonCronHintText }}
+      </p>
+    </section>
+
     <div class="actions">
       <button
         type="button"
@@ -306,6 +353,10 @@ interface ConfigState {
   cronEnabled: boolean;
   cronDayOfWeek: number;
   cronHourUtc: number;
+  // Spec 63.3b: second cron — comparison-discovery
+  comparisonCronEnabled: boolean;
+  comparisonCronDayOfWeek: number;
+  comparisonCronHourUtc: number;
 }
 
 interface FetchedGoal {
@@ -326,6 +377,10 @@ interface FetchedConfig {
   cronEnabled?: boolean;
   cronDayOfWeek?: number;
   cronHourUtc?: number;
+  // Spec 63.3b: comparison-discovery cron-trigger fields
+  comparisonCronEnabled?: boolean;
+  comparisonCronDayOfWeek?: number;
+  comparisonCronHourUtc?: number;
 }
 
 interface ValidationIssue {
@@ -360,6 +415,10 @@ export default defineComponent({
       cronEnabled: false,
       cronDayOfWeek: 0,
       cronHourUtc: 18,
+      // Spec 63.3b defaults (Sunday 06:00 UTC, OFF).
+      comparisonCronEnabled: false,
+      comparisonCronDayOfWeek: 0,
+      comparisonCronHourUtc: 6,
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
@@ -415,6 +474,23 @@ export default defineComponent({
         tz,
       }) as string;
     },
+    // Spec 63.3b: same shape as cronHintText but for the comparison-discovery
+    // cron. Toggle can be flipped independently of planner-config validity —
+    // discovery runs even when goals are misconfigured (it only writes pending
+    // briefs, no planned_item / cost expansion).
+    comparisonCronHintText(): string {
+      const day = this.$t(
+        `settings.planner.daysOfWeek.${this.config.comparisonCronDayOfWeek}`,
+      ) as string;
+      const hourUtc = this.formatHourUtc(this.config.comparisonCronHourUtc);
+      const { label: hourLocal, tz } = this.formatHourLocal(this.config.comparisonCronHourUtc);
+      return this.$t("settings.planner.comparisonCronSection.localTimeHint", {
+        day,
+        hourUtc,
+        hourLocal,
+        tz,
+      }) as string;
+    },
   },
 
   async mounted() {
@@ -457,6 +533,10 @@ export default defineComponent({
           this.config.cronEnabled = config.cronEnabled ?? false;
           this.config.cronDayOfWeek = config.cronDayOfWeek ?? 0;
           this.config.cronHourUtc = config.cronHourUtc ?? 18;
+          // Spec 63.3b: same fallback dance for the comparison-discovery cron.
+          this.config.comparisonCronEnabled = config.comparisonCronEnabled ?? false;
+          this.config.comparisonCronDayOfWeek = config.comparisonCronDayOfWeek ?? 0;
+          this.config.comparisonCronHourUtc = config.comparisonCronHourUtc ?? 6;
         }
         await this.runValidation();
       } catch (err) {
@@ -535,6 +615,10 @@ export default defineComponent({
             cronEnabled: this.config.cronEnabled,
             cronDayOfWeek: this.config.cronDayOfWeek,
             cronHourUtc: this.config.cronHourUtc,
+            // Spec 63.3b: second cron — same persist-even-when-off rule.
+            comparisonCronEnabled: this.config.comparisonCronEnabled,
+            comparisonCronDayOfWeek: this.config.comparisonCronDayOfWeek,
+            comparisonCronHourUtc: this.config.comparisonCronHourUtc,
           }),
         ]);
 

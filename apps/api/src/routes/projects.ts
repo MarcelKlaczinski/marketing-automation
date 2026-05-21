@@ -8,6 +8,7 @@ import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { syncCronJobs } from "../workers/cron-orchestrator.ts";
 import { STEP_PAUSE_CLEANUP_CRON_PATTERN } from "../workers/step-pause-cleanup.worker.ts";
 import { PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN } from "../workers/planner-weekly-generation.worker.ts";
+import { COMPARISON_DISCOVERY_DEFAULT_PATTERN } from "../workers/comparison-discovery.worker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -276,6 +277,18 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         jobType: "planner_weekly_generation",
         isActive: false,
         cronPattern: PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN,
+      })
+      .onConflictDoNothing();
+
+    // Spec 63.3b: same dance for comparison_discovery. Default pattern Sunday
+    // 06:00 UTC (12h before the planner cron) — OFF by default.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "comparison_discovery",
+        isActive: false,
+        cronPattern: COMPARISON_DISCOVERY_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
   }
@@ -981,7 +994,11 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
     })
     .where(eq(contentGaps.id, gapId));
 
-  // Auto-approval: inline-trigger generation when project flag is set
+  // Auto-approval: when project.autoApproveGaps is set, take an automatic
+  // decision on the freshly-enriched brief. Spec 63.6: article/translation
+  // routes now flip the brief to plan_pending instead of inline-triggering
+  // article:blog — the weekly Planner picks the brief up under the 90% Budget
+  // Gate. Cornerstone-spec routes stay inline (DB-only, no pipeline cost).
   if (project.autoApproveGaps) {
     try {
       const updatedBrief = {
@@ -994,50 +1011,28 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
         heroImagePrompt:   suggestion.heroImagePrompt,
       };
       const decision = decideRoute(updatedBrief);
-      const routeResult = await db.transaction(async (tx) =>
-        executeDecision(decision, updatedBrief, tx),
-      );
 
-      if (routeResult.kind === "skipped") {
-        log.warn({ gapId, reason: routeResult.reason }, "Auto-approval skipped by routing policy");
-      } else if (
-        routeResult.kind === "article_created" ||
-        routeResult.kind === "translation_created"
-      ) {
-        const isBlogBrief =
-          routeResult.kind === "article_created" &&
-          updatedBrief.locale !== null &&
-          updatedBrief.clusterId !== null;
-        const triggerResult = await (isBlogBrief
-          ? triggerWithPreRunId({
-              pipelineName: "article:blog",
-              projectId:    project.id,
-              uniqueKey:    { field: "articleId", value: routeResult.articleId },
-              costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-              extraInput:   { articleId: routeResult.articleId, briefId: updatedBrief.id },
-              enqueue:      enqueueBlogGenerationPipeline,
-            })
-          : triggerWithPreRunId({
-              pipelineName: "article:outline",
-              projectId:    project.id,
-              uniqueKey:    { field: "articleId", value: routeResult.articleId },
-              costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-              extraInput:   { articleId: routeResult.articleId },
-              enqueue:      enqueueArticleOutlinePipeline,
-            }));
-
-        await db
-          .update(contentGaps)
+      if (decision.kind === "create_article" || decision.kind === "create_translation") {
+        // Spec 63.6 plan-dispatch: flip the brief to plan_pending and let the
+        // Planner pick it up. No article-INSERT, no pipeline-enqueue, no
+        // immediate Budget consumption.
+        const flipped = await db
+          .update(topicBriefs)
           .set({
-            filledByArticleId:     routeResult.articleId,
-            generationTriggeredAt: new Date(),
-            status:                "in_progress",
-            updatedAt:             new Date(),
+            approvalStatus: "plan_pending",
+            approvedAt:     new Date(),
+            updatedAt:      new Date(),
           })
-          .where(eq(contentGaps.id, gapId));
+          .where(
+            and(
+              eq(topicBriefs.id, updatedBrief.id),
+              eq(topicBriefs.approvalStatus, "pending"),
+            ),
+          )
+          .returning({ id: topicBriefs.id });
 
-        if (!("error" in triggerResult)) {
-          log.info({ gapId, articleId: routeResult.articleId }, "Gap auto-approved after suggest");
+        if (flipped.length > 0) {
+          log.info({ gapId, briefId: updatedBrief.id, dispatch: "plan" }, "Gap auto-approved to plan_pending");
           return c.json({
             ok:   true,
             data: {
@@ -1050,40 +1045,51 @@ projectRoutes.post("/:slug/content-gaps/:id/suggest", async (c) => {
               clusterUpdated:    false,
               cached:            false,
               autoTriggered:     true,
-              articleId:         routeResult.articleId,
-              runId:             triggerResult.runId,
-              jobId:             triggerResult.jobId,
+              dispatch:          "plan",
             },
           });
         }
-        log.warn({ gapId, error: triggerResult.error }, "Auto-approval trigger blocked — returning plain suggestion");
-      } else if (routeResult.kind === "cornerstone_spec_created") {
-        await db
-          .update(contentGaps)
-          .set({
-            filledBySpecId:        routeResult.cornerstoneSpecId,
-            generationTriggeredAt: new Date(),
-            status:                "in_progress",
-            updatedAt:             new Date(),
-          })
-          .where(eq(contentGaps.id, gapId));
+        log.warn({ gapId, briefId: updatedBrief.id }, "Auto-approval plan_pending flip lost race — returning plain suggestion");
+      } else if (decision.kind === "create_cornerstone_spec" || decision.kind === "create_cluster") {
+        // Cornerstone-spec / cluster routes are DB-only (no pipeline cost) —
+        // keep the inline executeDecision path so Marcel still gets the
+        // editorial brief filed without manual approval.
+        const routeResult = await db.transaction(async (tx) =>
+          executeDecision(decision, updatedBrief, tx),
+        );
 
-        log.info({ gapId, specId: routeResult.cornerstoneSpecId }, "Gap auto-approved to cornerstone spec after suggest");
-        return c.json({
-          ok:   true,
-          data: {
-            suggestedTitle:    suggestion.title,
-            suggestedSlug:     suggestion.slug,
-            suggestedMeta:     suggestion.metaDescription,
-            primaryKeyword:    suggestion.cornerstoneKeyword,
-            secondaryKeywords,
-            briefId:           brief.id,
-            clusterUpdated:    false,
-            cached:            false,
-            autoTriggered:     true,
-            cornerstoneSpecId: routeResult.cornerstoneSpecId,
-          },
-        });
+        if (routeResult.kind === "skipped") {
+          log.warn({ gapId, reason: routeResult.reason }, "Auto-approval skipped by routing policy");
+        } else if (routeResult.kind === "cornerstone_spec_created") {
+          await db
+            .update(contentGaps)
+            .set({
+              filledBySpecId:        routeResult.cornerstoneSpecId,
+              generationTriggeredAt: new Date(),
+              status:                "in_progress",
+              updatedAt:             new Date(),
+            })
+            .where(eq(contentGaps.id, gapId));
+
+          log.info({ gapId, specId: routeResult.cornerstoneSpecId }, "Gap auto-approved to cornerstone spec after suggest");
+          return c.json({
+            ok:   true,
+            data: {
+              suggestedTitle:    suggestion.title,
+              suggestedSlug:     suggestion.slug,
+              suggestedMeta:     suggestion.metaDescription,
+              primaryKeyword:    suggestion.cornerstoneKeyword,
+              secondaryKeywords,
+              briefId:           brief.id,
+              clusterUpdated:    false,
+              cached:            false,
+              autoTriggered:     true,
+              cornerstoneSpecId: routeResult.cornerstoneSpecId,
+            },
+          });
+        }
+      } else if (decision.kind === "skip") {
+        log.warn({ gapId, reason: decision.reason }, "Auto-approval skipped by routing policy (decideRoute)");
       }
     } catch (err) {
       log.error({ err, gapId }, "Auto-approval failed after suggest — returning plain suggestion");

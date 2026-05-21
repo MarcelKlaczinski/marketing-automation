@@ -17,6 +17,7 @@ import { getArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/articl
 import { getSignalCollectorQueue } from "./signal-collector.ts";
 import { getStepPauseCleanupQueue } from "./step-pause-cleanup.worker.ts";
 import { getPlannerWeeklyGenerationQueue } from "./planner-weekly-generation.worker.ts";
+import { getComparisonDiscoveryQueue } from "./comparison-discovery.worker.ts";
 
 const log = createLogger("cron-orchestrator");
 
@@ -72,6 +73,7 @@ function getQueueForJobType(jobType: CronJobType): Queue {
   if (jobType === "signal_collector_vendor_rss") return getSignalCollectorQueue();
   if (jobType === "step_pause_cleanup") return getStepPauseCleanupQueue();
   if (jobType === "planner_weekly_generation") return getPlannerWeeklyGenerationQueue();
+  if (jobType === "comparison_discovery") return getComparisonDiscoveryQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -109,6 +111,7 @@ export async function syncCronJobs(): Promise<void> {
     getSignalCollectorQueue(),
     getStepPauseCleanupQueue(),
     getPlannerWeeklyGenerationQueue(),
+    getComparisonDiscoveryQueue(),
   ];
 
   for (const queue of allQueues) {
@@ -124,7 +127,8 @@ export async function syncCronJobs(): Promise<void> {
         repeat.name.startsWith("signal_collector_producthunt:") ||
         repeat.name.startsWith("signal_collector_vendor_rss:") ||
         repeat.name.startsWith("step_pause_cleanup:") ||
-        repeat.name.startsWith("planner_weekly_generation:");
+        repeat.name.startsWith("planner_weekly_generation:") ||
+        repeat.name.startsWith("comparison_discovery:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

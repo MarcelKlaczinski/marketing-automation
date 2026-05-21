@@ -5,6 +5,58 @@
         <h1 class="page-title">{{ $t("briefs.title") as string }}</h1>
       </div>
 
+      <div class="filter-bar" role="group" :aria-label="$t('briefs.filters.label') as string">
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ active: activeSources.length === 0 }"
+          @click="clearSourceFilter"
+        >
+          {{ $t("briefs.filters.all") as string }}
+        </button>
+        <button
+          v-for="src in availableSources"
+          :key="src"
+          type="button"
+          class="filter-chip"
+          :class="{ active: activeSources.includes(src) }"
+          @click="toggleSource(src)"
+        >
+          {{ $t(`briefs.source.${src}`) as string }}
+        </button>
+      </div>
+
+      <div
+        class="filter-bar"
+        role="group"
+        :aria-label="$t('briefs.filters.readinessLabel') as string"
+      >
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ active: activeReadiness === '' }"
+          @click="setReadiness('')"
+        >
+          {{ $t("briefs.filters.readinessAll") as string }}
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ active: activeReadiness === 'ready' }"
+          @click="setReadiness('ready')"
+        >
+          {{ $t("briefs.filters.readinessReady") as string }}
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          :class="{ active: activeReadiness === 'unready' }"
+          @click="setReadiness('unready')"
+        >
+          {{ $t("briefs.filters.readinessUnready") as string }}
+        </button>
+      </div>
+
       <BriefsSection
         :title="$t('briefs.sections.pending') as string"
         :description="$t('briefs.sections.pendingDescription') as string"
@@ -123,6 +175,14 @@ export default defineComponent({
     selectedBriefIds: [] as string[],
     bulkProcessing: false,
     showApproveModal: false,
+    // Mirrors topic_briefs.source enum (see packages/db/src/schema/content.ts).
+    availableSources: [
+      "gap_analysis",
+      "trend_discovery",
+      "refresh_detection",
+      "comparison_discovery",
+      "manual",
+    ] as const,
   }),
 
   computed: {
@@ -130,9 +190,47 @@ export default defineComponent({
       const id = this.$route.params.briefId;
       return typeof id === "string" ? id : null;
     },
+    activeSources(): string[] {
+      const raw = this.$route.query.source;
+      const csv = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
+      if (typeof csv !== "string" || !csv) return [];
+      return csv.split(",").map((s) => s.trim()).filter(Boolean);
+    },
+    activeReadiness(): "" | "ready" | "unready" {
+      const raw = this.$route.query.readiness;
+      const v = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
+      return v === "ready" || v === "unready" ? v : "";
+    },
   },
 
   methods: {
+    writeSourceFilter(sources: string[]): void {
+      const next = { ...this.$route.query };
+      if (sources.length === 0) {
+        delete next.source;
+      } else {
+        next.source = sources.join(",");
+      }
+      void this.$router.replace({ query: next });
+    },
+    toggleSource(src: string): void {
+      const current = this.activeSources;
+      const idx = current.indexOf(src);
+      const next = idx === -1 ? [...current, src] : current.filter((s) => s !== src);
+      this.writeSourceFilter(next);
+    },
+    clearSourceFilter(): void {
+      this.writeSourceFilter([]);
+    },
+    setReadiness(value: "" | "ready" | "unready"): void {
+      const next = { ...this.$route.query };
+      if (!value) {
+        delete next.readiness;
+      } else {
+        next.readiness = value;
+      }
+      void this.$router.replace({ query: next });
+    },
     onToggleSelect(briefId: string): void {
       const idx = this.selectedBriefIds.indexOf(briefId);
       if (idx === -1) {
@@ -143,7 +241,10 @@ export default defineComponent({
     },
     onSelectBrief(brief: BriefListItem): void {
       const slug = this.$route.params.slug as string;
-      void this.$router.push(`/projects/${slug}/briefs/${brief.id}`);
+      void this.$router.push({
+        path: `/projects/${slug}/briefs/${brief.id}`,
+        query: this.$route.query,
+      });
     },
     async onBulkApproveConfirm({ mode }: { mode: "assist" | "auto" }): Promise<void> {
       if (!this.selectedBriefIds.length || this.bulkProcessing) return;
@@ -215,6 +316,55 @@ export default defineComponent({
 
 .page-header {
   margin-bottom: 16px;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.filter-chip {
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              border-color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .filter-chip:hover {
+    color: var(--text-primary);
+    border-color: var(--border-strong, var(--border-subtle));
+  }
+}
+
+.filter-chip.active {
+  color: var(--text-primary);
+  background: var(--bg-elevated, var(--bg-glass));
+  border-color: var(--accent, var(--text-primary));
+}
+
+.filter-chip:active {
+  transform: scale(0.97);
+}
+
+@media (max-width: 767px) {
+  /* WCAG / Apple HIG ≥ 44px tap target — see apps/web/CLAUDE.md */
+  .filter-chip {
+    min-height: 44px;
+    padding: 12px 14px;
+  }
 }
 
 .page-title {

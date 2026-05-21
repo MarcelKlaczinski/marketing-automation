@@ -784,7 +784,7 @@ export const topicBriefs = pgTable(
 
     approvalRequired: boolean("approval_required").notNull().default(true),
     approvalStatus:   text("approval_status").notNull().default("pending").$type<
-      "pending" | "approved" | "rejected" | "auto_approved" | "superseded" | "routed"
+      "pending" | "plan_pending" | "approved" | "rejected" | "auto_approved" | "superseded" | "routed"
     >(),
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -801,6 +801,10 @@ export const topicBriefs = pgTable(
 
     // Spec 54.12: soft back-link to the cluster created from this brief via Full Cluster flow
     routedClusterId: uuid("routed_cluster_id"),
+
+    // Spec 63.6: audit-trail for plan_pending → routed flip. NULL when the brief
+    // was routed via dispatch='immediate' (no planned_item involved).
+    routedViaPlanItemId: uuid("routed_via_plan_item_id"),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -858,7 +862,7 @@ export const TopicBriefInsertSchema = z
 
     approvalRequired: z.boolean().default(true),
     approvalStatus:   z
-      .enum(["pending", "approved", "rejected", "auto_approved", "superseded", "routed"])
+      .enum(["pending", "plan_pending", "approved", "rejected", "auto_approved", "superseded", "routed"])
       .default("pending"),
     approvedBy: z.string().nullable().optional(),
     approvedAt: z.date().nullable().optional(),

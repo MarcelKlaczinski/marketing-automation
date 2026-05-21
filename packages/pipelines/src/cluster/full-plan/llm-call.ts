@@ -25,20 +25,44 @@ export async function generateClusterPlan(
     "generating cluster plan",
   );
 
+  // Sonnet 4.6 rejects assistant-message prefill — omit jsonMode and extract JSON manually.
   const result = await anthropic.messages({
     projectId: input.projectId,
     operation: COST_OPS.CLUSTER_PLAN_GENERATION,
     model: "claude-sonnet-4-6",
     systemPrefix: systemPrompt,
-    systemSuffix: "",
+    systemSuffix:
+      "Respond with only a valid JSON object. No markdown fences, no prose preamble.",
     userMessage,
     maxTokens: 3000,
-    jsonMode: true,
     estimatedCostEur: 0.40,
     ...(opts?.pipelineRunId !== undefined && { pipelineRunId: opts.pipelineRunId }),
   });
 
-  const parsed = ClusterPlanOutputSchema.safeParse(result.json);
+  const startIdx = result.raw.indexOf("{");
+  const endIdx = result.raw.lastIndexOf("}");
+  let parsedJson: unknown;
+  try {
+    if (startIdx < 0 || endIdx <= startIdx) {
+      throw new SyntaxError("no JSON object braces in cluster-plan response");
+    }
+    parsedJson = JSON.parse(result.raw.slice(startIdx, endIdx + 1));
+  } catch (err) {
+    log.error(
+      {
+        projectId: input.projectId,
+        briefId: input.triggerBrief.id,
+        err: err instanceof Error ? err.message : String(err),
+        rawPrefix: result.raw.slice(0, 400),
+      },
+      "cluster plan JSON parse failed",
+    );
+    throw new Error(
+      `Cluster plan JSON parse failed: ${err instanceof Error ? err.message : "unknown"}`,
+    );
+  }
+
+  const parsed = ClusterPlanOutputSchema.safeParse(parsedJson);
 
   if (!parsed.success) {
     log.error(
@@ -46,7 +70,7 @@ export async function generateClusterPlan(
         projectId: input.projectId,
         briefId: input.triggerBrief.id,
         issues: parsed.error.issues,
-        raw: JSON.stringify(result.json).slice(0, 800),
+        raw: JSON.stringify(parsedJson).slice(0, 800),
       },
       "cluster plan failed Zod validation",
     );

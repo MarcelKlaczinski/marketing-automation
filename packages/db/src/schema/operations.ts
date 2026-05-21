@@ -591,6 +591,13 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   cronEnabled: boolean("cron_enabled").notNull().default(false),
   cronDayOfWeek: integer("cron_day_of_week").notNull().default(0),
   cronHourUtc: integer("cron_hour_utc").notNull().default(18),
+  // Spec 63.3b: weekly cron-trigger for discoverComparisonPairs(). Same shape as
+  // planner cron above. Default Sunday 06:00 UTC — runs ~12h before the planner
+  // cron (default Sunday 18:00 UTC) so freshly-discovered pairs land as pending
+  // briefs in time for the next plan-generation pass.
+  comparisonCronEnabled: boolean("comparison_cron_enabled").notNull().default(false),
+  comparisonCronDayOfWeek: integer("comparison_cron_day_of_week").notNull().default(0),
+  comparisonCronHourUtc: integer("comparison_cron_hour_utc").notNull().default(6),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
