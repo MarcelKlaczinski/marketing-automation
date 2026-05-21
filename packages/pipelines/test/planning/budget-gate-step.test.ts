@@ -21,6 +21,11 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     maxOveragePerSignal: 1,
     signalMaxAgeHours: 24,
     excludedPipelines: [],
+    // Spec 62.7 added these as NOT NULL with defaults — fixture must include them
+    // since the inferred type widened to require them.
+    cronEnabled: false,
+    cronDayOfWeek: 0,
+    cronHourUtc: 18,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

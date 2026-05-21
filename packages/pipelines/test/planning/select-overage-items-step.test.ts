@@ -22,6 +22,10 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     maxOveragePerSignal: 1,
     signalMaxAgeHours: 24,
     excludedPipelines: [],
+    // Spec 62.7 cron-trigger fields — NOT NULL on the schema since the WIP.
+    cronEnabled: false,
+    cronDayOfWeek: 0,
+    cronHourUtc: 18,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
