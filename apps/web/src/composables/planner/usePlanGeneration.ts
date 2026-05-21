@@ -17,6 +17,8 @@ export function usePlanGeneration(): {
     targetYear: number;
     targetIsoWeek: number;
     force?: boolean;
+    /** Spec 62.6.1: run the pipeline in debug mode (pauses after every step). */
+    debug?: boolean;
   }) => Promise<GenerateResult>;
 } {
   const projectStore = useProjectStore();
@@ -27,6 +29,7 @@ export function usePlanGeneration(): {
     targetYear: number;
     targetIsoWeek: number;
     force?: boolean;
+    debug?: boolean;
   }): Promise<GenerateResult> {
     isGenerating.value = true;
     try {
@@ -36,6 +39,7 @@ export function usePlanGeneration(): {
           targetYear: input.targetYear,
           targetIsoWeek: input.targetIsoWeek,
           force: input.force ?? false,
+          debug: input.debug ?? false,
         },
       );
       // Pipeline runs ~1-3s. The list endpoint becomes truthy when PersistPlanStep

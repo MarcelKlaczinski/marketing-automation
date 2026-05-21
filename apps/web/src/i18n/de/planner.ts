@@ -91,7 +91,11 @@ export default {
     title: "Plan für KW {n} / {year} generieren?",
     body: "Die Kosten ergeben sich nach Generierung aus dem Budget-Balken. Pipeline läuft typischerweise 1–3 Sekunden.",
     confirm: "Generieren",
+    confirmDebug: "Debug-Run starten",
     cancel: "Abbrechen",
+    debugToggle: "Debug-Mode (Schritt für Schritt)",
+    debugHint:
+      "Pausiert nach jedem Step. Du kannst Input/Output prüfen, Prompts anpassen oder einzelne Steps neu ausführen. Springt direkt in die Run-Detail-Ansicht.",
   },
   regenerateConfirm: {
     title: "Aktuellen Plan ersetzen?",
@@ -115,6 +119,7 @@ export default {
   // Toasts / errors
   toast: {
     planGenerated: "Plan erstellt",
+    planGeneratedDebug: "Debug-Run gestartet — pausiert nach Step 1",
     planApproved: "Plan freigegeben",
     planCancelled: "Plan abgebrochen",
     itemCancelled: "Item abgebrochen",

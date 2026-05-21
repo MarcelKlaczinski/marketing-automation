@@ -445,13 +445,30 @@ export default defineComponent({
         this.regenerateDialog.busy = false;
       }
     },
-    async onGenerateConfirmed(): Promise<void> {
+    async onGenerateConfirmed(payload?: { debug?: boolean }): Promise<void> {
+      const debug = payload?.debug === true;
       const result = await this.generation.generate({
         targetYear: this.year,
         targetIsoWeek: this.isoWeek,
         force: false,
+        debug,
       });
       if (result.kind === "ok") {
+        // Spec 62.6.1: in debug mode the pipeline pauses after step 1 within
+        // ~1s — deep-link the user straight to the run so they can act.
+        if (debug && result.runId) {
+          const slugParam = this.$route.params.slug;
+          const slug = Array.isArray(slugParam) ? (slugParam[0] ?? "") : (slugParam ?? "");
+          this.notify(
+            this.$t("planner.toast.planGeneratedDebug") as string,
+            "positive",
+          );
+          void this.$router.push({
+            name: "run-detail",
+            params: { slug, runId: result.runId },
+          });
+          return;
+        }
         this.notify(this.$t("planner.toast.planGenerated") as string, "positive");
         return;
       }

@@ -89,7 +89,11 @@ export default {
     title: "Generate plan for week {n} / {year}?",
     body: "Cost is shown by the budget bar after generation. Pipeline typically runs 1–3 seconds.",
     confirm: "Generate",
+    confirmDebug: "Start debug run",
     cancel: "Cancel",
+    debugToggle: "Debug mode (step-by-step)",
+    debugHint:
+      "Pauses after every step. You can inspect input/output, tweak prompts, or re-run individual steps. Jumps straight to the run detail view.",
   },
   regenerateConfirm: {
     title: "Replace existing plan?",
@@ -113,6 +117,7 @@ export default {
   // Toasts / errors
   toast: {
     planGenerated: "Plan generated",
+    planGeneratedDebug: "Debug run started — paused after step 1",
     planApproved: "Plan approved",
     planCancelled: "Plan cancelled",
     itemCancelled: "Item cancelled",

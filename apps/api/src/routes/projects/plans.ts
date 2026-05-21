@@ -67,12 +67,15 @@ planRoutes.post(
     const triggeredBy = c.var.user?.email ?? "system";
 
     try {
+      const debugMode = body.debug === true;
       const result = await triggerWithPreRunId({
         pipelineName: "planning:weekly",
         projectId: proj.id,
         uniqueKey: {
           field: "planKey",
-          value: `${body.targetYear}-${body.targetIsoWeek}`,
+          // Spec 62.6.1: include "-debug" so a debug run does not dedupe against
+          // a previously-active production run for the same week (and vice versa).
+          value: `${body.targetYear}-${body.targetIsoWeek}${debugMode ? "-debug" : ""}`,
         },
         // The Planner itself does no LLM calls — cost is enforced at item-
         // execution time in 62.8. Pre-flight nothing here.
@@ -83,14 +86,16 @@ planRoutes.post(
             targetYear: body.targetYear,
             targetIsoWeek: body.targetIsoWeek,
             force: body.force ?? false,
+            ...(debugMode ? { runMode: "debug" as const } : {}),
           }),
         extraInput: {
-          planKey: `${body.targetYear}-${body.targetIsoWeek}`,
+          planKey: `${body.targetYear}-${body.targetIsoWeek}${debugMode ? "-debug" : ""}`,
           targetYear: body.targetYear,
           targetIsoWeek: body.targetIsoWeek,
           force: body.force ?? false,
           triggeredBy,
         },
+        ...(debugMode ? { runMode: "debug" as const } : {}),
       });
       return triggerResultToResponse(c, result);
     } catch (err) {

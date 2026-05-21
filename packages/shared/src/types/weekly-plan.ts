@@ -150,6 +150,12 @@ export const generatePlanPayloadSchema = z.object({
   targetYear: z.number().int().min(2020).max(2100),
   targetIsoWeek: z.number().int().min(1).max(53),
   force: z.boolean().optional().default(false),
+  /**
+   * Spec 62.6.1: when true, the pipeline runs in `debug` mode — the runner persists
+   * a `step_pauses` row after every `pausableInDebug()` step and the user resolves
+   * each one via the runs UI. Defaults to false (production end-to-end execution).
+   */
+  debug: z.boolean().optional().default(false),
 });
 export type GeneratePlanPayload = z.infer<typeof generatePlanPayloadSchema>;
 

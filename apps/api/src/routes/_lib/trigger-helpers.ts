@@ -28,6 +28,13 @@ export interface TriggerOptions {
   enqueue: (input: any) => Promise<{ jobId: string }>;
   /** Additional fields merged into pipeline_runs.input and the enqueue payload */
   extraInput?: Record<string, unknown>;
+  /**
+   * Spec 62.6.1: optional run-mode override. When set to `"debug"`, the helper
+   * forwards `runMode: "debug"` to the `enqueue` callback via `inputPayload`.
+   * The enqueue wrapper must read it and forward to `enqueuePipeline`. Default
+   * (omitted) is production-mode execution.
+   */
+  runMode?: "production" | "debug";
 }
 
 export type TriggerResult =
@@ -92,6 +99,10 @@ export async function triggerWithPreRunId(opts: TriggerOptions): Promise<Trigger
     projectId: opts.projectId,
     [opts.uniqueKey.field]: opts.uniqueKey.value,
     ...(opts.extraInput ?? {}),
+    // Spec 62.6.1: forward runMode if the route passed one. Pipeline-specific
+    // enqueue wrappers (e.g. enqueuePlanWeekPipeline) read this field off the
+    // payload and forward it to enqueuePipeline so the runner picks it up.
+    ...(opts.runMode !== undefined ? { runMode: opts.runMode } : {}),
   };
 
   await db.insert(pipelineRuns).values({
