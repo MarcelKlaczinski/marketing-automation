@@ -683,6 +683,12 @@ export const plannedItems = pgTable(
 
     slotDate: date("slot_date", { mode: "date" }).notNull(),
 
+    // Spec 62.4-followup Issue 1: nullable. null = pipeline handles both locales
+    // internally (current behaviour for cluster:full-plan and downstream
+    // article:translation auto-trigger). 'de' / 'en' are still used by legacy
+    // sibling_locale rows kept for audit-trail completeness.
+    locale: text("locale").$type<"de" | "en" | null>(),
+
     sourceKind: text("source_kind").notNull().$type<
       "floor" | "overage_signal" | "sibling_locale"
     >(),

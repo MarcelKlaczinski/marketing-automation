@@ -10,7 +10,6 @@
 import type { PipelineStepResolver } from "@marketing-auto/cost-tracker";
 import { Pipeline } from "../engine/pipeline.ts";
 import type { BaseStep } from "../engine/step.ts";
-import { ApplySiblingLocaleStep } from "./steps/apply-sibling-locale.ts";
 import { BudgetGateStep } from "./steps/budget-gate.ts";
 import { DistributeSlotDatesStep } from "./steps/distribute-slot-dates.ts";
 import { EstimateCostStep } from "./steps/estimate-cost.ts";
@@ -19,6 +18,10 @@ import { PersistPlanStep } from "./steps/persist-plan.ts";
 import { RefreshSignalsStep, type RefreshSignalsDeps } from "./steps/refresh-signals.ts";
 import { SelectFloorItemsStep } from "./steps/select-floor-items.ts";
 import { SelectOverageItemsStep } from "./steps/select-overage-items.ts";
+import {
+  SelectSocialPostItemsStep,
+  type SelectSocialPostDeps,
+} from "./steps/select-social-post-items.ts";
 import { SnapshotInputsStep } from "./steps/snapshot-inputs.ts";
 import { ValidateGoalsStep } from "./steps/validate-goals.ts";
 import {
@@ -31,6 +34,7 @@ import {
 export interface PlanWeekPipelineDeps {
   resolvePipelineSteps?: PipelineStepResolver;
   refreshDeps: RefreshSignalsDeps;
+  socialPostDeps?: SelectSocialPostDeps;
 }
 
 export class PlanWeekPipeline extends Pipeline<PlanWeekPipelineInput, PlanWeekPipelineOutput> {
@@ -47,7 +51,7 @@ export class PlanWeekPipeline extends Pipeline<PlanWeekPipelineInput, PlanWeekPi
     const snapshot = new SnapshotInputsStep();
     const selectFloor = new SelectFloorItemsStep();
     const selectOverage = new SelectOverageItemsStep();
-    const applySib = new ApplySiblingLocaleStep();
+    const selectSocial = new SelectSocialPostItemsStep(deps.socialPostDeps);
     const distribute = new DistributeSlotDatesStep();
     const estimate = new EstimateCostStep(deps.resolvePipelineSteps);
     const gate = new BudgetGateStep();
@@ -65,7 +69,7 @@ export class PlanWeekPipeline extends Pipeline<PlanWeekPipelineInput, PlanWeekPi
       snapshot,
       selectFloor,
       selectOverage,
-      applySib,
+      selectSocial,
       distribute,
       estimate,
       gate,

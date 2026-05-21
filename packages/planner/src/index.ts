@@ -50,3 +50,13 @@ export {
   isoWeekEndDate,
   isoWeekStartDate,
 } from "./iso-week.ts";
+
+export {
+  countSuggestionPool,
+  pickFromRefreshSuggestions,
+  pickFromSuggestionPool,
+  type PickFromRefreshSuggestionsInput,
+  type PickFromSuggestionPoolInput,
+  type RefreshPoolCandidate,
+  type SuggestionPoolCandidate,
+} from "./social-source-selectors.ts";

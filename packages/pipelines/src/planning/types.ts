@@ -1,10 +1,10 @@
 // Spec 62.4: shared types for PlanWeekPipeline.
 //
 // `PlanningItemDraft` is the in-memory representation of one planned_item as
-// it flows through the selection / sibling / scheduling / cost steps. It is
-// converted to a NewPlannedItem at PersistPlanStep time. Carrying a draft id
-// (separate from the eventual DB id) lets ApplySiblingLocale link a sibling
-// back to its parent before either row exists in the database.
+// it flows through the selection / scheduling / cost steps. It is converted
+// to a NewPlannedItem at PersistPlanStep time. Carrying a draft id (separate
+// from the eventual DB id) lets SelectSocialPostItemsStep link a social_post
+// child to its parent cluster draft before either row exists in the database.
 
 import { z } from "zod";
 
@@ -26,12 +26,17 @@ export const PIPELINE_NAME_BY_CONTENT_TYPE: Record<PlanningContentType, string> 
 
 /**
  * Used by SnapshotInputsStep → SelectFloorItemsStep → SelectOverageItemsStep →
- * ApplySiblingLocaleStep → DistributeSlotDatesStep → PersistPlanStep. Each
+ * SelectSocialPostItemsStep → DistributeSlotDatesStep → PersistPlanStep. Each
  * step transforms or augments this draft; only PersistPlan converts to
  * `NewPlannedItem`.
+ *
+ * `sibling_locale` source-kind is retained on the type so historical draft/
+ * approved plans still parse cleanly; new plans never emit it (Spec 62.4-
+ * followup Issue 1 — cluster:full-plan + article:translation produce DE+EN
+ * internally).
  */
 export interface PlanningItemDraft {
-  /** Stable in-memory id; becomes parent_item_id for siblings. */
+  /** Stable in-memory id; previously also used as parent_item_id for siblings. */
   draftId: string;
   contentType: PlanningContentType;
   pipelineName: string;
@@ -39,10 +44,14 @@ export interface PlanningItemDraft {
   sourceBriefId: string | null;
   sourceSignalId: string | null;
   parentDraftId: string | null;
-  /** "de" / "en" — drives sibling expansion. null means locale-neutral. */
+  /**
+   * null = pipeline produces both locales internally (current behaviour for
+   * cluster items, post-62.4-followup). "de"/"en" = single-locale planned_item
+   * (comparison, ki_wissen, and legacy sibling_locale rows).
+   */
   locale: "de" | "en" | null;
   pipelineInput: Record<string, unknown>;
-  /** Filled in by DistributeSlotDatesStep. Empty Date until then. */
+  /** Filled in by DistributeSlotDatesStep. null until then. */
   slotDate: Date | null;
   selectionScore: number | null;
   selectionReason: string;

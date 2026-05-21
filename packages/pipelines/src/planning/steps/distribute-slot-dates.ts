@@ -5,9 +5,12 @@
 //   - comparison → Wednesday
 //   - ki_wissen  → Thursday (overflow to Friday)
 //   - social_post → round-robin across all 7 days (up to ~3 per day)
-//   - siblings → parent.slotDate + 1 day, clamped to the same week (overflow
-//     to Saturday/Sunday). Sundays for siblings are allowed; the spec rejected
-//     pushing into next week to keep one plan = one week.
+//
+// Spec 62.4-followup Issue 1 removed the sibling-locale second pass — the
+// cluster:full-plan → article:blog → article:translation chain now produces
+// DE+EN internally, so there is no second planned_item to schedule. Items
+// that arrive here with `sourceKind = 'sibling_locale'` would only originate
+// from legacy callers; they fall through the same primary placement path.
 
 import { addDaysUtc, isoWeekStartDate } from "@marketing-auto/planner";
 import { z } from "zod";
@@ -38,36 +41,22 @@ export class DistributeSlotDatesStep extends BaseStep<Input, Output> {
     const overage =
       ctx.getStepOutput<{ overageItems: PlanningItemDraft[] }>("select-overage-items")
         ?.overageItems ?? [];
-    const siblings =
-      ctx.getStepOutput<{ siblingItems: PlanningItemDraft[] }>("apply-sibling-locale")
-        ?.siblingItems ?? [];
+    const social =
+      ctx.getStepOutput<{ socialItems: PlanningItemDraft[] }>("select-social-post-items")
+        ?.socialItems ?? [];
 
     const weekStart = isoWeekStartDate(input.targetYear, input.targetIsoWeek);
 
     // Round-robin counters keyed by content type.
     const counters: Record<string, number> = { cluster: 0, social_post: 0, ki_wissen: 0 };
 
-    // First pass: place all non-sibling items.
     const placed: PlanningItemDraft[] = [];
-    for (const item of [...floor, ...overage]) {
-      const slotDate = this.placePrimary(item.contentType, counters, weekStart);
+    for (const item of [...floor, ...overage, ...social]) {
+      const slotDate = item.slotDate ?? this.placePrimary(item.contentType, counters, weekStart);
       placed.push({ ...item, slotDate });
     }
 
-    // Second pass: siblings inherit parent.slotDate + 1 day, clamped to Sun.
-    const byDraftId = new Map(placed.map((it) => [it.draftId, it]));
-    const siblingsPlaced: PlanningItemDraft[] = siblings.map((sib) => {
-      const parent = sib.parentDraftId ? byDraftId.get(sib.parentDraftId) : undefined;
-      const baseDate = parent?.slotDate ?? weekStart;
-      const ideal = addDaysUtc(baseDate, 1);
-      // Clamp to the target week (Mon..Sun = 7 days). Spec 62.4 §4.2.7 chose
-      // to push into Sun rather than overflow into the next week.
-      const sunday = addDaysUtc(weekStart, 6);
-      const slotDate = ideal.getTime() > sunday.getTime() ? sunday : ideal;
-      return { ...sib, slotDate };
-    });
-
-    return { distributedItems: [...placed, ...siblingsPlaced] };
+    return { distributedItems: placed };
   }
 
   /**

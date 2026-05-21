@@ -181,4 +181,54 @@ describe("SelectFloorItemsStep", () => {
     expect(items.filter((i) => i.contentType === "cluster")).toHaveLength(1);
     expect(items.filter((i) => i.contentType === "comparison")).toHaveLength(2);
   });
+
+  it("emits cluster items with locale=null (Spec 62.4-followup Issue 1)", async () => {
+    // Pre-Issue-1 the cluster items inherited brief.locale ('de') and
+    // ApplySiblingLocaleStep cloned an EN sibling. Post-fix: locale stays
+    // null because cluster:full-plan → article:blog → article:translation
+    // produces DE+EN internally.
+    const briefs = [
+      brief({ clusterAction: "create_new", locale: "de" }),
+      brief({ clusterAction: "create_new", locale: "en" }),
+    ];
+    const goals = [goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 2 })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{ contentType: string; locale: string | null }>;
+    expect(items).toHaveLength(2);
+    for (const item of items) {
+      expect(item.contentType).toBe("cluster");
+      expect(item.locale).toBeNull();
+    }
+  });
+
+  it("preserves brief.locale for non-cluster content types", async () => {
+    const briefs = [
+      brief({ clusterAction: "comparison", locale: "de" }),
+      brief({ clusterAction: "standalone", intentType: "knowledge", locale: "en" }),
+    ];
+    const goals = [
+      goal({ contentType: "comparison", cadenceUnit: "per_week", minCount: 1 }),
+      goal({ contentType: "ki_wissen", cadenceUnit: "per_week", minCount: 1 }),
+    ];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{ contentType: string; locale: string | null }>;
+    const comp = items.find((i) => i.contentType === "comparison");
+    const ki = items.find((i) => i.contentType === "ki_wissen");
+    expect(comp?.locale).toBe("de");
+    expect(ki?.locale).toBe("en");
+  });
 });

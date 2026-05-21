@@ -276,7 +276,7 @@ describe("PlanWeekPipeline integration", () => {
     expect(r2.error).toMatch(/Active plan already exists/i);
   });
 
-  it("Scenario 6: DE cluster items get an EN sibling item with parent_item_id linked", async () => {
+  it("Scenario 6 (Spec 62.4-followup Issue 1): cluster items emit one planned_item with locale=null — no EN sibling", async () => {
     await seedConfig(projectId, 50);
     await seedGoals(projectId, [
       { contentType: "cluster", cadenceUnit: "per_week", minCount: 1, maxCount: null, isActive: true },
@@ -291,12 +291,15 @@ describe("PlanWeekPipeline integration", () => {
       .from(plannedItems)
       .where(eq(plannedItems.weeklyPlanId, result.output.weeklyPlanId));
 
-    const parent = items.find((i) => i.sourceKind === "floor");
-    const sibling = items.find((i) => i.sourceKind === "sibling_locale");
-    expect(parent).toBeDefined();
-    expect(sibling).toBeDefined();
-    expect(sibling!.parentItemId).toBe(parent!.id);
-    expect(sibling!.pipelineName).toBe("article:translation");
+    const cluster = items.find((i) => i.contentType === "cluster");
+    expect(cluster).toBeDefined();
+    expect(cluster!.sourceKind).toBe("floor");
+    // cluster:full-plan → article:blog → article:translation auto-triggers
+    // the EN sibling internally, so the planner emits one row only.
+    expect(cluster!.pipelineName).toBe("cluster:full-plan");
+    expect(cluster!.locale).toBeNull();
+    expect(cluster!.parentItemId).toBeNull();
+    expect(items.find((i) => i.sourceKind === "sibling_locale")).toBeUndefined();
   });
 
   it("Scenario 7: signal overage — top-N signals produce overage items", async () => {

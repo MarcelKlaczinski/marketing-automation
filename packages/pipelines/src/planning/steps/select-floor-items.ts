@@ -34,13 +34,13 @@ type Output = z.infer<typeof selectFloorOutputSchema>;
 
 /**
  * Match a brief to one of the goal content types. Returns null when the brief
- * doesn't map to any planner-managed type (e.g. translation briefs, which 62.4
- * does not schedule directly — siblings are produced by ApplySiblingLocaleStep
- * instead).
+ * doesn't map to any planner-managed type — e.g. translation briefs, which
+ * never need their own planned_item because the `article:blog` pipeline
+ * auto-triggers `article:translation` via `afterComplete` (Spec 59.2, bidi).
  *
  * Mapping rules (kept deliberately conservative — refine with usage data):
  *   - source='comparison_discovery' OR cluster_action='comparison' → "comparison"
- *   - cluster_action='translation' → null (handled by sibling step)
+ *   - cluster_action='translation' → null (auto-triggered by source pipeline)
  *   - cluster_action='refresh'     → null (refresh briefs go via the refresh pipeline directly)
  *   - intentType='knowledge'/'tutorial' on standalone briefs → "ki_wissen"
  *   - everything else (create_new / append_to_existing / standalone) → "cluster"
@@ -128,7 +128,14 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       const pool = buckets[contentType] ?? [];
       const picked = pool.splice(0, target);
 
+      let pickedIndex = 0;
       for (const brief of picked) {
+        pickedIndex += 1;
+        // Spec 62.4-followup Issue 1: cluster items omit the locale (=null)
+        // because cluster:full-plan → article:blog → article:translation
+        // emits DE+EN internally. Comparison + ki_wissen retain the brief's
+        // own locale; auto-translation propagates the sibling on completion.
+        const itemLocale = contentType === "cluster" ? null : briefLocale(brief);
         floorItems.push({
           draftId: randomUUID(),
           contentType,
@@ -137,11 +144,14 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
           sourceBriefId: brief.id,
           sourceSignalId: null,
           parentDraftId: null,
-          locale: briefLocale(brief),
+          locale: itemLocale,
           pipelineInput: pipelineInputFromBrief(brief, contentType, input.projectId),
           slotDate: null,
           selectionScore: null,
-          selectionReason: `Floor ${contentType} #${picked.indexOf(brief) + 1}/${target}`,
+          // selectionReason carries audit detail (item index / cadence target)
+          // for the detail-page hover tooltip — Card UI shows a friendly label
+          // ("Geplant") instead (Spec 62.4-followup Issue 3).
+          selectionReason: `Floor ${contentType} #${pickedIndex}/${target}`,
           estimatedCostEur: null,
         });
       }

@@ -61,6 +61,9 @@ export class PersistPlanStep extends BaseStep<Input, Output> {
     const floorShortfalls = ctx.getStepOutput<{
       shortfallsByContentType: Record<string, number>;
     }>("select-floor-items")?.shortfallsByContentType;
+    const socialShortfall = ctx.getStepOutput<{ shortfall: number }>(
+      "select-social-post-items",
+    )?.shortfall;
     const perTypeWarnings = ctx.getStepOutput<{
       perTypeWarnings: Array<{ contentType: string; spendEur: number; maxEur: number }>;
     }>("budget-gate")?.perTypeWarnings;
@@ -72,10 +75,17 @@ export class PersistPlanStep extends BaseStep<Input, Output> {
     const weekStart = isoWeekStartDate(input.targetYear, input.targetIsoWeek);
     const weekEnd = isoWeekEndDate(input.targetYear, input.targetIsoWeek);
 
+    // Merge social_post shortfall into the shortfall map so the generation
+    // notes surface it under social_post (Spec 62.4-followup Issue 2).
+    const allShortfalls: Record<string, number> = { ...(floorShortfalls ?? {}) };
+    if (socialShortfall && socialShortfall > 0) {
+      allShortfalls.social_post = (allShortfalls.social_post ?? 0) + socialShortfall;
+    }
+
     const generationNotes = buildGenerationNotes({
       itemCount: items.length,
       bufferedEstimateEur: estimate.bufferedEstimateEur,
-      shortfalls: floorShortfalls ?? {},
+      shortfalls: allShortfalls,
       perTypeWarnings: perTypeWarnings ?? [],
       triggeredBy: input.triggeredBy,
     });
@@ -104,6 +114,10 @@ export class PersistPlanStep extends BaseStep<Input, Output> {
         contentType: it.contentType,
         pipelineName: it.pipelineName,
         slotDate: it.slotDate ?? weekStart,
+        // Spec 62.4-followup Issue 1: locale persisted (nullable). null means
+        // the pipeline produces both locales internally; 'de'/'en' marks an
+        // explicit single-locale planned_item (e.g. comparison, ki_wissen).
+        locale: it.locale,
         sourceKind: it.sourceKind,
         sourceBriefId: it.sourceBriefId,
         sourceSignalId: it.sourceSignalId,

@@ -101,13 +101,13 @@
       <!-- Sibling section -->
       <section v-if="hasSibling" class="detail-section">
         <h2 class="section-title">{{ $t("planner.detail.siblingSection") as string }}</h2>
-        <p v-if="item.parentItemId">
+        <p v-if="parentItem">
           <span class="text-secondary">{{ $t("planner.detail.siblingParent") as string }}:</span>
           <router-link
             class="link-arrow mono"
-            :to="{ name: 'planner-item-detail', params: { itemId: item.parentItemId } }"
+            :to="{ name: 'planner-item-detail', params: { itemId: parentItem.id } }"
           >
-            {{ item.parentItemId }} →
+            {{ parentItem.id }} →
           </router-link>
         </p>
         <ul v-if="childSiblings.length > 0" class="sibling-list">
@@ -264,8 +264,19 @@ export default defineComponent({
         (planStatus === "draft" || planStatus === "approved")
       );
     },
+    parentItem(): PlannedItem | null {
+      // Spec 62.4-followup Issue 1: sibling_locale rows are deleted from
+      // draft/approved plans by migration 0075. Items in still-running plans
+      // can keep a parent_item_id pointing at a deleted row — fall back to
+      // null and skip the sibling section in that case rather than rendering
+      // a dead link.
+      if (!this.item?.parentItemId) return null;
+      return (
+        this.items.find((i: PlannedItem) => i.id === this.item?.parentItemId) ?? null
+      );
+    },
     hasSibling(): boolean {
-      return Boolean(this.item?.parentItemId) || this.childSiblings.length > 0;
+      return Boolean(this.parentItem) || this.childSiblings.length > 0;
     },
     childSiblings(): PlannedItem[] {
       if (!this.item) return [];

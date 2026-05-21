@@ -16,7 +16,6 @@ export {
   type PlanGenerationDetail,
 } from "./errors.ts";
 
-export { ApplySiblingLocaleStep } from "./steps/apply-sibling-locale.ts";
 export { BudgetGateStep } from "./steps/budget-gate.ts";
 export { DistributeSlotDatesStep } from "./steps/distribute-slot-dates.ts";
 export { EstimateCostStep } from "./steps/estimate-cost.ts";
@@ -35,6 +34,10 @@ export {
   SelectOverageItemsStep,
   inferContentTypeFromSignal,
 } from "./steps/select-overage-items.ts";
+export {
+  SelectSocialPostItemsStep,
+  type SelectSocialPostDeps,
+} from "./steps/select-social-post-items.ts";
 export { SnapshotInputsStep } from "./steps/snapshot-inputs.ts";
 export { ValidateGoalsStep } from "./steps/validate-goals.ts";
 

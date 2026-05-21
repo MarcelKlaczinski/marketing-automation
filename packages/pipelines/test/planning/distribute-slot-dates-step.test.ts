@@ -1,4 +1,7 @@
-// Spec 62.4 §6.1: DistributeSlotDatesStep — slot placement heuristics.
+// Spec 62.4 §6.1 + 62.4-followup Issue 1: DistributeSlotDatesStep — slot
+// placement heuristics. Sibling-locale second-pass tests removed because
+// ApplySiblingLocaleStep is gone (the chained cluster → article:translation
+// flow handles DE+EN inside the article pipeline).
 
 import { describe, expect, it } from "bun:test";
 import type { PlanningItemDraft } from "../../src/planning/index.ts";
@@ -39,7 +42,7 @@ describe("DistributeSlotDatesStep", () => {
       getStepOutput: (name) => {
         if (name === "select-floor-items") return { floorItems: floor } as never;
         if (name === "select-overage-items") return { overageItems: [] } as never;
-        if (name === "apply-sibling-locale") return { siblingItems: [] } as never;
+        if (name === "select-social-post-items") return { socialItems: [] } as never;
         return undefined;
       },
     });
@@ -63,7 +66,7 @@ describe("DistributeSlotDatesStep", () => {
       getStepOutput: (name) => {
         if (name === "select-floor-items") return { floorItems: floor } as never;
         if (name === "select-overage-items") return { overageItems: [] } as never;
-        if (name === "apply-sibling-locale") return { siblingItems: [] } as never;
+        if (name === "select-social-post-items") return { socialItems: [] } as never;
         return undefined;
       },
     });
@@ -81,7 +84,7 @@ describe("DistributeSlotDatesStep", () => {
       getStepOutput: (name) => {
         if (name === "select-floor-items") return { floorItems: floor } as never;
         if (name === "select-overage-items") return { overageItems: [] } as never;
-        if (name === "apply-sibling-locale") return { siblingItems: [] } as never;
+        if (name === "select-social-post-items") return { socialItems: [] } as never;
         return undefined;
       },
     });
@@ -91,60 +94,50 @@ describe("DistributeSlotDatesStep", () => {
     expect(dates).toEqual(["2026-05-28", "2026-05-29"]);
   });
 
-  it("places sibling at parent.slotDate + 1 day", async () => {
-    const parent = draft({ contentType: "cluster", locale: "de" });
+  it("distributes social_post items across Mon..Sun rotation", async () => {
+    const socialItems = Array.from({ length: 7 }, () =>
+      draft({ contentType: "social_post", pipelineName: "article:social-image" }),
+    );
     const ctx = makeMockCtx({
       getStepOutput: (name) => {
-        if (name === "select-floor-items") return { floorItems: [parent] } as never;
+        if (name === "select-floor-items") return { floorItems: [] } as never;
         if (name === "select-overage-items") return { overageItems: [] } as never;
-        if (name === "apply-sibling-locale")
-          return {
-            siblingItems: [
-              draft({
-                contentType: "cluster",
-                locale: "en",
-                sourceKind: "sibling_locale",
-                parentDraftId: parent.draftId,
-              }),
-            ],
-          } as never;
+        if (name === "select-social-post-items") return { socialItems } as never;
         return undefined;
       },
     });
     const out = await step.execute({ projectId, targetYear, targetIsoWeek }, ctx);
     const items = out.distributedItems as PlanningItemDraft[];
-    const parentOut = items.find((it) => it.draftId === parent.draftId)!;
-    const siblingOut = items.find((it) => it.sourceKind === "sibling_locale")!;
-    const diffMs =
-      (siblingOut.slotDate as Date).getTime() - (parentOut.slotDate as Date).getTime();
-    expect(diffMs).toBe(86_400_000);
+    const dates = items.map((it) => (it.slotDate as Date).toISOString().slice(0, 10)).sort();
+    expect(dates).toEqual([
+      "2026-05-25",
+      "2026-05-26",
+      "2026-05-27",
+      "2026-05-28",
+      "2026-05-29",
+      "2026-05-30",
+      "2026-05-31",
+    ]);
   });
 
-  it("clamps sibling that would overflow into next week to Sunday", async () => {
-    // Make the parent land on Sunday 2026-05-31 (cluster #7 in Mon..Sun rotation).
-    const parents = Array.from({ length: 7 }, () => draft({ contentType: "cluster", locale: "de" }));
+  it("preserves pre-assigned slotDate from social-source selectors", async () => {
+    // Social items sourced from today's cluster carry the cluster's slot_date
+    // (Spec 62.4-followup Issue 2 §3 — fromTodayPlans). Distribute must not
+    // overwrite a non-null slotDate.
+    const fixed = new Date(Date.UTC(2026, 4, 28)); // 2026-05-28 (Thu)
+    const social = [
+      draft({ contentType: "social_post", pipelineName: "article:social-image", slotDate: fixed }),
+    ];
     const ctx = makeMockCtx({
       getStepOutput: (name) => {
-        if (name === "select-floor-items") return { floorItems: parents } as never;
+        if (name === "select-floor-items") return { floorItems: [] } as never;
         if (name === "select-overage-items") return { overageItems: [] } as never;
-        if (name === "apply-sibling-locale")
-          return {
-            siblingItems: [
-              draft({
-                contentType: "cluster",
-                locale: "en",
-                sourceKind: "sibling_locale",
-                parentDraftId: parents[6]!.draftId,
-              }),
-            ],
-          } as never;
+        if (name === "select-social-post-items") return { socialItems: social } as never;
         return undefined;
       },
     });
     const out = await step.execute({ projectId, targetYear, targetIsoWeek }, ctx);
     const items = out.distributedItems as PlanningItemDraft[];
-    const sibling = items.find((it) => it.sourceKind === "sibling_locale")!;
-    // Sunday parent + 1 day would be next-week Monday → clamped to Sunday.
-    expect((sibling.slotDate as Date).toISOString().slice(0, 10)).toBe("2026-05-31");
+    expect((items[0]!.slotDate as Date).toISOString().slice(0, 10)).toBe("2026-05-28");
   });
 });
