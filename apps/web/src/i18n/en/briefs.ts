@@ -71,6 +71,7 @@ export default {
     trend_discovery: "Trend",
     refresh_detection: "Refresh",
     manual: "Manual",
+    comparison_discovery: "Comparison Discovery",
   },
 
   clusterAction: {
@@ -79,5 +80,12 @@ export default {
     translation: "Translation",
     refresh: "Refresh",
     standalone: "Standalone",
+    comparison: "Comparison",
+  },
+
+  filters: {
+    label: "Source",
+    all: "All",
+    clear: "Clear filter",
   },
 };
