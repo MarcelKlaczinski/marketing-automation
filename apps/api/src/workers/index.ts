@@ -18,6 +18,7 @@ import {
   CompetitorQuestionsPipeline,
   CornerstoneListPipeline,
   GoLiveChecklistPipeline,
+  PlanWeekPipeline,
   RefreshPipeline,
   SchemaExtensionPipeline,
   SocialImagePipeline,
@@ -36,6 +37,8 @@ import {
   startScheduler,
 } from "@marketing-auto/pipelines";
 import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
+import { readAdapterCreds } from "../lib/system-service.ts";
+import { buildSignalFetcherMap } from "../lib/signal-fetcher-map.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
@@ -132,6 +135,18 @@ async function main() {
   pipelineRegistry.register(new TranslationPipeline());
   // Spec 44: Astro repo import pipeline
   pipelineRegistry.register(new RepoImportPipeline());
+  // Spec 62.4: PlanWeekPipeline. Deps captured at registration time:
+  // `resolvePipelineSteps` is built AFTER all real pipelines are registered
+  // so tier-1 cost estimates can find them by name.
+  pipelineRegistry.register(
+    new PlanWeekPipeline({
+      resolvePipelineSteps: (name) => pipelineRegistry.get(name)?.steps,
+      refreshDeps: {
+        fetchers: buildSignalFetcherMap(),
+        readCreds: readAdapterCreds,
+      },
+    }),
+  );
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
   // Register scheduled jobs (temporarily disabled)

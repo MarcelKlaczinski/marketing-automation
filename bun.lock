@@ -299,6 +299,7 @@
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/planner": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
         "bullmq": "^5.21.0",
         "drizzle-orm": "^0.36.0",

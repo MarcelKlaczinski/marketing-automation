@@ -1,5 +1,6 @@
 import {
   boolean,
+  date,
   decimal,
   index,
   integer,
@@ -13,9 +14,10 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { isNull, sql } from "drizzle-orm";
+import type { WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
 import { approvalActionEnum, costServiceEnum, pipelineRunStatusEnum } from "./_enums.ts";
 import { users } from "./auth.ts";
-import { articles, socialPosts } from "./content.ts";
+import { articles, externalSignals, socialPosts, topicBriefs } from "./content.ts";
 import { projects } from "./projects.ts";
 
 export const systemSettings = pgTable("system_settings", {
@@ -576,12 +578,162 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   maxOveragePerSignal: integer("max_overage_per_signal").notNull().default(1),
   // Spec 62.3: per-project staleness threshold for refreshSignalsForProject().
   signalMaxAgeHours: integer("signal_max_age_hours").notNull().default(24),
+  // Spec 62.4: pipeline names the planner refuses to schedule. Defaulted via DB
+  // (see migration 0074) so existing rows pick up the pagespeed exclusions.
+  excludedPipelines: jsonb("excluded_pipelines")
+    .$type<string[]>()
+    .notNull()
+    .default(["article:pagespeed-validation", "article:pagespeed-api-validation"]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type ProjectPlannerConfig = typeof projectPlannerConfig.$inferSelect;
 export type NewProjectPlannerConfig = typeof projectPlannerConfig.$inferInsert;
+
+// Spec 62.4: PlanWeekPipeline output. One row per (project, year, iso_week)
+// active plan; re-generation supersedes the prior via the partial unique index
+// `weekly_plans_one_active_per_week`. Status lifecycle:
+//   draft → approved → running → completed | partially_failed | cancelled
+//                     ↘ superseded (when re-generated)
+// CHECK constraints declared in migration 0074 (62.0a Lesson D12 — text+CHECK
+// rather than pgEnum). The Drizzle `$type<>()` casts must stay in sync with the
+// SQL CHECK list — see `WEEKLY_PLAN_STATUSES` in shared/types/weekly-plan.ts.
+export const weeklyPlans = pgTable(
+  "weekly_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+
+    year: integer("year").notNull(),
+    isoWeek: integer("iso_week").notNull(),
+    weekStartDate: date("week_start_date", { mode: "date" }).notNull(),
+    weekEndDate: date("week_end_date", { mode: "date" }).notNull(),
+
+    status: text("status")
+      .notNull()
+      .default("draft")
+      .$type<
+        | "draft"
+        | "approved"
+        | "running"
+        | "completed"
+        | "partially_failed"
+        | "cancelled"
+        | "superseded"
+      >(),
+    triggeredAt: timestamp("triggered_at", { withTimezone: true }).notNull().defaultNow(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedBy: text("approved_by"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+    // Self-reference set via raw SQL in migration 0074 — Drizzle doesn't need
+    // the explicit .references() for self-FKs; the column is plain uuid here.
+    supersededBy: uuid("superseded_by"),
+
+    estimatedCostEur: numeric("estimated_cost_eur", { precision: 10, scale: 2 })
+      .$type<string>()
+      .notNull(),
+    actualCostEur: numeric("actual_cost_eur", { precision: 10, scale: 2 }).$type<string>(),
+
+    inputSnapshot: jsonb("input_snapshot")
+      .$type<WeeklyPlanInputSnapshot>()
+      .notNull(),
+    generationNotes: text("generation_notes"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Partial unique: at most one active plan per (project, year, week).
+    oneActivePerWeek: uniqueIndex("weekly_plans_one_active_per_week")
+      .on(t.projectId, t.year, t.isoWeek)
+      .where(sql`${t.status} NOT IN ('superseded', 'cancelled')`),
+    statusIdx: index("weekly_plans_status_idx").on(
+      t.projectId,
+      t.status,
+      sql`${t.weekStartDate} DESC`,
+    ),
+  }),
+);
+
+export type WeeklyPlan = typeof weeklyPlans.$inferSelect;
+export type NewWeeklyPlan = typeof weeklyPlans.$inferInsert;
+
+// Spec 62.4: per-day work units inside a weekly_plans row. status='pending'
+// at insert time; 62.8 advances through enqueued/in_progress/completed/failed.
+// `pipeline_run_id` has NO DB-level FK to pipeline_runs — `pipeline_runs` lives
+// in this file, but adding a circular FK back from a content-adjacent table is
+// not worth the migration churn. The app layer reconciles.
+export const plannedItems = pgTable(
+  "planned_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    weeklyPlanId: uuid("weekly_plan_id")
+      .notNull()
+      .references(() => weeklyPlans.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+
+    contentType: text("content_type").notNull(),
+    pipelineName: text("pipeline_name").notNull(),
+
+    slotDate: date("slot_date", { mode: "date" }).notNull(),
+
+    sourceKind: text("source_kind").notNull().$type<
+      "floor" | "overage_signal" | "sibling_locale"
+    >(),
+    sourceBriefId: uuid("source_brief_id").references(() => topicBriefs.id, {
+      onDelete: "set null",
+    }),
+    sourceSignalId: uuid("source_signal_id").references(() => externalSignals.id, {
+      onDelete: "set null",
+    }),
+    // Self-FK set in migration 0074 — same treatment as supersededBy.
+    parentItemId: uuid("parent_item_id"),
+
+    pipelineInput: jsonb("pipeline_input").$type<Record<string, unknown>>().notNull(),
+
+    estimatedCostEur: numeric("estimated_cost_eur", { precision: 10, scale: 6 })
+      .$type<string>()
+      .notNull(),
+    actualCostEur: numeric("actual_cost_eur", { precision: 10, scale: 6 }).$type<string>(),
+
+    selectionScore: numeric("selection_score", { precision: 5, scale: 4 }).$type<string>(),
+    selectionReason: text("selection_reason"),
+
+    status: text("status")
+      .notNull()
+      .default("pending")
+      .$type<
+        | "pending"
+        | "enqueued"
+        | "in_progress"
+        | "completed"
+        | "failed"
+        | "skipped"
+        | "cancelled"
+      >(),
+    pipelineRunId: uuid("pipeline_run_id"),
+    failureReason: text("failure_reason"),
+
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    planIdx: index("planned_items_plan_idx").on(t.weeklyPlanId, t.slotDate, t.contentType),
+    statusIdx: index("planned_items_status_idx").on(t.projectId, t.status, t.slotDate),
+    pipelineRunIdx: index("planned_items_pipeline_run_idx")
+      .on(t.pipelineRunId)
+      .where(sql`${t.pipelineRunId} IS NOT NULL`),
+  }),
+);
+
+export type PlannedItem = typeof plannedItems.$inferSelect;
+export type NewPlannedItem = typeof plannedItems.$inferInsert;
 
 export const approvals = pgTable(
   "approvals",

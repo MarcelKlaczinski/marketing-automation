@@ -41,6 +41,7 @@ import { scopedPipelineRunsRoutes } from "./routes/projects/pipeline-runs.ts";
 import { articleStandaloneRoutes } from "./routes/projects/articles-standalone.ts";
 import { promptVersionsRoutes } from "./routes/prompt-versions.ts";
 import { projectGoalsRoutes } from "./routes/project-goals.ts";
+import { planRoutes } from "./routes/projects/plans.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -120,6 +121,7 @@ app.route("/api/projects", projectRefreshRoutes);
 app.route("/api/projects", templateOverrideRoutes);
 app.route("/api/projects", signalSourcesRoutes);
 app.route("/api/projects", signalsRefreshRoutes);
+app.route("/api/projects", planRoutes);
 app.route("/api/projects", comparisonDiscoveryRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));

@@ -27,3 +27,26 @@ export {
   type ComparisonDiscoveryResult,
   type DiscoverComparisonPairsInput,
 } from "./comparison-discovery.ts";
+
+export {
+  loadPendingTopicBriefs,
+  PLANNER_HANDLED_SOURCES,
+  type LoadPendingTopicBriefsInput,
+  type PlannerHandledSource,
+} from "./load-topic-briefs.ts";
+
+export {
+  computeSignalTopN,
+  mergeAndTopN,
+  normalizePerSource,
+  rawScoreFor,
+  type ComputeSignalTopNInput,
+  type SignalTopNRow,
+} from "./signal-top-n.ts";
+
+export {
+  addDaysUtc,
+  getIsoWeek,
+  isoWeekEndDate,
+  isoWeekStartDate,
+} from "./iso-week.ts";

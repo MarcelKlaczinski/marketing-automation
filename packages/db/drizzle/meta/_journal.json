@@ -519,6 +519,13 @@
       "when": 1785100000000,
       "tag": "0073_topic_briefs_comparison_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1785200000000,
+      "tag": "0074_weekly_plans_and_items",
+      "breakpoints": true
     }
   ]
 }
