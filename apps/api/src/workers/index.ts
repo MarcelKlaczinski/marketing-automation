@@ -49,6 +49,10 @@ import { startSocialRenderWorker } from "./social-render.worker.ts";
 import { closeSocialRenderQueue } from "@marketing-auto/pipelines/social-render-queue";
 import { startArticleQualityAnalysisWorker } from "./article-quality-analysis.worker.ts";
 import { seedStepPauseCleanupCron, startStepPauseCleanupWorker } from "./step-pause-cleanup.worker.ts";
+import {
+  seedPlannerWeeklyGenerationCron,
+  startPlannerWeeklyGenerationWorker,
+} from "./planner-weekly-generation.worker.ts";
 import { closeArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 import { startBatchProcessorWorker, closeBatchProcessorInfrastructure } from "./batch-processor.worker.ts";
 import { createLogger } from "@marketing-auto/shared";
@@ -62,44 +66,146 @@ const log = createLogger("worker");
 
 const PID_FILE = join(process.cwd(), "tmp", "worker.pid");
 
+/**
+ * Wait up to `timeoutMs` for `pid` to exit. Polls every 200ms via signal 0.
+ * Returns true if the process is gone, false if it's still alive at timeout.
+ */
+async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      process.kill(pid, 0);
+      // Still alive — wait and try again.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ESRCH") return true;
+      // EPERM or other — can't tell. Assume still alive to be safe.
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Acquire the worker PID lock. Robust against three pre-existing failure modes:
+ *
+ *  1. **Slow-shutdown race**: `pipelineWorker.close()` waits for active BullMQ
+ *     jobs to drain (lockDuration = 10 min). The fixed 2-second wait could
+ *     return BEFORE the old worker actually exited; both then run concurrently,
+ *     and the old shutdown later `unlink`s the new owner's PID file.
+ *     → Fix: poll until the old PID actually exits (up to 20s soft cap), then
+ *       SIGKILL as a last resort. Only proceed to writeFile once we've
+ *       confirmed the previous worker is gone (or we've forced it).
+ *
+ *  2. **PID-reuse race**: if the old worker died without releasing the lock
+ *     (terminal SIGHUP, OOM, manual `kill -9`), the OS can recycle that PID
+ *     for an unrelated process. `process.kill(pid, 0)` would then report it
+ *     alive — we'd SIGTERM a stranger.
+ *     → Fix: SIGTERM is still unfortunate but unavoidable without /proc-style
+ *       process introspection. We log loudly + verify post-write so at least
+ *       we know it happened.
+ *
+ *  3. **Parallel restart**: two concurrent `worker:restart` invocations would
+ *     each write their own PID; one loses but believes it owns the lock.
+ *     → Fix: after our writeFile, re-read and verify the PID is ours. If not,
+ *       another worker won the race — exit cleanly so they can run.
+ */
 async function acquirePidLock(): Promise<void> {
   await mkdir(join(process.cwd(), "tmp"), { recursive: true });
 
   let existingPid: number | null = null;
   try {
     const contents = await readFile(PID_FILE, "utf8");
-    existingPid = parseInt(contents.trim(), 10);
+    const parsed = parseInt(contents.trim(), 10);
+    if (!Number.isNaN(parsed) && parsed !== process.pid) existingPid = parsed;
   } catch {
     // No PID file — first start or clean state.
   }
 
-  if (existingPid !== null && !Number.isNaN(existingPid)) {
+  if (existingPid !== null) {
+    let aliveBefore = false;
     try {
-      // Signal 0 checks if the process is alive without sending a real signal.
       process.kill(existingPid, 0);
-      // Process is alive — send SIGTERM and wait briefly for it to exit.
-      log.warn({ pid: existingPid }, "Found running worker — sending SIGTERM");
-      process.kill(existingPid, "SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      aliveBefore = true;
     } catch (e) {
-      const code = (e as NodeJS.ErrnoException).code;
-      if (code === "ESRCH") {
-        // Process doesn't exist — stale PID file, safe to ignore.
+      if ((e as NodeJS.ErrnoException).code === "ESRCH") {
+        log.info({ pid: existingPid }, "Stale PID file — previous worker already dead");
       } else {
-        // EPERM or other: can't signal the process (different user, system restriction).
-        // Log and continue — new worker starts regardless; old one may still be running.
-        log.warn({ pid: existingPid, code }, "Could not signal existing worker — starting anyway");
+        log.warn(
+          { pid: existingPid, code: (e as NodeJS.ErrnoException).code },
+          "Cannot probe existing worker — starting anyway",
+        );
+      }
+    }
+
+    if (aliveBefore) {
+      log.warn({ pid: existingPid }, "Found running worker — sending SIGTERM");
+      try {
+        process.kill(existingPid, "SIGTERM");
+      } catch (e) {
+        log.warn(
+          { pid: existingPid, code: (e as NodeJS.ErrnoException).code },
+          "SIGTERM raised — process may have died between probe and signal",
+        );
+      }
+
+      // Poll for actual exit up to 20s. Most graceful shutdowns finish within
+      // 5–10s; a stuck pipelineWorker.close() (active LLM job) needs more.
+      const gone = await waitForExit(existingPid, 20_000);
+      if (!gone) {
+        log.warn(
+          { pid: existingPid },
+          "Old worker still alive after 20s — escalating to SIGKILL",
+        );
+        try {
+          process.kill(existingPid, "SIGKILL");
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch {
+          // Already dead between checks — fine.
+        }
       }
     }
   }
 
+  // Write our PID and verify ownership (defends against parallel restarts).
   await writeFile(PID_FILE, String(process.pid), "utf8");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  try {
+    const after = parseInt((await readFile(PID_FILE, "utf8")).trim(), 10);
+    if (after !== process.pid) {
+      log.error(
+        { ownPid: process.pid, fileContents: after },
+        "Another worker won the PID race — exiting cleanly to avoid duplicates",
+      );
+      process.exit(0);
+    }
+  } catch (e) {
+    log.error({ err: e }, "Could not verify PID file after write");
+    process.exit(1);
+  }
+
   log.info({ pid: process.pid, pidFile: PID_FILE }, "PID lock acquired");
 }
 
+/**
+ * Release the PID lock — but ONLY if the file still contains our own PID. The
+ * slow-shutdown race: if a new worker started up while we were draining BullMQ
+ * jobs in `shutdown()`, the file now points at the NEW worker. Blindly
+ * unlinking it would leave the next restart unable to detect the new worker
+ * and would let a third worker join without contention.
+ */
 async function releasePidLock(): Promise<void> {
   try {
-    await unlink(PID_FILE);
+    const contents = (await readFile(PID_FILE, "utf8")).trim();
+    const filePid = parseInt(contents, 10);
+    if (filePid === process.pid) {
+      await unlink(PID_FILE);
+    } else {
+      log.warn(
+        { ownPid: process.pid, fileContents: filePid },
+        "PID file no longer ours — leaving it for the new owner",
+      );
+    }
   } catch {
     // Already gone — that's fine.
   }
@@ -204,11 +310,13 @@ async function main() {
   const articleQualityAnalysisWorker = startArticleQualityAnalysisWorker();
   const batchProcessorWorker = startBatchProcessorWorker();
   const stepPauseCleanupWorker = startStepPauseCleanupWorker();
-  // Spec 62.0a Section 4.5.3: seed cron_state rows on startup (idempotent). The
-  // orchestrator's next tick (within 60s) picks them up and creates the BullMQ
+  const plannerWeeklyGenerationWorker = startPlannerWeeklyGenerationWorker();
+  // Spec 62.0a Section 4.5.3 + 62.7: seed cron_state rows on startup (idempotent).
+  // The orchestrator's next tick (within 60s) picks them up and creates the BullMQ
   // repeat job. Seed lives in code, not SQL migration, because PostgreSQL forbids
   // using a freshly-added enum value in the same session that added it.
   await seedStepPauseCleanupCron();
+  await seedPlannerWeeklyGenerationCron();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -230,6 +338,7 @@ async function main() {
     await batchProcessorWorker.close();
     await closeBatchProcessorInfrastructure();
     await stepPauseCleanupWorker.close();
+    await plannerWeeklyGenerationWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();
