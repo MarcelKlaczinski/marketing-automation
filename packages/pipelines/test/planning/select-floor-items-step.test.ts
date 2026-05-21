@@ -208,6 +208,33 @@ describe("SelectFloorItemsStep", () => {
     }
   });
 
+  it("skips social_post goals — handled by SelectSocialPostItemsStep (Theme 62 follow-up)", async () => {
+    // Pre-fix: SelectFloorItemsStep iterated every goal including social_post.
+    // Since briefs never map to "social_post" (matchBriefToContentType has no
+    // such branch), the social bucket was always empty and the step reported
+    // a false-positive shortfall — even when the dedicated SelectSocialPostItemsStep
+    // had filled the cadence elsewhere. Confirm the skip:
+    const briefs = [
+      brief({ clusterAction: "create_new" }),
+      brief({ clusterAction: "create_new" }),
+    ];
+    const goals = [
+      goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1 }),
+      goal({ contentType: "social_post", cadenceUnit: "per_day", minCount: 3 }),
+    ];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{ contentType: string }>;
+    expect(items.filter((i) => i.contentType === "social_post")).toHaveLength(0);
+    expect(out.shortfallsByContentType.social_post).toBeUndefined();
+  });
+
   it("preserves brief.locale for non-cluster content types", async () => {
     const briefs = [
       brief({ clusterAction: "comparison", locale: "de" }),

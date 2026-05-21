@@ -109,6 +109,11 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
     const shortfalls: Record<string, number> = {};
 
     for (const goal of goals.filter((g) => g.isActive && g.minCount > 0)) {
+      // social_post goals are owned by SelectSocialPostItemsStep (Spec
+      // 62.4-followup Issue 2). No topic_brief shape produces social_post,
+      // so iterating here would always report a false-positive shortfall
+      // even when the dedicated selector filled the cadence.
+      if (goal.contentType === "social_post") continue;
       // `goal.contentType` is `string` at the DB layer (column is plain text
       // with a JSON-Zod validator at insert time). Validate at runtime once
       // per goal so the rest of the loop can use the narrowed type without
