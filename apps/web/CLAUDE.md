@@ -57,6 +57,14 @@ Delays: 0/45/90/135/180/215/245ms. Keep delays short — 30-80ms per item is the
 - 4xx (including 401) are NOT auto-handled — the call site or route guard handles them.
 - **DO NOT call `await apiPost(...)` and drop the response** for endpoints that return per-source / per-item operation status (refresh results, batch runs, anything with a `sourceResults` / `items` array). The user has no other channel to see whether the operation skipped, deduped, or partially failed. Capture `const result = await apiPost<T>(...)`, store it in a composable ref, and render it. Caught when "Signals abrufen" appeared to do nothing — the backend was returning `status: "fresh"` per source (staleness gate), but the frontend discarded the response so the user saw only a spinner toggling. See [useTrendsList.ts](src/composables/useTrendsList.ts) `triggerCollect` + `lastRefreshResult` for the canonical pattern.
 
+## Scroll context (Spec 62.6 follow-up)
+
+`.app-main` in [AppShell.vue](src/components/layout/AppShell.vue) owns the single scroll context for the entire app (`overflow-y: auto`). Topbar and sidebar stay sticky via the grid layout. **Pages flow naturally inside main — do NOT set `overflow-y: auto` or `height: 100%` on the page root**, that produces per-page scroll contexts with broken tab-focus, broken anchor jumps, and uneven scroll-position behaviour across routes.
+
+Exception: DashboardPage uses `height: 100%` on its own grid because it has a *fixed* two-column grid where each panel scrolls independently. That's a deliberate Layout — don't copy the pattern without thinking.
+
+Pages with content that exceeds the viewport just need a sensible `padding-bottom` so the last interactive element isn't hard against the viewport edge (StepCard's action bar is the canonical example — `padding-bottom: var(--space-7)` ≈ 48px).
+
 ## Screen Inventory (Phase 4)
 Routes defined in `src/router/routes.ts`:
 1. `/`               — Home / dashboard

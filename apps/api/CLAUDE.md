@@ -93,17 +93,25 @@ bun --filter @marketing-auto/api run worker:restart
 
 Der Worker schreibt beim Start seine PID in `tmp/worker.pid` (Projektroot).
 Bei jedem Start wird geprüft, ob ein Prozess mit der gespeicherten PID noch läuft — falls ja,
-wird ihm SIGTERM gesendet und 2s gewartet, bevor der neue Worker die Queue übernimmt.
+wird ihm SIGTERM gesendet und **bis zu 20s mit 200ms-Polling gewartet** bis er tatsächlich
+exit'et (signal 0 returns ESRCH). Falls nach 20s noch lebt → SIGKILL.
 
 - `tmp/worker.pid` ist in `.gitignore` — kein Commit nötig
 - `pkill` ist **nicht mehr nötig** — `worker:restart` startet einfach einen neuen Worker, der
   den alten automatisch ablöst
 - Stale PID-Datei (Prozess tot) wird beim nächsten Start stillschweigend ignoriert
+- `releasePidLock()` **liest erst, löscht nur wenn die PID-Datei noch unsere eigene PID enthält** — sonst hat ein neuer Worker bereits übernommen und wir würden seinen Lock kapern
+- Nach dem `writeFile(PID_FILE, ownPid)` verifiziert der Worker per re-read dass seine PID wirklich drin steht — falls ein paralleler Restart gewonnen hat: `process.exit(0)` clean
+
+**Diagnostik bei "worker:restart wirkt nicht"**: `bun --filter @marketing-auto/api worker:status` —
+zeigt PID-File-Inhalt, Process-Liveness, Redis-Connectivity und BullMQ-Queue-Counts (active/waiting/delayed).
 
 **BullMQ `lockDuration`**: Auf 10 Minuten gesetzt (default: 30s). LLM-Jobs dauern bis zu 15 min.
 Würde der Lock ablaufen, könnte BullMQ den Job als "stalled" markieren und einem anderen Worker
 geben — was doppelte API-Kosten verursachen würde. `maxStalledCount: 0` deaktiviert Auto-Retry
-bei Stalls zusätzlich.
+bei Stalls zusätzlich. **Konsequenz für worker:restart**: `pipelineWorker.close()` im alten
+Worker wartet bis aktive Jobs draining sind — kann bis zu `lockDuration` dauern. Deshalb das
+20s-Polling statt fixem Sleep (Spec 62.6-followup fix `1cfe5bd`).
 
 ## Tests
 - Run with `bun --filter @marketing-auto/api test`. The script `cd`s to repo root before invoking `bun test` so `.env` auto-loads — `server.ts` calls `getEnv()` at import, which would fail without it. Same recursion gotcha as `packages/db` / `packages/core`: don't run `bun run test` from inside the package.
