@@ -103,8 +103,14 @@ export function useWeeklyPlan(input: UseWeeklyPlanInput): {
   );
   const items = computed<PlannedItem[]>(() => planDetailQuery.data.value?.items ?? []);
   const config = computed<PlannerConfigResponse | null>(() => configQuery.data.value ?? null);
+  // Only consider planDetailQuery loading when it is actually enabled (i.e. an
+  // active plan id exists). With TanStack Query v5, a disabled query keeps
+  // `isPending === true` forever, which would otherwise pin the spinner on a
+  // freshly-wiped DB (no plans → enabled=false → empty state never shows).
   const isPending = computed<boolean>(
-    () => plansListQuery.isPending.value || planDetailQuery.isPending.value,
+    () =>
+      plansListQuery.isPending.value ||
+      (activePlanFromList.value?.id !== undefined && planDetailQuery.isPending.value),
   );
 
   async function refetch(): Promise<void> {
