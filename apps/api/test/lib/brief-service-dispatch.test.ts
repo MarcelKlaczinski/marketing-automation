@@ -160,4 +160,57 @@ describe("brief-service approveBrief dispatch (Spec 63.6)", () => {
     );
     expect(result).toEqual({ kind: "skipped", reason: "not_found_or_not_pending" });
   });
+
+  // 63.6-followup: comparison-discovery briefs are standalone (clusterId: null,
+  // clusterAction: "comparison"). Plan-dispatch must let them through; immediate
+  // still requires a cluster (executeDecision INSERTs the article row).
+  it("dispatch='plan' on comparison_discovery brief without cluster flips to plan_pending", async () => {
+    const brief = await insertPendingBrief({
+      source: "comparison_discovery",
+      clusterAction: "comparison",
+      clusterId: null,
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+
+    expect(result).toEqual({ kind: "plan_queued" });
+
+    const [reloaded] = await db
+      .select()
+      .from(topicBriefs)
+      .where(eq(topicBriefs.id, brief.id))
+      .limit(1);
+    expect(reloaded?.approvalStatus).toBe("plan_pending");
+  });
+
+  it("dispatch='immediate' on comparison_discovery brief without cluster still fails", async () => {
+    const brief = await insertPendingBrief({
+      source: "comparison_discovery",
+      clusterAction: "comparison",
+      clusterId: null,
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "immediate");
+
+    expect(result).toEqual({ kind: "cluster_assignment_required" });
+
+    const [reloaded] = await db
+      .select()
+      .from(topicBriefs)
+      .where(eq(topicBriefs.id, brief.id))
+      .limit(1);
+    expect(reloaded?.approvalStatus).toBe("pending");
+  });
+
+  it("dispatch='plan' on non-comparison brief without cluster still fails (regression)", async () => {
+    const brief = await insertPendingBrief({
+      source: "trend_discovery",
+      clusterAction: "create_new",
+      clusterId: null,
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+
+    expect(result).toEqual({ kind: "cluster_assignment_required" });
+  });
 });

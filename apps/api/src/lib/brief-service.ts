@@ -57,15 +57,25 @@ export async function approveBrief(
     return { kind: "skipped", reason: "not_found_or_not_pending" };
   }
 
-  // create_new briefs require Cluster Creator flow first — applies to both dispatch modes.
-  if (brief.clusterAction === "create_new" || !brief.clusterId) {
-    return { kind: "cluster_assignment_required" };
-  }
+  // Comparison-discovery briefs are intentionally standalone
+  // (clusterId: null, clusterAction: "comparison"). Cross-linking in Astro
+  // happens via `toolSlugs`, not via cluster membership, so plan-dispatch can
+  // route them straight through to the Planner without a parent cluster.
+  // Immediate-dispatch still requires a cluster because `executeDecision`
+  // INSERTs an article row that downstream pipelines join against.
+  const isComparisonDiscovery = brief.source === "comparison_discovery";
 
   if (dispatch === "plan") {
+    if (!isComparisonDiscovery && (brief.clusterAction === "create_new" || !brief.clusterId)) {
+      return { kind: "cluster_assignment_required" };
+    }
     return await markBriefPlanPending(briefId, project.id);
   }
 
+  // Immediate-dispatch branch — strict cluster gate for all sources.
+  if (brief.clusterAction === "create_new" || !brief.clusterId) {
+    return { kind: "cluster_assignment_required" };
+  }
   return await approveBriefAndEnqueueImmediate(brief, project);
 }
 
