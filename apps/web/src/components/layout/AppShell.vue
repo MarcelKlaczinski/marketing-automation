@@ -131,11 +131,24 @@ export default defineComponent({
   grid-area: sidebar;
 }
 
-/* === Main (row 2, col 2) === */
+/* === Main (row 2, col 2) ===
+   Single scroll-context for the entire app. Pages flow naturally inside
+   without needing their own `overflow-y: auto` — keyboard focus follows
+   the native browser scroll, links + anchors work end-to-end, and the
+   command palette / dialogs sit on top via fixed positioning. */
 .app-main {
   grid-area: main;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
+  /* Smooth scroll for in-page anchor jumps; respects prefers-reduced-motion. */
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-main {
+    scroll-behavior: auto;
+  }
 }
 
 /* === Mobile overrides (< 768px) === */

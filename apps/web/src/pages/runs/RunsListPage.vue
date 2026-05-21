@@ -192,11 +192,7 @@ export default defineComponent({
   gap: var(--space-5);
   padding: var(--space-5);
   max-width: 1080px;
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
   margin: 0 auto;
-  width: 100%;
   padding-bottom: var(--space-7, 48px);
 }
 

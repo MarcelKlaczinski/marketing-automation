@@ -140,16 +140,8 @@ export default defineComponent({
   gap: var(--space-5);
   padding: var(--space-5);
   max-width: 1080px;
-  /* Spec 62.6 — `.app-main` is overflow:hidden, so the page itself must own
-     its scroll context. Centered max-width happens inside the scroll viewport,
-     not via margin:auto on the root. */
-  height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
   margin: 0 auto;
-  width: 100%;
-  /* Reserve room at the bottom so an expanded StepCard's last action button
-     isn't hard against the page edge. */
+  /* `.app-main` owns the scroll context — pages flow naturally inside it. */
   padding-bottom: var(--space-7, 48px);
 }
 
