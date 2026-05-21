@@ -589,6 +589,13 @@
       "when": 1786100000000,
       "tag": "0083_trend_synth_cron_config",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1786200000000,
+      "tag": "0084_topic_briefs_open_per_gap_widen",
+      "breakpoints": true
     }
   ]
 }
