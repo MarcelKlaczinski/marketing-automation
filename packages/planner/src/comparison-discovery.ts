@@ -290,10 +290,28 @@ function uniqueSlugSet(aggs: PairAggregate[]): string[] {
 
 async function loadToolInfo(projectId: string, slugs: string[]): Promise<Map<string, ToolInfo>> {
   if (slugs.length === 0) return new Map();
+  // Spec 63.3b lookup order (post-investigation 2026-05-21):
+  //   1. `articles.subcategory` — 13-bucket editorial taxonomy from Astro toolwiki
+  //                                (chatbots-assistants / code-assistants / image-generation /
+  //                                etc.); matches the discovery's "vergleichbare Paare" intent
+  //                                1:1 with each bucket holding ≥3 tools.
+  //   2. `articles.category`    — 7-bucket top-level taxonomy (text-language / business-
+  //                                productivity / images-graphics / ...); too coarse to drive
+  //                                comparison bonuses on its own (Translation + Research +
+  //                                Chatbots all collapse to text-language) but a valid
+  //                                fallback when subcategory is missing.
+  //   3. `frontmatterExtras.primaryCategory` — legacy fallback for very old rows imported
+  //                                before the Spec 54.8 column-promotion.
+  // Both `category` and `subcategory` are dedicated text columns on `articles` (promoted
+  // in Spec 54.8). They are NOT in `frontmatterExtras` — the astro-sync upsert lifts them
+  // out into top-level columns before persisting. Earlier 63.3b code read frontmatterExtras
+  // which silently returned `undefined` for every row.
   const rows = await db
     .select({
       slug: articles.slug,
       title: articles.title,
+      category: articles.category,
+      subcategory: articles.subcategory,
       frontmatterExtras: articles.frontmatterExtras,
     })
     .from(articles)
@@ -308,11 +326,11 @@ async function loadToolInfo(projectId: string, slugs: string[]): Promise<Map<str
   for (const row of rows) {
     const fx = (row.frontmatterExtras ?? {}) as Record<string, unknown>;
     const category =
-      typeof fx["category"] === "string" && fx["category"].length > 0
-        ? fx["category"]
-        : typeof fx["primaryCategory"] === "string" && fx["primaryCategory"].length > 0
-          ? fx["primaryCategory"]
-          : null;
+      (row.subcategory && row.subcategory.length > 0 ? row.subcategory : null) ??
+      (row.category && row.category.length > 0 ? row.category : null) ??
+      (typeof fx["primaryCategory"] === "string" && fx["primaryCategory"].length > 0
+        ? fx["primaryCategory"]
+        : null);
     map.set(row.slug, { slug: row.slug, name: row.title ?? row.slug, category });
   }
   return map;

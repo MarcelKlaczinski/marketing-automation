@@ -67,4 +67,6 @@ apps/api/uploads/
 # Spec 63.3b — comparison-discovery score-tuning + tool-category audit.
 /apps/api/src/scripts/run-comparison-discovery.ts
 /apps/api/src/scripts/check-tool-categories.ts
+/apps/api/src/scripts/check-tool-columns.ts
 /apps/api/src/scripts/dump-app-categories.ts
+/apps/api/src/scripts/dump-fx.ts
