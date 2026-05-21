@@ -53,6 +53,8 @@ import {
 
 **`pickFromSuggestionPool({ projectId, limit, excludeArticleIds?, recentRenderCutoff? })`** — selects published `locale='de'` articles whose latest `template_renders.created_at` is older than `recentRenderCutoff` (default: 14 days ago). The `NOT EXISTS (SELECT 1 FROM template_renders WHERE article_id = ... AND created_at > $cutoff)` subquery is built via Drizzle's `sql` template (Drizzle's `inArray`-style helpers don't compose inside a correlated subquery). `excludeArticleIds` uses `sql.join(ids.map(id => sql\`${id}\`), sql\`, \`)` to parametrise the exclusion list — keeps Drizzle's parameter binding intact, no SQL injection vector.
 
+**Authors-collection exclusion (Spec 63.1):** all three readers (`pickFromRefreshSuggestions`, `pickFromSuggestionPool`, `countSuggestionPool`) filter on `ne(articles.collection, "authors")`. Author profiles are reference data, not generatable social-post hooks. The relevant column is `articles.collection` (text, NOT NULL, default `'blog'`) — NOT the `collection_type` enum (which only contains `blog|comparison|ki-wissen|tools|usecases`, no "authors" value). When adding a future social source reader against `articles`, replicate the filter; the canonical comment is `// Spec 63.1: author profiles are reference data, not social-post candidates.`
+
 **Mix strategy (consumed by `SelectSocialPostItemsStep`):**
 - ⅓ of target from today's planned clusters (parent-link via `parentDraftId`, slotDate inherited)
 - ⅓ from `refresh_suggestions` (each row has an `articleId`)

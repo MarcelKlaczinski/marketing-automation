@@ -5,8 +5,18 @@
 // against a real DB.
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { articles, db, eq, projects } from "@marketing-auto/db";
-import { pickFromSuggestionPool } from "../src/index.ts";
+import {
+  articles,
+  db,
+  eq,
+  projects,
+  refreshSuggestions,
+} from "@marketing-auto/db";
+import {
+  countSuggestionPool,
+  pickFromRefreshSuggestions,
+  pickFromSuggestionPool,
+} from "../src/index.ts";
 
 let projectId: string;
 
@@ -29,6 +39,9 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await db
+    .delete(refreshSuggestions)
+    .where(eq(refreshSuggestions.projectId, projectId));
   await db.delete(articles).where(eq(articles.projectId, projectId));
   await db.delete(projects).where(eq(projects.id, projectId));
 });
@@ -85,5 +98,120 @@ describe("pickFromSuggestionPool — exclude-list edge cases", () => {
     const ids = rows.map((r) => r.articleId);
     expect(ids).not.toContain(excludedId);
     expect(ids.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// Spec 63.1: author profiles are reference data, not generatable social-post
+// hooks. They must never reach the social-post selection pool.
+describe("authors collection exclusion (Spec 63.1)", () => {
+  it("excludes authors-collection articles from pickFromSuggestionPool", async () => {
+    const inserted = await db
+      .insert(articles)
+      .values([
+        {
+          projectId,
+          slug: "blog-post",
+          title: "Blog candidate",
+          collection: "blog",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          projectId,
+          slug: "anna-weidner",
+          title: "Anna Weidner",
+          collection: "authors",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      ])
+      .returning({ id: articles.id, collection: articles.collection });
+
+    const authorId = inserted.find((r) => r.collection === "authors")!.id;
+    const blogId = inserted.find((r) => r.collection === "blog")!.id;
+
+    const rows = await pickFromSuggestionPool({ projectId, limit: 10 });
+    const ids = rows.map((r) => r.articleId);
+
+    expect(ids).toContain(blogId);
+    expect(ids).not.toContain(authorId);
+  });
+
+  it("countSuggestionPool ignores authors-collection rows", async () => {
+    await db.insert(articles).values([
+      {
+        projectId,
+        slug: "blog-post",
+        title: "Blog candidate",
+        collection: "blog",
+        locale: "de",
+        status: "published",
+        publishedAt: new Date(),
+      },
+      {
+        projectId,
+        slug: "anna-weidner",
+        title: "Anna Weidner",
+        collection: "authors",
+        locale: "de",
+        status: "published",
+        publishedAt: new Date(),
+      },
+    ]);
+
+    const count = await countSuggestionPool({ projectId });
+    expect(count).toBe(1);
+  });
+
+  it("excludes authors-collection articles from pickFromRefreshSuggestions", async () => {
+    const inserted = await db
+      .insert(articles)
+      .values([
+        {
+          projectId,
+          slug: "blog-post",
+          title: "Blog candidate",
+          collection: "blog",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+        {
+          projectId,
+          slug: "anna-weidner",
+          title: "Anna Weidner",
+          collection: "authors",
+          locale: "de",
+          status: "published",
+          publishedAt: new Date(),
+        },
+      ])
+      .returning({ id: articles.id, collection: articles.collection });
+
+    const blogId = inserted.find((r) => r.collection === "blog")!.id;
+    const authorId = inserted.find((r) => r.collection === "authors")!.id;
+
+    await db.insert(refreshSuggestions).values([
+      {
+        projectId,
+        articleId: blogId,
+        source: "time",
+        reasoning: "test fixture",
+      },
+      {
+        projectId,
+        articleId: authorId,
+        source: "time",
+        reasoning: "test fixture",
+      },
+    ]);
+
+    const rows = await pickFromRefreshSuggestions({ projectId, limit: 10 });
+    const articleIds = rows.map((r) => r.articleId);
+
+    expect(articleIds).toContain(blogId);
+    expect(articleIds).not.toContain(authorId);
   });
 });

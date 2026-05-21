@@ -33,6 +33,7 @@ import {
   desc,
   eq,
   isNull,
+  ne,
   refreshSuggestions,
   sql,
   templateRenders,
@@ -90,6 +91,8 @@ export async function pickFromRefreshSuggestions(
         eq(refreshSuggestions.projectId, input.projectId),
         isNull(refreshSuggestions.dismissedAt),
         isNull(refreshSuggestions.approvedAt),
+        // Spec 63.1: author profiles are reference data, not social-post candidates.
+        ne(articles.collection, "authors"),
       ),
     )
     .orderBy(desc(refreshSuggestions.generatedAt))
@@ -142,6 +145,8 @@ export async function pickFromSuggestionPool(
         // translation; the social pipeline still picks them up via the
         // sibling lookup at run time.
         eq(articles.locale, "de"),
+        // Spec 63.1: author profiles are reference data, not social-post candidates.
+        ne(articles.collection, "authors"),
         sql`NOT EXISTS (
           SELECT 1 FROM ${templateRenders}
           WHERE ${templateRenders.articleId} = ${articles.id}
@@ -175,6 +180,8 @@ export async function countSuggestionPool(input: {
         eq(articles.projectId, input.projectId),
         eq(articles.status, "published"),
         eq(articles.locale, "de"),
+        // Spec 63.1: author profiles are reference data, not social-post candidates.
+        ne(articles.collection, "authors"),
         sql`NOT EXISTS (
           SELECT 1 FROM ${templateRenders}
           WHERE ${templateRenders.articleId} = ${articles.id}
