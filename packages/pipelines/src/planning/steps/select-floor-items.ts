@@ -43,7 +43,8 @@ type Output = z.infer<typeof selectFloorOutputSchema>;
  *   - intent_type='comparison' AND brief carries ≥2 concrete tool slugs → "comparison"  (Spec 63.3b)
  *   - cluster_action='translation' → null (auto-triggered by source pipeline)
  *   - cluster_action='refresh'     → null (refresh briefs go via the refresh pipeline directly)
- *   - intentType='knowledge'/'tutorial' on standalone briefs → "ki_wissen"
+ *   - intentType='knowledge'                                → "ki_wissen"  (Spec 63.4 — regardless of clusterAction so Hub-Spoke briefs route correctly)
+ *   - intentType='tutorial' AND clusterAction='standalone'  → "ki_wissen"  (tool-agnostic tutorial)
  *   - everything else (create_new / append_to_existing / standalone) → "cluster"
  */
 export function matchBriefToContentType(brief: TopicBrief): PlanningContentType | null {
@@ -61,10 +62,18 @@ export function matchBriefToContentType(brief: TopicBrief): PlanningContentType 
   if (brief.clusterAction === "translation" || brief.clusterAction === "refresh") {
     return null;
   }
-  if (
-    brief.clusterAction === "standalone" &&
-    (brief.intentType === "knowledge" || brief.intentType === "tutorial")
-  ) {
+  // Spec 63.4: knowledge briefs are always theme-centric ki-wissen material, whether
+  // they got a Hub-Spoke match (append_to_existing) or stand alone. The DB clusterId
+  // (when set) is preserved on the planned_item but the bucket is ki_wissen so the
+  // article ends up in the ki-wissen Astro collection.
+  if (brief.intentType === "knowledge") {
+    return "ki_wissen";
+  }
+  // Tool-agnostic tutorials without a tool-cluster anchor are best authored as
+  // ki-wissen-style content ("Wie schreibt man gute Prompts?" is tutorial format
+  // but theme-centric). Tool-specific tutorials with a cluster fall through to
+  // the cluster bucket.
+  if (brief.intentType === "tutorial" && brief.clusterAction === "standalone") {
     return "ki_wissen";
   }
   return "cluster";

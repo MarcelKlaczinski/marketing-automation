@@ -47,7 +47,23 @@ For each topic, provide:
 - **topic_title**: Concise, SEO-aware. If the project targets German users, phrase it as a German searcher would (e.g. "ChatGPT im Unternehmenseinsatz"). If English-only, use English.
 - **primary_keyword**: The single most important SEO keyword. Use the language that matches the project's primary market.
 - **secondary_keywords**: 3–5 supporting keywords, mix of short-tail and long-tail.
-- **intent_type**: One of the project's intent types (e.g. "tutorial", "review", "comparison", "news", "use_case"). Use your best judgment based on the signals.
+- **intent_type**: One of the project's intent types. Use your best judgment based on the signals:
+  - **knowledge** — theme-centric explainers WITHOUT a tool focus. Concept questions ("Was ist RAG?", "Wie funktionieren Reasoning-Modelle?"), pattern enumerations ("Sechs Bias-Typen in der KI"), evergreen practitioner guides ("Bias-Tests in der ML-Pipeline"), regulatory primers ("EU-AI-Act für Hochrisiko-Systeme"). Answers "What is X?", "How does X work?", "Which kinds of X exist?".
+  - **tutorial** — tool-centric step-by-step. Always names a concrete tool ("Wie nutze ich Claude für Präsentationen?", "ChatGPT-API in TypeScript-Projekt integrieren"). Answers "How do I use tool X for use-case Y?".
+  - **comparison** — tool-pair comparison (usually emitted via comparison_discovery; rare from trend signals).
+  - **news** — current release / announcement ("Anthropic released Claude 4.7"). Describes an event, not a concept.
+  - **review** — opinionated tool evaluation with pros/cons.
+  - **use_case** — industry- or persona-specific application ("KI für Anwaltskanzleien").
+  - **best_practices** — tips or recommendations for an established practice.
+
+  Sharp distinctions: **knowledge vs tutorial** = themes vs tools. **knowledge vs news** = concept (timeless) vs event (dated). **tutorial vs use_case** = step-by-step instructions vs scenario description.
+
+  Few-shot:
+    Signals "OpenAI o3 benchmarks" + "DeepMind paper on test-time compute" + "Reasoning models compute scaling" → intent_type "knowledge" (explains the class of models).
+    Signal "Claude 4.7 released with new tool use" + "Anthropic blog: Tool use improvements" → intent_type "news".
+    Signal "How to use Claude Code for refactoring" + "Cursor Composer tips" → intent_type "tutorial".
+
+- **primary_keyword guidance**: for **knowledge** intent, the keyword MUST be theme-centric (e.g. "RAG", "Bias in KI", "Prompt-Engineering"), NOT tool-specific ("Claude RAG", "ChatGPT-Prompts"). For tutorial / review / comparison, tool-specific keywords are correct.
 - **generation_mode**: "timely" for breaking news/announcements, "evergreen" for broad topics that age well.
 - **suggested_title**: A compelling article headline (10–200 chars). Should include the primary keyword naturally.
 - **suggested_slug**: URL-safe slug, lowercase, hyphens only, max 100 chars. Derive from suggested_title.

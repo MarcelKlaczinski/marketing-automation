@@ -9,6 +9,7 @@ import { syncCronJobs } from "../workers/cron-orchestrator.ts";
 import { STEP_PAUSE_CLEANUP_CRON_PATTERN } from "../workers/step-pause-cleanup.worker.ts";
 import { PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN } from "../workers/planner-weekly-generation.worker.ts";
 import { COMPARISON_DISCOVERY_DEFAULT_PATTERN } from "../workers/comparison-discovery.worker.ts";
+import { TREND_SYNTHESIZER_DEFAULT_PATTERN } from "../workers/trend-synthesizer.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -289,6 +290,20 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         jobType: "comparison_discovery",
         isActive: false,
         cronPattern: COMPARISON_DISCOVERY_DEFAULT_PATTERN,
+      })
+      .onConflictDoNothing();
+
+    // Spec 63.4: same dance for trends_synthesizer. Default daily 01:00 UTC
+    // (~30 min after the signal-collectors run) — OFF by default. The
+    // `trends_synthesizer` enum value pre-exists since Spec 56.6, so no
+    // Memory D124 ordering constraint applies here.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "trends_synthesizer",
+        isActive: false,
+        cronPattern: TREND_SYNTHESIZER_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
   }

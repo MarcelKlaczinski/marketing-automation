@@ -83,5 +83,11 @@ export const projectPlannerConfigSchema = z.object({
   comparisonCronEnabled: z.boolean().default(false),
   comparisonCronDayOfWeek: z.number().int().min(0).max(6).default(0),
   comparisonCronHourUtc: z.number().int().min(0).max(23).default(6),
+  // Spec 63.4: per-project cron trigger for the trend-synthesizer. Unlike the
+  // two above, dayOfWeek is nullable — null means daily ("0 H * * *"),
+  // 0..6 means weekly ("0 H * * DOW"). Default daily 01:00 UTC.
+  trendSynthCronEnabled: z.boolean().default(false),
+  trendSynthCronDayOfWeek: z.number().int().min(0).max(6).nullable().default(null),
+  trendSynthCronHourUtc: z.number().int().min(0).max(23).default(1),
 });
 export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

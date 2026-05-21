@@ -1,7 +1,25 @@
+// Spec 54.5 (initial) + Spec 63.4 (per-project cron refactor):
+// trend-synthesizer worker.
+//
+// Job shapes accepted:
+//   1. Per-project cron tick from cron-orchestrator (Spec 63.4)
+//        name: `trends_synthesizer:<projectId>`
+//        data: { projectId, type: "cron-triggered" }
+//   2. Legacy manual `synthesize-project` (CLI + 2 manual-trigger routes)
+//        name: "synthesize-project"
+//        data: { type: "synthesize-project", projectId }
+//
+// Both call the same `handleSynthesizeProject(projectId)`. The Spec 54.5
+// global-fan-out (`schedule-daily` → `synthesize-all` → per-project) was
+// removed in Spec 63.4 in favour of the per-project cron_state pattern shared
+// with planner_weekly_generation (62.7) and comparison_discovery (63.3b).
+
 import { Queue, Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
 import { z } from "zod";
 import {
+  buildTrendSynthCronPattern,
+  cronState,
   db,
   externalSignals,
   topicBriefs,
@@ -18,6 +36,14 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 const log = createLogger("trend-synthesizer");
 
 export const TREND_SYNTHESIZER_QUEUE = "trend-synthesizer";
+
+/**
+ * Spec 63.4: default cron pattern for newly-seeded `cron_state` rows. Daily
+ * 01:00 UTC (~30 min after the signal-collectors run at 00:30 UTC) so fresh
+ * signals get synthesized into briefs the same day. Default `isActive: false`
+ * — Marcel toggles per-project in SettingsPlannerPage.
+ */
+export const TREND_SYNTHESIZER_DEFAULT_PATTERN = buildTrendSynthCronPattern(null, 1);
 
 // ─── Redis connection ─────────────────────────────────────────────────────────
 
@@ -46,18 +72,16 @@ export function getTrendSynthesizerQueue(): Queue {
 
 // ─── Job schemas ──────────────────────────────────────────────────────────────
 
-const scheduleDailyJobSchema = z.object({
-  type: z.literal("schedule-daily"),
-});
-
-const synthesizeAllJobSchema = z.object({
-  type: z.literal("synthesize-all"),
-});
-
-const synthesizeProjectJobSchema = z.object({
-  type: z.literal("synthesize-project"),
-  projectId: z.string().uuid(),
-});
+// Cron-orchestrator and legacy "synthesize-project" callers both reduce to a
+// single { projectId } shape — the worker doesn't care about the discriminator
+// once we have the projectId.
+const jobSchema = z
+  .object({
+    projectId: z.string().uuid(),
+    type: z.enum(["cron-triggered", "synthesize-project"]).optional(),
+  })
+  // Tolerate legacy callers that send extra fields — only `projectId` matters.
+  .passthrough();
 
 // ─── Worker ───────────────────────────────────────────────────────────────────
 
@@ -65,27 +89,8 @@ export function startTrendSynthesizerWorker() {
   return new Worker(
     TREND_SYNTHESIZER_QUEUE,
     async (job: Job) => {
-      const name = job.name;
-
-      if (name === "schedule-daily") {
-        scheduleDailyJobSchema.parse(job.data);
-        await handleScheduleDaily();
-        return;
-      }
-
-      if (name === "synthesize-all") {
-        synthesizeAllJobSchema.parse(job.data);
-        await handleSynthesizeAll();
-        return;
-      }
-
-      if (name === "synthesize-project") {
-        const data = synthesizeProjectJobSchema.parse(job.data);
-        await handleSynthesizeProject(data.projectId);
-        return;
-      }
-
-      throw new Error(`Unknown trend-synthesizer job name: ${name}`);
+      const parsed = jobSchema.parse(job.data);
+      await handleSynthesizeProject(parsed.projectId);
     },
     {
       connection: getConnection(),
@@ -94,27 +99,32 @@ export function startTrendSynthesizerWorker() {
   );
 }
 
-// ─── Handlers ─────────────────────────────────────────────────────────────────
+// ─── Per-project seed (Spec 63.4) ─────────────────────────────────────────────
 
-async function handleScheduleDaily(): Promise<void> {
-  const queue = getTrendSynthesizerQueue();
-  await queue.add("synthesize-all", { type: "synthesize-all" });
-  log.info("schedule-daily: enqueued synthesize-all");
-}
-
-async function handleSynthesizeAll(): Promise<void> {
+/**
+ * Idempotently seed `cron_state` rows for every project so the orchestrator
+ * picks them up on its next tick. Default `isActive: false` — Marcel toggles
+ * per-project in SettingsPlannerPage.
+ *
+ * Lives in worker code (not a SQL migration) for symmetry with
+ * seedPlannerWeeklyGenerationCron (Spec 62.7) and seedComparisonDiscoveryCron
+ * (Spec 63.3b), even though the `trends_synthesizer` enum value pre-exists
+ * since Spec 56.6 (no Memory D124 ordering constraint here).
+ */
+export async function seedTrendSynthesizerCron(): Promise<void> {
   const allProjects = await db.select({ id: projects.id }).from(projects);
-  log.info({ count: allProjects.length }, "synthesize-all: fanning out synthesize-project jobs");
-
-  const queue = getTrendSynthesizerQueue();
-  for (const { id } of allProjects) {
-    await queue.add(
-      "synthesize-project",
-      { type: "synthesize-project", projectId: id },
-      { jobId: `synthesize-project-${id}-${new Date().toISOString().slice(0, 10)}` },
-    );
-  }
+  if (allProjects.length === 0) return;
+  const values = allProjects.map((p) => ({
+    projectId: p.id,
+    jobType: "trends_synthesizer" as const,
+    isActive: false,
+    cronPattern: TREND_SYNTHESIZER_DEFAULT_PATTERN,
+  }));
+  await db.insert(cronState).values(values).onConflictDoNothing();
+  log.info({ projectCount: allProjects.length }, "Seeded trends_synthesizer cron_state rows");
 }
+
+// ─── Handler ──────────────────────────────────────────────────────────────────
 
 async function handleSynthesizeProject(projectId: string): Promise<void> {
   // Janitor: stamp signals older than 14 days that were never processed
@@ -186,22 +196,4 @@ async function handleSynthesizeProject(projectId: string): Promise<void> {
   } else {
     log.info({ projectId }, "trend synthesis: no briefs emitted");
   }
-}
-
-// ─── Daily cron registration ──────────────────────────────────────────────────
-
-export async function registerTrendSynthesizerCron(): Promise<void> {
-  const cron = getEnv().TREND_SYNTHESIZER_CRON ?? "30 1 * * *";
-
-  const queue = getTrendSynthesizerQueue();
-  await queue.add(
-    "schedule-daily",
-    { type: "schedule-daily" },
-    {
-      repeat: { pattern: cron },
-      jobId:  "trend-synthesizer-daily",
-    },
-  );
-
-  log.info({ cron }, "trend-synthesizer daily cron registered");
 }

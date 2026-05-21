@@ -20,10 +20,13 @@ export async function enqueuePlanWeekPipeline(
   input: EnqueuePlanWeekInput
 ): Promise<{ jobId: string }> {
   const { preRunId, runMode, ...pipelineInput } = input;
-  // Debug runs need a unique jobId per attempt so BullMQ doesn't dedupe a
-  // re-trigger against a stale debug run. Production keeps the stable jobId
-  // (deterministic so duplicate POST /generate calls dedupe at the queue level).
-  const jobIdSuffix = runMode === "debug" ? `-debug-${Date.now()}` : "";
+  // Idempotency lives in the DB (`triggerWithPreRunId` checks for an active
+  // `pipeline_runs` row with status IN ('queued','running') for the same
+  // pipeline+uniqueKey before enqueuing). The BullMQ jobId only needs to be
+  // unique per enqueue — using `preRunId` (a fresh UUID per call) guarantees
+  // that. The prior static jobId `plan-week-${projectId}-${year}-${week}`
+  // collided with BullMQ's completed-job dedup on repeat triggers for the
+  // same week, silently dropping the second job (Memory D131).
   const { jobId } = await enqueuePipeline({
     pipelineName: "planning:weekly",
     projectId: input.projectId,
@@ -31,7 +34,7 @@ export async function enqueuePlanWeekPipeline(
     preRunId,
     ...(runMode !== undefined ? { runMode } : {}),
     jobOptions: {
-      jobId: `plan-week-${input.projectId}-${input.targetYear}-${input.targetIsoWeek}${jobIdSuffix}`,
+      jobId: `plan-week-${input.targetYear}-${input.targetIsoWeek}-${preRunId}`,
     },
   });
   return { jobId };

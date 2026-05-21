@@ -30,6 +30,10 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     comparisonCronEnabled: false,
     comparisonCronDayOfWeek: 0,
     comparisonCronHourUtc: 6,
+    // Spec 63.4: third cron (trends_synthesizer). dayOfWeek nullable → daily cadence.
+    trendSynthCronEnabled: false,
+    trendSynthCronDayOfWeek: null,
+    trendSynthCronHourUtc: 1,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

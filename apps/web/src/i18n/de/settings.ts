@@ -435,6 +435,22 @@ export default {
       localTimeHint:
         "Bei Aktivierung läuft die Suche jeden {day} um {hourUtc} UTC (= {hourLocal} {tz}). Neue Pairs landen als pending Briefs.",
     },
+    // Spec 63.4: third cron section for trend-synthesizer (daily or weekly).
+    trendSynthCronSection: {
+      title: "Trend-Synthesizer-Trigger",
+      description:
+        "Aggregiert externe Signale (Hacker News, Product Hunt, Vendor-RSS, Reddit) zu neuen Topic-Briefs. Erzeugt knowledge/tutorial/news-Briefs für deinen Plan. Empfehlung: täglich um 01:00 UTC, ~30 Min nach den Signal-Collectoren.",
+      enabledLabel: "Aktiviert",
+      dayOfWeekLabel: "Kadenz",
+      hourUtcLabel: "Uhrzeit (UTC)",
+      daily: "Täglich",
+      localTimeHintDaily:
+        "Bei Aktivierung läuft die Synthese täglich um {hourUtc} UTC (= {hourLocal} {tz}). Neue Briefs landen als pending zur Review.",
+      localTimeHintWeekly:
+        "Bei Aktivierung läuft die Synthese jeden {day} um {hourUtc} UTC (= {hourLocal} {tz}). Neue Briefs landen als pending zur Review.",
+      costHint:
+        "Kosten ~€0,05–0,15 pro Lauf (1 Opus-Call pro Signal-Gruppe). Daily ~€2–5/Monat, Weekly ~€0,50–1/Monat. Bei kleinem Signal-Volumen reicht Weekly.",
+    },
     daysOfWeek: {
       "0": "Sonntag",
       "1": "Montag",

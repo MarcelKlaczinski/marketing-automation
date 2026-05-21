@@ -316,6 +316,59 @@
       </p>
     </section>
 
+    <!-- Spec 63.4: trend-synthesizer trigger (daily or weekly cadence) -->
+    <section class="form-card">
+      <h2 class="section-title">{{ $t("settings.planner.trendSynthCronSection.title") as string }}</h2>
+      <p class="section-description">
+        {{ $t("settings.planner.trendSynthCronSection.description") as string }}
+      </p>
+
+      <div class="cron-grid">
+        <label class="field cron-enabled-field">
+          <span class="field-label">
+            {{ $t("settings.planner.trendSynthCronSection.enabledLabel") as string }}
+          </span>
+          <input
+            v-model="config.trendSynthCronEnabled"
+            type="checkbox"
+            class="cron-checkbox"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.trendSynthCronSection.dayOfWeekLabel") as string }}
+          </span>
+          <select v-model="trendSynthDayOfWeekModel" class="input">
+            <option value="daily">
+              {{ $t("settings.planner.trendSynthCronSection.daily") as string }}
+            </option>
+            <option v-for="d in dayOfWeekOptions" :key="d" :value="String(d)">
+              {{ $t(`settings.planner.daysOfWeek.${d}`) as string }}
+            </option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.trendSynthCronSection.hourUtcLabel") as string }}
+          </span>
+          <select v-model.number="config.trendSynthCronHourUtc" class="input">
+            <option v-for="h in hourOptions" :key="h" :value="h">
+              {{ formatHourUtc(h) }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <p class="cron-hint">
+        {{ trendSynthCronHintText }}
+      </p>
+      <p class="cron-hint cron-hint-cost">
+        {{ $t("settings.planner.trendSynthCronSection.costHint") as string }}
+      </p>
+    </section>
+
     <div class="actions">
       <button
         type="button"
@@ -357,6 +410,11 @@ interface ConfigState {
   comparisonCronEnabled: boolean;
   comparisonCronDayOfWeek: number;
   comparisonCronHourUtc: number;
+  // Spec 63.4: third cron — trend-synthesizer. dayOfWeek nullable so the UI
+  // can express daily cadence.
+  trendSynthCronEnabled: boolean;
+  trendSynthCronDayOfWeek: number | null;
+  trendSynthCronHourUtc: number;
 }
 
 interface FetchedGoal {
@@ -381,6 +439,10 @@ interface FetchedConfig {
   comparisonCronEnabled?: boolean;
   comparisonCronDayOfWeek?: number;
   comparisonCronHourUtc?: number;
+  // Spec 63.4: trend-synthesizer cron-trigger fields
+  trendSynthCronEnabled?: boolean;
+  trendSynthCronDayOfWeek?: number | null;
+  trendSynthCronHourUtc?: number;
 }
 
 interface ValidationIssue {
@@ -419,6 +481,10 @@ export default defineComponent({
       comparisonCronEnabled: false,
       comparisonCronDayOfWeek: 0,
       comparisonCronHourUtc: 6,
+      // Spec 63.4 defaults (daily 01:00 UTC, OFF). dayOfWeek=null encodes daily.
+      trendSynthCronEnabled: false,
+      trendSynthCronDayOfWeek: null,
+      trendSynthCronHourUtc: 1,
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
@@ -491,6 +557,41 @@ export default defineComponent({
         tz,
       }) as string;
     },
+    // Spec 63.4: bridges the nullable trendSynthCronDayOfWeek to a string-only
+    // `<select>` model. "daily" ⇄ null; "0".."6" ⇄ 0..6. Plain v-model.number
+    // on a select can't express null, hence the string sentinel.
+    trendSynthDayOfWeekModel: {
+      get(): string {
+        return this.config.trendSynthCronDayOfWeek === null
+          ? "daily"
+          : String(this.config.trendSynthCronDayOfWeek);
+      },
+      set(v: string) {
+        this.config.trendSynthCronDayOfWeek = v === "daily" ? null : Number.parseInt(v, 10);
+      },
+    },
+    // Spec 63.4: hint text. Daily cadence renders a separate i18n key so the
+    // sentence reads naturally in DE and EN without a stray day-of-week token.
+    trendSynthCronHintText(): string {
+      const hourUtc = this.formatHourUtc(this.config.trendSynthCronHourUtc);
+      const { label: hourLocal, tz } = this.formatHourLocal(this.config.trendSynthCronHourUtc);
+      if (this.config.trendSynthCronDayOfWeek === null) {
+        return this.$t("settings.planner.trendSynthCronSection.localTimeHintDaily", {
+          hourUtc,
+          hourLocal,
+          tz,
+        }) as string;
+      }
+      const day = this.$t(
+        `settings.planner.daysOfWeek.${this.config.trendSynthCronDayOfWeek}`,
+      ) as string;
+      return this.$t("settings.planner.trendSynthCronSection.localTimeHintWeekly", {
+        day,
+        hourUtc,
+        hourLocal,
+        tz,
+      }) as string;
+    },
   },
 
   async mounted() {
@@ -537,6 +638,12 @@ export default defineComponent({
           this.config.comparisonCronEnabled = config.comparisonCronEnabled ?? false;
           this.config.comparisonCronDayOfWeek = config.comparisonCronDayOfWeek ?? 0;
           this.config.comparisonCronHourUtc = config.comparisonCronHourUtc ?? 6;
+          // Spec 63.4: trend-synthesizer cron fields. dayOfWeek defaults to null
+          // (daily); `config.trendSynthCronDayOfWeek ?? null` is intentional so
+          // that pre-migration-0083 rows load as daily.
+          this.config.trendSynthCronEnabled = config.trendSynthCronEnabled ?? false;
+          this.config.trendSynthCronDayOfWeek = config.trendSynthCronDayOfWeek ?? null;
+          this.config.trendSynthCronHourUtc = config.trendSynthCronHourUtc ?? 1;
         }
         await this.runValidation();
       } catch (err) {
@@ -619,6 +726,12 @@ export default defineComponent({
             comparisonCronEnabled: this.config.comparisonCronEnabled,
             comparisonCronDayOfWeek: this.config.comparisonCronDayOfWeek,
             comparisonCronHourUtc: this.config.comparisonCronHourUtc,
+            // Spec 63.4: third cron — trend-synthesizer. dayOfWeek nullable for
+            // daily cadence. Persist even when off so dayOfWeek/hourUtc are kept
+            // for the next time Marcel re-enables.
+            trendSynthCronEnabled: this.config.trendSynthCronEnabled,
+            trendSynthCronDayOfWeek: this.config.trendSynthCronDayOfWeek,
+            trendSynthCronHourUtc: this.config.trendSynthCronHourUtc,
           }),
         ]);
 

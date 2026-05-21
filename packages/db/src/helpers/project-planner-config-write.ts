@@ -23,6 +23,15 @@ export interface UpsertProjectPlannerConfigInput {
   comparisonCronDayOfWeek?: number;
   /** Spec 63.3b: 0-23 UTC. Omit to keep DB default (6). */
   comparisonCronHourUtc?: number;
+  /** Spec 63.4: trend-synthesizer cron toggle. Omit to keep DB default (false). */
+  trendSynthCronEnabled?: boolean;
+  /**
+   * Spec 63.4: NULL = daily; 0=Sunday..6=Saturday. `null` clears the column,
+   * `undefined` preserves the existing value. Omit to keep DB default (NULL = daily).
+   */
+  trendSynthCronDayOfWeek?: number | null;
+  /** Spec 63.4: 0-23 UTC. Omit to keep DB default (1). */
+  trendSynthCronHourUtc?: number;
 }
 
 /**
@@ -34,6 +43,18 @@ export interface UpsertProjectPlannerConfigInput {
  */
 export function buildPlannerCronPattern(dayOfWeek: number, hourUtc: number): string {
   return `0 ${hourUtc} * * ${dayOfWeek}`;
+}
+
+/**
+ * Spec 63.4: trend-synthesizer cron pattern. Same minute=0 + hour=H base, but
+ * supports a nullable day-of-week to express daily cadence (NULL → `*`).
+ */
+export function buildTrendSynthCronPattern(
+  dayOfWeek: number | null,
+  hourUtc: number,
+): string {
+  const dow = dayOfWeek === null ? "*" : String(dayOfWeek);
+  return `0 ${hourUtc} * * ${dow}`;
 }
 
 /**
@@ -77,6 +98,15 @@ export async function upsertProjectPlannerConfig(
     ...(input.comparisonCronHourUtc !== undefined
       ? { comparisonCronHourUtc: input.comparisonCronHourUtc }
       : {}),
+    ...(input.trendSynthCronEnabled !== undefined
+      ? { trendSynthCronEnabled: input.trendSynthCronEnabled }
+      : {}),
+    ...(input.trendSynthCronDayOfWeek !== undefined
+      ? { trendSynthCronDayOfWeek: input.trendSynthCronDayOfWeek }
+      : {}),
+    ...(input.trendSynthCronHourUtc !== undefined
+      ? { trendSynthCronHourUtc: input.trendSynthCronHourUtc }
+      : {}),
   };
   const updateSet = {
     weeklyBudgetEur,
@@ -96,6 +126,15 @@ export async function upsertProjectPlannerConfig(
       : {}),
     ...(input.comparisonCronHourUtc !== undefined
       ? { comparisonCronHourUtc: input.comparisonCronHourUtc }
+      : {}),
+    ...(input.trendSynthCronEnabled !== undefined
+      ? { trendSynthCronEnabled: input.trendSynthCronEnabled }
+      : {}),
+    ...(input.trendSynthCronDayOfWeek !== undefined
+      ? { trendSynthCronDayOfWeek: input.trendSynthCronDayOfWeek }
+      : {}),
+    ...(input.trendSynthCronHourUtc !== undefined
+      ? { trendSynthCronHourUtc: input.trendSynthCronHourUtc }
       : {}),
   };
   const rows = await db
@@ -151,6 +190,33 @@ export async function upsertProjectPlannerConfig(
         and(
           eq(cronState.projectId, input.projectId),
           eq(cronState.jobType, "comparison_discovery"),
+        ),
+      );
+  }
+
+  // Spec 63.4: same dance for trends_synthesizer cron_state row. Nullable
+  // dayOfWeek expresses daily cadence — buildTrendSynthCronPattern handles the
+  // NULL → `*` substitution.
+  const touchesTrendSynthCron =
+    input.trendSynthCronEnabled !== undefined ||
+    input.trendSynthCronDayOfWeek !== undefined ||
+    input.trendSynthCronHourUtc !== undefined;
+  if (touchesTrendSynthCron) {
+    const pattern = buildTrendSynthCronPattern(
+      row.trendSynthCronDayOfWeek,
+      row.trendSynthCronHourUtc,
+    );
+    await db
+      .update(cronState)
+      .set({
+        cronPattern: pattern,
+        isActive: row.trendSynthCronEnabled,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(cronState.projectId, input.projectId),
+          eq(cronState.jobType, "trends_synthesizer"),
         ),
       );
   }

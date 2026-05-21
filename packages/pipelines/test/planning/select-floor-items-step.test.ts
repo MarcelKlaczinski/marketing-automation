@@ -91,6 +91,36 @@ describe("matchBriefToContentType", () => {
     ).toBe("ki_wissen");
   });
 
+  // Spec 63.4: knowledge → ki_wissen regardless of clusterAction (Hub-Spoke).
+  it("maps append_to_existing+knowledge → ki_wissen (Hub-Spoke)", () => {
+    expect(
+      matchBriefToContentType(brief({
+        clusterAction: "append_to_existing",
+        clusterId: "11111111-1111-1111-1111-111111111111",
+        intentType: "knowledge",
+      })),
+    ).toBe("ki_wissen");
+  });
+
+  // Spec 63.4: knowledge wins over the cluster-bucket default even with create_new.
+  it("maps create_new+knowledge → ki_wissen", () => {
+    expect(
+      matchBriefToContentType(brief({ clusterAction: "create_new", intentType: "knowledge" })),
+    ).toBe("ki_wissen");
+  });
+
+  // Spec 63.4 regression: tutorial+cluster still routes to cluster (tool-specific
+  // tutorials live under the tool cluster, not in ki-wissen).
+  it("maps append_to_existing+tutorial → cluster (tool-specific tutorial)", () => {
+    expect(
+      matchBriefToContentType(brief({
+        clusterAction: "append_to_existing",
+        clusterId: "11111111-1111-1111-1111-111111111111",
+        intentType: "tutorial",
+      })),
+    ).toBe("cluster");
+  });
+
   it("default cluster_action='create_new' → cluster", () => {
     expect(matchBriefToContentType(brief({ clusterAction: "create_new" }))).toBe("cluster");
   });

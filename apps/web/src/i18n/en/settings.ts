@@ -434,6 +434,22 @@ export default {
       localTimeHint:
         "When enabled, the scan runs every {day} at {hourUtc} UTC (= {hourLocal} {tz}). New pairs land as pending briefs.",
     },
+    // Spec 63.4: third cron section for trend-synthesizer (daily or weekly).
+    trendSynthCronSection: {
+      title: "Trend-Synthesizer trigger",
+      description:
+        "Aggregates external signals (Hacker News, Product Hunt, Vendor RSS, Reddit) into new topic briefs. Produces knowledge/tutorial/news briefs for your plan. Recommended: daily at 01:00 UTC, ~30 min after the signal collectors run.",
+      enabledLabel: "Enabled",
+      dayOfWeekLabel: "Cadence",
+      hourUtcLabel: "Hour (UTC)",
+      daily: "Daily",
+      localTimeHintDaily:
+        "When enabled, synthesis runs daily at {hourUtc} UTC (= {hourLocal} {tz}). New briefs land as pending for review.",
+      localTimeHintWeekly:
+        "When enabled, synthesis runs every {day} at {hourUtc} UTC (= {hourLocal} {tz}). New briefs land as pending for review.",
+      costHint:
+        "Cost ~€0.05–0.15 per run (one Opus call per signal cluster). Daily ~€2–5/month, weekly ~€0.50–1/month. Weekly is fine when signal volume is low.",
+    },
     daysOfWeek: {
       "0": "Sunday",
       "1": "Monday",

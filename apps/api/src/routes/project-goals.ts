@@ -194,6 +194,12 @@ projectGoalsRoutes.put(
       comparisonCronEnabled: body.comparisonCronEnabled,
       comparisonCronDayOfWeek: body.comparisonCronDayOfWeek,
       comparisonCronHourUtc: body.comparisonCronHourUtc,
+      // Spec 63.4: third cron (trends_synthesizer). dayOfWeek nullable for
+      // daily cadence — passed straight through to the upsert helper which
+      // forwards to buildTrendSynthCronPattern.
+      trendSynthCronEnabled: body.trendSynthCronEnabled,
+      trendSynthCronDayOfWeek: body.trendSynthCronDayOfWeek,
+      trendSynthCronHourUtc: body.trendSynthCronHourUtc,
     });
 
     log.info(
@@ -204,6 +210,8 @@ projectGoalsRoutes.put(
         cronPattern: `0 ${body.cronHourUtc} * * ${body.cronDayOfWeek}`,
         comparisonCronEnabled: body.comparisonCronEnabled,
         comparisonCronPattern: `0 ${body.comparisonCronHourUtc} * * ${body.comparisonCronDayOfWeek}`,
+        trendSynthCronEnabled: body.trendSynthCronEnabled,
+        trendSynthCronPattern: `0 ${body.trendSynthCronHourUtc} * * ${body.trendSynthCronDayOfWeek ?? "*"}`,
       },
       "Planner config upserted",
     );

@@ -598,6 +598,14 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   comparisonCronEnabled: boolean("comparison_cron_enabled").notNull().default(false),
   comparisonCronDayOfWeek: integer("comparison_cron_day_of_week").notNull().default(0),
   comparisonCronHourUtc: integer("comparison_cron_hour_utc").notNull().default(6),
+  // Spec 63.4: cron-trigger for handleSynthesizeProject(). Unlike the planner
+  // and comparison-discovery crons above, this one supports BOTH daily and
+  // weekly cadence: trendSynthCronDayOfWeek IS NULL → daily ("0 H * * *"),
+  // 0..6 → weekly ("0 H * * DOW"). Default daily 01:00 UTC — fresh signals
+  // from HN/PH/Vendor-RSS get synthesized into briefs the same day.
+  trendSynthCronEnabled: boolean("trend_synth_cron_enabled").notNull().default(false),
+  trendSynthCronDayOfWeek: integer("trend_synth_cron_day_of_week"),
+  trendSynthCronHourUtc: integer("trend_synth_cron_hour_utc").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

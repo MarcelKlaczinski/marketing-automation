@@ -66,7 +66,7 @@ import {
   seedStepPauseCleanupCron,
   startStepPauseCleanupWorker,
 } from "./step-pause-cleanup.worker.ts";
-import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
+import { startTrendSynthesizerWorker, seedTrendSynthesizerCron } from "./trend-synthesizer.ts";
 
 const log = createLogger("worker");
 
@@ -309,7 +309,6 @@ async function main() {
   const signalCollectorWorker = startSignalCollectorWorker();
   // await registerSignalCollectorCron(); // temporarily disabled
   const trendSynthesizerWorker = startTrendSynthesizerWorker();
-  // await registerTrendSynthesizerCron(); // temporarily disabled
   const refreshDetectorWorker = startRefreshDetectorWorker();
   const cronOrchestratorWorker = startCronOrchestratorWorker();
   await registerCronOrchestrator();
@@ -329,6 +328,7 @@ async function main() {
   await seedStepPauseCleanupCron();
   await seedPlannerWeeklyGenerationCron();
   await seedComparisonDiscoveryCron();
+  await seedTrendSynthesizerCron();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 

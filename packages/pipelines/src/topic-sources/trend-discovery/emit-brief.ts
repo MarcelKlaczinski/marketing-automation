@@ -25,9 +25,17 @@ export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInser
     candidate.related_signal_ids.includes(s.id),
   );
 
+  // Spec 63.4: knowledge briefs use Hub-Spoke. With a match → append_to_existing
+  // (under whatever cluster matched — Marcel's call to allow tools/comparisons
+  // hubs too, the planner still routes them to the ki_wissen bucket). Without a
+  // match → standalone (new eigenständiger ki-wissen article).
+  // Non-knowledge intents keep the legacy create_new fallback.
+  const isKnowledge = candidate.intent_type === "knowledge";
   const clusterFields: Pick<TopicBriefInsert, "clusterId" | "clusterAction"> = clusterMatch.matched
     ? { clusterId: clusterMatch.clusterId, clusterAction: "append_to_existing" }
-    : { clusterId: null, clusterAction: "create_new" };
+    : isKnowledge
+      ? { clusterId: null, clusterAction: "standalone" }
+      : { clusterId: null, clusterAction: "create_new" };
 
   const trendMetadata = {
     trendScore: score.total,
