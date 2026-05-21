@@ -2,9 +2,13 @@
   <div class="step-card" :class="cardClass">
     <header class="step-header" @click="onHeaderClick">
       <span class="step-icon" :title="statusHint">
-        <span v-if="step.status === 'completed'" class="icon icon-completed">&#10003;</span>
+        <!-- Pause-aware icon: a step's child pipeline_runs row is "completed" the
+             moment execute() finishes — but if there's an unresolved step_pauses
+             row attached, the user still owes a decision. Show the paused glyph
+             so the UI doesn't gaslight them with a green checkmark. -->
+        <span v-if="isPaused" class="icon icon-paused">&#9208;</span>
+        <span v-else-if="step.status === 'completed'" class="icon icon-completed">&#10003;</span>
         <span v-else-if="step.status === 'running'" class="icon icon-running">&#9655;</span>
-        <span v-else-if="step.status === 'paused'" class="icon icon-paused">&#9208;</span>
         <span v-else-if="step.status === 'failed'" class="icon icon-failed">&#10007;</span>
         <span v-else-if="step.status === 'superseded'" class="icon icon-superseded">&#8856;</span>
         <span v-else class="icon icon-other">&#9679;</span>
@@ -298,23 +302,30 @@ export default defineComponent({
 
   computed: {
     isPaused(): boolean {
-      return this.step.status === "paused" && !!this.step.pause && !this.step.pause.resolvedAt;
+      // Spec 62.6: the runner sets child step_runs.status="completed" the moment
+      // execute() finishes — and then (in debug mode) persists a step_pauses row
+      // and flips the PARENT run to "paused". So step.status === "paused" is
+      // never true for child rows; detect the pause via the unresolved pause
+      // record instead.
+      return !!this.step.pause && !this.step.pause.resolvedAt;
     },
     busy(): boolean {
       return this.actions.isBusy.value;
     },
     cardClass(): string {
+      // Override visual style to paused when an unresolved pause exists, even
+      // though the child step_run is technically "completed".
+      if (this.isPaused) return "step-card--paused";
       return `step-card--${this.step.status.replace(/_/g, "-")}`;
     },
     statusHint(): string {
+      if (this.isPaused) return this.$t("runs.detail.pausedStepHint") as string;
       const key =
         this.step.status === "completed"
           ? "runs.detail.completedStepHint"
-          : this.step.status === "paused"
-            ? "runs.detail.pausedStepHint"
-            : this.step.status === "failed"
-              ? "runs.detail.failedStepHint"
-              : "runs.detail.supersededStepHint";
+          : this.step.status === "failed"
+            ? "runs.detail.failedStepHint"
+            : "runs.detail.supersededStepHint";
       return this.$t(key) as string;
     },
     formattedDuration(): string {

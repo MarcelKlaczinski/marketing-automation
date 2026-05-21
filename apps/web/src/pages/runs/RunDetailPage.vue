@@ -40,7 +40,7 @@
           :step-index="idx"
           :run-id="detail.run.id"
           :project-slug="projectSlug"
-          :initially-expanded="step.status === 'paused'"
+          :initially-expanded="step.pause !== null && step.pause.resolvedAt === null"
           @action-completed="onActionCompleted"
         />
       </section>
