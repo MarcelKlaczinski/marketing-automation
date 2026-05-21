@@ -19,9 +19,17 @@
         v-if="brief?.approvalStatus === 'pending'"
         variant="primary"
         size="sm"
-        @click="onApprove"
+        @click="onApprovePlan"
       >
-        {{ $t("briefs.actions.approve") as string }}
+        {{ $t("briefs.bulkApprove.plan") as string }}
+      </GlassButton>
+      <GlassButton
+        v-if="brief?.approvalStatus === 'pending'"
+        variant="secondary"
+        size="sm"
+        @click="onApproveImmediateClick"
+      >
+        {{ $t("briefs.bulkApprove.immediate") as string }}
       </GlassButton>
       <GlassButton
         v-if="brief?.approvalStatus === 'pending'"
@@ -32,6 +40,22 @@
         {{ $t("briefs.actions.dismiss") as string }}
       </GlassButton>
     </template>
+
+    <!-- Spec 63.6: confirm-destructive gate for 'Immediate' dispatch. -->
+    <q-dialog v-model="showImmediateConfirm">
+      <div class="immediate-confirm">
+        <h2 class="confirm-title">{{ $t("briefs.bulkApprove.immediateConfirmTitle") as string }}</h2>
+        <p class="confirm-body">{{ $t("briefs.bulkApprove.immediateHint") as string }}</p>
+        <div class="confirm-actions">
+          <GlassButton variant="ghost" size="sm" @click="showImmediateConfirm = false">
+            {{ $t("common.cancel") as string }}
+          </GlassButton>
+          <GlassButton variant="danger" size="sm" @click="onApproveImmediateConfirm">
+            {{ $t("briefs.bulkApprove.immediate") as string }}
+          </GlassButton>
+        </div>
+      </div>
+    </q-dialog>
 
     <div v-if="isPending" class="detail-loading">
       <LoadingShimmer variant="card" :count="2" />
@@ -89,6 +113,10 @@ export default defineComponent({
     return { briefId, slug, data, isPending, queryClient };
   },
 
+  data: () => ({
+    showImmediateConfirm: false,
+  }),
+
   computed: {
     approvalStatusLabel(): string {
       const status = this.brief?.approvalStatus;
@@ -132,29 +160,58 @@ export default defineComponent({
   },
 
   methods: {
-    async onApprove(): Promise<void> {
+    async onApprovePlan(): Promise<void> {
+      await this.approveWithDispatch("plan");
+    },
+    onApproveImmediateClick(): void {
+      // Show confirm dialog — Marcel must opt in to bypassing the Budget Gate.
+      this.showImmediateConfirm = true;
+    },
+    async onApproveImmediateConfirm(): Promise<void> {
+      this.showImmediateConfirm = false;
+      await this.approveWithDispatch("immediate");
+    },
+    /**
+     * Spec 63.6 single-approve via the universal bulk-approve endpoint (single-
+     * element list). dispatch='plan' (default) flips the brief to plan_pending
+     * for next Planner cycle; dispatch='immediate' triggers article:blog inline.
+     */
+    async approveWithDispatch(dispatch: "plan" | "immediate"): Promise<void> {
       if (!this.brief) return;
       try {
         const slug = this.$route.params.slug as string;
-        // Universal endpoint — works for gap_analysis, trend_discovery, comparison_discovery, refresh_detection
-        // (single-element list; same approveBriefAndEnqueue() runs underneath as the bulk path).
         const res = await apiPost<{
+          dispatch: "plan" | "immediate";
           approvedCount: number;
+          planQueuedCount: number;
           skippedCount: number;
           failedCount: number;
           results: {
             approved: Array<{ briefId: string }>;
+            planQueued: Array<{ briefId: string }>;
             skipped: Array<{ briefId: string; reason: string }>;
             failed: Array<{ briefId: string; error: string }>;
           };
         }>(`/projects/${slug}/briefs/bulk-approve`, {
           briefIds: [this.briefId],
           mode: "assist",
+          dispatch,
         });
         void this.queryClient.invalidateQueries({ queryKey: ["brief", this.briefId] });
         void this.queryClient.invalidateQueries({ queryKey: ["briefs", slug] });
-        if (res.approvedCount > 0) {
-          this.$q.notify({ type: "positive", message: this.$t("briefs.actions.approveSuccess") as string });
+        const planQueued = res.planQueuedCount ?? 0;
+        const approved = res.approvedCount ?? 0;
+        if (planQueued > 0 || approved > 0) {
+          const successKey =
+            dispatch === "plan"
+              ? "briefs.bulkApprove.planSuccess"
+              : "briefs.bulkApprove.immediateSuccess";
+          this.$q.notify({
+            type: "positive",
+            message: this.$t(successKey, {
+              count: dispatch === "plan" ? planQueued : approved,
+            }) as string,
+          });
           void this.$router.push(this.backRoute);
         } else if (res.skippedCount > 0) {
           const reason = res.results.skipped[0]?.reason ?? "skipped";
@@ -213,9 +270,43 @@ export default defineComponent({
 }
 
 .status-pending { background: rgba(234, 179, 8, 0.15); color: #fbbf24; }
+.status-plan_pending { background: rgba(99, 102, 241, 0.15); color: #818cf8; }
 .status-approved, .status-auto_approved { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
 .status-rejected { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .status-routed { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+
+/* Spec 63.6: confirm-destructive dialog for 'immediate' dispatch. */
+.immediate-confirm {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  width: 380px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.confirm-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.confirm-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 
 .brief-detail-body {
   padding: 20px;

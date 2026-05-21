@@ -55,6 +55,14 @@
         >
           {{ $t("briefs.filters.readinessUnready") as string }}
         </button>
+        <button
+          type="button"
+          class="filter-chip filter-chip--plan-ready"
+          :class="{ active: activeReadiness === 'plan_ready' }"
+          @click="setReadiness('plan_ready')"
+        >
+          {{ $t("briefs.filters.readinessPlanReady") as string }}
+        </button>
       </div>
 
       <BriefsSection
@@ -196,10 +204,10 @@ export default defineComponent({
       if (typeof csv !== "string" || !csv) return [];
       return csv.split(",").map((s) => s.trim()).filter(Boolean);
     },
-    activeReadiness(): "" | "ready" | "unready" {
+    activeReadiness(): "" | "ready" | "unready" | "plan_ready" {
       const raw = this.$route.query.readiness;
       const v = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
-      return v === "ready" || v === "unready" ? v : "";
+      return v === "ready" || v === "unready" || v === "plan_ready" ? v : "";
     },
   },
 
@@ -222,7 +230,7 @@ export default defineComponent({
     clearSourceFilter(): void {
       this.writeSourceFilter([]);
     },
-    setReadiness(value: "" | "ready" | "unready"): void {
+    setReadiness(value: "" | "ready" | "unready" | "plan_ready"): void {
       const next = { ...this.$route.query };
       if (!value) {
         delete next.readiness;
@@ -246,26 +254,40 @@ export default defineComponent({
         query: this.$route.query,
       });
     },
-    async onBulkApproveConfirm({ mode }: { mode: "assist" | "auto" }): Promise<void> {
+    async onBulkApproveConfirm(payload: {
+      dispatch: "plan" | "immediate";
+      mode: "assist" | "auto";
+    }): Promise<void> {
       if (!this.selectedBriefIds.length || this.bulkProcessing) return;
       this.bulkProcessing = true;
       try {
         const slug = this.$route.params.slug as string;
         const result = await apiPost<{
+          dispatch: "plan" | "immediate";
           total: number;
           approvedCount: number;
+          planQueuedCount: number;
           skippedCount: number;
           failedCount: number;
         }>(`/projects/${slug}/briefs/bulk-approve`, {
           briefIds: this.selectedBriefIds,
-          mode,
+          mode: payload.mode,
+          dispatch: payload.dispatch,
         });
         this.showApproveModal = false;
         this.selectedBriefIds = [];
+        // Spec 63.6: 'plan' dispatch reports count under planQueuedCount, 'immediate'
+        // under approvedCount — surface the correct success message per branch.
+        const planQueued = result.planQueuedCount ?? 0;
+        const approved = result.approvedCount ?? 0;
+        const successKey =
+          payload.dispatch === "plan"
+            ? "briefs.bulkApprove.planSuccess"
+            : "briefs.bulkApprove.immediateSuccess";
         this.$q.notify({
           type: "positive",
-          message: this.$t("briefs.bulk.approveSuccess", {
-            count: result.approvedCount,
+          message: this.$t(successKey, {
+            count: payload.dispatch === "plan" ? planQueued : approved,
           }) as string,
         });
         void this.refetchPending();

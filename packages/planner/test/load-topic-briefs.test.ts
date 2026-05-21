@@ -1,8 +1,10 @@
-// Spec 62.4: loadPendingTopicBriefs invariants.
+// Spec 62.4 + 63.6: loadPendingTopicBriefs invariants.
 //
-// 1. FIFO ordering by created_at ASC (drives the planner's per-goal queue
-//    drain — spec §4.2.5).
-// 2. Filters to approvalStatus='pending' only.
+// 1. FIFO ordering by created_at ASC within each status bucket (drives the
+//    planner's per-goal queue drain — spec §4.2.5).
+// 2. Filters to approvalStatus IN ('pending', 'plan_pending'); plan_pending
+//    (Marcel approved through BriefsPage with dispatch='plan') sorts BEFORE
+//    bare pending so Marcel-vouched briefs are picked first (Spec 63.6).
 // 3. Filters to the 5 known source enum values listed in
 //    PLANNER_HANDLED_SOURCES — protects against new source types being
 //    silently picked up before planner code knows how to route them.
@@ -73,7 +75,9 @@ describe("loadPendingTopicBriefs", () => {
     expect(rows.map((r) => r.topicTitle)).toEqual(["first", "second", "third"]);
   });
 
-  it("excludes briefs whose approval_status is not 'pending'", async () => {
+  it("excludes briefs whose approval_status is terminal — keeps pending + plan_pending", async () => {
+    const t0 = new Date(Date.now() - 5 * 60_000);
+    const t1 = new Date(Date.now() - 4 * 60_000);
     await db.insert(topicBriefs).values([
       {
         projectId,
@@ -82,6 +86,16 @@ describe("loadPendingTopicBriefs", () => {
         clusterAction: "create_new",
         secondaryKeywords: [],
         approvalStatus: "pending",
+        createdAt: t0,
+      },
+      {
+        projectId,
+        source: "gap_analysis",
+        topicTitle: "plan-pending-one",
+        clusterAction: "create_new",
+        secondaryKeywords: [],
+        approvalStatus: "plan_pending",
+        createdAt: t1,
       },
       {
         projectId,
@@ -110,7 +124,37 @@ describe("loadPendingTopicBriefs", () => {
     ]);
 
     const rows = await loadPendingTopicBriefs({ projectId });
-    expect(rows.map((r) => r.topicTitle)).toEqual(["pending-one"]);
+    expect(rows.map((r) => r.topicTitle).sort()).toEqual(["pending-one", "plan-pending-one"]);
+  });
+
+  it("Spec 63.6: plan_pending briefs sort BEFORE pending briefs (Marcel-vouched first)", async () => {
+    // Insert a bare 'pending' brief created BEFORE the plan_pending one — without
+    // the status-priority CASE the older pending would come first by FIFO.
+    const tOlder = new Date(Date.now() - 10 * 60_000);
+    const tNewer = new Date(Date.now() - 1 * 60_000);
+    await db.insert(topicBriefs).values([
+      {
+        projectId,
+        source: "gap_analysis",
+        topicTitle: "pending-old",
+        clusterAction: "create_new",
+        secondaryKeywords: [],
+        approvalStatus: "pending",
+        createdAt: tOlder,
+      },
+      {
+        projectId,
+        source: "gap_analysis",
+        topicTitle: "plan-pending-new",
+        clusterAction: "create_new",
+        secondaryKeywords: [],
+        approvalStatus: "plan_pending",
+        createdAt: tNewer,
+      },
+    ]);
+
+    const rows = await loadPendingTopicBriefs({ projectId });
+    expect(rows.map((r) => r.topicTitle)).toEqual(["plan-pending-new", "pending-old"]);
   });
 
   it("returns rows from all 5 handled sources", async () => {

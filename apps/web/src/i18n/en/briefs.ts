@@ -17,7 +17,7 @@ export default {
     approveSelected: "Approve selected",
     dismissSelected: "Dismiss selected",
     confirmTitle: "Approve briefs",
-    confirmDescription: "{count} brief(s) will be approved and pipelines started.",
+    confirmDescription: "{count} brief(s) will be approved.",
     estimatedCost: "Estimated cost",
     estimatedTime: "Estimated time",
     modeAssist: "Assist (single articles)",
@@ -28,6 +28,20 @@ export default {
     dismissSuccess: "Briefs dismissed",
     dismissConfirmTitle: "Dismiss briefs",
     dismissConfirmDescription: "{count} brief(s) will be dismissed.",
+  },
+
+  // Spec 63.6: dispatch picker for brief-approval (plan vs immediate).
+  bulkApprove: {
+    dispatchLabel: "Dispatch mode",
+    plan: "Schedule for next plan",
+    planHint:
+      "Briefs land in the plan pool. Generation only starts once you approve the next weekly plan — budget gate active.",
+    planSuccess: "{count} brief(s) queued for next plan",
+    immediate: "Generate immediately",
+    immediateHint:
+      "Articles will be generated right now. The weekly budget gate is bypassed — use only for edge cases.",
+    immediateSuccess: "{count} brief(s) — generation running",
+    immediateConfirmTitle: "Confirm immediate generation",
   },
 
   actions: {
@@ -59,6 +73,7 @@ export default {
 
   approvalStatus: {
     pending: "Pending",
+    plan_pending: "In Plan Pool",
     approved: "Approved",
     auto_approved: "Auto-Approved",
     rejected: "Rejected",
@@ -91,5 +106,6 @@ export default {
     readinessAll: "All",
     readinessReady: "Approve-ready",
     readinessUnready: "Not enriched",
+    readinessPlanReady: "In plan pool",
   },
 };
