@@ -9,3 +9,21 @@ export {
   type GoalValidationWarningCode,
   type ValidateProjectGoalsOptions,
 } from "./goal-validator.ts";
+
+export {
+  refreshSignalsForProject,
+  type RefreshSignalsForProjectInput,
+  type RefreshableSignal,
+  type SignalFetcher,
+  type SignalFetcherContext,
+  type SignalRefreshResult,
+  type SignalRefreshSourceResult,
+  type SignalRefreshStatus,
+  type SignalSourceName,
+} from "./signal-refresh.ts";
+
+export {
+  discoverComparisonPairs,
+  type ComparisonDiscoveryResult,
+  type DiscoverComparisonPairsInput,
+} from "./comparison-discovery.ts";

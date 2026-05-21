@@ -574,6 +574,8 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   perTypeMaxEur: jsonb("per_type_max_eur").$type<Record<string, number>>(),
   topNSignalsAllowedOverage: integer("top_n_signals_allowed_overage").notNull().default(3),
   maxOveragePerSignal: integer("max_overage_per_signal").notNull().default(1),
+  // Spec 62.3: per-project staleness threshold for refreshSignalsForProject().
+  signalMaxAgeHours: integer("signal_max_age_hours").notNull().default(24),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

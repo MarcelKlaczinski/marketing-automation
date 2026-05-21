@@ -726,6 +726,23 @@ export const RefreshMetadataSchema = z.object({
 });
 export type RefreshMetadata = z.infer<typeof RefreshMetadataSchema>;
 
+// Spec 62.3: comparison-pair candidates discovered by discoverComparisonPairs().
+// Tool slugs are canonicalized: toolASlug < toolBSlug alphabetically. The partial
+// UNIQUE index in migration 0072 reproduces this ordering for upsert idempotency.
+export const ComparisonMetadataSchema = z.object({
+  toolASlug: z.string(),
+  toolBSlug: z.string(),
+  toolAName: z.string(),
+  toolBName: z.string(),
+  coMentionCount: z.number().int().min(0),
+  coMentionArticleIds: z.array(z.string().uuid()),
+  score: z.number().min(0).max(1),
+  categoryOverlap: z.boolean(),
+  recencyBoost: z.number().min(0).max(1),
+  reason: z.string(),
+});
+export type ComparisonMetadata = z.infer<typeof ComparisonMetadataSchema>;
+
 // ── Drizzle table ─────────────────────────────────────────────────────────────
 
 export const topicBriefs = pgTable(
@@ -735,7 +752,7 @@ export const topicBriefs = pgTable(
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
 
     source: text("source").notNull().$type<
-      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual"
+      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery"
     >(),
 
     // FK to content_gaps declared in migration SQL (avoids circular ordering within this file)
@@ -749,7 +766,7 @@ export const topicBriefs = pgTable(
 
     clusterId:     uuid("cluster_id"),
     clusterAction: text("cluster_action").notNull().$type<
-      "append_to_existing" | "create_new" | "translation" | "refresh" | "standalone"
+      "append_to_existing" | "create_new" | "translation" | "refresh" | "standalone" | "comparison"
     >(),
 
     searchVolumeDe: integer("search_volume_de"),
@@ -772,9 +789,10 @@ export const topicBriefs = pgTable(
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
 
-    gapMetadata:     jsonb("gap_metadata").$type<GapMetadata>(),
-    trendMetadata:   jsonb("trend_metadata").$type<TrendMetadata>(),
-    refreshMetadata: jsonb("refresh_metadata").$type<RefreshMetadata>(),
+    gapMetadata:        jsonb("gap_metadata").$type<GapMetadata>(),
+    trendMetadata:      jsonb("trend_metadata").$type<TrendMetadata>(),
+    refreshMetadata:    jsonb("refresh_metadata").$type<RefreshMetadata>(),
+    comparisonMetadata: jsonb("comparison_metadata").$type<ComparisonMetadata>(),
 
     // Spec 54.3: direct FK to the article/spec created by executeDecision
     // FKs declared via raw SQL migration (54.1 convention — avoids circular ordering within this file)
@@ -799,7 +817,13 @@ export const topicBriefs = pgTable(
 export const TopicBriefInsertSchema = z
   .object({
     projectId: z.string().uuid(),
-    source: z.enum(["gap_analysis", "trend_discovery", "refresh_detection", "manual"]),
+    source: z.enum([
+      "gap_analysis",
+      "trend_discovery",
+      "refresh_detection",
+      "manual",
+      "comparison_discovery", // Spec 62.3
+    ]),
     gapId: z.string().uuid().nullable().optional(),
 
     topicTitle:        z.string().min(3).max(300),
@@ -815,6 +839,7 @@ export const TopicBriefInsertSchema = z
       "translation",
       "refresh",
       "standalone",
+      "comparison", // Spec 62.3
     ]),
 
     searchVolumeDe: z.number().int().nullable().optional(),
@@ -838,15 +863,17 @@ export const TopicBriefInsertSchema = z
     approvedBy: z.string().nullable().optional(),
     approvedAt: z.date().nullable().optional(),
 
-    gapMetadata:     GapMetadataSchema.nullable().optional(),
-    trendMetadata:   TrendMetadataSchema.nullable().optional(),
-    refreshMetadata: RefreshMetadataSchema.nullable().optional(),
+    gapMetadata:        GapMetadataSchema.nullable().optional(),
+    trendMetadata:      TrendMetadataSchema.nullable().optional(),
+    refreshMetadata:    RefreshMetadataSchema.nullable().optional(),
+    comparisonMetadata: ComparisonMetadataSchema.nullable().optional(),
   })
   .superRefine((data, ctx) => {
-    const hasGap     = data.gapMetadata     != null;
-    const hasTrend   = data.trendMetadata   != null;
-    const hasRefresh = data.refreshMetadata != null;
-    const total      = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0);
+    const hasGap        = data.gapMetadata        != null;
+    const hasTrend      = data.trendMetadata      != null;
+    const hasRefresh    = data.refreshMetadata    != null;
+    const hasComparison = data.comparisonMetadata != null;
+    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0);
 
     if (data.source === "manual") {
       if (total !== 0) {
@@ -867,14 +894,19 @@ export const TopicBriefInsertSchema = z
     }
 
     const expectedMap = {
-      gap_analysis:      hasGap,
-      trend_discovery:   hasTrend,
-      refresh_detection: hasRefresh,
+      gap_analysis:          hasGap,
+      trend_discovery:       hasTrend,
+      refresh_detection:     hasRefresh,
+      comparison_discovery:  hasComparison,
     } as const;
 
-    // safe: "manual" was returned early above, so data.source is one of the three non-manual values
     if (!expectedMap[data.source as keyof typeof expectedMap]) {
-      const fieldName = { gap_analysis: "gap_metadata", trend_discovery: "trend_metadata", refresh_detection: "refresh_metadata" }[data.source as keyof typeof expectedMap];
+      const fieldName = {
+        gap_analysis:         "gap_metadata",
+        trend_discovery:      "trend_metadata",
+        refresh_detection:    "refresh_metadata",
+        comparison_discovery: "comparison_metadata",
+      }[data.source as keyof typeof expectedMap];
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: `source '${data.source}' requires '${fieldName}' to be set`,
@@ -887,6 +919,17 @@ export const TopicBriefInsertSchema = z
     }
     if (data.source !== "gap_analysis" && data.gapId) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "only gap_analysis briefs may set gapId" });
+    }
+
+    // Spec 62.3: canonicalize toolASlug < toolBSlug for comparison_discovery
+    if (data.source === "comparison_discovery" && data.comparisonMetadata) {
+      const { toolASlug, toolBSlug } = data.comparisonMetadata;
+      if (toolASlug >= toolBSlug) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `comparison_discovery requires toolASlug < toolBSlug (got '${toolASlug}', '${toolBSlug}')`,
+        });
+      }
     }
   });
 

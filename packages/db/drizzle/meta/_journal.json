@@ -505,6 +505,20 @@
       "when": 1784900000000,
       "tag": "0071_project_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1785000000000,
+      "tag": "0072_signal_refresh_and_comparison_discovery",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1785100000000,
+      "tag": "0073_topic_briefs_comparison_constraints",
+      "breakpoints": true
     }
   ]
 }
