@@ -235,6 +235,49 @@ describe("SelectFloorItemsStep", () => {
     expect(out.shortfallsByContentType.social_post).toBeUndefined();
   });
 
+  it("stamps pipelineInput.title from brief.suggestedTitle when set", async () => {
+    const briefs = [
+      brief({
+        topicTitle: "raw title",
+        suggestedTitle: "Polished Headline",
+        clusterAction: "create_new",
+      }),
+    ];
+    const goals = [goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1 })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{ pipelineInput: Record<string, unknown> }>;
+    expect(items).toHaveLength(1);
+    const item = items[0];
+    if (!item) throw new Error("expected one item");
+    expect(item.pipelineInput["title"]).toBe("Polished Headline");
+  });
+
+  it("falls back to brief.topicTitle when suggestedTitle is null", async () => {
+    const briefs = [
+      brief({ topicTitle: "Raw Headline", suggestedTitle: null, clusterAction: "create_new" }),
+    ];
+    const goals = [goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1 })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { goals } as never;
+        if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.floorItems as Array<{ pipelineInput: Record<string, unknown> }>;
+    const item = items[0];
+    if (!item) throw new Error("expected one item");
+    expect(item.pipelineInput["title"]).toBe("Raw Headline");
+  });
+
   it("preserves brief.locale for non-cluster content types", async () => {
     const briefs = [
       brief({ clusterAction: "comparison", locale: "de" }),

@@ -27,13 +27,35 @@ import {
   type RefreshPoolCandidate,
   type SuggestionPoolCandidate,
 } from "@marketing-auto/planner";
-import type { ProjectGoal } from "@marketing-auto/db";
+import { articles, db, inArray, type ProjectGoal } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import {
   PIPELINE_NAME_BY_CONTENT_TYPE,
   type PlanningItemDraft,
 } from "../types.ts";
+
+/**
+ * Default DB-backed batch lookup for article titles, used by the
+ * refresh + pool social-post sub-cases to stamp `pipelineInput.title`.
+ * Returns a `Map<articleId, title>` skipping rows with NULL/empty title so
+ * the card cascade falls through to `selectionReason` instead of stamping
+ * an empty string. Injected via `SelectSocialPostDeps` for offline tests.
+ */
+async function defaultLoadArticleTitles(
+  articleIds: string[],
+): Promise<Map<string, string>> {
+  if (articleIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: articles.id, title: articles.title })
+    .from(articles)
+    .where(inArray(articles.id, articleIds));
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    if (typeof r.title === "string" && r.title.length > 0) out.set(r.id, r.title);
+  }
+  return out;
+}
 
 export const selectSocialPostInputSchema = z.object({
   projectId: z.string().uuid(),
@@ -53,6 +75,7 @@ type Output = z.infer<typeof selectSocialPostOutputSchema>;
 export interface SelectSocialPostDeps {
   pickFromRefreshSuggestions?: typeof defaultPickFromRefreshSuggestions;
   pickFromSuggestionPool?: typeof defaultPickFromSuggestionPool;
+  loadArticleTitles?: typeof defaultLoadArticleTitles;
 }
 
 export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
@@ -61,11 +84,13 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
   readonly outputSchema = selectSocialPostOutputSchema;
   private readonly pickRefresh: typeof defaultPickFromRefreshSuggestions;
   private readonly pickPool: typeof defaultPickFromSuggestionPool;
+  private readonly loadArticleTitles: typeof defaultLoadArticleTitles;
 
   constructor(deps?: SelectSocialPostDeps) {
     super();
     this.pickRefresh = deps?.pickFromRefreshSuggestions ?? defaultPickFromRefreshSuggestions;
     this.pickPool = deps?.pickFromSuggestionPool ?? defaultPickFromSuggestionPool;
+    this.loadArticleTitles = deps?.loadArticleTitles ?? defaultLoadArticleTitles;
   }
 
   async execute(input: Input, ctx: StepContext): Promise<Output> {
@@ -100,6 +125,19 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
     );
     const fromTodayPlans: PlanningItemDraft[] = [];
     for (const cluster of clusterItems.slice(0, perSourceCap)) {
+      // Inherit the parent cluster's headline. Both floor and overage cluster
+      // items already carry `pipelineInput.title` (brief.suggestedTitle ??
+      // brief.topicTitle for floor; signal.title for overage), so we can copy
+      // without a DB roundtrip. Falls back to undefined if the upstream item
+      // somehow lacks a title — the card cascade then uses selectionReason.
+      const rawTitle = cluster.pipelineInput["title"];
+      const parentTitle = typeof rawTitle === "string" ? rawTitle : undefined;
+      const childInput: Record<string, unknown> = {
+        projectId: input.projectId,
+        parentDraftId: cluster.draftId,
+        parentBriefId: cluster.sourceBriefId,
+      };
+      if (parentTitle !== undefined) childInput.title = parentTitle;
       fromTodayPlans.push({
         draftId: randomUUID(),
         contentType: "social_post",
@@ -109,11 +147,7 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
         sourceSignalId: cluster.sourceSignalId,
         parentDraftId: cluster.draftId,
         locale: null,
-        pipelineInput: {
-          projectId: input.projectId,
-          parentDraftId: cluster.draftId,
-          parentBriefId: cluster.sourceBriefId,
-        },
+        pipelineInput: childInput,
         slotDate: cluster.slotDate,
         selectionScore: null,
         selectionReason: `Social repurpose of planned cluster (brief ${cluster.sourceBriefId ?? "n/a"})`,
@@ -124,6 +158,41 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
     // 2) From refresh_suggestions. Each candidate has an articleId — feed
     //    it directly to article:social-image at execution time.
     const refreshRows = await this.pickRefresh({ projectId: input.projectId, limit: perSourceCap });
+
+    // 3) Suggestion pool (top-up). Avoid double-picking articles already
+    //    selected from the refresh source.
+    const refreshArticleIds = refreshRows.map((r: RefreshPoolCandidate) => r.articleId);
+    const remaining = Math.max(0, target - fromTodayPlans.length - refreshRows.length);
+    const poolRows =
+      remaining > 0
+        ? await this.pickPool({
+            projectId: input.projectId,
+            limit: remaining,
+            excludeArticleIds: refreshArticleIds,
+          })
+        : [];
+
+    // Batch-load article titles for both refresh and pool sub-cases in a
+    // single SQL roundtrip. Articles without a title (imported drafts) are
+    // omitted from the map; their planned_items omit the `title` field and
+    // the card cascade falls back to selectionReason.
+    const allArticleIds = [
+      ...refreshArticleIds,
+      ...poolRows.map((r: SuggestionPoolCandidate) => r.articleId),
+    ];
+    const articleTitleById = await this.loadArticleTitles(allArticleIds);
+
+    const buildArticleInput = (articleId: string, extras: Record<string, unknown>) => {
+      const out: Record<string, unknown> = {
+        projectId: input.projectId,
+        articleId,
+        ...extras,
+      };
+      const title = articleTitleById.get(articleId);
+      if (title !== undefined) out.title = title;
+      return out;
+    };
+
     const fromRefresh: PlanningItemDraft[] = refreshRows.map((row: RefreshPoolCandidate) => ({
       draftId: randomUUID(),
       contentType: "social_post",
@@ -133,29 +202,13 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
       sourceSignalId: null,
       parentDraftId: null,
       locale: null,
-      pipelineInput: {
-        projectId: input.projectId,
-        articleId: row.articleId,
-        refreshSuggestionId: row.suggestionId,
-      },
+      pipelineInput: buildArticleInput(row.articleId, { refreshSuggestionId: row.suggestionId }),
       slotDate: null,
       selectionScore: null,
       selectionReason: `Social repurpose from refresh suggestion ${row.suggestionId}`,
       estimatedCostEur: null,
     }));
 
-    // 3) Suggestion pool (top-up). Avoid double-picking articles already
-    //    selected from the refresh source.
-    const refreshArticleIds = refreshRows.map((r: RefreshPoolCandidate) => r.articleId);
-    const remaining = Math.max(0, target - fromTodayPlans.length - fromRefresh.length);
-    const poolRows =
-      remaining > 0
-        ? await this.pickPool({
-            projectId: input.projectId,
-            limit: remaining,
-            excludeArticleIds: refreshArticleIds,
-          })
-        : [];
     const fromPool: PlanningItemDraft[] = poolRows.map((row: SuggestionPoolCandidate) => ({
       draftId: randomUUID(),
       contentType: "social_post",
@@ -165,10 +218,7 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
       sourceSignalId: null,
       parentDraftId: null,
       locale: null,
-      pipelineInput: {
-        projectId: input.projectId,
-        articleId: row.articleId,
-      },
+      pipelineInput: buildArticleInput(row.articleId, {}),
       slotDate: null,
       selectionScore: null,
       selectionReason: `Social repurpose from suggestion pool`,

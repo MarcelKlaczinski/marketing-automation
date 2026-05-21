@@ -76,7 +76,16 @@ function pipelineInputFromBrief(
   contentType: PlanningContentType,
   projectId: string,
 ): Record<string, unknown> {
-  const input: Record<string, unknown> = { briefId: brief.id, projectId };
+  // `title` is read by PlannerItemCard for the calendar headline; prefer the
+  // LLM-polished `suggestedTitle` when set, otherwise the raw NOT NULL
+  // `topicTitle`. Persisting here means the planner emits a ready-to-display
+  // headline at plan-generation time — no read-time JOIN against
+  // `topic_briefs` is needed.
+  const input: Record<string, unknown> = {
+    briefId: brief.id,
+    projectId,
+    title: brief.suggestedTitle ?? brief.topicTitle,
+  };
   if (contentType === "comparison") input.collectionType = "comparisons";
   if (contentType === "ki_wissen") input.collectionType = "ki-wissen";
   return input;

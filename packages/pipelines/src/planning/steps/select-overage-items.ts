@@ -98,6 +98,10 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
             signalId: signal.signalId,
             projectId: input.projectId,
             signalTitle: signal.title,
+            // Mirror under `title` so the planner-card cascade
+            // (pipelineInput.title → topicTitle → selectionReason) picks it up
+            // without a special-cased branch for overage items.
+            title: signal.title,
           },
           slotDate: null,
           selectionScore: signal.normalizedScore,

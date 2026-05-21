@@ -152,6 +152,24 @@ describe("SelectOverageItemsStep", () => {
     expect(out.overageItems).toHaveLength(2);
   });
 
+  it("mirrors signal.title into both pipelineInput.signalTitle and pipelineInput.title", async () => {
+    const sigs = [signal({ source: "producthunt", title: "GPT-5 launches in beta" })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { config: config() } as never;
+        if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+        if (name === "select-floor-items") return { floorItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.overageItems as PlanningItemDraft[];
+    expect(items).toHaveLength(1);
+    const pi = items[0]!.pipelineInput;
+    expect(pi["signalTitle"]).toBe("GPT-5 launches in beta");
+    expect(pi["title"]).toBe("GPT-5 launches in beta");
+  });
+
   it("emits maxOveragePerSignal=2 → 2 items per signal", async () => {
     const sigs = [signal({ source: "producthunt" })];
     const ctx = makeMockCtx({

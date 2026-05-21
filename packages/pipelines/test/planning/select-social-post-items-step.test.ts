@@ -52,6 +52,9 @@ function emptyDeps(): SelectSocialPostDeps {
   return {
     pickFromRefreshSuggestions: async () => [],
     pickFromSuggestionPool: async () => [],
+    // Default to no-op so tests don't accidentally hit the DB. Tests that
+    // need title-stamping pass an override here.
+    loadArticleTitles: async () => new Map<string, string>(),
   };
 }
 
@@ -105,6 +108,7 @@ describe("SelectSocialPostItemsStep", () => {
         { suggestionId: suggestionA, articleId: articleA, generatedAt: new Date() },
       ],
       pickFromSuggestionPool: async () => [],
+      loadArticleTitles: async () => new Map<string, string>(),
     };
     const step = new SelectSocialPostItemsStep(deps);
     const ctx = makeMockCtx({
@@ -137,6 +141,7 @@ describe("SelectSocialPostItemsStep", () => {
         excludedSeen = input.excludeArticleIds;
         return [{ articleId: articlePool, publishedAt: new Date() }];
       },
+      loadArticleTitles: async () => new Map<string, string>(),
     };
     const step = new SelectSocialPostItemsStep(deps);
     const ctx = makeMockCtx({
@@ -172,6 +177,113 @@ describe("SelectSocialPostItemsStep", () => {
     // target = 2 × 7 = 14, all pools empty → shortfall 14.
     expect(out.socialItems).toEqual([]);
     expect(out.shortfall).toBe(14);
+  });
+
+  it("inherits parent cluster pipelineInput.title onto child social_post", async () => {
+    const step = new SelectSocialPostItemsStep(emptyDeps());
+    const cluster = clusterDraft({
+      pipelineInput: { briefId: crypto.randomUUID(), projectId, title: "Claude Skills Hub" },
+    });
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") {
+          return { goals: [goal({ minCount: 1, cadenceUnit: "per_week" })] } as never;
+        }
+        if (name === "select-floor-items") return { floorItems: [cluster] } as never;
+        if (name === "select-overage-items") return { overageItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.socialItems as PlanningItemDraft[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.pipelineInput["title"]).toBe("Claude Skills Hub");
+  });
+
+  it("omits title on child social_post when parent cluster has no title (graceful)", async () => {
+    const step = new SelectSocialPostItemsStep(emptyDeps());
+    const cluster = clusterDraft({ pipelineInput: { projectId } });
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") {
+          return { goals: [goal({ minCount: 1, cadenceUnit: "per_week" })] } as never;
+        }
+        if (name === "select-floor-items") return { floorItems: [cluster] } as never;
+        if (name === "select-overage-items") return { overageItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.socialItems as PlanningItemDraft[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.pipelineInput["title"]).toBeUndefined();
+  });
+
+  it("stamps article title on refresh + pool items via batch loader", async () => {
+    const articleRefresh = "00000000-0000-0000-0000-0000000000b1";
+    const suggestion = "00000000-0000-0000-0000-0000000000b2";
+    const articlePool = "00000000-0000-0000-0000-0000000000b3";
+    let loaderArgs: string[] | undefined;
+    const deps: SelectSocialPostDeps = {
+      pickFromRefreshSuggestions: async () => [
+        { suggestionId: suggestion, articleId: articleRefresh, generatedAt: new Date() },
+      ],
+      pickFromSuggestionPool: async () => [
+        { articleId: articlePool, publishedAt: new Date() },
+      ],
+      loadArticleTitles: async (ids) => {
+        loaderArgs = ids;
+        return new Map<string, string>([
+          [articleRefresh, "Refresh Article Title"],
+          [articlePool, "Pool Article Title"],
+        ]);
+      },
+    };
+    const step = new SelectSocialPostItemsStep(deps);
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") {
+          return { goals: [goal({ minCount: 3, cadenceUnit: "per_week" })] } as never;
+        }
+        if (name === "select-floor-items") return { floorItems: [] } as never;
+        if (name === "select-overage-items") return { overageItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.socialItems as PlanningItemDraft[];
+    // Batch loader was called once with both IDs (no N+1).
+    expect(loaderArgs).toEqual([articleRefresh, articlePool]);
+    const refreshItem = items.find((it) => it.pipelineInput["articleId"] === articleRefresh);
+    const poolItem = items.find((it) => it.pipelineInput["articleId"] === articlePool);
+    expect(refreshItem?.pipelineInput["title"]).toBe("Refresh Article Title");
+    expect(poolItem?.pipelineInput["title"]).toBe("Pool Article Title");
+  });
+
+  it("omits title when batch loader has no entry for the article id", async () => {
+    const articleId = "00000000-0000-0000-0000-0000000000b4";
+    const deps: SelectSocialPostDeps = {
+      pickFromRefreshSuggestions: async () => [
+        { suggestionId: "s1", articleId, generatedAt: new Date() },
+      ],
+      pickFromSuggestionPool: async () => [],
+      loadArticleTitles: async () => new Map<string, string>(),
+    };
+    const step = new SelectSocialPostItemsStep(deps);
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") {
+          return { goals: [goal({ minCount: 1, cadenceUnit: "per_week" })] } as never;
+        }
+        if (name === "select-floor-items") return { floorItems: [] } as never;
+        if (name === "select-overage-items") return { overageItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.socialItems as PlanningItemDraft[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.pipelineInput["title"]).toBeUndefined();
   });
 
   it("propagates parent cluster slotDate to social_post", async () => {
