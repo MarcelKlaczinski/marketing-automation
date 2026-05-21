@@ -27,12 +27,40 @@
         <span class="content-type-badge" :class="`ct-${contentTypeKey}`">
           {{ contentTypeLabel }}
         </span>
+        <!--
+          Spec 62.4-followup Issue 3: friendly label on the badge ("Geplant"
+          / "Trend" / "EN-Version"). Audit-detail selection_reason shows on
+          hover via q-tooltip (mobile tap-hold also fires it).
+        -->
         <span class="source-kind-badge" :class="`sk-${item.sourceKind}`">
           {{ $t(`planner.sourceKind.${item.sourceKind}`) as string }}
+          <q-tooltip
+            v-if="item.selectionReason"
+            anchor="bottom middle"
+            self="top middle"
+            :delay="200"
+          >
+            {{ item.selectionReason }}
+          </q-tooltip>
         </span>
       </div>
 
-      <p class="item-title" :title="title">{{ title }}</p>
+      <!--
+        Spec 62.4-followup Issue 4: the title is clamped to 1-2 lines via
+        -webkit-line-clamp. q-tooltip surfaces the full title on hover (and
+        on mobile tap-hold via Quasar's default touch handling).
+      -->
+      <p class="item-title">
+        {{ title }}
+        <q-tooltip
+          anchor="bottom middle"
+          self="top middle"
+          :delay="200"
+          max-width="320px"
+        >
+          {{ title }}
+        </q-tooltip>
+      </p>
 
       <div class="item-row-bottom">
         <span class="cost mono">€{{ costDisplay }}</span>

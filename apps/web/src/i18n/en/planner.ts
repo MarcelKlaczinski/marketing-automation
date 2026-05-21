@@ -35,11 +35,11 @@ export default {
     cancelled: "Cancelled",
   },
 
-  // Source-kind badges
+  // Source-kind badges. Spec 62.4-followup Issue 3.
   sourceKind: {
-    floor: "Floor",
-    overage_signal: "Signal",
-    sibling_locale: "Sibling",
+    floor: "Scheduled",
+    overage_signal: "Trend",
+    sibling_locale: "EN version",
   },
 
   // Content-type badges

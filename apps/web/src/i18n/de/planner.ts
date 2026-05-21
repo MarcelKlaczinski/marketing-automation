@@ -35,11 +35,13 @@ export default {
     cancelled: "Abgebrochen",
   },
 
-  // Source-kind badges
+  // Source-kind badges. Spec 62.4-followup Issue 3: user-friendly labels
+  // replace raw enum names. selection_reason (audit detail) surfaces only as
+  // a hover tooltip on the badge.
   sourceKind: {
-    floor: "Floor",
-    overage_signal: "Signal",
-    sibling_locale: "Sibling",
+    floor: "Geplant",
+    overage_signal: "Trend",
+    sibling_locale: "EN-Version",
   },
 
   // Content-type badges
