@@ -91,10 +91,12 @@ const routes = [
           import("src/pages/clusters/ClusterDetailPage.vue"),
       },
 
-      // 56.3: Settings — sidebar nav with 4 sub-sections
+      // 56.3: Settings — sidebar nav with sub-sections.
+      // Name lives on the empty-path redirect child (Vue Router emits a
+      // warning when a named parent has an unnamed empty-path child, because
+      // pushing by the parent's name won't render the empty-path entry).
       {
         path: "settings",
-        name: "settings",
         component: () => import("src/pages/settings/SettingsPage.vue"),
         children: [
           {
@@ -127,9 +129,12 @@ const routes = [
             name: "settings-planner",
             component: () => import("src/pages/settings/SettingsPlannerPage.vue"),
           },
-          // Redirect bare /settings to /settings/project
+          // Redirect bare /settings to /settings/project. The "settings"
+          // name lives here so `router.push({ name: "settings" })` reaches
+          // the default sub-page.
           {
             path: "",
+            name: "settings",
             redirect: { name: "settings-project" },
           },
         ],
