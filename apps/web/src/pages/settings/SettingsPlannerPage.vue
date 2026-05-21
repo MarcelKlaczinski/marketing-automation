@@ -218,6 +218,57 @@
       </details>
     </section>
 
+    <!-- Spec 62.7: weekly plan-trigger -->
+    <section class="form-card">
+      <h2 class="section-title">{{ $t("settings.planner.cronSection.title") as string }}</h2>
+      <p class="section-description">
+        {{ $t("settings.planner.cronSection.description") as string }}
+      </p>
+
+      <div class="cron-grid">
+        <label class="field cron-enabled-field">
+          <span class="field-label">
+            {{ $t("settings.planner.cronSection.enabledLabel") as string }}
+          </span>
+          <input
+            v-model="config.cronEnabled"
+            type="checkbox"
+            class="cron-checkbox"
+            :disabled="cronToggleBlocked"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.cronSection.dayOfWeekLabel") as string }}
+          </span>
+          <select v-model.number="config.cronDayOfWeek" class="input">
+            <option v-for="d in dayOfWeekOptions" :key="d" :value="d">
+              {{ $t(`settings.planner.daysOfWeek.${d}`) as string }}
+            </option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.cronSection.hourUtcLabel") as string }}
+          </span>
+          <select v-model.number="config.cronHourUtc" class="input">
+            <option v-for="h in hourOptions" :key="h" :value="h">
+              {{ formatHourUtc(h) }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <p class="cron-hint">
+        {{ cronHintText }}
+      </p>
+      <p v-if="cronToggleBlocked" class="cron-blocked">
+        {{ $t("settings.planner.cronSection.requiresValidConfig") as string }}
+      </p>
+    </section>
+
     <div class="actions">
       <button
         type="button"
@@ -251,6 +302,10 @@ interface ConfigState {
   weeklyBudgetEur: number;
   topNSignalsAllowedOverage: number;
   maxOveragePerSignal: number;
+  // Spec 62.7 cron-trigger fields
+  cronEnabled: boolean;
+  cronDayOfWeek: number;
+  cronHourUtc: number;
 }
 
 interface FetchedGoal {
@@ -267,6 +322,10 @@ interface FetchedConfig {
   topNSignalsAllowedOverage: number;
   maxOveragePerSignal: number;
   perTypeMaxEur: Record<string, number> | null;
+  // Spec 62.7 cron-trigger fields
+  cronEnabled?: boolean;
+  cronDayOfWeek?: number;
+  cronHourUtc?: number;
 }
 
 interface ValidationIssue {
@@ -298,6 +357,9 @@ export default defineComponent({
       weeklyBudgetEur: 50,
       topNSignalsAllowedOverage: 3,
       maxOveragePerSignal: 1,
+      cronEnabled: false,
+      cronDayOfWeek: 0,
+      cronHourUtc: 18,
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
@@ -309,6 +371,10 @@ export default defineComponent({
     validating: false,
     saving: false,
     allContentTypes: ALL_CONTENT_TYPES,
+    // Spec 62.7: fixed-length lists for the cron dropdowns. Module-level constants
+    // would also work — kept in data() for symmetry with allContentTypes.
+    dayOfWeekOptions: [0, 1, 2, 3, 4, 5, 6] as number[],
+    hourOptions: Array.from({ length: 24 }, (_, i) => i) as number[],
   }),
 
   computed: {
@@ -329,6 +395,25 @@ export default defineComponent({
       // Block adding when all 4 content types are already covered.
       const used = new Set(this.goals.map((g) => g.contentType));
       return used.size >= ALL_CONTENT_TYPES.length;
+    },
+    // Spec 62.7: block the cron toggle when the validator reports errors —
+    // turning the cron on with invalid goals would just produce failed runs in
+    // the Quarantine tab.
+    cronToggleBlocked(): boolean {
+      // Allow turning OFF even if config is invalid (escape hatch).
+      if (this.config.cronEnabled === false) return false;
+      return this.validation !== null && !this.validation.valid;
+    },
+    cronHintText(): string {
+      const day = this.$t(`settings.planner.daysOfWeek.${this.config.cronDayOfWeek}`) as string;
+      const hourUtc = this.formatHourUtc(this.config.cronHourUtc);
+      const { label: hourLocal, tz } = this.formatHourLocal(this.config.cronHourUtc);
+      return this.$t("settings.planner.cronSection.localTimeHint", {
+        day,
+        hourUtc,
+        hourLocal,
+        tz,
+      }) as string;
     },
   },
 
@@ -366,6 +451,12 @@ export default defineComponent({
             const v = config.perTypeMaxEur?.[ct];
             this.perTypeInputs[ct] = v == null ? "" : String(v);
           }
+          // Spec 62.7: cron-trigger fields. Server returns DB defaults (false / 0 / 18)
+          // when the project hasn't customised them yet, so `?? default` keeps the UI
+          // honest for older project_planner_config rows pre-migration 0077.
+          this.config.cronEnabled = config.cronEnabled ?? false;
+          this.config.cronDayOfWeek = config.cronDayOfWeek ?? 0;
+          this.config.cronHourUtc = config.cronHourUtc ?? 18;
         }
         await this.runValidation();
       } catch (err) {
@@ -439,6 +530,11 @@ export default defineComponent({
             maxOveragePerSignal: this.config.maxOveragePerSignal,
             perTypeMaxEur:
               Object.keys(perTypeMaxEur).length === 0 ? null : perTypeMaxEur,
+            // Spec 62.7: cron-trigger fields. Persist even when toggle is off so
+            // dayOfWeek/hourUtc are kept for the next time Marcel re-enables.
+            cronEnabled: this.config.cronEnabled,
+            cronDayOfWeek: this.config.cronDayOfWeek,
+            cronHourUtc: this.config.cronHourUtc,
           }),
         ]);
 
@@ -455,6 +551,35 @@ export default defineComponent({
       } finally {
         this.saving = false;
       }
+    },
+    // Spec 62.7: zero-padded "HH:00" — no Date involved so neither timezone nor
+    // locale affects the rendering. Used for the UTC dropdown options and the
+    // hint label's UTC portion.
+    formatHourUtc(hour: number): string {
+      return `${String(hour).padStart(2, "0")}:00`;
+    },
+    // Spec 62.7: convert UTC hour-of-day → local time string + the resolved
+    // timezone abbreviation (e.g. "20:00", "CEST"). Uses Intl with the user's
+    // current locale to render the abbreviation, since DST means "CET / CEST"
+    // varies by date. The reference date is today at the configured UTC hour.
+    formatHourLocal(hourUtc: number): { label: string; tz: string } {
+      const ref = new Date();
+      ref.setUTCHours(hourUtc, 0, 0, 0);
+      const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
+      const timeFmt = new Intl.DateTimeFormat(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const tzFmt = new Intl.DateTimeFormat(locale, { timeZoneName: "short" });
+      // Extract just the timeZoneName portion from the tz formatter.
+      const tzPart = tzFmt
+        .formatToParts(ref)
+        .find((p) => p.type === "timeZoneName");
+      return {
+        label: timeFmt.format(ref),
+        tz: tzPart?.value ?? "",
+      };
     },
     errorMessage(code: string): string {
       const key = `settings.planner.errorCodes.${code}`;
@@ -681,6 +806,45 @@ export default defineComponent({
   margin-top: 8px;
 }
 
+.cron-grid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.cron-enabled-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.cron-checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--brand, #3b82f6);
+}
+
+.cron-checkbox:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.cron-hint {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
+.cron-blocked {
+  color: var(--warning, #b58105);
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
@@ -695,6 +859,15 @@ export default defineComponent({
   .btn-primary {
     width: 100%;
     min-height: 44px;
+  }
+  /* Spec 62.7: stack cron fields vertically on phones so the 3-column grid
+     doesn't squeeze the dropdowns into illegible widths at 375px. */
+  .cron-grid {
+    grid-template-columns: 1fr;
+  }
+  .cron-checkbox {
+    width: 22px;
+    height: 22px;
   }
 }
 </style>

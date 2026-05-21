@@ -2,6 +2,46 @@ export default {
   title: "Planner",
   description: "View and approve the weekly plan",
 
+  // Spec 62.7: tab navigation
+  tabs: {
+    calendar: "Calendar",
+    quarantine: "Quarantine",
+  },
+
+  // Spec 62.7: cron-indicator top-right
+  cronIndicator: {
+    on: "Cron: ON",
+    off: "Cron: OFF",
+    onTooltip:
+      "Weekly auto-trigger is active. Click to adjust in Settings.",
+    offTooltip:
+      "Weekly auto-trigger is disabled. Click to configure.",
+  },
+
+  // Spec 62.7: Quarantine tab
+  quarantine: {
+    title: "Failed plan generations",
+    description:
+      "Plan runs that failed. View details or trigger a new run for the same week.",
+    empty: "No failed plan runs — everything is healthy.",
+    failedBadge: "Failed",
+    planLabel: "Plan week {n} / {year}",
+    triggeredByCron: "cron",
+    triggeredByManual: "manual",
+    triggeredByRetry: "retry",
+    viewDetails: "View details",
+    retry: "Retry",
+    retryStarted: "New plan run started",
+    retryUnsupported:
+      "This run has no target week in its input — start manually from the calendar instead.",
+    retryConfirm: {
+      title: "Retry plan generation?",
+      body: "A new plan run for week {n} / {year} will be started. The previous failed run stays in history.",
+      confirm: "Start",
+      cancel: "Cancel",
+    },
+  },
+
   // Week navigator
   week: "Week {n} / {year}",
   weekRange: "{start} – {end}",

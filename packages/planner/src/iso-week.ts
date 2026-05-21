@@ -50,3 +50,23 @@ export function getIsoWeek(date: Date): { year: number; isoWeek: number } {
 export function addDaysUtc(d: Date, days: number): Date {
   return new Date(d.getTime() + days * MS_PER_DAY);
 }
+
+/**
+ * Spec 62.7: returns the (isoYear, isoWeek) of the **next** ISO week from `now`.
+ *
+ * "Next week" = the ISO week of (Monday-of-this-week + 7 days). When `now` is
+ * already a Monday at 00:00:00Z the result is +7 days; for any other moment in
+ * the current week the result is also the following Monday's week. This matches
+ * the planner's contract of generating a plan for the upcoming Monday-to-Sunday
+ * window, regardless of which weekday the cron fires on.
+ *
+ * Edge case: when the next-week's Monday is in a different ISO year (the
+ * Dec-31 / Jan-1 rollover where week 52/53 wraps to week 1), getIsoWeek picks
+ * up the new year automatically since it's anchored to the Thursday rule.
+ */
+export function computeNextIsoWeek(now: Date = new Date()): { year: number; isoWeek: number } {
+  const current = getIsoWeek(now);
+  const thisMonday = isoWeekStartDate(current.year, current.isoWeek);
+  const nextMonday = addDaysUtc(thisMonday, 7);
+  return getIsoWeek(nextMonday);
+}

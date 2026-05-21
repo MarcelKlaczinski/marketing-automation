@@ -2,6 +2,46 @@ export default {
   title: "Planner",
   description: "Wochenplan ansehen und freigeben",
 
+  // Spec 62.7: tab navigation
+  tabs: {
+    calendar: "Kalender",
+    quarantine: "Quarantäne",
+  },
+
+  // Spec 62.7: cron-indicator top-right
+  cronIndicator: {
+    on: "Cron: AN",
+    off: "Cron: AUS",
+    onTooltip:
+      "Automatischer Wochentrigger ist aktiv. Klicken, um in den Einstellungen anzupassen.",
+    offTooltip:
+      "Automatischer Wochentrigger ist deaktiviert. Klicken, um zu konfigurieren.",
+  },
+
+  // Spec 62.7: Quarantine tab
+  quarantine: {
+    title: "Fehlgeschlagene Plan-Generationen",
+    description:
+      "Plan-Runs, die fehlgeschlagen sind. Details anzeigen oder einen neuen Lauf für die gleiche Woche starten.",
+    empty: "Keine fehlgeschlagenen Plan-Runs — alles läuft sauber.",
+    failedBadge: "Fehlgeschlagen",
+    planLabel: "Plan KW {n} / {year}",
+    triggeredByCron: "cron",
+    triggeredByManual: "manuell",
+    triggeredByRetry: "retry",
+    viewDetails: "Details ansehen",
+    retry: "Erneut versuchen",
+    retryStarted: "Neuer Plan-Run gestartet",
+    retryUnsupported:
+      "Dieser Run hat keine Zielwoche im Input — bitte manuell über Kalender starten.",
+    retryConfirm: {
+      title: "Plan-Generation wiederholen?",
+      body: "Neuer Plan-Run für KW {n} / {year} wird gestartet. Vorheriger fehlgeschlagener Run bleibt in der Historie.",
+      confirm: "Starten",
+      cancel: "Abbrechen",
+    },
+  },
+
   // Week navigator
   week: "KW {n} / {year}",
   weekRange: "{start} – {end}",

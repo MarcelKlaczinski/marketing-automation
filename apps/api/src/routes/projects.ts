@@ -7,6 +7,7 @@ import { enqueueArticleOutlinePipeline, enqueueBlogGenerationPipeline, decideRou
 import { enqueueDiscoveryJob } from "../workers/discoveryWorker.ts";
 import { syncCronJobs } from "../workers/cron-orchestrator.ts";
 import { STEP_PAUSE_CLEANUP_CRON_PATTERN } from "../workers/step-pause-cleanup.worker.ts";
+import { PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN } from "../workers/planner-weekly-generation.worker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -262,6 +263,19 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         jobType: "step_pause_cleanup",
         isActive: true,
         cronPattern: STEP_PAUSE_CLEANUP_CRON_PATTERN,
+      })
+      .onConflictDoNothing();
+
+    // Spec 62.7: pre-seed the planner_weekly_generation cron_state row with
+    // is_active=false so the orchestrator doesn't trigger anything until Marcel
+    // toggles it on in SettingsPlannerPage. Default pattern is Sunday 18:00 UTC.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "planner_weekly_generation",
+        isActive: false,
+        cronPattern: PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
   }

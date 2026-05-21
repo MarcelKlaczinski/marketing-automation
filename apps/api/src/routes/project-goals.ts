@@ -184,9 +184,23 @@ projectGoalsRoutes.put(
       perTypeMaxEur: body.perTypeMaxEur ?? null,
       topNSignalsAllowedOverage: body.topNSignalsAllowedOverage,
       maxOveragePerSignal: body.maxOveragePerSignal,
+      // Spec 62.7: cron-trigger settings. The helper internally syncs the
+      // `cron_state` row's pattern + is_active so the orchestrator picks up the
+      // change on the next minute-tick.
+      cronEnabled: body.cronEnabled,
+      cronDayOfWeek: body.cronDayOfWeek,
+      cronHourUtc: body.cronHourUtc,
     });
 
-    log.info({ projectId, weeklyBudgetEur: body.weeklyBudgetEur }, "Planner config upserted");
+    log.info(
+      {
+        projectId,
+        weeklyBudgetEur: body.weeklyBudgetEur,
+        cronEnabled: body.cronEnabled,
+        cronPattern: `0 ${body.cronHourUtc} * * ${body.cronDayOfWeek}`,
+      },
+      "Planner config upserted",
+    );
     return c.json({ ok: true, data: config });
   }
 );

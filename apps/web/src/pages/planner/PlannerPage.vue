@@ -1,5 +1,47 @@
 <template>
   <div class="planner-page">
+    <!-- Tabs row (Spec 62.7) -->
+    <div class="tabs-row">
+      <div class="tab-list" role="tablist">
+        <button
+          type="button"
+          class="tab-button"
+          :class="{ active: activeTab === 'calendar' }"
+          role="tab"
+          :aria-selected="activeTab === 'calendar'"
+          @click="setActiveTab('calendar')"
+        >
+          {{ $t("planner.tabs.calendar") as string }}
+        </button>
+        <button
+          type="button"
+          class="tab-button"
+          :class="{ active: activeTab === 'quarantine' }"
+          role="tab"
+          :aria-selected="activeTab === 'quarantine'"
+          @click="setActiveTab('quarantine')"
+        >
+          {{ $t("planner.tabs.quarantine") as string }}
+          <span v-if="quarantineCount > 0" class="tab-badge">
+            {{ quarantineCount }}
+          </span>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="cron-indicator"
+        :class="{ active: cronEnabled }"
+        :title="cronIndicatorTitle"
+        @click="goToCronSettings"
+      >
+        <span class="cron-indicator-dot" />
+        {{ cronIndicatorLabel }}
+      </button>
+    </div>
+
+    <!-- Calendar tab content -->
+    <template v-if="activeTab === 'calendar'">
     <!-- Header row -->
     <header class="planner-header">
       <div class="header-row">
@@ -156,25 +198,33 @@
         @update:model-value="onWeekPicked"
       />
     </q-dialog>
+    </template>
+
+    <!-- Quarantine tab content (Spec 62.7) -->
+    <PlannerQuarantineTab v-else :project-slug="projectSlug" />
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
 import { LocalStorage, useQuasar } from "quasar";
-import PlannerWeekNavigator from "src/components/planner/PlannerWeekNavigator.vue";
-import PlannerBudgetBar from "src/components/planner/PlannerBudgetBar.vue";
 import PlannerActionBar from "src/components/planner/PlannerActionBar.vue";
+import PlannerBudgetBar from "src/components/planner/PlannerBudgetBar.vue";
 import PlannerGenerateButton from "src/components/planner/PlannerGenerateButton.vue";
 import PlannerGridView from "src/components/planner/PlannerGridView.vue";
 import PlannerListView from "src/components/planner/PlannerListView.vue";
+import PlannerQuarantineTab from "src/components/planner/PlannerQuarantineTab.vue";
+import PlannerWeekNavigator from "src/components/planner/PlannerWeekNavigator.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
-import { usePlannerNavigation } from "src/composables/planner/usePlannerNavigation";
-import { useWeeklyPlan } from "src/composables/planner/useWeeklyPlan";
 import { usePlanGeneration } from "src/composables/planner/usePlanGeneration";
 import { usePlanItemActions } from "src/composables/planner/usePlanItemActions";
+import { usePlannerNavigation } from "src/composables/planner/usePlannerNavigation";
+import { useQuarantineRuns } from "src/composables/planner/useQuarantineRuns";
+import { useWeeklyPlan } from "src/composables/planner/useWeeklyPlan";
 import { getIsoWeek } from "src/lib/iso-week";
 import type { PlannedItem, WeeklyPlanStatus } from "src/types/ui";
+import { defineComponent } from "vue";
+
+type PlannerTab = "calendar" | "quarantine";
 
 const VIEW_MODE_KEY = "planner.viewMode";
 
@@ -199,6 +249,7 @@ export default defineComponent({
     PlannerGenerateButton,
     PlannerGridView,
     PlannerListView,
+    PlannerQuarantineTab,
     GlassButton,
   },
 
@@ -208,7 +259,11 @@ export default defineComponent({
     const generation = usePlanGeneration();
     const actions = usePlanItemActions();
     const $q = useQuasar();
-    return { nav, planQuery, generation, actions, $q };
+    // Spec 62.7: badge count for the Quarantine tab. Same TanStack query key
+    // the child PlannerQuarantineTab uses (default limit=20, offset=0) so when
+    // the user opens the tab the data is already warm and dedupes the request.
+    const quarantine = useQuarantineRuns();
+    return { nav, planQuery, generation, actions, quarantine, $q };
   },
 
   data: () => {
@@ -229,6 +284,8 @@ export default defineComponent({
       },
       weekPickerOpen: false,
       weekPickerValue: "",
+      // Spec 62.7: tab state is mirrored to URL via ?tab=… so deep-links work.
+      activeTab: "calendar" as PlannerTab,
     };
   },
 
@@ -253,14 +310,14 @@ export default defineComponent({
     },
     weeklyBudgetEur(): number {
       const raw = this.config?.weeklyBudgetEur;
-      const parsed = raw ? parseFloat(raw) : NaN;
+      const parsed = raw ? Number.parseFloat(raw) : Number.NaN;
       return Number.isFinite(parsed) ? parsed : 0;
     },
     planSpentEur(): number {
       if (!this.plan) return 0;
       // Prefer actualCostEur (set when items run); fall back to estimated.
       const raw = this.plan.actualCostEur ?? this.plan.estimatedCostEur;
-      const parsed = parseFloat(raw);
+      const parsed = Number.parseFloat(raw);
       return Number.isFinite(parsed) ? parsed : 0;
     },
     pendingItemCount(): number {
@@ -281,6 +338,28 @@ export default defineComponent({
         { label: this.$t("planner.viewList") as string, value: "list" as ViewMode },
       ];
     },
+    // Spec 62.7: live count for the Quarantine tab badge (TanStack-shared
+    // with the child component → one network call).
+    quarantineCount(): number {
+      return this.quarantine.total.value;
+    },
+    projectSlug(): string {
+      const raw = this.$route.params.slug;
+      return Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
+    },
+    cronEnabled(): boolean {
+      return this.config?.cronEnabled === true;
+    },
+    cronIndicatorLabel(): string {
+      const key = this.cronEnabled ? "planner.cronIndicator.on" : "planner.cronIndicator.off";
+      return this.$t(key) as string;
+    },
+    cronIndicatorTitle(): string {
+      const key = this.cronEnabled
+        ? "planner.cronIndicator.onTooltip"
+        : "planner.cronIndicator.offTooltip";
+      return this.$t(key) as string;
+    },
   },
 
   mounted(): void {
@@ -288,6 +367,13 @@ export default defineComponent({
       this.isMobile = globalThis.innerWidth < 768;
     };
     globalThis.addEventListener("resize", this.resizeHandler);
+
+    // Spec 62.7: restore tab from URL ?tab=quarantine. Default = calendar.
+    const tabRaw = this.$route.query["tab"];
+    const tab = Array.isArray(tabRaw) ? tabRaw[0] : tabRaw;
+    if (tab === "quarantine") {
+      this.activeTab = "quarantine";
+    }
 
     // Cmd+K action ?generate=current triggers generate immediately.
     if (this.$route.query["generate"] === "current") {
@@ -459,10 +545,7 @@ export default defineComponent({
         if (debug && result.runId) {
           const slugParam = this.$route.params.slug;
           const slug = Array.isArray(slugParam) ? (slugParam[0] ?? "") : (slugParam ?? "");
-          this.notify(
-            this.$t("planner.toast.planGeneratedDebug") as string,
-            "positive",
-          );
+          this.notify(this.$t("planner.toast.planGeneratedDebug") as string, "positive");
           void this.$router.push({
             name: "run-detail",
             params: { slug, runId: result.runId },
@@ -490,6 +573,23 @@ export default defineComponent({
     },
     notify(message: string, type: "positive" | "negative" | "warning"): void {
       this.$q.notify({ message, type, position: "top" });
+    },
+    // Spec 62.7: tab switch + URL-sync. We mirror to ?tab=… so a refresh keeps
+    // the user on the same tab and the link is shareable.
+    setActiveTab(tab: PlannerTab): void {
+      if (this.activeTab === tab) return;
+      this.activeTab = tab;
+      // Vue Router's query type is widened to LocationQueryValue (string|null|array).
+      // The replace() call accepts the same shape we received, just with the one
+      // `tab` key updated.
+      const nextQuery = { ...this.$route.query, tab: tab === "calendar" ? undefined : tab };
+      void this.$router.replace({ query: nextQuery });
+    },
+    goToCronSettings(): void {
+      void this.$router.push({
+        name: "settings-planner",
+        params: { slug: this.projectSlug },
+      });
     },
   },
 });
@@ -598,6 +698,113 @@ function errorMessage(err: unknown): string {
 @media (max-width: 767px) {
   .view-toggle {
     display: none;
+  }
+}
+
+/* Spec 62.7: tab navigation + cron-indicator */
+.tabs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.tab-list {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.tab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              border-color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+  margin-bottom: -1px; /* overlap the border-bottom of the row */
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tab-button:hover:not(.active) {
+    color: var(--text-primary);
+  }
+}
+
+.tab-button.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--brand, #3b82f6);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--status-failed-bg);
+  color: var(--status-failed, #ff4d6d);
+  border: 1px solid rgba(255, 77, 109, 0.25);
+}
+
+.cron-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              background 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .cron-indicator:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-glass-strong);
+  }
+}
+
+.cron-indicator.active {
+  color: var(--text-primary);
+}
+
+.cron-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.cron-indicator.active .cron-indicator-dot {
+  background: #22c55e;
+  box-shadow: 0 0 0 2px color-mix(in oklch, #22c55e 25%, transparent);
+}
+
+@media (max-width: 767px) {
+  .tab-button {
+    min-height: 44px;
+  }
+  .cron-indicator {
+    min-height: 32px;
   }
 }
 </style>

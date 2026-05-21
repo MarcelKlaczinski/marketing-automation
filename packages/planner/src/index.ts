@@ -46,6 +46,7 @@ export {
 
 export {
   addDaysUtc,
+  computeNextIsoWeek,
   getIsoWeek,
   isoWeekEndDate,
   isoWeekStartDate,

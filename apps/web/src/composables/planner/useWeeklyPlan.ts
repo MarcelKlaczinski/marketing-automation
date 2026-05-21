@@ -24,6 +24,11 @@ export interface PlannerConfigResponse {
   maxOveragePerSignal: number;
   signalMaxAgeHours: number;
   excludedPipelines: string[];
+  // Spec 62.7: cron-trigger fields. Optional because rows created before
+  // migration 0077 may still be hydrating in the wild.
+  cronEnabled?: boolean;
+  cronDayOfWeek?: number;
+  cronHourUtc?: number;
 }
 
 export interface UseWeeklyPlanInput {

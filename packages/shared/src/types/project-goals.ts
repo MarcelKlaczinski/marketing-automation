@@ -72,5 +72,11 @@ export const projectPlannerConfigSchema = z.object({
   perTypeMaxEur: perTypeMaxEurSchema.nullable().optional(),
   topNSignalsAllowedOverage: z.number().int().min(0).default(3),
   maxOveragePerSignal: z.number().int().min(0).default(1),
+  // Spec 62.7: per-project weekly cron trigger for PlanWeekPipeline.
+  // dayOfWeek follows JS Date.getUTCDay() — 0=Sunday..6=Saturday. The pattern
+  // `0 <hourUtc> * * <dayOfWeek>` is derived in upsertProjectPlannerConfig.
+  cronEnabled: z.boolean().default(false),
+  cronDayOfWeek: z.number().int().min(0).max(6).default(0),
+  cronHourUtc: z.number().int().min(0).max(23).default(18),
 });
 export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

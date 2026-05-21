@@ -412,6 +412,27 @@ export default {
     saved: "Gespeichert.",
     saveError: "Speichern fehlgeschlagen.",
     confirmDelete: "Dieses Ziel deaktivieren?",
+    cronSection: {
+      title: "Wöchentlicher Plan-Trigger",
+      description:
+        "Aktiviere den automatischen Trigger, um jede Woche zur konfigurierten Zeit einen neuen Plan zu generieren. Cron triggert nur die Generation — Freigabe + Ausführung bleiben manuell.",
+      enabledLabel: "Aktiviert",
+      dayOfWeekLabel: "Tag der Woche",
+      hourUtcLabel: "Uhrzeit (UTC)",
+      localTimeHint:
+        "Bei Aktivierung läuft der Trigger jeden {day} um {hourUtc} UTC (= {hourLocal} {tz}).",
+      requiresValidConfig:
+        "Goals + Wochenbudget müssen valide sein, bevor der Cron aktiviert werden kann.",
+    },
+    daysOfWeek: {
+      "0": "Sonntag",
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag",
+      "6": "Samstag",
+    },
   },
 
   notifications: {

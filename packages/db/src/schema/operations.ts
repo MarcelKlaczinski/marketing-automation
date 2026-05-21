@@ -584,6 +584,13 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
     .$type<string[]>()
     .notNull()
     .default(["article:pagespeed-validation", "article:pagespeed-api-validation"]),
+  // Spec 62.7: weekly cron-trigger for PlanWeekPipeline. cronEnabled flips the
+  // cron_state row's is_active; cronDayOfWeek (0=Sunday..6=Saturday) + cronHourUtc
+  // (0-23) compose into the cron pattern `0 <hourUtc> * * <dayOfWeek>`. The sync
+  // happens in upsertProjectPlannerConfig — single source of truth.
+  cronEnabled: boolean("cron_enabled").notNull().default(false),
+  cronDayOfWeek: integer("cron_day_of_week").notNull().default(0),
+  cronHourUtc: integer("cron_hour_utc").notNull().default(18),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -411,6 +411,27 @@ export default {
     saved: "Saved.",
     saveError: "Save failed.",
     confirmDelete: "Deactivate this goal?",
+    cronSection: {
+      title: "Weekly plan trigger",
+      description:
+        "Enable the cron to auto-generate a fresh plan every week at the configured time. Cron only triggers generation — approval + execution stay manual.",
+      enabledLabel: "Enabled",
+      dayOfWeekLabel: "Day of week",
+      hourUtcLabel: "Hour (UTC)",
+      localTimeHint:
+        "When enabled, the trigger fires every {day} at {hourUtc} UTC (= {hourLocal} {tz}).",
+      requiresValidConfig:
+        "Goals + weekly budget must be valid before the cron can be enabled.",
+    },
+    daysOfWeek: {
+      "0": "Sunday",
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday",
+      "6": "Saturday",
+    },
   },
 
   notifications: {
