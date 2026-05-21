@@ -32,11 +32,7 @@ export const PLANNED_ITEM_STATUSES = [
 export const plannedItemStatusSchema = z.enum(PLANNED_ITEM_STATUSES);
 export type PlannedItemStatus = z.infer<typeof plannedItemStatusSchema>;
 
-export const PLANNED_ITEM_SOURCE_KINDS = [
-  "floor",
-  "overage_signal",
-  "sibling_locale",
-] as const;
+export const PLANNED_ITEM_SOURCE_KINDS = ["floor", "overage_signal", "sibling_locale"] as const;
 export const plannedItemSourceKindSchema = z.enum(PLANNED_ITEM_SOURCE_KINDS);
 export type PlannedItemSourceKind = z.infer<typeof plannedItemSourceKindSchema>;
 
@@ -105,9 +101,7 @@ export const signalRefreshResultSnapshotSchema = z.object({
   totalRowsAdded: z.number().int().min(0),
   durationMs: z.number().int().min(0),
 });
-export type SignalRefreshResultSnapshot = z.infer<
-  typeof signalRefreshResultSnapshotSchema
->;
+export type SignalRefreshResultSnapshot = z.infer<typeof signalRefreshResultSnapshotSchema>;
 
 /** Frozen goal-row shape used inside the snapshot — keep loose so future goal columns flow through. */
 export const goalSnapshotEntrySchema = z.object({
@@ -184,8 +178,7 @@ export const patchPlannedItemPayloadSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/, "slotDate must be ISO date YYYY-MM-DD")
       .optional(),
   })
-  .refine(
-    (v) => (v.status !== undefined) !== (v.slotDate !== undefined),
-    { message: "Provide exactly one of `status` or `slotDate`" },
-  );
+  .refine((v) => (v.status !== undefined) !== (v.slotDate !== undefined), {
+    message: "Provide exactly one of `status` or `slotDate`",
+  });
 export type PatchPlannedItemPayload = z.infer<typeof patchPlannedItemPayloadSchema>;

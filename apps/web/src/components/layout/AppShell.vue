@@ -34,15 +34,15 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
 import { useQuery } from "@tanstack/vue-query";
-import { useUiStore } from "src/stores/ui";
-import { useProjectStore } from "src/stores/project";
+import CommandPalette from "src/components/search/CommandPalette.vue";
 import { useKeyboardShortcuts } from "src/composables/useKeyboardShortcuts";
 import { apiGet } from "src/lib/api";
-import AppTopbar from "./AppTopbar.vue";
+import { useProjectStore } from "src/stores/project";
+import { useUiStore } from "src/stores/ui";
+import { defineComponent } from "vue";
 import AppSidebar from "./AppSidebar.vue";
-import CommandPalette from "src/components/search/CommandPalette.vue";
+import AppTopbar from "./AppTopbar.vue";
 
 interface ActivitySummary {
   runningCount: number;
@@ -71,9 +71,7 @@ export default defineComponent({
     const { data: activityData } = useQuery({
       queryKey: ["activity-summary", projectStore.currentSlug],
       queryFn: () =>
-        apiGet<ActivitySummary>(
-          `/projects/${projectStore.currentSlug}/activity-summary`,
-        ),
+        apiGet<ActivitySummary>(`/projects/${projectStore.currentSlug}/activity-summary`),
       refetchInterval: 60_000,
     });
 

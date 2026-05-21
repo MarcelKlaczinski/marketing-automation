@@ -1,7 +1,7 @@
-import { ref, type Ref } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
 import { apiPost } from "src/lib/api";
 import { useProjectStore } from "src/stores/project";
+import { type Ref, ref } from "vue";
 
 /**
  * Wraps POST /projects/:slug/plans/generate. The route returns one of:
@@ -40,7 +40,7 @@ export function usePlanGeneration(): {
           targetIsoWeek: input.targetIsoWeek,
           force: input.force ?? false,
           debug: input.debug ?? false,
-        },
+        }
       );
       // Pipeline runs ~1-3s. The list endpoint becomes truthy when PersistPlanStep
       // commits — invalidate planner queries so the calendar polls.

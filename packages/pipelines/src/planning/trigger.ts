@@ -17,7 +17,7 @@ export interface EnqueuePlanWeekInput extends PlanWeekPipelineInput {
 }
 
 export async function enqueuePlanWeekPipeline(
-  input: EnqueuePlanWeekInput,
+  input: EnqueuePlanWeekInput
 ): Promise<{ jobId: string }> {
   const { preRunId, runMode, ...pipelineInput } = input;
   // Debug runs need a unique jobId per attempt so BullMQ doesn't dedupe a

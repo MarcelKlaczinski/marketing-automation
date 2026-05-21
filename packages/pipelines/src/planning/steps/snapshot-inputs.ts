@@ -4,19 +4,15 @@
 // produce the same planned_items — that property is what makes 62.6's
 // debug UI useful.
 
-import { computeSignalTopN, type SignalRefreshResult } from "@marketing-auto/planner";
+import type { ProjectGoal, ProjectPlannerConfig, TopicBrief } from "@marketing-auto/db";
+import { type SignalRefreshResult, computeSignalTopN } from "@marketing-auto/planner";
 import type {
-  ProjectGoal,
-  ProjectPlannerConfig,
-  TopicBrief,
-} from "@marketing-auto/db";
-import {
-  type GoalSnapshotEntry,
-  type PlannerConfigSnapshot,
-  type SignalRefreshResultSnapshot,
-  type SignalTopNEntry,
-  type TopicBriefSnapshotEntry,
-  type WeeklyPlanInputSnapshot,
+  GoalSnapshotEntry,
+  PlannerConfigSnapshot,
+  SignalRefreshResultSnapshot,
+  SignalTopNEntry,
+  TopicBriefSnapshotEntry,
+  WeeklyPlanInputSnapshot,
 } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -44,10 +40,10 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       throw new Error("snapshot-inputs: validate-goals.config missing");
     }
     const refreshResult = ctx.getStepOutput<{ signalRefreshResult: SignalRefreshResult }>(
-      "refresh-signals",
+      "refresh-signals"
     )?.signalRefreshResult;
-    const briefs = ctx.getStepOutput<{ topicBriefs: TopicBrief[] }>("load-topic-briefs")
-      ?.topicBriefs ?? [];
+    const briefs =
+      ctx.getStepOutput<{ topicBriefs: TopicBrief[] }>("load-topic-briefs")?.topicBriefs ?? [];
 
     const topN = await computeSignalTopN({
       projectId: input.projectId,
@@ -81,11 +77,7 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       primaryKeyword: b.primaryKeyword ?? null,
       clusterId: b.clusterId ?? null,
       metadata:
-        b.gapMetadata ??
-        b.trendMetadata ??
-        b.refreshMetadata ??
-        b.comparisonMetadata ??
-        null,
+        b.gapMetadata ?? b.trendMetadata ?? b.refreshMetadata ?? b.comparisonMetadata ?? null,
     }));
 
     const topNSnap: SignalTopNEntry[] = topN.map((r) => ({

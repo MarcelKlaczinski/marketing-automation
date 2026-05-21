@@ -53,8 +53,8 @@
 </template>
 
 <script lang="ts">
-import { defineComponent } from "vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
+import { defineComponent } from "vue";
 
 /**
  * Generate-Plan flow: button → confirm dialog → emit `confirmed`. The parent
@@ -71,8 +71,7 @@ export default defineComponent({
   components: { GlassButton },
 
   emits: {
-    confirmed: (payload: { debug: boolean }) =>
-      typeof payload?.debug === "boolean",
+    confirmed: (payload: { debug: boolean }) => typeof payload?.debug === "boolean",
   },
 
   props: {

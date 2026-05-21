@@ -8,13 +8,13 @@
 
 import { zValidator } from "@hono/zod-validator";
 import {
+  PlanAlreadyExistsError,
   cancelPlannedItem,
   db,
   eq,
   getWeeklyPlanById,
   listPlannedItemsByPlan,
   listWeeklyPlans,
-  PlanAlreadyExistsError,
   projects,
   reschedulePlannedItem,
   transitionWeeklyPlanStatus,
@@ -29,10 +29,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
-import {
-  triggerResultToResponse,
-  triggerWithPreRunId,
-} from "../_lib/trigger-helpers.ts";
+import { triggerResultToResponse, triggerWithPreRunId } from "../_lib/trigger-helpers.ts";
 
 const log = createLogger("api:plans");
 
@@ -52,10 +49,8 @@ async function resolveProject(slug: string): Promise<{ id: string } | null> {
 
 planRoutes.post(
   "/:slug/plans/generate",
-  zValidator(
-    "json",
-    generatePlanPayloadSchema,
-    (result, c) => (result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)),
+  zValidator("json", generatePlanPayloadSchema, (result, c) =>
+    result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)
   ),
   async (c) => {
     const slug = c.req.param("slug");
@@ -102,14 +97,14 @@ planRoutes.post(
       if (err instanceof PlanAlreadyExistsError) {
         return c.json(
           { ok: false, error: "plan_already_exists", existingPlanId: err.existingPlanId },
-          409,
+          409
         );
       }
       log.error({ err, projectId: proj.id }, "plan generation failed");
       const message = err instanceof Error ? err.message : "internal error";
       return c.json({ ok: false, error: message }, 500);
     }
-  },
+  }
 );
 
 // ─── GET /:slug/plans ─────────────────────────────────────────────────────────
@@ -133,10 +128,8 @@ const listPlansQuerySchema = z.object({
 
 planRoutes.get(
   "/:slug/plans",
-  zValidator(
-    "query",
-    listPlansQuerySchema,
-    (result, c) => (result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)),
+  zValidator("query", listPlansQuerySchema, (result, c) =>
+    result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)
   ),
   async (c) => {
     const slug = c.req.param("slug");
@@ -154,7 +147,7 @@ planRoutes.get(
     if (q.status !== undefined) opts.statuses = [q.status];
     const plans = await listWeeklyPlans(opts);
     return c.json({ ok: true, data: plans });
-  },
+  }
 );
 
 // ─── GET /:slug/plans/:planId ─────────────────────────────────────────────────
@@ -178,10 +171,8 @@ planRoutes.get("/:slug/plans/:planId", async (c) => {
 
 planRoutes.patch(
   "/:slug/plans/:planId",
-  zValidator(
-    "json",
-    patchWeeklyPlanPayloadSchema,
-    (result, c) => (result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)),
+  zValidator("json", patchWeeklyPlanPayloadSchema, (result, c) =>
+    result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)
   ),
   async (c) => {
     const slug = c.req.param("slug");
@@ -205,23 +196,18 @@ planRoutes.patch(
     }
     const updated = await transitionWeeklyPlanStatus(opts);
     if (!updated) {
-      return c.json(
-        { ok: false, error: "invalid_transition", currentStatus: plan.status },
-        409,
-      );
+      return c.json({ ok: false, error: "invalid_transition", currentStatus: plan.status }, 409);
     }
     return c.json({ ok: true, data: updated });
-  },
+  }
 );
 
 // ─── PATCH /:slug/plans/:planId/items/:itemId ─────────────────────────────────
 
 planRoutes.patch(
   "/:slug/plans/:planId/items/:itemId",
-  zValidator(
-    "json",
-    patchPlannedItemPayloadSchema,
-    (result, c) => (result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)),
+  zValidator("json", patchPlannedItemPayloadSchema, (result, c) =>
+    result.success ? undefined : c.json({ ok: false, error: result.error.message }, 400)
   ),
   async (c) => {
     const slug = c.req.param("slug");
@@ -254,10 +240,7 @@ planRoutes.patch(
           return c.json({ ok: false, error: "item_not_found" }, 404);
         }
         if (result.reason === "out_of_range") {
-          return c.json(
-            { ok: false, error: "slot_date_outside_plan_week" },
-            422,
-          );
+          return c.json({ ok: false, error: "slot_date_outside_plan_week" }, 422);
         }
         return c.json({ ok: false, error: result.reason }, 409);
       }
@@ -276,5 +259,5 @@ planRoutes.patch(
       return c.json({ ok: false, error: "item_does_not_belong_to_plan" }, 409);
     }
     return c.json({ ok: true, data: updated });
-  },
+  }
 );

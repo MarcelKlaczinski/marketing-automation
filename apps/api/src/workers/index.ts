@@ -11,13 +11,13 @@ import {
   ArticleOutlinePipeline,
   BlogPipeline,
   ClusterLinkRebuildPipeline,
-  HeroImageGenerationPipeline,
-  LocalizeArticlePipeline,
   ClusterProposePipeline,
   CompetitorAnalysisPipeline,
   CompetitorQuestionsPipeline,
   CornerstoneListPipeline,
   GoLiveChecklistPipeline,
+  HeroImageGenerationPipeline,
+  LocalizeArticlePipeline,
   PlanWeekPipeline,
   RefreshPipeline,
   SchemaExtensionPipeline,
@@ -36,26 +36,32 @@ import {
   startPipelineWorker,
   startScheduler,
 } from "@marketing-auto/pipelines";
-import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
-import { readAdapterCreds } from "../lib/system-service.ts";
-import { buildSignalFetcherMap } from "../lib/signal-fetcher-map.ts";
-import { startDiscoveryWorker } from "./discoveryWorker.ts";
-import { startSignalCollectorWorker } from "./signal-collector.ts";
-import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
-import { startCronOrchestratorWorker, registerCronOrchestrator } from "./cron-orchestrator.ts";
-import { startRefreshDetectorWorker } from "./refresh-detector.ts";
-import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
-import { startSocialRenderWorker } from "./social-render.worker.ts";
+import { closeArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
 import { closeSocialRenderQueue } from "@marketing-auto/pipelines/social-render-queue";
+import { createLogger } from "@marketing-auto/shared";
+import { advanceChain, failChain } from "../lib/chain-orchestrator.ts";
+import { buildSignalFetcherMap } from "../lib/signal-fetcher-map.ts";
+import { readAdapterCreds } from "../lib/system-service.ts";
 import { startArticleQualityAnalysisWorker } from "./article-quality-analysis.worker.ts";
-import { seedStepPauseCleanupCron, startStepPauseCleanupWorker } from "./step-pause-cleanup.worker.ts";
+import {
+  closeBatchProcessorInfrastructure,
+  startBatchProcessorWorker,
+} from "./batch-processor.worker.ts";
+import { registerCronOrchestrator, startCronOrchestratorWorker } from "./cron-orchestrator.ts";
+import { startDiscoveryWorker } from "./discoveryWorker.ts";
+import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
 import {
   seedPlannerWeeklyGenerationCron,
   startPlannerWeeklyGenerationWorker,
 } from "./planner-weekly-generation.worker.ts";
-import { closeArticleQualityAnalysisQueue } from "@marketing-auto/pipelines/article-quality-analysis-queue";
-import { startBatchProcessorWorker, closeBatchProcessorInfrastructure } from "./batch-processor.worker.ts";
-import { createLogger } from "@marketing-auto/shared";
+import { startRefreshDetectorWorker } from "./refresh-detector.ts";
+import { startSignalCollectorWorker } from "./signal-collector.ts";
+import { startSocialRenderWorker } from "./social-render.worker.ts";
+import {
+  seedStepPauseCleanupCron,
+  startStepPauseCleanupWorker,
+} from "./step-pause-cleanup.worker.ts";
+import { startTrendSynthesizerWorker } from "./trend-synthesizer.ts";
 
 const log = createLogger("worker");
 
@@ -116,7 +122,7 @@ async function acquirePidLock(): Promise<void> {
   let existingPid: number | null = null;
   try {
     const contents = await readFile(PID_FILE, "utf8");
-    const parsed = parseInt(contents.trim(), 10);
+    const parsed = Number.parseInt(contents.trim(), 10);
     if (!Number.isNaN(parsed) && parsed !== process.pid) existingPid = parsed;
   } catch {
     // No PID file — first start or clean state.
@@ -133,7 +139,7 @@ async function acquirePidLock(): Promise<void> {
       } else {
         log.warn(
           { pid: existingPid, code: (e as NodeJS.ErrnoException).code },
-          "Cannot probe existing worker — starting anyway",
+          "Cannot probe existing worker — starting anyway"
         );
       }
     }
@@ -145,7 +151,7 @@ async function acquirePidLock(): Promise<void> {
       } catch (e) {
         log.warn(
           { pid: existingPid, code: (e as NodeJS.ErrnoException).code },
-          "SIGTERM raised — process may have died between probe and signal",
+          "SIGTERM raised — process may have died between probe and signal"
         );
       }
 
@@ -153,10 +159,7 @@ async function acquirePidLock(): Promise<void> {
       // 5–10s; a stuck pipelineWorker.close() (active LLM job) needs more.
       const gone = await waitForExit(existingPid, 20_000);
       if (!gone) {
-        log.warn(
-          { pid: existingPid },
-          "Old worker still alive after 20s — escalating to SIGKILL",
-        );
+        log.warn({ pid: existingPid }, "Old worker still alive after 20s — escalating to SIGKILL");
         try {
           process.kill(existingPid, "SIGKILL");
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -171,11 +174,11 @@ async function acquirePidLock(): Promise<void> {
   await writeFile(PID_FILE, String(process.pid), "utf8");
   await new Promise((resolve) => setTimeout(resolve, 50));
   try {
-    const after = parseInt((await readFile(PID_FILE, "utf8")).trim(), 10);
+    const after = Number.parseInt((await readFile(PID_FILE, "utf8")).trim(), 10);
     if (after !== process.pid) {
       log.error(
         { ownPid: process.pid, fileContents: after },
-        "Another worker won the PID race — exiting cleanly to avoid duplicates",
+        "Another worker won the PID race — exiting cleanly to avoid duplicates"
       );
       process.exit(0);
     }
@@ -197,13 +200,13 @@ async function acquirePidLock(): Promise<void> {
 async function releasePidLock(): Promise<void> {
   try {
     const contents = (await readFile(PID_FILE, "utf8")).trim();
-    const filePid = parseInt(contents, 10);
+    const filePid = Number.parseInt(contents, 10);
     if (filePid === process.pid) {
       await unlink(PID_FILE);
     } else {
       log.warn(
         { ownPid: process.pid, fileContents: filePid },
-        "PID file no longer ours — leaving it for the new owner",
+        "PID file no longer ours — leaving it for the new owner"
       );
     }
   } catch {
@@ -251,7 +254,7 @@ async function main() {
         fetchers: buildSignalFetcherMap(),
         readCreds: readAdapterCreds,
       },
-    }),
+    })
   );
   log.info({ pipelines: pipelineRegistry.list() }, "Pipelines registered");
 
