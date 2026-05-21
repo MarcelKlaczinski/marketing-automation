@@ -383,6 +383,9 @@ async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Pro
   await db.transaction(async (tx) => {
     for (const pair of pairs) {
       const topicTitle = `${pair.toolAName} vs. ${pair.toolBName}`;
+      // WHERE predicate matches the migration 0072 partial unique index exactly so the
+      // planner uses the index for the existence check (root CLAUDE.md targetWhere rule):
+      //   WHERE source = 'comparison_discovery' AND comparison_metadata IS NOT NULL.
       const existing = await tx
         .select({ id: topicBriefs.id })
         .from(topicBriefs)
@@ -390,6 +393,7 @@ async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Pro
           and(
             eq(topicBriefs.projectId, projectId),
             eq(topicBriefs.source, "comparison_discovery"),
+            isNotNull(topicBriefs.comparisonMetadata),
             sql`${topicBriefs.comparisonMetadata}->>'toolASlug' = ${pair.toolASlug}`,
             sql`${topicBriefs.comparisonMetadata}->>'toolBSlug' = ${pair.toolBSlug}`,
           ),
