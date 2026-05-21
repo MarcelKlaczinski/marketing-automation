@@ -78,7 +78,24 @@ Routes defined in `src/router/routes.ts`:
 17. `/projects/:slug/social/admin`     — Social posts admin + batch re-render (Spec 52b)
 18. `/cold-start/new`                  — New project onboarding entry (Spec 56.4)
 19. `/cold-start/:draftId/phase-[1-5]` — 5-phase onboarding wizard (Spec 56.4, outside AppShell)
-20. `/projects/:slug/paused-runs`      — Stub for step-pause inspector (Spec 62.0a; full UI in 62.6)
+20. `/projects/:slug/paused-runs`      — Legacy redirect to `/runs?status=paused` (was Spec 62.0a stub; full UI shipped as 62.6)
+21. `/projects/:slug/runs`             — Pipeline-runs list with pipeline + status filters (Spec 62.6)
+22. `/projects/:slug/runs/:runId`      — Step-by-step run inspector with 8 step-pause actions (Spec 62.6)
+23. `/projects/:slug/optimization-requests` — Frozen-snapshot inbox from 62.0b extract action (Spec 62.6)
+
+## Pipeline-Runs Debug UI (Spec 62.6)
+
+The runs debug UI lives at `/projects/:slug/runs` (list) + `/runs/:runId` (detail) + `/optimization-requests` (62.0b inbox). Architecture:
+
+- **Composables** in `src/composables/runs/`: `useRunsList` (filter + pagination), `useRunDetail` (single run + steps + pauses), `usePauseActions` (8 step-pause actions including `rerun`), `useOptimizationRequests` (62.0b inbox CRUD).
+- **Components** in `src/components/runs/`: `RunsListItem`, `StepCard` (the big one — 8 actions + JSON inspector toggles + modals for each action), `PipelineJsonEditor` (CodeMirror wrapper mirroring `BrandTokensJsonEditor.vue` markRaw pattern), `RerunConfirmDialog` (impact preview + type-DELETE protection for destructive case).
+- **Routes**: `runs-list`, `run-detail`, `optimization-requests`; the legacy `/paused-runs` route is a redirect to `/runs?status=paused` (kept so 62.0a notification deep-links still resolve).
+- **Cmd+K**: `actionPipelineRuns`, `actionPausedRuns` (now points at filtered list), `actionOptimizationRequests`.
+- **Sidebar**: 2 new entries under the Planner section.
+
+**Why `usePauseActions` uses raw fetch** — the resolve endpoint returns 409 + `{ error: "destructive_confirm_needed", impact }` for the rerun confirm-destructive gate. `apiPost` throws `Error(body.error)` and drops the `impact` field. The rerun handler needs the impact preview to drive the confirm dialog without an extra round-trip. Documented in `usePauseActions.ts` header.
+
+**StepCard auto-expands paused steps** via `:initially-expanded="step.status === 'paused'"` from RunDetailPage. Other statuses collapse by default; clicking the header toggles.
 
 ## Command Palette Static Actions (Spec 62.0a)
 

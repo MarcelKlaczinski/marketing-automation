@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNotNull, isNull, lt } from "drizzle-orm";
 import { db } from "../client.ts";
 import { pipelineRuns } from "../schema/operations.ts";
-import { stepPauses, type NewStepPause, type StepPause } from "../schema/operations.ts";
+import { type NewStepPause, type StepPause, stepPauses } from "../schema/operations.ts";
 
 export interface PersistStepPauseInput {
   pipelineRunId: string;
@@ -59,9 +59,7 @@ export interface ResolveStepPauseInput {
  * Atomically resolve a pause. Returns the resolved row or null when the row
  * was already resolved (race between two callers).
  */
-export async function resolveStepPause(
-  input: ResolveStepPauseInput
-): Promise<StepPause | null> {
+export async function resolveStepPause(input: ResolveStepPauseInput): Promise<StepPause | null> {
   const update: Partial<NewStepPause> = {
     action: input.action,
     resolvedAt: new Date(),
@@ -78,6 +76,36 @@ export async function resolveStepPause(
     .where(and(eq(stepPauses.id, input.stepPauseId), isNull(stepPauses.resolvedAt)))
     .returning();
   return rows[0] ?? null;
+}
+
+/**
+ * Spec 62.6 §6.8: auto-dismiss any unresolved pauses on the rerun target step + later
+ * steps in the same pipeline run. The current pause being rerun is resolved separately
+ * (action='rerun') via the normal atomic UPDATE so the snapshot survives.
+ */
+export async function autoDismissPausesForSteps(args: {
+  pipelineRunId: string;
+  stepNames: string[];
+  reason: string;
+}): Promise<number> {
+  if (args.stepNames.length === 0) return 0;
+  const rows = await db
+    .update(stepPauses)
+    .set({
+      action: "auto-dismissed",
+      resolvedAt: new Date(),
+      resolvedBy: "system",
+      userNote: `Rerun cleanup: ${args.reason}`,
+    })
+    .where(
+      and(
+        eq(stepPauses.pipelineRunId, args.pipelineRunId),
+        inArray(stepPauses.stepName, args.stepNames),
+        isNull(stepPauses.resolvedAt)
+      )
+    )
+    .returning({ id: stepPauses.id });
+  return rows.length;
 }
 
 /**
@@ -102,15 +130,42 @@ export async function autoDismissStepPauses(
 }
 
 /**
+ * Spec 62.6 §6.8: mark child step-run rows for a set of step names as `superseded`.
+ * Used by rerun cleanup to invalidate any later step outputs cached as child
+ * pipeline_runs rows. Operates on all non-terminal child rows in one statement.
+ */
+export async function supersedeStepRunsForSteps(args: {
+  parentRunId: string;
+  stepNames: string[];
+}): Promise<number> {
+  if (args.stepNames.length === 0) return 0;
+  const rows = await db
+    .update(pipelineRuns)
+    .set({ status: "superseded", completedAt: new Date() })
+    .where(
+      and(
+        eq(pipelineRuns.parentRunId, args.parentRunId),
+        inArray(pipelineRuns.stepName, args.stepNames),
+        inArray(pipelineRuns.status, [
+          "queued",
+          "running",
+          "batch_pending",
+          "paused",
+          "completed",
+        ] as const)
+      )
+    )
+    .returning({ id: pipelineRuns.id });
+  return rows.length;
+}
+
+/**
  * Section 4.5.1: mark prior in-flight substeps as `superseded` before the runner
  * re-executes a step (batch-resume, edit-input, edit-prompt). Targets only substep
  * rows (parent_run_id = parentRunId AND step_name = stepName) that are still in a
  * non-terminal state. Returns the number of rows transitioned.
  */
-export async function supersedeOldSubstep(
-  parentRunId: string,
-  stepName: string
-): Promise<number> {
+export async function supersedeOldSubstep(parentRunId: string, stepName: string): Promise<number> {
   const rows = await db
     .update(pipelineRuns)
     .set({ status: "superseded", completedAt: new Date() })

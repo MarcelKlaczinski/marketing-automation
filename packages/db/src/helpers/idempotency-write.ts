@@ -1,5 +1,6 @@
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../client.ts";
-import { idempotencyOutputs, type NewIdempotencyOutput } from "../schema/operations.ts";
+import { type NewIdempotencyOutput, idempotencyOutputs } from "../schema/operations.ts";
 
 export interface WriteIdempotencyInput {
   idempotencyKey: string;
@@ -30,4 +31,29 @@ export async function writeIdempotencyOutput(input: WriteIdempotencyInput): Prom
     ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
   };
   await db.insert(idempotencyOutputs).values(values).onConflictDoNothing();
+}
+
+/**
+ * Spec 62.6 §6.8: invalidate idempotency-cache entries for a set of steps in one
+ * pipeline at one project. Used by rerun cleanup so the re-executed step does NOT
+ * pick up its own cached output and instead recomputes fresh. Returns the number
+ * of rows deleted (across all idempotency_keys that existed for those steps).
+ */
+export async function deleteIdempotencyForSteps(args: {
+  projectId: string;
+  pipelineName: string;
+  stepNames: string[];
+}): Promise<number> {
+  if (args.stepNames.length === 0) return 0;
+  const rows = await db
+    .delete(idempotencyOutputs)
+    .where(
+      and(
+        eq(idempotencyOutputs.projectId, args.projectId),
+        eq(idempotencyOutputs.pipelineName, args.pipelineName),
+        inArray(idempotencyOutputs.stepName, args.stepNames)
+      )
+    )
+    .returning({ idempotencyKey: idempotencyOutputs.idempotencyKey });
+  return rows.length;
 }

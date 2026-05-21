@@ -33,6 +33,7 @@ import articleTools from "./articleTools";
 import refresh from "./refresh";
 import pausedRuns from "./pausedRuns";
 import planner from "./planner";
+import runs from "./runs";
 
 export default {
   app,
@@ -70,4 +71,5 @@ export default {
   refresh,
   pausedRuns,
   planner,
+  runs,
 };

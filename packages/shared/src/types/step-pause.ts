@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Spec 62.0a: the 8 possible actions a user (or the system) can take on a paused step.
+ * Spec 62.0a + 62.6: the 9 possible actions a user (or the system) can take on a paused step.
  *
  * - `approve`                  : accept stepOutput as-is, runner uses it as priorOutput and proceeds.
  * - `edit-output`              : caller supplies editedOutput; runner validates against step.outputSchema
@@ -10,6 +10,9 @@ import { z } from "zod";
  *                                ctx.promptOverride[stepName] set to the new text.
  * - `edit-input`               : caller supplies editedInput; runner re-executes the step with
  *                                the new input. priorOutput[stepName] is cleared.
+ * - `rerun`                    : re-execute this step with the original input (no edits). Later
+ *                                steps' outputs/pauses are invalidated and pipeline-specific
+ *                                cleanup hooks run before re-enqueue. Spec 62.6 §6.8.
  * - `abort`                    : caller cancels the run. Parent pipeline_run → status='cancelled'.
  * - `promote-golden`           : in 62.0a behaves like approve; in 62.0b will write to prompt_versions.
  * - `extract-for-optimization` : the pipeline stays paused. The user_note is persisted; in 62.0b a
@@ -22,6 +25,7 @@ export const STEP_ACTIONS = [
   "edit-output",
   "edit-prompt",
   "edit-input",
+  "rerun",
   "abort",
   "promote-golden",
   "extract-for-optimization",
@@ -40,6 +44,7 @@ export const userStepActionSchema = z.enum([
   "edit-output",
   "edit-prompt",
   "edit-input",
+  "rerun",
   "abort",
   "promote-golden",
   "extract-for-optimization",
@@ -59,6 +64,14 @@ export const stepPausePayloadSchema = z
     editedOutput: z.unknown().optional(),
     editedPrompt: z.string().min(1).optional(),
     userNote: z.string().max(4000).optional(),
+    /**
+     * Spec 62.6 §6.8 / §4: required to be `true` when the rerun-preflight reports
+     * destructive impact (later steps had DB writes, items already enqueued). The
+     * service layer re-runs the preflight at resolve time and rejects the request
+     * with 409 `destructive_confirm_needed` when impact is destructive and this
+     * field is missing.
+     */
+    confirmDestructive: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.action === "edit-input" && data.editedInput === undefined) {

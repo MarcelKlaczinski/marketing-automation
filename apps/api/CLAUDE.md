@@ -190,6 +190,10 @@ Manual "Run Now" buttons POST to `/:slug/cron-status/run` with `{ jobType }`. Th
 
 The main project PATCH (`PATCH /api/projects/:slug`) also handles `trendsCronEnabled` / `refreshCronEnabled` fields and upserts `cron_state` inline. This is intentional: the frontend Settings page saves all discovery config in one request to the project PATCH rather than requiring a separate cron-status call. Both code paths (project PATCH and cron-status PATCH) end up calling `syncCronJobs()` fire-and-forget.
 
+### Startup catch-up for missed daily fires
+
+BullMQ repeating jobs do NOT backfire missed schedules — if the worker is offline at the cron minute, that day's run is lost silently. In dev (worker not on overnight) this means daily `signal_collector_*` jobs never fire via the scheduled path. `catchUpStaleSignalCollectors()` in [cron-orchestrator.ts](src/workers/cron-orchestrator.ts) runs once on `registerCronOrchestrator()` and idempotently enqueues a one-off for any active signal-collector row whose last `external_signals` row is > 24h old. Idempotency is layered: (a) per-day deterministic jobId `<jobType>_<projectId>_catchup_<YYYY-MM-DD>` — BullMQ silently dedupes on duplicate jobIds within the same UTC day; (b) the 24h freshness guard skips when a scheduled fire actually succeeded recently. Copy this pattern for any future cron-orchestrated worker whose schedule cadence is daily or coarser.
+
 ## Optional-Body POST Endpoints
 When a POST endpoint has all-optional body fields, `zValidator("json", ...)` will hard-fail (400 with raw parse error) if the client sends no body or no `Content-Type: application/json`. Instead, parse manually:
 ```typescript
@@ -316,6 +320,18 @@ Three routes under `/api/projects/:slug/content-gaps/:id/` consume `TopicBrief` 
 Same brief load + `decideRoute` + `executeDecision` in transaction, then `startChain()` outside the transaction (BullMQ call must not be inside a DB transaction). Returns `{ chainId, articleId, briefId, deduped: false }`. Note: `/automate` still enqueues `article:outline` (the chain's first step) — blog pipeline integration via chain is deferred to Spec 54.10.
 
 **DO NOT** call `decideRoute` / `executeDecision` directly from routes without the brief — the brief is the SSoT. The gap metadata in `contentGaps` is secondary (backward compat only).
+
+## Pipeline-Runs Resolve + Rerun (Spec 62.6)
+
+The resolve endpoint `POST /api/pipeline-runs/:id/step-pauses/:stepPauseId/resolve` handles 8 actions. The 8th — `rerun` — is unique:
+
+1. **Pre-flight gate** — `resolveStepPause()` calls `computeRerunImpact()` BEFORE the atomic DB resolve. If the impact reports `requiresConfirm: true` and the payload omits `confirmDestructive: true`, the service returns `{ ok: false, status: 409, error: "destructive_confirm_needed", impact }`. The route surfaces `impact` in the response body so the UI can render the type-DELETE dialog without an extra round-trip.
+2. **Cleanup-then-resume** — after the atomic resolve, the service calls `executeRerunCleanup()` (from `@marketing-auto/pipelines`) which: marks later child step-runs as `superseded`, auto-dismisses any later step_pauses, deletes idempotency-cache rows for step N..end, trims `suspensionCheckpoint.accumulatedOutput`, then runs the pipeline-specific cleanup hook if registered. The trimmed `accumulatedOutput` becomes the `priorOutput` passed to `enqueuePipeline`.
+3. **Preflight-only endpoint** — `GET /api/pipeline-runs/:id/step-pauses/:stepPauseId/rerun-preflight` returns the impact preview without mutating state. Pure read; used by the UI before the user opts in to the destructive case.
+
+The cleanup-hook registry (`registerRerunCleanupHook(pipelineName, hook)`) is forward-compat. PlanWeekPipeline does NOT register a hook because `PersistPlanStep.pausableInDebug() === false` AND it's the last step — no paused state can carry DB writes that need reverting. Register a hook only when the pipeline has a pausable step AFTER a step that writes DB state.
+
+**SSE events emitted by the resolve flow**: `step.resolved` (always), `run.statusChanged` (paused → running on re-enqueue, paused → cancelled on abort). The runner emits `step.paused` + `run.statusChanged` (running → paused) after persisting a new pause. All three are added to `PipelineEvent` in `packages/core/src/events/pipeline-events.ts` and mirrored in `apps/web/src/types/ui.ts`.
 
 ## Notifications Deploy Checklist (Spec 40)
 

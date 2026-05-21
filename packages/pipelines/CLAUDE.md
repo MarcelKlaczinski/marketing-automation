@@ -709,6 +709,19 @@ A future refactor to make these `BaseStep` classes would let them pick up the ov
 
 **Checkpoint storage**: `pipeline_runs.suspensionCheckpoint` (jsonb, renamed from `batchCheckpoint` in Spec 62.0a-followup migration 0069) stores BOTH batch and step-pause suspension checkpoints. The TypeScript type is the discriminated union `SuspensionCheckpoint` from `packages/db/src/schema/batch.ts` — `kind: "batch"` carries `batchRequestId`; `kind: "step_pause"` carries `stepPauseId`. Both shapes share `stepKey` + `accumulatedOutput`. The resolve service reads `suspensionCheckpoint.accumulatedOutput` to rebuild `PipelineRunOptions.priorOutput` at re-enqueue. Rows written before Spec 62.0a-followup do not have the `kind` field — read paths fall back to `batchRequestId`/`stepPauseId` presence to discriminate.
 
+## Rerun-from-Step (Spec 62.6)
+
+The 8th step-pause action — `"rerun"` — re-executes a paused step with the original input (no edits) and invalidates all later step outputs. Mechanics live in `src/engine/rerun.ts`:
+
+- **`computeRerunImpact({pipelineName, pipelineRunId, projectId, fromStepName})`** — pure read; returns `{safe, stepsToInvalidate, dbWritesToRevert, itemsToCancel, requiresConfirm, ...}`. Drives the `/rerun-preflight` endpoint AND the in-service confirm-destructive gate.
+- **`executeRerunCleanup(...)`** — durable cleanup BEFORE re-enqueue: supersedes later child step-runs, auto-dismisses later step_pauses, deletes idempotency cache for step N..end, trims `accumulatedOutput`, runs the pipeline-specific hook. Returns the trimmed `priorOutput` map for the re-enqueue call.
+- **`registerRerunCleanupHook(pipelineName, hook)`** — opt-in registration for pipelines that need destructive rollback (e.g. revert `weekly_plans` / `planned_items` writes). PlanWeekPipeline does NOT register a hook because `PersistPlanStep.pausableInDebug() === false` AND it's the last step, so all paused states are pre-write.
+- **Runner switch case `"rerun"`** — in `src/engine/runner.ts`: clears later step outputs from in-memory `stepOutputs`, sets `resumeFromStep = stepName`, calls `supersedeOldSubstep(runId, stepName)`. This is belt-and-suspenders with the service-layer cleanup (both safe).
+
+The action enum lives in **two** places that must stay in sync: `STEP_ACTIONS` in `packages/shared/src/types/step-pause.ts` AND `stepActionSchemaJob` in `packages/pipelines/src/engine/queue.ts` (separated by an unavoidable TypeScript variance constraint under `exactOptionalPropertyTypes`). Adding a new action requires updating both.
+
+**Test pattern** (`test/engine/rerun.test.ts`): register the pipeline in `pipelineRegistry` once in `beforeAll` (try/catch the duplicate-register error since other test files may have done it); use `clearRerunCleanupHooksForTesting()` in `afterEach` to prevent hook leakage between tests.
+
 ## Trend Discovery Topic Source (Spec 54.5+)
 
 `TrendDiscoveryTopicSource` lives in `src/topic-sources/trend-discovery/`. It implements `TopicSource<Input>` and produces TopicBriefs from `external_signals`.

@@ -17,6 +17,7 @@ const stepActionSchemaJob = z.enum([
   "edit-output",
   "edit-prompt",
   "edit-input",
+  "rerun",
   "abort",
   "promote-golden",
   "extract-for-optimization",

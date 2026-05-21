@@ -101,6 +101,24 @@ export function usePipelineEvents() {
     }
   }
 
+  // Spec 62.6: step-pause + run lifecycle SSE events. RunsList + RunDetail
+  // subscribe to these so the UI updates without a manual refresh.
+  function handleRunLifecycleEvent(e: MessageEvent): void {
+    const event = JSON.parse(e.data as string) as PipelineEvent;
+    eventsStore.addEvent(event);
+
+    // RunsList shares the same query key as the dashboard list; invalidating
+    // ["pipeline-runs"] (already done by handlePipelineEvent) covers both.
+    // We additionally invalidate the run-detail entry so RunDetailPage repulls.
+    if (event.runId) {
+      void queryClient.invalidateQueries({
+        queryKey: ["pipeline-run-detail", event.runId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["pipeline-run-rerun-preflight", event.runId] });
+    }
+    void queryClient.invalidateQueries({ queryKey: ["pipeline-runs"] });
+  }
+
   function connect(): void {
     cleanup();
 
@@ -149,6 +167,12 @@ export function usePipelineEvents() {
 
     for (const name of socialRenderEvents) {
       eventSource.addEventListener(name, handleSocialRenderEvent);
+    }
+
+    // Spec 62.6
+    const runLifecycleEvents = ["step.paused", "step.resolved", "run.statusChanged"] as const;
+    for (const name of runLifecycleEvents) {
+      eventSource.addEventListener(name, handleRunLifecycleEvent);
     }
 
     eventSource.onerror = () => {

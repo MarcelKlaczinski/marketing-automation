@@ -1,20 +1,33 @@
-import { enqueuePipeline, type StepPauseResume } from "@marketing-auto/pipelines";
+import { publishPipelineEvent } from "@marketing-auto/core/events";
 import {
   createOptimizationRequest,
   db,
+  resolveStepPause as dbResolveStepPause,
   eq,
   getStepPauseById,
   pipelineRuns,
-  resolveStepPause as dbResolveStepPause,
   stepPauses,
 } from "@marketing-auto/db";
 import type { StepPause } from "@marketing-auto/db";
-import { createLogger, type StepPausePayload } from "@marketing-auto/shared";
+import {
+  type RerunImpact,
+  type StepPauseResume,
+  computeRerunImpact,
+  enqueuePipeline,
+  executeRerunCleanup,
+} from "@marketing-auto/pipelines";
+import { type StepPausePayload, createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("step-pause-service");
 
 export type StepPauseResolveResult =
   | { ok: true; resolved: StepPause; reEnqueued: boolean; jobId: string | null }
+  | {
+      ok: false;
+      status: 409;
+      error: "destructive_confirm_needed";
+      impact: RerunImpact;
+    }
   | { ok: false; status: 404 | 409 | 422; error: string };
 
 /**
@@ -92,7 +105,48 @@ export async function resolveStepPause(
       { stepPauseId, stepName: existing.stepName },
       "Step-pause flagged for optimization — pipeline remains paused"
     );
+    // Spec 62.6: extract-for-optimization is also a step resolution (just doesn't re-enqueue).
+    // The UI still wants to know the row was tagged so it can refresh the action panel.
+    void publishPipelineEvent(existing.projectId, {
+      type: "step.resolved",
+      runId: existing.pipelineRunId,
+      pipelineName: existing.pipelineName,
+      stepName: existing.stepName,
+      stepPauseId,
+      action: "extract-for-optimization",
+      reEnqueued: false,
+      timestamp: new Date().toISOString(),
+    });
     return { ok: true, resolved: updated ?? existing, reEnqueued: false, jobId: null };
+  }
+
+  // Spec 62.6 §6.8: rerun has an extra confirm-destructive pre-flight. We re-run
+  // the impact computation at resolve time (the preflight result the UI showed
+  // is advisory only — could be stale if a concurrent action mutated state).
+  if (payload.action === "rerun") {
+    if (existing.resolvedAt) {
+      return { ok: false, status: 409, error: "already_resolved" };
+    }
+    let impact: RerunImpact;
+    try {
+      impact = await computeRerunImpact({
+        pipelineName: existing.pipelineName,
+        pipelineRunId: existing.pipelineRunId,
+        projectId: existing.projectId,
+        fromStepName: existing.stepName,
+      });
+    } catch (err) {
+      log.warn({ err, stepPauseId }, "rerun impact computation failed");
+      return { ok: false, status: 422, error: "rerun_impact_failed" };
+    }
+    if (impact.requiresConfirm && payload.confirmDestructive !== true) {
+      return {
+        ok: false,
+        status: 409,
+        error: "destructive_confirm_needed",
+        impact,
+      };
+    }
   }
 
   // All other actions atomically resolve the row.
@@ -136,13 +190,37 @@ export async function resolveStepPause(
     );
   }
 
-  const checkpoint = parentRun.suspensionCheckpoint as
-    | { kind?: string; stepKey?: string; accumulatedOutput?: Record<string, unknown> }
-    | null;
-  const priorOutput: Record<string, unknown> =
+  const checkpoint = parentRun.suspensionCheckpoint as {
+    kind?: string;
+    stepKey?: string;
+    accumulatedOutput?: Record<string, unknown>;
+  } | null;
+  let priorOutput: Record<string, unknown> =
     checkpoint?.accumulatedOutput && typeof checkpoint.accumulatedOutput === "object"
       ? checkpoint.accumulatedOutput
       : {};
+
+  // Spec 62.6 §6.8: rerun cleanup runs AFTER the pause is resolved (so the
+  // snapshot of the rerun action is durably recorded for audit) but BEFORE
+  // re-enqueue (so the runner doesn't pick up stale child substep rows or
+  // idempotency cache entries from before the rerun).
+  if (payload.action === "rerun") {
+    try {
+      const cleanup = await executeRerunCleanup({
+        pipelineName: parentRun.pipelineName,
+        pipelineRunId: parentRun.id,
+        projectId: parentRun.projectId,
+        fromStepName: resolved.stepName,
+      });
+      priorOutput = cleanup.trimmedPriorOutput;
+    } catch (err) {
+      log.error(
+        { err, stepPauseId, pipelineRunId: parentRun.id, stepName: resolved.stepName },
+        "rerun cleanup failed — pause is resolved but re-enqueue would resume from stale state"
+      );
+      return { ok: false, status: 422, error: "rerun_cleanup_failed" };
+    }
+  }
 
   const stepPauseResume: StepPauseResume = {
     stepName: resolved.stepName,
@@ -175,6 +253,29 @@ export async function resolveStepPause(
     .update(pipelineRuns)
     .set({ status: "running", suspensionCheckpoint: null })
     .where(eq(pipelineRuns.id, parentRun.id));
+
+  // Spec 62.6: SSE events so RunDetail + RunsList flip without a refresh. Fire
+  // both step.resolved AND run.statusChanged (paused → running) so the UI can
+  // update the step card AND the run header in one event-loop tick.
+  const ts = new Date().toISOString();
+  void publishPipelineEvent(parentRun.projectId, {
+    type: "step.resolved",
+    runId: parentRun.id,
+    pipelineName: parentRun.pipelineName,
+    stepName: resolved.stepName,
+    stepPauseId: resolved.id,
+    action: payload.action,
+    reEnqueued: true,
+    timestamp: ts,
+  });
+  void publishPipelineEvent(parentRun.projectId, {
+    type: "run.statusChanged",
+    runId: parentRun.id,
+    pipelineName: parentRun.pipelineName,
+    oldStatus: parentRun.status,
+    newStatus: "running",
+    timestamp: ts,
+  });
 
   return { ok: true, resolved, reEnqueued: true, jobId };
 }

@@ -26,6 +26,9 @@ export default {
   // 62.5 planner nav
   planner: "Planner",
   plannerSection: "Planner",
+  // 62.6 runs + optimization-requests nav
+  pipelineRuns: "Pipeline-Runs",
+  optimizationRequests: "Optimization-Inbox",
   // discovery nav items
   refreshQueue: "Refresh-Warteschlange",
   // status filter chips

@@ -20,12 +20,8 @@
 
     <!-- APPROVED actions -->
     <template v-else-if="planStatus === 'approved'">
-      <GlassButton
-        variant="secondary"
-        :disabled="true"
-      >
+      <GlassButton variant="secondary" @click="onViewRuns">
         {{ $t("planner.actions.viewRuns") as string }}
-        <q-tooltip>{{ $t("planner.actions.viewRunsComingSoon") as string }}</q-tooltip>
       </GlassButton>
       <GlassButton variant="ghost" @click="$emit('cancel-plan')">
         {{ $t("planner.actions.cancelPlan") as string }}
@@ -34,6 +30,9 @@
 
     <!-- RUNNING / higher -->
     <template v-else-if="planStatus === 'running' || planStatus === 'partially_failed'">
+      <GlassButton variant="secondary" @click="onViewRuns">
+        {{ $t("planner.actions.viewRuns") as string }}
+      </GlassButton>
       <GlassButton variant="danger" @click="$emit('cancel-plan')">
         {{ $t("planner.actions.cancelPlan") as string }}
       </GlassButton>
@@ -80,6 +79,21 @@ export default defineComponent({
       // Nothing pending → nothing to approve. Otherwise enable (approveAll covers
       // the zero-selection case; selectedCount > 0 enables approve-selected).
       return this.pendingCount === 0;
+    },
+  },
+
+  methods: {
+    // Spec 62.6: deep-link to the project's runs list filtered to planning:weekly.
+    // The 62.5 stub had this disabled with a "Coming in 62.6" tooltip.
+    onViewRuns(): void {
+      const slug = this.$route.params.slug;
+      const resolved = Array.isArray(slug) ? (slug[0] ?? "") : (slug ?? "");
+      if (!resolved) return;
+      void this.$router.push({
+        name: "runs-list",
+        params: { slug: resolved },
+        query: { pipelineName: "planning:weekly" },
+      });
     },
   },
 });

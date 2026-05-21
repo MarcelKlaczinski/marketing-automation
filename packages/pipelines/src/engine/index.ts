@@ -22,3 +22,16 @@ export {
 } from "./queue.ts";
 export { pipelineRegistry } from "./registry.ts";
 export { registerScheduledJob, startScheduler } from "./scheduler.ts";
+export {
+  computeRerunImpact,
+  executeRerunCleanup,
+  registerRerunCleanupHook,
+  getRerunCleanupHook,
+  clearRerunCleanupHooksForTesting,
+  type RerunImpact,
+  type RerunCleanupHook,
+  type RerunCleanupHookContext,
+  type ComputeRerunImpactInput,
+  type ExecuteRerunCleanupInput,
+  type RerunCleanupResult,
+} from "./rerun.ts";

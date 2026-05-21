@@ -14,7 +14,7 @@
         />
       </div>
 
-      <!-- === Planner section (62.5) === -->
+      <!-- === Planner section (62.5 + 62.6) === -->
       <div class="nav-section">
         <p class="nav-section-label label-caps">{{ $t("nav.plannerSection") as string }}</p>
 
@@ -22,6 +22,16 @@
           :to="`/projects/${slug}/planner`"
           icon="planner"
           :label="$t('nav.planner') as string"
+        />
+        <NavItem
+          :to="`/projects/${slug}/runs`"
+          icon="runs"
+          :label="$t('nav.pipelineRuns') as string"
+        />
+        <NavItem
+          :to="`/projects/${slug}/optimization-requests`"
+          icon="optimizationRequests"
+          :label="$t('nav.optimizationRequests') as string"
         />
       </div>
 

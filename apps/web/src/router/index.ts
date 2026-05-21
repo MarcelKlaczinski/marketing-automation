@@ -4,6 +4,7 @@ import {
   createMemoryHistory,
   createWebHistory,
   createWebHashHistory,
+  type RouteLocationGeneric,
 } from "vue-router";
 import { useAuthStore } from "src/stores/auth";
 import { useProjectStore } from "src/stores/project";
@@ -175,11 +176,22 @@ const routes = [
         component: () => import("src/pages/refresh/RefreshQueuePage.vue"),
       },
 
-      // 62.0a: Step-paused runs queue — Stub page, full UI lands in 62.6
+      // 62.0a → 62.6: legacy stub route kept as a redirect so notification deep-links
+      // and the original Cmd+K "Show paused runs" action still resolve. The actual UI
+      // lives at /runs and filters via ?status=paused.
       {
         path: "paused-runs",
         name: "paused-runs",
-        component: () => import("src/pages/paused-runs/PausedRunsStubPage.vue"),
+        redirect: (to: RouteLocationGeneric) => {
+          const slug = Array.isArray(to.params.slug)
+            ? (to.params.slug[0] ?? "")
+            : (to.params.slug ?? "");
+          return {
+            name: "runs-list",
+            params: { slug },
+            query: { status: "paused" },
+          };
+        },
       },
 
       // 62.5: Planner calendar — week view of weekly_plans + planned_items
@@ -192,6 +204,23 @@ const routes = [
         path: "planner/items/:itemId",
         name: "planner-item-detail",
         component: () => import("src/pages/planner/PlannerItemDetailPage.vue"),
+      },
+
+      // 62.6: Pipeline runs debug UI — list + detail + optimization-requests inbox.
+      {
+        path: "runs",
+        name: "runs-list",
+        component: () => import("src/pages/runs/RunsListPage.vue"),
+      },
+      {
+        path: "runs/:runId",
+        name: "run-detail",
+        component: () => import("src/pages/runs/RunDetailPage.vue"),
+      },
+      {
+        path: "optimization-requests",
+        name: "optimization-requests",
+        component: () => import("src/pages/runs/OptimizationRequestsPage.vue"),
       },
 
     ],

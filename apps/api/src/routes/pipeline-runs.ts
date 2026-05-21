@@ -1,4 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
+import { getPauseInfo, isProjectPaused } from "@marketing-auto/core";
 import {
   articles,
   astroSyncRuns,
@@ -12,17 +13,17 @@ import {
   pipelineRuns,
   projects,
   schemaExtensionRuns,
+  stepPauses,
   topicBriefs,
 } from "@marketing-auto/db";
-import { getPauseInfo, isProjectPaused } from "@marketing-auto/core";
-import { enqueuePipeline } from "@marketing-auto/pipelines";
+import { computeRerunImpact, enqueuePipeline } from "@marketing-auto/pipelines";
 import { createLogger, stepPausePayloadSchema } from "@marketing-auto/shared";
 import { and, asc, desc, eq, gte, inArray, isNull, like, or, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
-import { requireAuth } from "../middleware/auth.ts";
 import { resolveStepPause } from "../lib/step-pause-service.ts";
+import { requireAuth } from "../middleware/auth.ts";
 
 const log = createLogger("routes:pipeline-runs");
 
@@ -43,7 +44,7 @@ export type NormalizedStatus =
   | "failed"
   | "cancelled"
   | "batch_pending"
-  | "paused";  // Spec 62.0a: step paused in debug mode awaiting user action
+  | "paused"; // Spec 62.0a: step paused in debug mode awaiting user action
 
 export interface ActivityEntry {
   id: string;
@@ -194,9 +195,7 @@ pipelineRunsRoutes.get("/active", async (c) => {
 
   // For running top-level rows, fetch the currently active step name so the UI can
   // show progress ("Draft generation · step: self-review") without polling per-step.
-  const runningParentIds = pipelineRunRows
-    .filter((r) => r.status === "running")
-    .map((r) => r.id);
+  const runningParentIds = pipelineRunRows.filter((r) => r.status === "running").map((r) => r.id);
 
   const currentStepMap = new Map<string, string>(); // parentRunId → stepName
   if (runningParentIds.length > 0) {
@@ -492,10 +491,7 @@ pipelineRunsRoutes.get(
         .orderBy(desc(pipelineRuns.createdAt))
         .limit(q.limit)
         .offset(q.offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(pipelineRuns)
-        .where(whereClause),
+      db.select({ count: sql<number>`count(*)::int` }).from(pipelineRuns).where(whereClause),
     ]);
 
     return c.json({ ok: true, data: paginated(rows, countRows, q) });
@@ -518,7 +514,11 @@ pipelineRunsRoutes.post("/:id/retry", async (c) => {
   if (!run) return c.json({ ok: false, error: "not_found" }, 404);
   if (run.status !== "failed") {
     return c.json(
-      { ok: false, error: "not_failed", message: `Run is "${run.status}", only "failed" runs can be retried` },
+      {
+        ok: false,
+        error: "not_failed",
+        message: `Run is "${run.status}", only "failed" runs can be retried`,
+      },
       422
     );
   }
@@ -527,7 +527,11 @@ pipelineRunsRoutes.post("/:id/retry", async (c) => {
 
   if (NOT_RETRYABLE.includes(pipelineName) || pipelineName.startsWith("cold-start:")) {
     return c.json(
-      { ok: false, error: "not_retryable", message: `Pipeline "${pipelineName}" is not retryable via this endpoint` },
+      {
+        ok: false,
+        error: "not_retryable",
+        message: `Pipeline "${pipelineName}" is not retryable via this endpoint`,
+      },
       422
     );
   }
@@ -618,9 +622,44 @@ pipelineRunsRoutes.get("/:id/step-pauses", async (c) => {
   return c.json({ ok: true, data: pauses });
 });
 
-// ─── POST /api/pipeline-runs/:id/step-pauses/:stepPauseId/resolve — Spec 62.0a ─
-// Resolves a paused step with one of the 7 user actions and re-enqueues the pipeline.
+// ─── GET /api/pipeline-runs/:id/step-pauses/:stepPauseId/rerun-preflight — Spec 62.6 ─
+// Returns the destructive impact of a rerun-from-here action. Pure read — does not
+// mutate state. Drives the UI confirm dialog before the user resolves with action=rerun.
+pipelineRunsRoutes.get("/:id/step-pauses/:stepPauseId/rerun-preflight", async (c) => {
+  const stepPauseId = c.req.param("stepPauseId");
+  const [pauseRow] = await db
+    .select()
+    .from(stepPauses)
+    .where(eq(stepPauses.id, stepPauseId))
+    .limit(1);
+  if (!pauseRow) return c.json({ ok: false, error: "step_pause_not_found" }, 404);
+
+  try {
+    const impact = await computeRerunImpact({
+      pipelineName: pauseRow.pipelineName,
+      pipelineRunId: pauseRow.pipelineRunId,
+      projectId: pauseRow.projectId,
+      fromStepName: pauseRow.stepName,
+    });
+    return c.json({ ok: true, data: impact });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.startsWith("pipeline_not_registered")) {
+      return c.json({ ok: false, error: "pipeline_not_registered" }, 422);
+    }
+    if (msg.startsWith("step_not_in_pipeline")) {
+      return c.json({ ok: false, error: "step_not_in_pipeline" }, 422);
+    }
+    log.warn({ err, stepPauseId }, "rerun-preflight failed");
+    return c.json({ ok: false, error: "preflight_failed" }, 500);
+  }
+});
+
+// ─── POST /api/pipeline-runs/:id/step-pauses/:stepPauseId/resolve — Spec 62.0a + 62.6 ─
+// Resolves a paused step with one of the 8 user actions and re-enqueues the pipeline.
 // `extract-for-optimization` tags the row but does NOT re-enqueue.
+// `rerun` (Spec 62.6) re-executes from this step; destructive cases require
+// `confirmDestructive: true` and surface a 409 with the impact preview otherwise.
 pipelineRunsRoutes.post(
   "/:id/step-pauses/:stepPauseId/resolve",
   zValidator("json", stepPausePayloadSchema),
@@ -635,6 +674,11 @@ pipelineRunsRoutes.post(
     const result = await resolveStepPause(stepPauseId, payload, resolvedBy);
     if (!result.ok) {
       const status = result.status as 404 | 409 | 422;
+      // Spec 62.6 §6.8: destructive rerun gates surface the impact preview so
+      // the UI can render the type-DELETE confirm dialog without an extra round-trip.
+      if ("impact" in result) {
+        return c.json({ ok: false, error: result.error, impact: result.impact }, status);
+      }
       return c.json({ ok: false, error: result.error }, status);
     }
 
@@ -664,7 +708,7 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
   const [run] = await db.select().from(pipelineRuns).where(eq(pipelineRuns.id, runId)).limit(1);
   if (!run) return c.json({ ok: false, error: "Run not found" }, 404);
 
-  const [stepRuns, allCosts] = await Promise.all([
+  const [stepRuns, allCosts, runPauses] = await Promise.all([
     db
       .select()
       .from(pipelineRuns)
@@ -675,7 +719,14 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
       .from(costLogs)
       .where(inArray(costLogs.pipelineRunId, [runId]))
       .orderBy(asc(costLogs.createdAt)),
+    // Spec 62.6: surface step_pauses inline so RunDetailPage doesn't need a separate call.
+    db
+      .select()
+      .from(stepPauses)
+      .where(eq(stepPauses.pipelineRunId, runId))
+      .orderBy(asc(stepPauses.requestedAt)),
   ]);
+  const pauseByStepRunId = new Map(runPauses.map((p) => [p.stepRunId, p] as const));
 
   // Fetch costs for child step runs too
   const stepRunIds = stepRuns.map((s) => s.id);
@@ -697,7 +748,14 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
   const [articleRow, briefRow] = await Promise.all([
     articleId
       ? db
-          .select({ id: articles.id, title: articles.title, slug: articles.slug, status: articles.status, locale: articles.locale, clusterId: articles.clusterId })
+          .select({
+            id: articles.id,
+            title: articles.title,
+            slug: articles.slug,
+            status: articles.status,
+            locale: articles.locale,
+            clusterId: articles.clusterId,
+          })
           .from(articles)
           .where(eq(articles.id, articleId))
           .limit(1)
@@ -705,7 +763,11 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
       : Promise.resolve(null),
     briefId
       ? db
-          .select({ id: topicBriefs.id, source: topicBriefs.source, topicTitle: topicBriefs.topicTitle })
+          .select({
+            id: topicBriefs.id,
+            source: topicBriefs.source,
+            topicTitle: topicBriefs.topicTitle,
+          })
           .from(topicBriefs)
           .where(eq(topicBriefs.id, briefId))
           .limit(1)
@@ -733,20 +795,51 @@ pipelineRunsRoutes.get("/:runId", async (c) => {
         input: run.input,
         output: run.output,
         error: run.errorMessage,
-        retriedFromRunId: typeof input.retriedFromRunId === "string" ? input.retriedFromRunId : null,
+        retriedFromRunId:
+          typeof input.retriedFromRunId === "string" ? input.retriedFromRunId : null,
       },
-      steps: stepRuns.map((s) => ({
-        id: s.id,
-        stepName: s.stepName,
-        status: s.status,
-        startedAt: s.startedAt,
-        completedAt: s.completedAt,
-        durationMs:
-          s.completedAt && s.startedAt
-            ? new Date(s.completedAt).getTime() - new Date(s.startedAt).getTime()
+      steps: stepRuns.map((s) => {
+        const pause = pauseByStepRunId.get(s.id) ?? null;
+        return {
+          id: s.id,
+          stepName: s.stepName,
+          status: s.status,
+          startedAt: s.startedAt,
+          completedAt: s.completedAt,
+          durationMs:
+            s.completedAt && s.startedAt
+              ? new Date(s.completedAt).getTime() - new Date(s.startedAt).getTime()
+              : null,
+          // Spec 62.6: include `input` so the StepCard can show it in the JSON editor.
+          input: s.input,
+          output: s.output,
+          error: s.errorMessage,
+          // Spec 62.6: surface paired step_pause inline (one-to-one via stepRunId).
+          pause: pause
+            ? {
+                id: pause.id,
+                stepName: pause.stepName,
+                stepInput: pause.stepInput,
+                stepOutput: pause.stepOutput,
+                promptUsed: pause.promptUsed,
+                action: pause.action,
+                userNote: pause.userNote,
+                resolvedAt: pause.resolvedAt,
+                resolvedBy: pause.resolvedBy,
+                requestedAt: pause.requestedAt,
+              }
             : null,
-        output: s.output,
-        error: s.errorMessage,
+        };
+      }),
+      // Spec 62.6: also flat list of pauses (resolved + unresolved) for the run.
+      pauses: runPauses.map((p) => ({
+        id: p.id,
+        stepRunId: p.stepRunId,
+        stepName: p.stepName,
+        action: p.action,
+        resolvedAt: p.resolvedAt,
+        resolvedBy: p.resolvedBy,
+        requestedAt: p.requestedAt,
       })),
       costs: costs.map((cost) => ({
         id: cost.id,

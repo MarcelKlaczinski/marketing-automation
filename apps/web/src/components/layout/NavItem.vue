@@ -79,6 +79,23 @@
         <line x1="5" y1="1.5" x2="5" y2="4" />
         <line x1="11" y1="1.5" x2="11" y2="4" />
       </svg>
+      <!-- Pipeline Runs (step list — circles + connector lines) -->
+      <svg v-else-if="icon === 'runs'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="4" cy="4" r="1.5" />
+        <circle cx="4" cy="8" r="1.5" />
+        <circle cx="4" cy="12" r="1.5" />
+        <line x1="4" y1="5.5" x2="4" y2="6.5" />
+        <line x1="4" y1="9.5" x2="4" y2="10.5" />
+        <line x1="7" y1="4" x2="14" y2="4" />
+        <line x1="7" y1="8" x2="14" y2="8" />
+        <line x1="7" y1="12" x2="12" y2="12" />
+      </svg>
+      <!-- Optimization Requests (inbox tray) -->
+      <svg v-else-if="icon === 'optimizationRequests'" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 9.5l2.5-6h7l2.5 6" />
+        <path d="M2 9.5h3.5l1 2h3l1-2H14" />
+        <path d="M2 9.5v3.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.5" />
+      </svg>
       <!-- Fallback generic dot -->
       <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none">
         <circle cx="8" cy="8" r="3" fill="currentColor" opacity="0.5" />

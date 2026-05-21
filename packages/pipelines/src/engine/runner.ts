@@ -11,12 +11,12 @@ import {
   supersedeOldSubstep,
   writeIdempotencyOutput,
 } from "@marketing-auto/db";
-import { createLogger, type StepAction } from "@marketing-auto/shared";
+import type { SuspensionCheckpoint } from "@marketing-auto/db";
+import { type StepAction, createLogger } from "@marketing-auto/shared";
 import { eq } from "drizzle-orm";
+import { invalidateGoldenPromptCache } from "./golden-prompt-cache.ts";
 import type { Pipeline } from "./pipeline.ts";
 import type { BaseStep, StepContext } from "./step.ts";
-import type { SuspensionCheckpoint } from "@marketing-auto/db";
-import { invalidateGoldenPromptCache } from "./golden-prompt-cache.ts";
 
 const log = createLogger("pipeline-runner");
 
@@ -68,7 +68,13 @@ export type PipelineRunOptions = {
 };
 
 export type PipelineRunResult<TOutput> =
-  | { ok: true; suspended?: false; runId: string; output: TOutput; stepOutputs: Record<string, unknown> }
+  | {
+      ok: true;
+      suspended?: false;
+      runId: string;
+      output: TOutput;
+      stepOutputs: Record<string, unknown>;
+    }
   | {
       ok: false;
       suspended?: false;
@@ -210,6 +216,15 @@ export async function runPipeline<TInput, TOutput>(
           .set({ status: "cancelled", completedAt: new Date() })
           .where(eq(pipelineRuns.id, runId));
         await autoDismissStepPauses(runId, "cancelled");
+        // Spec 62.6: live-update so the UI shows "cancelled" without refresh.
+        void publishPipelineEvent(options.projectId, {
+          type: "run.statusChanged",
+          runId,
+          pipelineName: pipeline.name,
+          oldStatus: "paused",
+          newStatus: "cancelled",
+          timestamp: new Date().toISOString(),
+        });
         pipelineLog.info({ stepName: resume.stepName }, "Pipeline aborted via step-pause resolve");
         return {
           ok: false,
@@ -285,6 +300,23 @@ export async function runPipeline<TInput, TOutput>(
         await supersedeOldSubstep(runId, resume.stepName);
         break;
       }
+      case "rerun": {
+        // Spec 62.6 §6.8: re-execute this step with the ORIGINAL input (no override).
+        // Differs from edit-input by leaving stepInputOverride empty — the runner's
+        // bridge() rederives the step input from the previous step's output. Any later
+        // step outputs that were cached in priorOutput (from a multi-pause iteration)
+        // are also cleared so they re-execute fresh once this step completes.
+        // Pipeline-specific DB cleanup (e.g. PlanWeekPipeline's planned_items rollback)
+        // was performed by step-pause-service BEFORE re-enqueue, so the runner only
+        // owns the in-memory state reset here.
+        for (let j = targetIdx; j < pipeline.steps.length; j++) {
+          const laterStep = pipeline.steps[j] as BaseStep<unknown, unknown>;
+          delete stepOutputs[laterStep.name];
+        }
+        resumeFromStep = resume.stepName;
+        await supersedeOldSubstep(runId, resume.stepName);
+        break;
+      }
       case "edit-prompt": {
         delete stepOutputs[resume.stepName];
         resumeFromStep = resume.stepName;
@@ -330,10 +362,7 @@ export async function runPipeline<TInput, TOutput>(
       // stepOutputs UNLESS it is the explicit resumeFromStep. This handles batch resume
       // (priorOutput pre-populated) AND step-pause approve/edit-output (storedOutput
       // pre-populated AND resumeFromStep advanced past the paused step).
-      if (
-        stepOutputs[step.name] !== undefined &&
-        step.name !== resumeFromStep
-      ) {
+      if (stepOutputs[step.name] !== undefined && step.name !== resumeFromStep) {
         const cachedOutput = stepOutputs[step.name];
         if (i < pipeline.steps.length - 1) {
           const nextStep = pipeline.steps[i + 1] as BaseStep<unknown, unknown>;
@@ -444,12 +473,22 @@ export async function runPipeline<TInput, TOutput>(
           const validatedSkip = step.outputSchema.parse(rawSkip);
           await db
             .update(pipelineRuns)
-            .set({ status: "completed", output: validatedSkip as Record<string, unknown>, completedAt: new Date() })
+            .set({
+              status: "completed",
+              output: validatedSkip as Record<string, unknown>,
+              completedAt: new Date(),
+            })
             .where(eq(pipelineRuns.id, stepRunId));
           stepOutputs[step.name] = validatedSkip;
           if (i < pipeline.steps.length - 1) {
             const nextStep = pipeline.steps[i + 1] as BaseStep<unknown, unknown>;
-            currentInput = pipeline.bridge(step, nextStep, validatedSkip, validatedInput, ctx.getStepOutput);
+            currentInput = pipeline.bridge(
+              step,
+              nextStep,
+              validatedSkip,
+              validatedInput,
+              ctx.getStepOutput
+            );
           } else {
             currentInput = validatedSkip;
           }
@@ -609,6 +648,24 @@ export async function runPipeline<TInput, TOutput>(
           stepName: step.name,
           stepPauseId: stepPauseRow.id,
         });
+        // Spec 62.6: live-update events so the RunsList + RunDetail UI flip without refresh.
+        void publishPipelineEvent(options.projectId, {
+          type: "step.paused",
+          runId,
+          pipelineName: pipeline.name,
+          stepName: step.name,
+          stepPauseId: stepPauseRow.id,
+          stepRunId,
+          timestamp: new Date().toISOString(),
+        });
+        void publishPipelineEvent(options.projectId, {
+          type: "run.statusChanged",
+          runId,
+          pipelineName: pipeline.name,
+          oldStatus: "running",
+          newStatus: "paused",
+          timestamp: new Date().toISOString(),
+        });
         return {
           ok: false,
           suspended: true,
@@ -699,7 +756,10 @@ export async function runPipeline<TInput, TOutput>(
     try {
       const dismissed = await autoDismissStepPauses(runId, "failed");
       if (dismissed > 0) {
-        pipelineLog.info({ dismissed }, "Auto-dismissed unresolved step-pauses on pipeline failure");
+        pipelineLog.info(
+          { dismissed },
+          "Auto-dismissed unresolved step-pauses on pipeline failure"
+        );
       }
     } catch (dismissErr) {
       pipelineLog.warn({ err: dismissErr }, "autoDismissStepPauses failed — stale pauses remain");

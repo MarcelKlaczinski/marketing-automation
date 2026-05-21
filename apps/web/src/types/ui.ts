@@ -37,7 +37,11 @@ export type PipelineEventType =
   // Spec 57.2: Social render lifecycle events
   | "social.render.started"
   | "social.render.completed"
-  | "social.render.failed";
+  | "social.render.failed"
+  // Spec 62.6: Step-pause + run lifecycle events
+  | "step.paused"
+  | "step.resolved"
+  | "run.statusChanged";
 
 /** A single SSE pipeline event */
 export interface PipelineEvent {

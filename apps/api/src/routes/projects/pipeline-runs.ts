@@ -35,9 +35,28 @@ export const scopedPipelineRunsRoutes = new Hono();
 scopedPipelineRunsRoutes.use(requireAuth);
 
 // ─── GET /api/projects/:slug/pipeline-runs ────────────────────────────────────
+// Spec 62.6 list filter: prefix on pipeline-name + optional status set. Returns
+// parent runs (stepName IS NULL) only, newest first.
+
+// Mirrors pipelineRunStatusEnum (queued | running | completed | failed | cancelled |
+// batch_pending | paused | superseded). Internal-only `superseded` is intentionally
+// included so the UI can show those rows when explicitly filtered.
+const RUN_STATUS_VALUES = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+  "batch_pending",
+  "paused",
+  "superseded",
+] as const;
+type RunStatusValue = (typeof RUN_STATUS_VALUES)[number];
 
 const projectRunsQuerySchema = paginationQuerySchema.extend({
   pipelineNamePrefix: z.string().optional(),
+  // Comma-separated list of statuses. Empty → no status filter.
+  status: z.string().optional(),
 });
 
 scopedPipelineRunsRoutes.get(
@@ -58,6 +77,15 @@ scopedPipelineRunsRoutes.get(
     if (q.pipelineNamePrefix) {
       conditions.push(ilike(pipelineRuns.pipelineName, `${q.pipelineNamePrefix}%`));
     }
+    if (q.status) {
+      const requested = q.status
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s): s is RunStatusValue => (RUN_STATUS_VALUES as readonly string[]).includes(s));
+      if (requested.length > 0) {
+        conditions.push(inArray(pipelineRuns.status, requested));
+      }
+    }
     const whereClause = and(...conditions);
 
     const [rows, countRows] = await Promise.all([
@@ -68,15 +96,36 @@ scopedPipelineRunsRoutes.get(
         .orderBy(desc(pipelineRuns.createdAt))
         .limit(q.limit)
         .offset(q.offset),
-      db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(pipelineRuns)
-        .where(whereClause),
+      db.select({ count: sql<number>`count(*)::int` }).from(pipelineRuns).where(whereClause),
     ]);
 
     return c.json({ ok: true, data: paginated(rows, countRows, q) });
-  },
+  }
 );
+
+// ─── GET /api/projects/:slug/pipeline-runs/pipeline-names — Spec 62.6 ────────────
+// Distinct pipeline names that appear in this project's parent runs. Powers the
+// pipeline filter dropdown on the RunsListPage. Sorted alphabetically.
+scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/pipeline-names", async (c) => {
+  const { slug } = c.req.param();
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const rows = await db
+    .selectDistinct({ pipelineName: pipelineRuns.pipelineName })
+    .from(pipelineRuns)
+    .where(and(eq(pipelineRuns.projectId, project.id), isNull(pipelineRuns.stepName)))
+    .orderBy(pipelineRuns.pipelineName);
+
+  return c.json({
+    ok: true,
+    data: rows.map((r) => r.pipelineName),
+  });
+});
 
 // ─── GET /api/projects/:slug/pipeline-runs/active ─────────────────────────────
 
@@ -123,16 +172,14 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
             inArray(pipelineRuns.status, ["completed", "failed", "cancelled"] as Array<
               "completed" | "failed" | "cancelled"
             >),
-            gte(pipelineRuns.createdAt, since),
-          ),
-        ),
-      ),
+            gte(pipelineRuns.createdAt, since)
+          )
+        )
+      )
     )
     .orderBy(desc(pipelineRuns.createdAt));
 
-  const runningParentIds = pipelineRunRows
-    .filter((r) => r.status === "running")
-    .map((r) => r.id);
+  const runningParentIds = pipelineRunRows.filter((r) => r.status === "running").map((r) => r.id);
 
   const currentStepMap = new Map<string, string>();
   if (runningParentIds.length > 0) {
@@ -145,8 +192,8 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
       .where(
         and(
           inArray(pipelineRuns.parentRunId, runningParentIds),
-          inArray(pipelineRuns.status, ["running", "queued"] as Array<"running" | "queued">),
-        ),
+          inArray(pipelineRuns.status, ["running", "queued"] as Array<"running" | "queued">)
+        )
       )
       .orderBy(desc(pipelineRuns.createdAt));
     for (const row of stepRows) {
@@ -191,8 +238,8 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
     .where(
       and(
         eq(astroSyncRuns.projectId, projectId),
-        or(eq(astroSyncRuns.status, "pending"), gte(astroSyncRuns.startedAt, since)),
-      ),
+        or(eq(astroSyncRuns.status, "pending"), gte(astroSyncRuns.startedAt, since))
+      )
     )
     .orderBy(desc(astroSyncRuns.startedAt));
 
@@ -210,8 +257,8 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
     .where(
       and(
         eq(pagespeedRuns.projectId, projectId),
-        or(eq(pagespeedRuns.status, "pending"), gte(pagespeedRuns.startedAt, since)),
-      ),
+        or(eq(pagespeedRuns.status, "pending"), gte(pagespeedRuns.startedAt, since))
+      )
     )
     .orderBy(desc(pagespeedRuns.startedAt));
 
@@ -229,8 +276,8 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
     .where(
       and(
         eq(schemaExtensionRuns.projectId, projectId),
-        or(eq(schemaExtensionRuns.status, "pending"), gte(schemaExtensionRuns.startedAt, since)),
-      ),
+        or(eq(schemaExtensionRuns.status, "pending"), gte(schemaExtensionRuns.startedAt, since))
+      )
     )
     .orderBy(desc(schemaExtensionRuns.startedAt));
 
@@ -246,8 +293,8 @@ scopedPipelineRunsRoutes.get("/:slug/pipeline-runs/active", async (c) => {
     .where(
       and(
         eq(linkRebuildRuns.projectId, projectId),
-        or(eq(linkRebuildRuns.status, "pending"), gte(linkRebuildRuns.startedAt, since)),
-      ),
+        or(eq(linkRebuildRuns.status, "pending"), gte(linkRebuildRuns.startedAt, since))
+      )
     )
     .orderBy(desc(linkRebuildRuns.startedAt));
 
@@ -404,8 +451,8 @@ scopedPipelineRunsRoutes.get("/:slug/activity-summary", async (c) => {
         and(
           eq(pipelineRuns.projectId, project.id),
           isNull(pipelineRuns.stepName),
-          inArray(pipelineRuns.status, ["running", "queued"] as Array<"running" | "queued">),
-        ),
+          inArray(pipelineRuns.status, ["running", "queued"] as Array<"running" | "queued">)
+        )
       ),
     db
       .select({ count: sql<number>`count(*)::int` })
@@ -415,8 +462,8 @@ scopedPipelineRunsRoutes.get("/:slug/activity-summary", async (c) => {
           eq(pipelineRuns.projectId, project.id),
           isNull(pipelineRuns.stepName),
           inArray(pipelineRuns.status, ["failed"] as Array<"failed">),
-          gte(pipelineRuns.createdAt, oneDayAgo),
-        ),
+          gte(pipelineRuns.createdAt, oneDayAgo)
+        )
       ),
   ]);
 

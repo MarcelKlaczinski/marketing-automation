@@ -182,11 +182,25 @@ export default defineComponent({
       const slug = this.projectStore.currentSlug;
       if (!slug) return [];
       return [
+        // 62.6: Pipeline Runs + Optimization Inbox become the primary debug surfaces.
+        {
+          id: "action-pipeline-runs",
+          title: this.$t("search.actionPipelineRuns") as string,
+          subtitle: this.$t("search.actionPipelineRunsSubtitle") as string,
+          href: `/projects/${slug}/runs`,
+        },
         {
           id: "action-paused-runs",
           title: this.$t("search.actionPausedRuns") as string,
           subtitle: this.$t("search.actionPausedRunsSubtitle") as string,
-          href: `/projects/${slug}/paused-runs`,
+          // Deep-link to the filtered list view (filters preserved via ?status=paused).
+          href: `/projects/${slug}/runs?status=paused`,
+        },
+        {
+          id: "action-optimization-requests",
+          title: this.$t("search.actionOptimizationRequests") as string,
+          subtitle: this.$t("search.actionOptimizationRequestsSubtitle") as string,
+          href: `/projects/${slug}/optimization-requests`,
         },
         {
           id: "action-planner-goals",
