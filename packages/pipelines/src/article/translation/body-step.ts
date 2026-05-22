@@ -19,6 +19,12 @@ import { BaseStep, type StepContext } from "../../engine/step.ts";
 import type { VoiceReference } from "../voice-reference/loader.ts";
 import { ArticlePipelineError } from "../types.ts";
 import { countFaqItems, validateFaqPreservation, type FaqValidationResult } from "./lib/faq-validator.ts";
+import {
+  countBodyWords,
+  maxTargetWordsFor,
+  validateWordDriftCap,
+  type WordDriftValidationResult,
+} from "./lib/word-drift-validator.ts";
 
 const log = createLogger("pipelines:translation-body");
 
@@ -59,6 +65,16 @@ const FaqValidationSchema = z.object({
   message:      z.string(),
 });
 
+// Spec 64.5 — surfaces +25% word-drift cap violations to downstream review.
+const WordDriftValidationSchema = z.object({
+  valid:        z.boolean(),
+  sourceWords:  z.number().int().min(0),
+  targetWords:  z.number().int().min(0),
+  driftPct:     z.number().int(),
+  capPct:       z.number().int().min(0),
+  message:      z.string(),
+});
+
 const OutputSchema = z.object({
   bodyMd:               z.string().min(200),
   wordCount:            z.number().int().min(50),
@@ -68,7 +84,11 @@ const OutputSchema = z.object({
   // Spec 64.4 — surfaces FAQ-count mismatch to downstream review. Optional so
   // the field is only present for runs after this change shipped.
   faqValidation:        FaqValidationSchema.optional(),
+  // Spec 64.5 — surfaces +25% word-drift cap violations. Optional, same reason.
+  wordDriftValidation:  WordDriftValidationSchema.optional(),
 });
+
+const WORD_DRIFT_CAP_PCT = 25;
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
@@ -116,6 +136,36 @@ Do not skip any. Each question must be translated, and each answer must follow i
 List the FAQ items in your head before writing — ensure all are present.
 `.trim();
 
+// Spec 64.5 — explicit word-count cap in every body-translation prompt. The
+// 2026-05-22 audit found 17/17 EN siblings ran +30-130% longer than DE source
+// because the LLM expands concise phrasing into verbose English. Placeholders
+// `{sourceWords}` and `{sourceWordsCap}` are substituted per call.
+const WORD_COUNT_CONSTRAINT = `
+**Word-Count Constraint (CRITICAL for SEO + readability):**
+Aim for a target word count within ±25% of the source. Specifically:
+- DO NOT add explanations, examples, or clarifications not present in the source.
+- DO NOT expand concise source phrases ("zudem", "daher", "etwa") into verbose English equivalents ("In addition to this fact,...", "As a result of which,...", "approximately around about...").
+- Prefer concise translations: "Das bedeutet, dass..." → "This means..." (NOT "What this signifies is that...").
+- If the source uses a compound noun ("Vertragsverlängerung"), translate to the natural English equivalent ("contract renewal"), not a verbose paraphrase.
+- Source word count: {sourceWords}. Target word count must be ≤ {sourceWordsCap}.
+`.trim();
+
+// Spec 64.5 — Stronger retry guidance when word drift exceeds the cap.
+// `{sourceWords}`, `{previousTargetWords}`, `{previousDriftPct}`,
+// `{sourceWordsCap}` are substituted per call via String.replaceAll.
+const STRONGER_DRIFT_GUIDANCE = `
+**CRITICAL RETRY: Previous translation exceeded the word-count cap.**
+Source has {sourceWords} words. Previous attempt produced {previousTargetWords} words (+{previousDriftPct}% over).
+You MUST produce a translation with ≤{sourceWordsCap} words.
+Strategies:
+- Drop unnecessary qualifiers ("very", "really", "quite", "definitely")
+- Use contractions where natural ("it is" → "it's", "do not" → "don't")
+- Combine short sentences with semicolons or coordinating conjunctions
+- Replace verbose phrases with concise equivalents ("at this point in time" → "now")
+- Each paragraph should be roughly the same word count as its source paragraph
+Re-check the word count BEFORE finalizing. The cap is a hard constraint.
+`.trim();
+
 const DE_STYLE_NOTES = `
 **German-specific style:**
 - Use "Sie" form for B2B audiences
@@ -160,16 +210,19 @@ export class TranslationBodyStep extends BaseStep<
   }
 
   /**
-   * Spec 64.4 — runs an LLM body-translation attempt, validates FAQ
-   * preservation, and retries 1× with STRONGER_FAQ_GUIDANCE when the first
-   * attempt loses items. Does NOT throw on persistent asymmetry: Marcel
-   * reviews EN siblings before publish, and the validation result is
-   * surfaced in the step output for downstream visibility.
+   * Spec 64.4 + 64.5 — runs an LLM body-translation attempt and validates
+   * BOTH FAQ preservation AND ±25% word-drift cap. On any validator failure,
+   * retries 1× with cumulative stronger guidance from each failing validator.
+   * Max 1 retry total — never 2 — even when both validators fail (cumulative
+   * single retry per Spec 64.5 §3.3).
+   *
+   * Does NOT throw on persistent failure: Marcel reviews translated siblings
+   * before publish, and validation results are surfaced in the step output.
    */
-  async #runWithFaqRetry(args: {
+  async #runWithValidationRetry(args: {
     articleId: string;
     sourceBodyMd: string;
-    buildUserMessage: (faqRetrySuffix: string) => string;
+    buildUserMessage: (retrySuffix: string) => string;
     callBaseArgs: {
       operation: string;
       systemPrefix: string;
@@ -178,25 +231,54 @@ export class TranslationBodyStep extends BaseStep<
       estimatedCostEur: number;
     };
     ctx: StepContext;
-  }): Promise<{ raw: string; validation: FaqValidationResult }> {
+  }): Promise<{
+    raw: string;
+    faqValidation: FaqValidationResult;
+    wordDriftValidation: WordDriftValidationResult;
+  }> {
     const { articleId, sourceBodyMd, buildUserMessage, callBaseArgs, ctx } = args;
     const sourceFaqCount = countFaqItems(sourceBodyMd);
+    const sourceWords = countBodyWords(sourceBodyMd);
+    const sourceWordsCap = maxTargetWordsFor(sourceWords, WORD_DRIFT_CAP_PCT);
 
     let attempt = 0;
     let lastRaw = "";
-    let lastValidation: FaqValidationResult = {
+    let lastFaq: FaqValidationResult = {
       valid:       true,
       sourceCount: sourceFaqCount,
       targetCount: sourceFaqCount,
       delta:       0,
       message:     `FAQ count preserved: ${sourceFaqCount}`,
     };
+    let lastDrift: WordDriftValidationResult = {
+      valid:       true,
+      sourceWords,
+      targetWords: sourceWords,
+      driftPct:    0,
+      capPct:      WORD_DRIFT_CAP_PCT,
+      message:     "Word drift OK (no LLM run yet)",
+    };
 
     while (attempt < 2) {
-      const faqRetrySuffix = attempt === 0
-        ? ""
-        : STRONGER_FAQ_GUIDANCE.replaceAll("{sourceCount}", String(sourceFaqCount));
-      const userMessage = buildUserMessage(faqRetrySuffix);
+      const retryParts: string[] = [];
+      if (attempt > 0) {
+        if (!lastFaq.valid) {
+          retryParts.push(
+            STRONGER_FAQ_GUIDANCE.replaceAll("{sourceCount}", String(sourceFaqCount)),
+          );
+        }
+        if (!lastDrift.valid) {
+          retryParts.push(
+            STRONGER_DRIFT_GUIDANCE
+              .replaceAll("{sourceWords}", String(sourceWords))
+              .replaceAll("{previousTargetWords}", String(lastDrift.targetWords))
+              .replaceAll("{previousDriftPct}", String(lastDrift.driftPct))
+              .replaceAll("{sourceWordsCap}", String(sourceWordsCap)),
+          );
+        }
+      }
+      const retrySuffix = retryParts.join("\n\n");
+      const userMessage = buildUserMessage(retrySuffix);
 
       const result = await anthropic.messages({
         projectId:        ctx.projectId,
@@ -213,13 +295,20 @@ export class TranslationBodyStep extends BaseStep<
       });
 
       lastRaw = result.raw.trim();
-      lastValidation = validateFaqPreservation(sourceBodyMd, lastRaw);
+      lastFaq = validateFaqPreservation(sourceBodyMd, lastRaw);
+      lastDrift = validateWordDriftCap(sourceBodyMd, lastRaw, WORD_DRIFT_CAP_PCT);
 
-      if (lastValidation.valid) {
+      if (lastFaq.valid && lastDrift.valid) {
         if (attempt > 0) {
           log.info(
-            { articleId, attempt, faqCount: lastValidation.sourceCount },
-            "translation-body FAQ preservation recovered after retry"
+            {
+              articleId,
+              attempt,
+              faqCount:    lastFaq.sourceCount,
+              targetWords: lastDrift.targetWords,
+              driftPct:    lastDrift.driftPct,
+            },
+            "translation-body validations recovered after retry",
           );
         }
         break;
@@ -229,29 +318,35 @@ export class TranslationBodyStep extends BaseStep<
         {
           articleId,
           attempt,
-          sourceFaqCount: lastValidation.sourceCount,
-          targetFaqCount: lastValidation.targetCount,
-          delta:          lastValidation.delta,
+          faqValid:    lastFaq.valid,
+          faqDelta:    lastFaq.delta,
+          driftValid:  lastDrift.valid,
+          sourceWords: lastDrift.sourceWords,
+          targetWords: lastDrift.targetWords,
+          driftPct:    lastDrift.driftPct,
         },
-        lastValidation.message
+        "translation-body validation failure(s)",
       );
 
       attempt += 1;
     }
 
-    if (!lastValidation.valid) {
+    if (!lastFaq.valid || !lastDrift.valid) {
       log.error(
         {
           articleId,
-          sourceFaqCount: lastValidation.sourceCount,
-          targetFaqCount: lastValidation.targetCount,
-          delta:          lastValidation.delta,
+          faqValid:    lastFaq.valid,
+          faqDelta:    lastFaq.delta,
+          driftValid:  lastDrift.valid,
+          sourceWords: lastDrift.sourceWords,
+          targetWords: lastDrift.targetWords,
+          driftPct:    lastDrift.driftPct,
         },
-        "translation-body FAQ asymmetry persists after retry"
+        "translation-body validations persist after retry",
       );
     }
 
-    return { raw: lastRaw, validation: lastValidation };
+    return { raw: lastRaw, faqValidation: lastFaq, wordDriftValidation: lastDrift };
   }
 
   async #runLiteralPath(
@@ -269,7 +364,13 @@ export class TranslationBodyStep extends BaseStep<
       ? "4-8 German kebab-case tags (no English words). Include the primary keyword and relevant DE tags."
       : "4-8 English-only kebab-case tags (no German words). Include the primary keyword and 3-7 relevant EN tags.";
 
-    const buildUserMessage = (faqRetrySuffix: string): string => `You are translating a ${sourceLocaleName} blog article into idiomatic ${targetLocaleName} for ${targetAudience}.
+    const sourceWords = countBodyWords(input.sourceBodyMd);
+    const sourceWordsCap = maxTargetWordsFor(sourceWords, WORD_DRIFT_CAP_PCT);
+    const wordCountConstraint = WORD_COUNT_CONSTRAINT
+      .replaceAll("{sourceWords}", String(sourceWords))
+      .replaceAll("{sourceWordsCap}", String(sourceWordsCap));
+
+    const buildUserMessage = (retrySuffix: string): string => `You are translating a ${sourceLocaleName} blog article into idiomatic ${targetLocaleName} for ${targetAudience}.
 
 VOICE REFERENCES (existing ${targetLocaleName} articles in the same content space — match their tone):
 ${voiceBlock}
@@ -294,8 +395,10 @@ TRANSLATION REQUIREMENTS:
 
 ${FAQ_TRANSLATION_REQUIREMENT}
 
+${wordCountConstraint}
+
 ${styleNotes}
-${faqRetrySuffix ? `\n${faqRetrySuffix}\n` : ""}
+${retrySuffix ? `\n${retrySuffix}\n` : ""}
 OUTPUT FORMAT:
 First output the translated article body in markdown, then append these tagged blocks at the very end:
 
@@ -313,7 +416,7 @@ For TAGS: ${tagLanguageNote}`;
       () =>
         `You are an expert technical translator specializing in AI and software content. Your translations are idiomatic, accurate, and indistinguishable from native ${targetLocaleName} writing.`
     );
-    const { raw, validation } = await this.#runWithFaqRetry({
+    const { raw, faqValidation, wordDriftValidation } = await this.#runWithValidationRetry({
       articleId:    input.articleId,
       sourceBodyMd: input.sourceBodyMd,
       buildUserMessage,
@@ -346,7 +449,8 @@ For TAGS: ${tagLanguageNote}`;
       targetTitle,
       targetMetaDescription,
       targetTags,
-      faqValidation: validation,
+      faqValidation,
+      wordDriftValidation,
     };
   }
 
@@ -416,8 +520,14 @@ Output: A structured markdown outline with H2/H3 headings and brief section desc
 
     const outline = outlineResult.raw.trim();
 
+    const sourceWords = countBodyWords(input.sourceBodyMd);
+    const sourceWordsCap = maxTargetWordsFor(sourceWords, WORD_DRIFT_CAP_PCT);
+    const wordCountConstraint = WORD_COUNT_CONSTRAINT
+      .replaceAll("{sourceWords}", String(sourceWords))
+      .replaceAll("{sourceWordsCap}", String(sourceWordsCap));
+
     // Step 2: Generate target-locale draft from target-locale outline
-    const buildDraftUserMessage = (faqRetrySuffix: string): string => `You are writing a ${targetLocaleName} blog article for ${targetAudience}.
+    const buildDraftUserMessage = (retrySuffix: string): string => `You are writing a ${targetLocaleName} blog article for ${targetAudience}.
 
 VOICE REFERENCES (match their tone — anti-hype, concrete, pragmatic):
 ${voiceBlock}
@@ -442,8 +552,10 @@ REQUIREMENTS:
 
 ${FAQ_TRANSLATION_REQUIREMENT}
 
+${wordCountConstraint}
+
 ${styleNotes}
-${faqRetrySuffix ? `\n${faqRetrySuffix}\n` : ""}
+${retrySuffix ? `\n${retrySuffix}\n` : ""}
 OUTPUT FORMAT:
 Output the complete article body in markdown, then append at the very end:
 
@@ -459,7 +571,7 @@ For TAGS: ${tagLanguageNote}`;
       () =>
         `You are an expert AI content writer creating high-quality ${targetLocaleName} articles for ${targetAudience}.`
     );
-    const { raw: rawDraft, validation } = await this.#runWithFaqRetry({
+    const { raw: rawDraft, faqValidation, wordDriftValidation } = await this.#runWithValidationRetry({
       articleId:    input.articleId,
       sourceBodyMd: input.sourceBodyMd,
       buildUserMessage: buildDraftUserMessage,
@@ -492,7 +604,8 @@ For TAGS: ${tagLanguageNote}`;
       targetTitle,
       targetMetaDescription,
       targetTags,
-      faqValidation: validation,
+      faqValidation,
+      wordDriftValidation,
     };
   }
 }

@@ -364,18 +364,19 @@ Pair every locale-bridge change with a "no source-locale stopwords in target out
 
 **Rich-type schemas are owned by schema-extension, not the bridge (Spec 64.4).** The Article schema is written by `buildTranslationPersistInput()` because `PersistArticleStep` is the natural single-write surface. `FAQPage` / `HowTo` / `Review` schemas are NOT — `TranslationPipeline.afterComplete` enqueues `SchemaExtensionPipeline`, whose `DetectRichTypesStep` + `BuildJsonLdStep` scan the target-locale body and emit those rich types from EN H3 questions, EN how-to steps, EN frontmatter rating. `PersistSchemaStep` then overwrites the entire `schemaJsonLd` column. If a future bridge change tries to pre-write `FAQPage` for the EN article, schema-extension wipes it within seconds. The translation bug-fix for FAQ asymmetry (Spec 64.4) lives entirely in the body-step (prompt + retry); the schema side took care of itself once the body had the FAQ section.
 
-**FAQ preservation in `TranslationBodyStep` (Spec 64.4).** The LLM occasionally drops FAQ items under token pressure on long articles. The step now wraps each body-generating call (literal path × 1, adaptive draft × 1 — outline call stays single-shot because it only carries headings, not FAQ items) in a private `#runWithFaqRetry()` helper:
+**Multi-validator retry in `TranslationBodyStep` (Spec 64.4 + 64.5).** The LLM occasionally drops FAQ items under token pressure (64.4) AND systematically inflates body length +30-130% on DE→EN (64.5 audit: 17/17 EN siblings). Each body-generating call (literal path × 1, adaptive draft × 1 — the adaptive outline call stays single-shot because it carries only headings) is wrapped in `#runWithValidationRetry()`:
 
-1. `FAQ_TRANSLATION_REQUIREMENT` is injected into the user message of every attempt.
-2. After the first attempt, `validateFaqPreservation(sourceBody, targetBody)` from [`translation/lib/faq-validator.ts`](packages/pipelines/src/article/translation/lib/faq-validator.ts) counts H3 headers under recognised FAQ H2 sections (`FAQ` / `FAQs` / `Häufige Fragen` / `Frequently Asked Questions`).
-3. On mismatch, `STRONGER_FAQ_GUIDANCE` (with `{sourceCount}` substituted via `String.replaceAll`) is appended to the user message and the call retries 1× max.
-4. **The step does NOT throw on persistent asymmetry** — Marcel reviews EN siblings before publish anyway. The validation result is surfaced in `OutputSchema.faqValidation` (optional) so downstream callers and any future review-UI hint can read it.
+1. **`FAQ_TRANSLATION_REQUIREMENT`** and **`WORD_COUNT_CONSTRAINT`** (with `{sourceWords}`/`{sourceWordsCap}` substituted per call) are injected into the user message of every attempt.
+2. After each attempt, **both** validators run: [`validateFaqPreservation`](packages/pipelines/src/article/translation/lib/faq-validator.ts) (H3 headers under FAQ H2 sections) and [`validateWordDriftCap`](packages/pipelines/src/article/translation/lib/word-drift-validator.ts) (target ≤ source × 1.25 after markdown normalization).
+3. On any failure, a cumulative retry suffix is built from each failing validator's stronger guidance (`STRONGER_FAQ_GUIDANCE` for FAQ, `STRONGER_DRIFT_GUIDANCE` for drift) and the call retries **1× max — never 2×** even when both fail. All placeholder substitutions use `String.replaceAll`.
+4. **The step does NOT throw on persistent failure** — Marcel reviews translated siblings before publish. Both results are surfaced via `OutputSchema.faqValidation` + `OutputSchema.wordDriftValidation` (both `.optional()` for back-compat with pre-64.4/64.5 runs).
 
-Reusable pattern for other LLM steps with verifiable output invariants (word-count drift, frontmatter completeness, tool-link count, etc.):
-- Pure validator helper colocated in `<step>/lib/<thing>-validator.ts`.
+**Reusable pattern for other LLM steps with verifiable output invariants** (word-count drift, frontmatter completeness, tool-link count, etc.):
+- Pure validator helper colocated in `<step>/lib/<thing>-validator.ts`. Return shape `{valid: boolean, …diagnostics, message: string}`.
 - Step builds its user message via `buildUserMessage(retrySuffix: string)` lambda; first attempt passes `""`.
-- Shared retry wrapper runs both attempts with the same `systemPrefix` (so the `resolvePrompt` cache hit is preserved).
-- Final attempt's validation result is included in step output as an optional field — never throws, never blocks the pipeline.
+- Multi-validator helper runs all validators after each attempt, builds cumulative retry suffix from failures, retries 1× max with the same `systemPrefix` (preserves `resolvePrompt` cache hit).
+- Each validator's final result is included in step output as an optional field — never throws, never blocks the pipeline.
+- Use **named return fields** (not a `Record<string, unknown>` generic) so TS catches missing-validator wiring at compile time.
 
 ### Voice Reference Loader
 
@@ -632,6 +633,7 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 
 ## Common Mistakes
 
+- DO NOT validate LLM output against a markdown body without accounting for trailing tagged blocks (`<TITLE>…</TITLE>`, `<META_DESCRIPTION>…</META_DESCRIPTION>`, `<TAGS>…</TAGS>`). Validators in `#runWithValidationRetry` (Spec 64.4 + 64.5) run on the **raw** LLM output before the bridge strips the tagged blocks; the tag-inner text (~22 words for the canonical translation step) is counted as part of the body. Production-negligible for typical 500-3000-word bodies, but tests using `~100-word` fixtures will see false "drift exceeded" results — use ≥350-word sources so the +25% cap (~438 words) dwarfs the tagged-block overhead. The validator stays source-shape-agnostic on purpose; do not retroactively strip tags inside the validator.
 - DO NOT do business logic outside of `execute()` — it won't be tracked
 - DO NOT skip cost-tracker for "small" calls — they accumulate
 - DO NOT make a step do two things — split into two steps
