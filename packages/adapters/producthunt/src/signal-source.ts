@@ -45,7 +45,11 @@ export class ProductHuntSignalSource implements ExternalSignalSource<Input> {
         title:       p.name,
         publishedAt: new Date(p.createdAt),
         rawPayload:  p as unknown as Record<string, unknown>,
-        metrics:     { votes: p.votesCount, comments: p.commentsCount },
+        // Spec 63.8 Item B: emit snake_case keys aligned with the planner's
+        // primary lookup in `rawScoreFor` (signal-top-n.ts). Pre-63.8 rows
+        // in the DB still use `votes`/`comments`; the planner's fallback
+        // (`tryNumeric("votes_count", "votes")`) keeps them readable.
+        metrics:     { votes_count: p.votesCount, comments_count: p.commentsCount },
         ...(p.url    && { url: p.url }),
         ...(summary  && { summary }),
         ...(author   && { author }),

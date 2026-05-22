@@ -25,6 +25,18 @@ import {
 
 const log = createLogger("routes:projects");
 
+// Spec 63.8 Item A: shared cron patterns for the 5 signal_collector_* job types,
+// reused by both the project-create seed block and the PATCH /:slug upsert below.
+// Keeping them aligned with the JSON `signal_sources.*.cronPattern` defaults
+// (lines ~250-253) prevents drift between the two source-of-truth surfaces.
+const SIGNAL_COLLECTOR_DEFAULT_PATTERNS = {
+  signal_collector_reddit: "30 2 * * *",
+  signal_collector_github: "0 3 * * *",
+  signal_collector_hackernews: "0 4 * * *",
+  signal_collector_producthunt: "30 4 * * *",
+  signal_collector_vendor_rss: "0 5 * * *",
+} as const;
+
 export const projectRoutes = new Hono();
 
 projectRoutes.use(requireAuth);
@@ -306,6 +318,27 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         cronPattern: TREND_SYNTHESIZER_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
+
+    // Spec 63.8 Item A: seed the 5 `signal_collector_*` cron_state rows in
+    // sync with the JSON `signal_sources.*.enabled` defaults above (all
+    // false). Without this seed, projects ended up with the JSON flag set
+    // independently of the cron row — the cron row is the actual trigger,
+    // so a `enabled:true` JSON without a matching `is_active:true` row was
+    // dead content that fired nothing. All 5 enum values pre-exist since
+    // Spec 59.1c, so Memory D124 does not apply.
+    for (const [jobType, cronPattern] of Object.entries(SIGNAL_COLLECTOR_DEFAULT_PATTERNS)) {
+      await db
+        .insert(cronState)
+        .values({
+          projectId: created.id,
+          // `Object.entries` widens the literal keys to `string` — the cast
+          // restores the enum-narrow type Drizzle expects for `cron_job_type`.
+          jobType: jobType as keyof typeof SIGNAL_COLLECTOR_DEFAULT_PATTERNS,
+          isActive: false,
+          cronPattern,
+        })
+        .onConflictDoNothing();
+    }
   }
 
   return c.json({ ok: true, data: created }, 201);
@@ -454,11 +487,7 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
       trends_synthesizer: "30 1 * * *",
       refresh_detector: "0 2 * * *",
       quality_analysis: "0 3 * * *",
-      signal_collector_reddit: "30 2 * * *",
-      signal_collector_github: "0 3 * * *",
-      signal_collector_hackernews: "0 4 * * *",
-      signal_collector_producthunt: "30 4 * * *",
-      signal_collector_vendor_rss: "0 5 * * *",
+      ...SIGNAL_COLLECTOR_DEFAULT_PATTERNS,
     };
     for (const { jobType, isActive } of cronChanges) {
       await db
