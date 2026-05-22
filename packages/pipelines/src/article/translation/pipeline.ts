@@ -28,6 +28,7 @@ import { z } from "zod";
 import { Pipeline } from "../../engine/pipeline.ts";
 import { checkClusterCompletion } from "../../cluster/full-plan/check-completion.ts";
 import { enqueueSchemaExtension } from "../../schema-extension/trigger.ts";
+import { buildCanonicalUrl } from "../lib/canonical-url.ts";
 import { PersistBodyStep } from "../steps/persist-body.ts";
 import { PersistArticleStep } from "../steps/persist-article.ts";
 import { SelfReviewStep } from "../steps/self-review.ts";
@@ -36,6 +37,7 @@ import { slugify } from "../trigger.ts";
 import { TranslationSetupStep, type TranslationSetupOutput } from "./setup-step.ts";
 import { TranslationDecisionStep } from "./decision.ts";
 import { TranslationBodyStep } from "./body-step.ts";
+import { bcp47Tag, buildHeroAltText } from "./lib/locale-strings.ts";
 
 const log = createLogger("pipelines:translation");
 
@@ -78,6 +80,119 @@ const LANG_INDEPENDENT_EXTRAS = [
   "useCases", "toolSlugs", "winner", "verdict", "listicleType",
   "authorPickStrategy",
 ] as const;
+
+// ─── Persist-Article input builder (Spec 64.3 — pure, testable) ───────────────
+
+export type BuildPersistInputArgs = {
+  setup: TranslationSetupOutput;
+  body: BodyOutput;
+  linked: ToolLinkerOutput;
+  selfReview: SelfReviewOutput;
+};
+
+export type TranslationPersistInput = {
+  articleId: string;
+  bodyMd: string;
+  wordCount: number;
+  heroR2Key: string;
+  heroPublicUrl: string;
+  heroAltText: string;
+  selfReviewScore: number;
+  selfReviewIssues: unknown[];
+  schemaJsonLd: Record<string, unknown>;
+  title?: string;
+  slug?: string;
+  metaDescription?: string;
+  tags?: string[];
+  frontmatterExtras?: Record<string, unknown>;
+};
+
+/**
+ * Build the `persist-article` input from the translation pipeline's
+ * setup + body + linker + self-review outputs.
+ *
+ * Spec 64.3 fixes three sub-bugs in the previous spread+headline pattern:
+ *   #3a  heroAltText now built target-locale-native via buildHeroAltText
+ *   #3b  schema.description now uses targetMetaDescription (was: source DE description)
+ *   #3c  schema.mainEntityOfPage.@id now built via buildCanonicalUrl with target
+ *        locale + slug + collection (was: spread of source DE canonical URL)
+ *
+ * Language-neutral schema fields (author, publisher, datePublished, dateModified,
+ * image) are explicitly preserved from the source schema. The naive `...spread`
+ * is gone — any unknown source-locale field is now silently dropped, which is
+ * intentional per spec §3.2.
+ */
+export function buildTranslationPersistInput(args: BuildPersistInputArgs): TranslationPersistInput {
+  const { setup: s, body, linked, selfReview: sr } = args;
+
+  // Title + metaDescription come from TranslationBodyStep (LLM-generated in target locale).
+  // Falls back to source values when the LLM omitted the tagged blocks.
+  const targetTitle = body.targetTitle || s.sourceTitle || undefined;
+  const targetMetaDescription = body.targetMetaDescription || s.sourceMetaDescription || undefined;
+  // Derive target slug from LLM-generated title so articles get a proper locale URL.
+  const targetSlug = targetTitle ? slugify(targetTitle) : undefined;
+
+  // Sparser Article-schema reconstruction. Source schema's headline/description/
+  // mainEntityOfPage are source-locale and MUST be replaced; only language-neutral
+  // identity (author/publisher/dates/image) is preserved.
+  const sourceArticleSchema =
+    s.sourceSchemaJsonLd.find((e) => e["@type"] === "Article") ?? {};
+
+  const targetArticleSchema: Record<string, unknown> = {
+    "@context": sourceArticleSchema["@context"] ?? "https://schema.org",
+    "@type": "Article",
+    author: sourceArticleSchema.author,
+    publisher: sourceArticleSchema.publisher,
+    datePublished: sourceArticleSchema.datePublished,
+    dateModified: sourceArticleSchema.dateModified,
+    image: sourceArticleSchema.image,
+    // Spec 64.3 — explicit target-locale BCP-47 tag (was inherited via spread from source).
+    inLanguage: bcp47Tag(s.targetLocale),
+    headline: targetTitle ?? sourceArticleSchema.headline,
+    description: targetMetaDescription ?? sourceArticleSchema.description,
+    mainEntityOfPage: targetSlug
+      ? {
+          "@type": "WebPage",
+          "@id": buildCanonicalUrl({
+            projectDomain: s.projectDomain,
+            locale: s.targetLocale,
+            collection: s.sourceCollection,
+            slug: targetSlug,
+          }),
+        }
+      : sourceArticleSchema.mainEntityOfPage,
+  };
+
+  // Build target frontmatterExtras: copy language-independent fields, drop the rest.
+  const sourceExtras = s.sourceFrontmatterExtras ?? {};
+  const targetExtras: Record<string, unknown> = {};
+  for (const key of LANG_INDEPENDENT_EXTRAS) {
+    if (key in sourceExtras) targetExtras[key] = sourceExtras[key];
+  }
+  if (targetMetaDescription) targetExtras.excerpt = targetMetaDescription;
+  if (targetSlug) targetExtras.slug = targetSlug;
+
+  // Hero alt-text rebuilt target-locale-native. Falls back to source title when
+  // the LLM omitted the title block (rare).
+  const altTitle = targetTitle ?? s.sourceTitle;
+
+  return {
+    articleId:        s.targetArticleId,
+    bodyMd:           linked.bodyMd,
+    wordCount:        body.wordCount,
+    heroR2Key:        s.sourceHeroR2Key ?? "",
+    heroPublicUrl:    s.sourceHeroPublicUrl ?? "",
+    heroAltText:      buildHeroAltText(altTitle, s.targetLocale),
+    selfReviewScore:  sr.score,
+    selfReviewIssues: sr.issues,
+    schemaJsonLd:     targetArticleSchema,
+    ...(targetTitle ? { title: targetTitle } : {}),
+    ...(targetSlug ? { slug: targetSlug } : {}),
+    ...(targetMetaDescription ? { metaDescription: targetMetaDescription } : {}),
+    ...(body.targetTags.length > 0 ? { tags: body.targetTags } : {}),
+    ...(Object.keys(targetExtras).length > 0 ? { frontmatterExtras: targetExtras } : {}),
+  };
+}
 
 // ─── TranslationPipeline ──────────────────────────────────────────────────────
 
@@ -180,54 +295,13 @@ export class TranslationPipeline extends Pipeline<
       };
     }
 
-    // self-review → persist-article
+    // self-review → persist-article (Spec 64.3 — delegated to pure helper)
     if (fromStep.name === "self-review" && toStep.name === "persist-article") {
       const s = setup()!;
       const linked = getStepOutput<ToolLinkerOutput>("tool-linker")!;
       const body = getStepOutput<BodyOutput>("translation-body")!;
       const sr = output as SelfReviewOutput;
-
-      // Title + metaDescription come from TranslationBodyStep (LLM-generated in target locale).
-      // Falls back to source values when the LLM omitted the tagged blocks.
-      const targetTitle = body.targetTitle || s.sourceTitle || undefined;
-      const targetMetaDescription = body.targetMetaDescription || s.sourceMetaDescription || undefined;
-      // Derive target slug from LLM-generated title so articles get a proper locale URL.
-      const targetSlug = targetTitle ? slugify(targetTitle) : undefined;
-
-      // Update the Article JSON-LD entry with the target-locale headline.
-      const sourceArticleSchema = s.sourceSchemaJsonLd.find((e) => e["@type"] === "Article") ?? {};
-      const targetArticleSchema = targetTitle
-        ? { ...sourceArticleSchema, headline: targetTitle }
-        : sourceArticleSchema;
-
-      // Build target frontmatterExtras from source: copy language-independent fields,
-      // skip language-specific strings (category, subcategory, excerpt, seoTitle, etc.)
-      const sourceExtras = s.sourceFrontmatterExtras ?? {};
-      const targetExtras: Record<string, unknown> = {};
-      for (const key of LANG_INDEPENDENT_EXTRAS) {
-        if (key in sourceExtras) targetExtras[key] = sourceExtras[key];
-      }
-      // Set excerpt from LLM-generated target meta description (language-correct)
-      if (targetMetaDescription) targetExtras.excerpt = targetMetaDescription;
-      // Store the target slug in extras so buildFrontmatter() can emit it in MDX frontmatter
-      if (targetSlug) targetExtras.slug = targetSlug;
-
-      return {
-        articleId:        s.targetArticleId,
-        bodyMd:           linked.bodyMd,
-        wordCount:        body.wordCount,
-        heroR2Key:        s.sourceHeroR2Key ?? "",
-        heroPublicUrl:    s.sourceHeroPublicUrl ?? "",
-        heroAltText:      s.sourceHeroAltText ?? "",
-        selfReviewScore:  sr.score,
-        selfReviewIssues: sr.issues,
-        schemaJsonLd:     targetArticleSchema,
-        ...(targetTitle ? { title: targetTitle } : {}),
-        ...(targetSlug ? { slug: targetSlug } : {}),
-        ...(targetMetaDescription ? { metaDescription: targetMetaDescription } : {}),
-        ...(body.targetTags.length > 0 ? { tags: body.targetTags } : {}),
-        ...(Object.keys(targetExtras).length > 0 ? { frontmatterExtras: targetExtras } : {}),
-      };
+      return buildTranslationPersistInput({ setup: s, body, linked, selfReview: sr });
     }
 
     return output;

@@ -168,7 +168,28 @@ only the DATA sections; Marcel can freely edit prose outside them.
 
 Steps that call external adapters must list those adapters in `packages/pipelines/package.json`
 dependencies. They are NOT inherited from `apps/api`. Currently added: `adapter-anthropic`,
-`adapter-dataforseo`. Run `bun install` after adding a new workspace dep or typecheck will fail.
+`adapter-dataforseo`, `adapter-nano-banana`, `adapter-replicate`, `adapter-storage`,
+`adapter-voyage`, `adapter-astro-sync`. Run `bun install` after adding a new workspace dep or
+typecheck will fail.
+
+## Hero-Image Provider Routing (Spec 64.6)
+
+`HeroImageStep` selects its provider per-call by reading `projects.image_generation_provider`
+(`'nano-banana-2'` default → `@marketing-auto/adapter-nano-banana`, `'flux-1.1-pro'` → legacy
+`replicate.generateImage`). The provider lookup is a private `resolveImageProvider(projectId)`
+helper inside [hero-image.ts](src/article/steps/hero-image.ts) — extract to `src/_lib/` only
+when a second consumer needs it.
+
+The step also exports a pure `seedFromArticleId(articleId): number` helper that produces a
+31-bit non-negative deterministic seed (`(h << 5) - h + charCode` accumulator). Same articleId →
+same seed across reruns. Pair with `seed + 1` in a future UI re-roll button for controlled A/B.
+
+Existing graceful try/catch skip-with-warn (returns `{r2Key: "", publicUrl: "", skipped: true}`
+on failure) stays as the outer backstop for API errors — the article lands in `final_review`
+without a hero rather than failing the whole pipeline. The fallback to Replicate is NOT a cascade
+on API errors — it only fires when the project is explicitly opted out via the column value.
+If you want behaviour different from "skip-with-warn on transient failure", change the adapter's
+internal retry logic rather than wrapping retries at the step layer.
 
 ## Test Script Caveat
 
@@ -330,6 +351,16 @@ Auto-triggered from `BlogPipeline.afterComplete` when `project.targetLocales` in
 **`TranslationPipelineOutputSchema` must exactly match `PersistArticleStep.outputSchema`**: the runner does NOT call `bridge()` for the final step — it passes `PersistArticleStep`'s Zod-validated output directly as the pipeline output. Any extra fields in `TranslationPipelineOutputSchema` that the step never emits will fail `invalid_type` validation at runtime for every translation job.
 
 **`enqueueTranslationPipeline` accepts `preRunId?: string`** for `triggerWithPreRunId` compatibility (Spec 59.2). Internal auto-trigger callers (BlogPipeline, RefreshPipeline) omit it. The HTTP endpoint `POST /articles/:id/translate` passes it via `triggerWithPreRunId`'s `enqueue` callback.
+
+**Locale-bridging contract (Spec 64.3 / Pattern 117).** The `self-review → persist-article` bridge is the locale-flip site: source-locale schema/alt-text/canonical comes in, target-locale values must come out. Three invariants:
+
+1. **No naive spread of source-locale objects** — `{...sourceArticleSchema, headline: targetTitle}` is forbidden. Use sparser reconstruction: explicitly enumerate language-neutral fields (`@context`, `@type`, `author`, `publisher`, `datePublished`, `dateModified`, `image`) and assign target-locale values for everything else (`headline`, `description`, `inLanguage`, `mainEntityOfPage`). Unknown source-locale fields are intentionally dropped — that's the safety property the explicit enumeration buys.
+2. **Use the shared helpers, don't inline.** [`buildCanonicalUrl()`](packages/pipelines/src/article/lib/canonical-url.ts) for URLs (collection-aware, BCP-47-locale-aware), [`buildHeroAltText(title, locale)`](packages/pipelines/src/article/translation/lib/locale-strings.ts) for hero alt-text (locale suffix map), [`bcp47Tag(locale)`](packages/pipelines/src/article/translation/lib/locale-strings.ts) for schema.org `inLanguage`. Both the DE hot path ([assembly.ts](packages/pipelines/src/article/steps/assembly.ts)) and the EN cold path (translation bridge) call the same helpers — single source of truth, single place to extend for `fr`/`es`/`it`.
+3. **Bridge logic extracted to a pure exported helper.** [`buildTranslationPersistInput(args)`](packages/pipelines/src/article/translation/pipeline.ts) takes `{setup, body, linked, selfReview}` and returns the persist-article input. The bridge calls it as thin glue. This makes the locale-flip logic unit-testable without DB/runner/Anthropic mocks ([pipeline-locale-bridge.test.ts](packages/pipelines/test/article/translation/pipeline-locale-bridge.test.ts) for 10 cases incl. Bug #3a/#3b/#3c, EN→DE direction, collection-aware URLs).
+
+Pair every locale-bridge change with a "no source-locale stopwords in target output" regression test ([no-source-locale-leak.test.ts](packages/pipelines/test/article/translation/no-source-locale-leak.test.ts)).
+
+**Bridge synchronicity gotcha.** `Pipeline.bridge()` is **synchronous** — no `await db.select()`. When the bridge needs project- or article-level config to compute target-locale fields (e.g. `projects.domain` for the canonical URL, `articles.collection` for the URL path segment), plumb those values through the **setup-step's `OutputSchema`** so the setup step queries them once and the bridge reads via `getStepOutput(...)`. Canonical example: `TranslationSetupOutput` exposes `projectDomain` + `sourceCollection` (Spec 64.3). Adding the field to the setup step's existing SELECT is one column wider — no extra round-trip.
 
 ### Voice Reference Loader
 

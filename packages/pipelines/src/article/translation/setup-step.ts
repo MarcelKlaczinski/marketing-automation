@@ -45,6 +45,10 @@ const OutputSchema = z.object({
   sourceCategory:       z.string().nullable(),
   sourceSubcategory:    z.string().nullable(),
   sourceFrontmatterExtras: z.record(z.unknown()).nullable(),
+  // Spec 64.3 — surfaced for the bridge so it can build target-locale canonical URLs
+  // synchronously (Pipeline.bridge() cannot do async DB reads).
+  projectDomain:        z.string(),
+  sourceCollection:     z.string(),
 });
 
 export type TranslationSetupOutput = z.infer<typeof OutputSchema>;
@@ -155,13 +159,14 @@ export class TranslationSetupStep extends BaseStep<
       limit:            3,
     });
 
-    // Get projectSlug for prompt builder
+    // Get projectSlug for prompt builder + projectDomain for canonical-URL builder (Spec 64.3)
     const [proj] = await db
-      .select({ slug: projects.slug })
+      .select({ slug: projects.slug, domain: projects.domain })
       .from(projects)
       .where(eq(projects.id, input.projectId))
       .limit(1);
     const projectSlug = proj?.slug ?? input.projectId;
+    const projectDomain = proj?.domain ?? `${projectSlug}.example.com`;
 
     const sourceBodyMd = sourceArticle.bodyMd ?? "";
 
@@ -187,6 +192,8 @@ export class TranslationSetupStep extends BaseStep<
       sourceCategory:         sourceArticle.category ?? null,
       sourceSubcategory:      sourceArticle.subcategory ?? null,
       sourceFrontmatterExtras: (sourceArticle.frontmatterExtras as Record<string, unknown> | null) ?? null,
+      projectDomain,
+      sourceCollection:        sourceArticle.collection,
     };
   }
 }

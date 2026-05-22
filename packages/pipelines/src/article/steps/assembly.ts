@@ -2,6 +2,8 @@ import { articles, db, projects } from "@marketing-auto/db";
 import { and, eq } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { buildCanonicalUrl } from "../lib/canonical-url.ts";
+import { bcp47Tag, type Locale } from "../translation/lib/locale-strings.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -43,10 +45,15 @@ export class AssemblyStep extends BaseStep<
     const outline = ArticleOutlineSchema.parse(article.outline);
     const now = new Date().toISOString();
 
-    // Build canonical article URL using projects.domain (fallback: slug.example.com)
-    const domain = project.domain ?? `${project.slug}.example.com`;
-    const localePath = article.locale ? `/${article.locale}` : "";
-    const articleUrl = `https://${domain}${localePath}/blog/${outline.slug}`;
+    // Spec 64.3 — collection-aware canonical URL via shared helper.
+    // Locale defaults to "de" when the article has no locale set yet (pre-translation stub).
+    const articleLocale = (article.locale ?? "de") as Locale;
+    const articleUrl = buildCanonicalUrl({
+      projectDomain: project.domain ?? `${project.slug}.example.com`,
+      locale: articleLocale,
+      collection: article.collection,
+      slug: outline.slug,
+    });
 
     // Resolve author schema — prefer Person (named author) over Organization
     let authorSchema: Record<string, unknown>;
@@ -72,6 +79,8 @@ export class AssemblyStep extends BaseStep<
       headline: outline.title,
       description: outline.metaDescription,
       image: article.heroImagePublicUrl ?? undefined,
+      // Spec 64.3 — explicit BCP-47 locale tag for SEO signal-quality.
+      inLanguage: bcp47Tag(articleLocale),
       datePublished: now,
       dateModified: now,
       author: authorSchema,

@@ -158,6 +158,85 @@ describe("AssemblyStep", () => {
     expect(mep["@id"]).toContain(SAMPLE_OUTLINE.slug);
   });
 
+  it("Spec 64.3 — collection-aware canonical URL for non-blog collections (ki-wissen)", async () => {
+    const [kiArticle] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "rag-erklaert",
+        collection: "ki-wissen",
+        locale: "de",
+        cornerstoneKeyword: "rag",
+        outline: { ...SAMPLE_OUTLINE, slug: "rag-erklaert" },
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        status: "drafting",
+        approvalMode: "manual",
+      })
+      .returning();
+
+    const step = new AssemblyStep();
+    const out = await step.execute({ articleId: kiArticle!.id, projectId }, mockCtx(projectId));
+
+    const mep = out.schemaJsonLd["mainEntityOfPage"] as { "@type": string; "@id": string };
+    expect(mep["@id"]).toContain("/de/ki-wissen/rag-erklaert");
+    expect(mep["@id"]).not.toContain("/blog/");
+
+    await db.delete(articles).where(eq(articles.id, kiArticle!.id));
+  });
+
+  it("Spec 64.3 — sets inLanguage BCP-47 tag based on article.locale", async () => {
+    const [enArticle] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "in-language-en",
+        collection: "blog",
+        locale: "en",
+        cornerstoneKeyword: "in language",
+        outline: { ...SAMPLE_OUTLINE, slug: "in-language-en" },
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        status: "drafting",
+        approvalMode: "manual",
+      })
+      .returning();
+
+    const step = new AssemblyStep();
+    const out = await step.execute({ articleId: enArticle!.id, projectId }, mockCtx(projectId));
+
+    expect(out.schemaJsonLd["inLanguage"]).toBe("en-US");
+
+    await db.delete(articles).where(eq(articles.id, enArticle!.id));
+  });
+
+  it("Spec 64.3 — collection-aware canonical URL for comparisons", async () => {
+    const [cmpArticle] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        clusterId,
+        slug: "claude-vs-gpt",
+        collection: "comparisons",
+        locale: "en",
+        cornerstoneKeyword: "claude vs gpt",
+        outline: { ...SAMPLE_OUTLINE, slug: "claude-vs-gpt" },
+        heroImagePublicUrl: "https://cdn.example.com/hero.jpg",
+        status: "drafting",
+        approvalMode: "manual",
+      })
+      .returning();
+
+    const step = new AssemblyStep();
+    const out = await step.execute({ articleId: cmpArticle!.id, projectId }, mockCtx(projectId));
+
+    const mep = out.schemaJsonLd["mainEntityOfPage"] as { "@type": string; "@id": string };
+    expect(mep["@id"]).toContain("/en/comparisons/claude-vs-gpt");
+    expect(mep["@id"]).not.toContain("/blog/");
+
+    await db.delete(articles).where(eq(articles.id, cmpArticle!.id));
+  });
+
   it("throws ArticlePipelineError when article has no outline", async () => {
     const [noOutline] = await db
       .insert(articles)
