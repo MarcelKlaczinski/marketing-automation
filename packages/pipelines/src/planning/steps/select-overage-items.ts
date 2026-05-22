@@ -11,7 +11,7 @@
 // expansion + scheduling.
 
 import { randomUUID } from "node:crypto";
-import type { ProjectPlannerConfig, TopicBrief } from "@marketing-auto/db";
+import type { ProjectGoal, ProjectPlannerConfig, TopicBrief } from "@marketing-auto/db";
 import type {
   SignalTopNEntry,
   WeeklyPlanInputSnapshot,
@@ -25,9 +25,11 @@ import {
 import { pickWithDiversity } from "../lib/pick-with-diversity.ts";
 import {
   PIPELINE_NAME_BY_CONTENT_TYPE,
+  PLANNING_CONTENT_TYPES,
   type PlanningContentType,
   type PlanningItemDraft,
 } from "../types.ts";
+import { weeklyMaxFromGoal } from "./select-floor-items.ts";
 
 export const selectOverageInputSchema = z.object({
   projectId: z.string().uuid(),
@@ -89,6 +91,7 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
 
   async execute(input: Input, ctx: StepContext): Promise<Output> {
     const config = ctx.getStepOutput<{ config: ProjectPlannerConfig }>("validate-goals")?.config;
+    const goals = ctx.getStepOutput<{ goals: ProjectGoal[] }>("validate-goals")?.goals ?? [];
     const snapshot = ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>(
       "snapshot-inputs",
     )?.snapshot;
@@ -99,6 +102,36 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
 
     if (!config || !snapshot) {
       throw new Error("select-overage-items: prior step output missing");
+    }
+
+    // Spec 64.2: build remaining-capacity map per content_type. Overage may
+    // emit AT MOST `weeklyMaxFromGoal(goal) - floorPicked(C)` items for any
+    // given content_type C. `null` means uncapped (goal.max_count IS NULL).
+    // Content_types without a matching goal default to null (preserves pre-
+    // 64.2 unlimited behaviour). The map is mutated as we emit so multiple
+    // top-N signals of the same type are gated against the running tally,
+    // not just the floor baseline. Goals with unknown content types are
+    // warn-and-skipped — matches the SelectFloorItemsStep validation pattern
+    // so DB-level drift doesn't put garbage into the cap map.
+    const remainingCapByCT = new Map<PlanningContentType, number | null>();
+    for (const goal of goals) {
+      const ct = (PLANNING_CONTENT_TYPES as readonly string[]).includes(goal.contentType)
+        ? (goal.contentType as PlanningContentType)
+        : null;
+      if (ct === null) {
+        ctx.log.warn(
+          { contentType: goal.contentType, goalId: goal.id },
+          "select-overage-items: goal has unknown content type; cap skipped",
+        );
+        continue;
+      }
+      const weeklyMax = weeklyMaxFromGoal(goal);
+      if (weeklyMax === null) {
+        remainingCapByCT.set(ct, null);
+        continue;
+      }
+      const floorUsed = floorItems.filter((it) => it.contentType === ct).length;
+      remainingCapByCT.set(ct, Math.max(0, weeklyMax - floorUsed));
     }
 
     const used = new Set<string>(
@@ -193,7 +226,23 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
 
     const items: PlanningItemDraft[] = [];
     for (const { signal, contentType, auditReason } of pickedSignals) {
-      for (let i = 0; i < config.maxOveragePerSignal; i++) {
+      // Spec 64.2: gate against per-content-type remaining capacity. `null`
+      // = uncapped (no max_count goal); 0 = already at cap (skip emit). The
+      // per-signal multi-emit (maxOveragePerSignal) is clamped so a single
+      // signal can't blow past a tight cap.
+      const remaining = remainingCapByCT.get(contentType);
+      if (remaining === 0) {
+        ctx.log.info(
+          { contentType, signalId: signal.signalId, signalTitle: signal.title },
+          "select-overage-items: skipped — content_type at max_count cap",
+        );
+        continue;
+      }
+      const emitCount =
+        remaining === null || remaining === undefined
+          ? config.maxOveragePerSignal
+          : Math.min(config.maxOveragePerSignal, remaining);
+      for (let i = 0; i < emitCount; i++) {
         const baseReason = `Top-${i + 1} signal: ${signal.title} (score ${signal.normalizedScore.toFixed(2)})`;
         const reason = auditReason ? `${baseReason} — ${auditReason}` : baseReason;
         items.push({
@@ -219,6 +268,11 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
           selectionReason: reason,
           estimatedCostEur: null,
         });
+      }
+      // Decrement remaining capacity for this content_type so the next
+      // picked signal of the same type sees the updated budget.
+      if (remaining !== null && remaining !== undefined) {
+        remainingCapByCT.set(contentType, remaining - emitCount);
       }
     }
 

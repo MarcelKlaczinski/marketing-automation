@@ -122,6 +122,20 @@ export function targetWeeklyCount(goal: Pick<ProjectGoal, "cadenceUnit" | "minCo
   return goal.cadenceUnit === "per_day" ? goal.minCount * 7 : goal.minCount;
 }
 
+/**
+ * Spec 64.2: per-goal weekly maximum. `maxCount === null` returns `null`
+ * (no cap). per_day caps are multiplied by 7 just like targetWeeklyCount —
+ * keeps the two helpers symmetrical so cap and target compare apples to
+ * apples. Consumed by both Floor (downsizes picked target) and Overage
+ * (subtracts already-Floored picks to compute remaining capacity).
+ */
+export function weeklyMaxFromGoal(
+  goal: Pick<ProjectGoal, "cadenceUnit" | "maxCount">,
+): number | null {
+  if (goal.maxCount === null) return null;
+  return goal.cadenceUnit === "per_day" ? goal.maxCount * 7 : goal.maxCount;
+}
+
 function briefLocale(brief: TopicBrief): "de" | "en" | null {
   if (brief.locale === "de" || brief.locale === "en") return brief.locale;
   return null;
@@ -295,6 +309,20 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         continue;
       }
       const target = targetWeeklyCount(goal);
+      // Spec 64.2: cap floor pick at weeklyMaxFromGoal when set. Validator
+      // forbids `max < min` in raw integers, so under normal validator-gated
+      // input this is dead (cap === target). Defensive backstop for direct
+      // DB-insert or future cadence-asymmetry. When it fires, append to
+      // shortfalls so the generation_notes audit is honest about WHY we
+      // emitted fewer rows than min_count requested.
+      const weeklyMax = weeklyMaxFromGoal(goal);
+      const cap = weeklyMax !== null ? Math.min(target, weeklyMax) : target;
+      if (cap < target) {
+        ctx.log.warn(
+          { contentType, target, weeklyMax, downsizedTo: cap, goalId: goal.id },
+          "select-floor-items: floor target capped by max_count",
+        );
+      }
       const pool = buckets[contentType] ?? [];
 
       // Spec 63.5: cluster items go through the diversity-aware picker;
@@ -304,7 +332,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       const useDiversity =
         DIVERSITY_FLOOR_CONTENT_TYPES.has(contentType) &&
         diversityConfig.malusWeight > 0 &&
-        pool.length > target;
+        pool.length > cap;
 
       let picked: TopicBrief[];
       let diversityReasons: DiversityPickReason[] = [];
@@ -312,7 +340,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         const poolSnapshot = [...pool]; // freeze pool index for base-score normalization
         const result = await pickWithDiversity<TopicBrief>({
           pool: poolSnapshot,
-          target,
+          target: cap,
           embeddingProvider,
           config: diversityConfig,
           getBaseScore: (brief) => {
@@ -329,7 +357,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         const pickedIds = new Set(picked.map((b) => b.id));
         buckets[contentType] = pool.filter((b) => !pickedIds.has(b.id));
       } else {
-        picked = pool.splice(0, target);
+        picked = pool.splice(0, cap);
       }
 
       let pickedIndex = 0;
@@ -345,9 +373,12 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         // brief was picked or de-prioritised. The card UI keeps the friendly
         // sourceKind label.
         const reasonSuffix = diversityReasons[pickedIndex - 1]?.reason;
+        // Spec 64.2: selectionReason uses `cap` (effective pick target after
+        // max_count) so the detail-page tooltip reflects reality. When cap
+        // === target (normal case), this is identical to pre-64.2.
         const selectionReason = reasonSuffix
-          ? `Floor ${contentType} #${pickedIndex}/${target} — ${reasonSuffix}`
-          : `Floor ${contentType} #${pickedIndex}/${target}`;
+          ? `Floor ${contentType} #${pickedIndex}/${cap} — ${reasonSuffix}`
+          : `Floor ${contentType} #${pickedIndex}/${cap}`;
         floorItems.push({
           draftId: randomUUID(),
           contentType,
@@ -369,10 +400,15 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         });
       }
 
+      // Spec 64.2: shortfall is min-vs-actual. When cap < target (max_count
+      // applied), the missing items are reported as shortfall regardless of
+      // pool supply — the user explicitly capped the production, so it's
+      // still informational that the floor wasn't met. The log line above
+      // already explains the cap; this captures the count.
       if (picked.length < target) {
         shortfalls[contentType] = target - picked.length;
         ctx.log.warn(
-          { contentType, requested: target, available: picked.length },
+          { contentType, requested: target, picked: picked.length, cap },
           "select-floor-items: cadence not fully reachable",
         );
       }

@@ -7,6 +7,7 @@ import {
   matchBriefToContentType,
   SelectFloorItemsStep,
   targetWeeklyCount,
+  weeklyMaxFromGoal,
 } from "../../src/planning/index.ts";
 import { makeMockCtx } from "../fixtures/mock-ctx.ts";
 import { createNullBriefProvider } from "./lib/null-providers.ts";
@@ -193,6 +194,27 @@ describe("targetWeeklyCount", () => {
 
   it("returns per_week as-is", () => {
     expect(targetWeeklyCount({ cadenceUnit: "per_week", minCount: 4 })).toBe(4);
+  });
+});
+
+// Spec 64.2: per-goal weekly maximum — mirrors targetWeeklyCount semantics
+// so cap and target compare apples-to-apples in the Floor cap math.
+describe("weeklyMaxFromGoal (Spec 64.2)", () => {
+  it("returns null when maxCount is null (no cap)", () => {
+    expect(weeklyMaxFromGoal({ cadenceUnit: "per_week", maxCount: null })).toBeNull();
+  });
+
+  it("multiplies per_day maxCount by 7", () => {
+    expect(weeklyMaxFromGoal({ cadenceUnit: "per_day", maxCount: 1 })).toBe(7);
+    expect(weeklyMaxFromGoal({ cadenceUnit: "per_day", maxCount: 3 })).toBe(21);
+  });
+
+  it("returns per_week maxCount as-is", () => {
+    expect(weeklyMaxFromGoal({ cadenceUnit: "per_week", maxCount: 5 })).toBe(5);
+  });
+
+  it("returns 0 when maxCount is 0 (explicit disable)", () => {
+    expect(weeklyMaxFromGoal({ cadenceUnit: "per_week", maxCount: 0 })).toBe(0);
   });
 });
 
@@ -498,5 +520,99 @@ describe("SelectFloorItemsStep", () => {
     const ki = items.find((i) => i.contentType === "ki_wissen");
     expect(comp?.locale).toBe("de");
     expect(ki?.locale).toBe("en");
+  });
+
+  // Spec 64.2: Floor cap by weeklyMaxFromGoal — under normal validator-gated
+  // input (max >= min in raw int), cap === target so behaviour matches
+  // pre-64.2. These tests document the cap is wired in correctly for
+  // future code paths or direct-DB inserts that bypass the validator.
+  describe("Spec 64.2 — floor cap by max_count", () => {
+    it("uncapped goal (maxCount=null) picks min like before", async () => {
+      const briefs = [
+        brief({ topicTitle: "b1", clusterAction: "create_new" }),
+        brief({ topicTitle: "b2", clusterAction: "create_new" }),
+        brief({ topicTitle: "b3", clusterAction: "create_new" }),
+      ];
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 2, maxCount: null }),
+      ];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals") return { goals } as never;
+          if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      expect(out.floorItems).toHaveLength(2);
+      expect(out.shortfallsByContentType).toEqual({});
+    });
+
+    it("cap >= target is a no-op (per_week min=2 max=5)", async () => {
+      const briefs = Array.from({ length: 10 }, (_, i) =>
+        brief({ topicTitle: `b${i}`, clusterAction: "create_new" }),
+      );
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 2, maxCount: 5 }),
+      ];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals") return { goals } as never;
+          if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      // Picks min (2), max=5 only matters for Overage.
+      expect(out.floorItems).toHaveLength(2);
+      expect(out.shortfallsByContentType).toEqual({});
+    });
+
+    it("per_day min=1 max=1 produces 7 floor items (cadence×7 on both sides)", async () => {
+      const briefs = Array.from({ length: 10 }, (_, i) =>
+        brief({ topicTitle: `b${i}`, clusterAction: "create_new" }),
+      );
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_day", minCount: 1, maxCount: 1 }),
+      ];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals") return { goals } as never;
+          if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      expect(out.floorItems).toHaveLength(7); // 1/day × 7 days
+      expect(out.shortfallsByContentType).toEqual({});
+    });
+
+    it("selectionReason reflects cap (not target) when downsizing", async () => {
+      // Defensive case: hand-crafted goal that the validator would normally
+      // block (max < min). Tests that the cap path is wired through to the
+      // selectionReason string. Validator-gated callers won't hit this.
+      const briefs = Array.from({ length: 5 }, (_, i) =>
+        brief({ topicTitle: `b${i}`, clusterAction: "create_new" }),
+      );
+      const goals = [
+        // minCount=5, maxCount=2 (invalid per validator but exercises the cap path)
+        goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 5, maxCount: 2 }),
+      ];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals") return { goals } as never;
+          if (name === "load-topic-briefs") return { topicBriefs: briefs } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      // cap=2, so only 2 items emitted even though pool has 5.
+      expect(out.floorItems).toHaveLength(2);
+      // shortfall = target(5) - picked(2) = 3
+      expect(out.shortfallsByContentType).toEqual({ cluster: 3 });
+      const items = out.floorItems as Array<{ selectionReason: string }>;
+      // selectionReason cites the cap count (2), not the original target (5)
+      expect(items[0]?.selectionReason).toMatch(/#1\/2/);
+    });
   });
 });

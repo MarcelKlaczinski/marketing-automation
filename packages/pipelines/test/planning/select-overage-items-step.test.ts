@@ -1,7 +1,7 @@
 // Spec 62.4 §6.1: SelectOverageItemsStep unit tests.
 
 import { describe, expect, it } from "bun:test";
-import type { ProjectPlannerConfig } from "@marketing-auto/db";
+import type { ProjectGoal, ProjectPlannerConfig } from "@marketing-auto/db";
 import type {
   PlanningItemDraft,
 } from "../../src/planning/index.ts";
@@ -203,5 +203,157 @@ describe("SelectOverageItemsStep", () => {
     expect(items).toHaveLength(2);
     expect(items[0]!.selectionReason).toContain("Top-1");
     expect(items[1]!.selectionReason).toContain("Top-2");
+  });
+
+  // Spec 64.2: per-content-type cap = weeklyMaxFromGoal(goal) - floorPicked(C).
+  // When floor already fills the cap, overage emits nothing for that type
+  // even if matching signals exist. When goal.max_count is null, overage stays
+  // uncapped (pre-64.2 behaviour preserved). The cap decrements per emit so
+  // multiple signals of the same type don't all squeak through.
+  describe("Spec 64.2 — overage cap by max_count", () => {
+    function goal(overrides: Partial<ProjectGoal>): ProjectGoal {
+      return {
+        id: crypto.randomUUID(),
+        projectId,
+        contentType: "cluster",
+        cadenceUnit: "per_week",
+        minCount: 1,
+        maxCount: null,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        note: null,
+        ...overrides,
+      };
+    }
+    function floorItem(contentType: string, sourceSignalId: string | null = null): PlanningItemDraft {
+      return {
+        draftId: crypto.randomUUID(),
+        contentType: contentType as PlanningItemDraft["contentType"],
+        pipelineName: "article:blog",
+        sourceKind: "floor",
+        sourceBriefId: null,
+        sourceSignalId,
+        parentDraftId: null,
+        locale: null,
+        pipelineInput: {},
+        slotDate: null,
+        selectionScore: null,
+        selectionReason: "floor",
+        estimatedCostEur: null,
+      };
+    }
+
+    it("emits 0 overage when floor already at cap (per_day cluster min=1 max=1)", async () => {
+      // Marcel's KW21 scenario: per_day min=1 max=1 → weeklyMax=7, floor
+      // picked 7. Overage cap for cluster = 7 - 7 = 0 → trend signal skipped.
+      const sigs = [signal({ source: "dataforseo_trends", title: "GitHub trend" })];
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_day", minCount: 1, maxCount: 1 }),
+      ];
+      const floors = Array.from({ length: 7 }, () => floorItem("cluster"));
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals") return { config: config(), goals } as never;
+          if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+          if (name === "select-floor-items") return { floorItems: floors } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      expect(out.overageItems).toHaveLength(0);
+    });
+
+    it("emits up to remaining cap when floor partially fills (per_week min=2 max=5)", async () => {
+      // weeklyMax = 5, floor picked 2 → 3 remaining for overage.
+      const sigs = [
+        signal({ source: "vendor_rss", title: "Trend A", normalizedScore: 0.9 }),
+        signal({ source: "vendor_rss", title: "Trend B", normalizedScore: 0.8 }),
+        signal({ source: "vendor_rss", title: "Trend C", normalizedScore: 0.7 }),
+        signal({ source: "vendor_rss", title: "Trend D", normalizedScore: 0.6 }),
+      ];
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 2, maxCount: 5 }),
+      ];
+      const floors = [floorItem("cluster"), floorItem("cluster")];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals")
+            return { config: config({ topNSignalsAllowedOverage: 4 }), goals } as never;
+          if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+          if (name === "select-floor-items") return { floorItems: floors } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      // 3 emitted (5 cap - 2 floor = 3 remaining); 4th signal dropped.
+      expect(out.overageItems).toHaveLength(3);
+    });
+
+    it("emits uncapped when goal.maxCount is null", async () => {
+      const sigs = [
+        signal({ source: "vendor_rss", title: "T1", normalizedScore: 0.9 }),
+        signal({ source: "vendor_rss", title: "T2", normalizedScore: 0.8 }),
+        signal({ source: "vendor_rss", title: "T3", normalizedScore: 0.7 }),
+      ];
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1, maxCount: null }),
+      ];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals")
+            return { config: config({ topNSignalsAllowedOverage: 3 }), goals } as never;
+          if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+          if (name === "select-floor-items") return { floorItems: [] } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      expect(out.overageItems).toHaveLength(3);
+    });
+
+    it("emits uncapped when no matching goal exists (signals route through pre-64.2 behaviour)", async () => {
+      // No `cluster` goal at all. Floor will skip cluster but Overage with
+      // a `dataforseo_trends → cluster` signal should still emit because
+      // remainingCapByCT.get("cluster") returns undefined → uncapped.
+      const sigs = [signal({ source: "vendor_rss", title: "T1" })];
+      const goals: ProjectGoal[] = []; // empty
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals") return { config: config(), goals } as never;
+          if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+          if (name === "select-floor-items") return { floorItems: [] } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      expect(out.overageItems).toHaveLength(1);
+    });
+
+    it("decrements per emit so multi-emit doesn't blow past cap", async () => {
+      // 2 signals × maxOveragePerSignal=2 = 4 raw emits, but cap leaves 3.
+      // First signal emits 2, second signal emits only 1 (decrement honoured).
+      const sigs = [
+        signal({ source: "vendor_rss", title: "A", normalizedScore: 0.9 }),
+        signal({ source: "vendor_rss", title: "B", normalizedScore: 0.8 }),
+      ];
+      const goals = [
+        goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 0, maxCount: 3 }),
+      ];
+      const ctx = makeMockCtx({
+        getStepOutput: (name) => {
+          if (name === "validate-goals")
+            return {
+              config: config({ topNSignalsAllowedOverage: 2, maxOveragePerSignal: 2 }),
+              goals,
+            } as never;
+          if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+          if (name === "select-floor-items") return { floorItems: [] } as never;
+          return undefined;
+        },
+      });
+      const out = await step.execute({ projectId }, ctx);
+      expect(out.overageItems).toHaveLength(3);
+    });
   });
 });

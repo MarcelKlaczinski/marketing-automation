@@ -29,6 +29,7 @@ export {
   SelectFloorItemsStep,
   matchBriefToContentType,
   targetWeeklyCount,
+  weeklyMaxFromGoal,
 } from "./steps/select-floor-items.ts";
 export {
   SelectOverageItemsStep,
