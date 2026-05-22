@@ -30,7 +30,8 @@
     "article:extend-schema": "bun --env-file ../../.env src/scripts/article/extend-schema.ts",
     "cluster:rebuild-links": "bun --env-file ../../.env src/scripts/cluster/rebuild-links.ts",
     "seed-toolwiki-goals": "bun --env-file ../../.env src/scripts/seed-toolwiki-goals.ts",
-    "plan:generate": "bun --env-file ../../.env src/scripts/generate-plan.ts"
+    "plan:generate": "bun --env-file ../../.env src/scripts/generate-plan.ts",
+    "convert-existing-heroes": "bun --env-file ../../.env src/scripts/convert-existing-heroes.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
@@ -44,6 +45,7 @@
     "@marketing-auto/adapter-vendor-rss": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",
     "@marketing-auto/adapter-email": "workspace:*",
+    "@marketing-auto/adapter-image-webp": "workspace:*",
     "@marketing-auto/adapter-nano-banana": "workspace:*",
     "@marketing-auto/adapter-pagespeed": "workspace:*",
     "@marketing-auto/adapter-replicate": "workspace:*",

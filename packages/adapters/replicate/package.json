@@ -17,6 +17,7 @@
     "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/adapter-storage": "workspace:*",
+    "@marketing-auto/adapter-image-webp": "workspace:*",
     "replicate": "^1.0.0"
   },
   "devDependencies": {

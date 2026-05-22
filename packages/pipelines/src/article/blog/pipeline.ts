@@ -109,6 +109,9 @@ type HeroImageOutput = {
   r2Key: string;
   publicUrl: string;
   altText: string;
+  // Spec 64.6c: present when the WebP adapter performed a conversion. Forwarded
+  // to PersistArticleStep via the bridge.
+  originalR2Key?: string | null;
 };
 
 type AssemblyOutput = {
@@ -316,6 +319,10 @@ export class BlogPipeline extends Pipeline<
         heroR2Key: hero.r2Key,
         heroPublicUrl: hero.publicUrl,
         heroAltText: hero.altText,
+        // Spec 64.6c: forward forensic original-R2-key to persist-article.
+        ...(hero.originalR2Key !== undefined && hero.originalR2Key !== null
+          ? { heroOriginalR2Key: hero.originalR2Key }
+          : {}),
         selfReviewScore: sr.score,
         selfReviewIssues: sr.issues,
         schemaJsonLd: asm.schemaJsonLd,

@@ -54,14 +54,22 @@ export type GenerateImageInput = {
 };
 
 export type GenerateImageResult = {
-  /** Stable, public Cloudflare R2 URL. */
+  /** Stable, public Cloudflare R2 URL for the canonical WebP. */
   publicUrl: string;
-  /** R2 object key for later management. */
+  /** R2 object key of the canonical WebP. */
   r2Key: string;
-  /** Size of stored file in bytes. */
+  /** Size of the stored WebP in bytes. */
   bytesStored: number;
-  /** MIME type (e.g. "image/webp"). */
+  /** Always "image/webp" since Spec 64.6c — adapter converts non-WebP inputs. */
   contentType: string;
+  /**
+   * Spec 64.6c: R2 key of the pre-conversion original image. `null` when:
+   * - Gemini returned WebP natively (no conversion happened), or
+   * - the caller-side `discardOriginal: true` opt-out was set (currently never).
+   */
+  originalR2Key: string | null;
+  /** Stable, public Cloudflare R2 URL for the original, when stored. */
+  originalUrl: string | null;
   /** The seed actually used (echoed by Gemini if provided; null when none was supplied). */
   seed: number | null;
   /** Wall-clock duration of the Gemini call. */

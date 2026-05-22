@@ -16,7 +16,8 @@
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
-    "@marketing-auto/adapter-storage": "workspace:*"
+    "@marketing-auto/adapter-storage": "workspace:*",
+    "@marketing-auto/adapter-image-webp": "workspace:*"
   },
   "devDependencies": {
     "drizzle-orm": "^0.36.0"

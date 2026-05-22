@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { putObject } from "@marketing-auto/adapter-storage";
+import { convertImageToWebp } from "@marketing-auto/adapter-image-webp";
 import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { replicateImageCostEur, track } from "@marketing-auto/cost-tracker";
@@ -81,8 +80,10 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   const client = await getClient();
   const modelSlug = REPLICATE_MODELS[input.model];
   const modelInput = buildModelInput(input);
-  const ext = input.outputFormat ?? "webp";
-  const mime = FORMAT_TO_MIME[ext] ?? "application/octet-stream";
+  // Spec 64.6c: only kept for the fallback MIME when Replicate's response headers
+  // don't surface a usable content-type. The final R2 key + content-type come from
+  // @marketing-auto/adapter-image-webp's magic-byte sniff.
+  const fallbackMime = FORMAT_TO_MIME[input.outputFormat ?? "webp"] ?? "application/octet-stream";
 
   log.debug(
     {
@@ -140,22 +141,28 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
       }
       const bodyBuffer = new Uint8Array(await downloadResp.arrayBuffer());
 
-      const key = `${input.storagePrefix.replace(/^\/|\/$/g, "")}/${randomUUID()}.${ext}`;
-      const stored = await putObject({
-        key,
-        body: bodyBuffer,
-        contentType: mime,
-        cacheControl: "public, max-age=31536000, immutable",
+      // Spec 64.6c: pipe through the WebP adapter so the R2 key extension always
+      // matches the actual bytes. Flux 1.1 Pro respects `output_format`, but
+      // ideogram-v3 historically returned PNG regardless. Magic-byte sniffing
+      // beats trusting the producer.
+      const claimedMime = downloadResp.headers.get("content-type") || fallbackMime;
+      const converted = await convertImageToWebp({
+        projectId: input.projectId,
+        bytes: bodyBuffer,
+        contentType: claimedMime,
+        storagePrefix: input.storagePrefix,
       });
 
       const seedUsed = (prediction.input as Record<string, unknown> | null)?.seed;
       const seed = typeof seedUsed === "number" ? seedUsed : null;
 
       return {
-        publicUrl: stored.publicUrl,
-        r2Key: stored.key,
-        bytesStored: stored.bytesStored,
-        contentType: stored.contentType,
+        publicUrl: converted.webpUrl,
+        r2Key: converted.webpKey,
+        bytesStored: converted.webpBytes,
+        contentType: "image/webp",
+        originalR2Key: converted.originalKey,
+        originalUrl: converted.originalUrl,
         replicateUrl,
         seed,
         prediction,
@@ -166,6 +173,7 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
       model: input.model,
       modelSlug,
       r2Key: r.r2Key,
+      originalR2Key: r.originalR2Key,
       bytesStored: r.bytesStored,
       seed: r.seed,
       predictionId: r.prediction.id,
@@ -198,6 +206,8 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
     r2Key: result.r2Key,
     bytesStored: result.bytesStored,
     contentType: result.contentType,
+    originalR2Key: result.originalR2Key,
+    originalUrl: result.originalUrl,
     replicateUrl: result.replicateUrl,
     seed: result.seed,
   };

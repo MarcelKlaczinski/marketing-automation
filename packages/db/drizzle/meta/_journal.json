@@ -631,6 +631,20 @@
       "when": 1786700000000,
       "tag": "0089_projects_image_generation_resolution",
       "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1786800000000,
+      "tag": "0090_image_batch_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1786900000000,
+      "tag": "0091_articles_hero_image_original",
+      "breakpoints": true
     }
   ]
 }

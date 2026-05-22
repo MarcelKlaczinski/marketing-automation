@@ -22,6 +22,10 @@ const InputSchema = z.object({
   heroR2Key: z.string(),
   heroPublicUrl: z.string(), // may be empty when hero-image step was skipped
   heroAltText: z.string(),
+  // Spec 64.6c: R2 key of the pre-conversion original (PNG/JPEG/etc.). NULL when
+  // the producer returned WebP natively or the hero step was skipped. Forensic only
+  // — no application reads it by default; useful for debugging Discovery #14.
+  heroOriginalR2Key: z.string().nullable().optional(),
   selfReviewScore: z.number(),
   selfReviewIssues: z.array(z.unknown()),
   schemaJsonLd: z.record(z.unknown()),
@@ -88,6 +92,13 @@ export class PersistArticleStep extends BaseStep<
           heroImageR2Key: input.heroR2Key,
           heroImagePublicUrl: input.heroPublicUrl,
           heroImageAltText: input.heroAltText,
+          // Spec 64.6c: persist forensic original R2 key only when present. We use
+          // the conditional spread (rather than writing null/undefined directly) so
+          // a hero-image step that skipped (returned no field) doesn't wipe an
+          // existing column value on re-runs.
+          ...(input.heroOriginalR2Key !== undefined && input.heroOriginalR2Key !== null
+            ? { heroImageOriginalR2Key: input.heroOriginalR2Key }
+            : {}),
           selfReviewScore: input.selfReviewScore,
           // Double-cast: InputSchema uses z.array(z.unknown()) so the bridge can pass issues
           // without re-validating. DB column uses its own SelfReviewIssue type which differs

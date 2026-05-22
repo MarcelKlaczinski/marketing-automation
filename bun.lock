@@ -23,6 +23,7 @@
         "@marketing-auto/adapter-dataforseo": "workspace:*",
         "@marketing-auto/adapter-email": "workspace:*",
         "@marketing-auto/adapter-hackernews": "workspace:*",
+        "@marketing-auto/adapter-image-webp": "workspace:*",
         "@marketing-auto/adapter-nano-banana": "workspace:*",
         "@marketing-auto/adapter-pagespeed": "workspace:*",
         "@marketing-auto/adapter-producthunt": "workspace:*",
@@ -167,10 +168,20 @@
         "zod": "^3.23.0",
       },
     },
+    "packages/adapters/image-webp": {
+      "name": "@marketing-auto/adapter-image-webp",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/adapter-storage": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+        "sharp": "^0.34.5",
+      },
+    },
     "packages/adapters/nano-banana": {
       "name": "@marketing-auto/adapter-nano-banana",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/adapter-image-webp": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
@@ -224,6 +235,7 @@
       "name": "@marketing-auto/adapter-replicate",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/adapter-image-webp": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
@@ -689,6 +701,8 @@
     "@marketing-auto/adapter-github-trending": ["@marketing-auto/adapter-github-trending@workspace:packages/adapters/github-trending"],
 
     "@marketing-auto/adapter-hackernews": ["@marketing-auto/adapter-hackernews@workspace:packages/adapters/hackernews"],
+
+    "@marketing-auto/adapter-image-webp": ["@marketing-auto/adapter-image-webp@workspace:packages/adapters/image-webp"],
 
     "@marketing-auto/adapter-nano-banana": ["@marketing-auto/adapter-nano-banana@workspace:packages/adapters/nano-banana"],
 

@@ -97,6 +97,10 @@ export const articles = pgTable(
     heroImageR2Key: text("hero_image_r2_key"),
     heroImagePublicUrl: text("hero_image_public_url"),
     heroImageAltText: text("hero_image_alt_text"),
+    // Spec 64.6c: R2 key of the pre-conversion original image (PNG/JPEG/etc.).
+    // NULL = input was already WebP, or row predates migration 0091 and hasn't been
+    // processed by the historical-backfill script.
+    heroImageOriginalR2Key: text("hero_image_original_r2_key"),
 
     // Schema.org JSON-LD — array of objects (Spec 23 extended from single object in Spec 20)
     schemaJsonLd: jsonb("schema_json_ld").$type<Array<Record<string, unknown>>>(),

@@ -42,14 +42,22 @@ export type GenerateImageInput = {
 };
 
 export type GenerateImageResult = {
-  /** Stable, public Cloudflare R2 URL. */
+  /** Stable, public Cloudflare R2 URL for the canonical WebP. */
   publicUrl: string;
-  /** R2 object key for later management. */
+  /** R2 object key of the canonical WebP. */
   r2Key: string;
-  /** Size of stored file in bytes. */
+  /** Size of the stored WebP in bytes. */
   bytesStored: number;
-  /** MIME type (e.g. "image/webp"). */
+  /** Always "image/webp" since Spec 64.6c — adapter converts non-WebP outputs. */
   contentType: string;
+  /**
+   * Spec 64.6c: R2 key of the pre-conversion original image. `null` when:
+   * - Replicate returned WebP natively (Flux 1.1 Pro typically does), or
+   * - caller-side `discardOriginal: true` opt-out was set (currently never).
+   */
+  originalR2Key: string | null;
+  /** Stable, public Cloudflare R2 URL for the original, when stored. */
+  originalUrl: string | null;
   /** Original Replicate URL — expires in 24h. For debug only. */
   replicateUrl: string;
   /** The seed actually used. Useful for reproduction. */

@@ -71,11 +71,15 @@ from the budget Marcel saw at approval time.
 
 ## Cost Math
 
-Cost is computed AFTER the call returns via `nanoBananaImageCostEur({model, resolution, count})`
-in `@marketing-auto/cost-tracker`. The `estimateCostEur("google-gemini", operation)`
+Cost is computed AFTER the call returns via `nanoBananaImageCostEur({model, resolution, count, mode?})`
+in `@marketing-auto/cost-tracker`. The `mode` arg defaults to `"sync"` for back-compat;
+pass `"batch"` to apply the documented 50% Gemini Batch API discount (Spec 64.7).
+Precomputed batch maps (`NANO_BANANA_2_BATCH_PRICING_USD` + `NANO_BANANA_PRO_BATCH_PRICING_USD`)
+live alongside the sync maps in `pricing.ts`. The `estimateCostEur("google-gemini", operation)`
 pre-flight check uses the conservative **€0.25/image** upper bound from
 `COST_ESTIMATES_EUR` — covers the 4K Pro worst case so a sudden price hike
-or accidental Pro routing doesn't bypass the limit guard.
+or accidental Pro routing doesn't bypass the limit guard. The same €0.25 caps both
+`HERO_IMAGE` (sync) and the batch ops (`HERO_IMAGE_BATCH_SUBMIT` / `HERO_IMAGE_BATCH_RESULT`).
 
 ## Retry Logic
 

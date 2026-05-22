@@ -1,5 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { putObject } from "@marketing-auto/adapter-storage";
+import { convertImageToWebp } from "@marketing-auto/adapter-image-webp";
 import { assertCostBudget, estimateCostEur } from "@marketing-auto/core/cost";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { nanoBananaImageCostEur, track } from "@marketing-auto/cost-tracker";
@@ -23,16 +22,13 @@ const BASE_BACKOFF_MS = 500;
 // hammering at 500ms during a 429 burst only burns more quota.
 const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
+// Spec 64.6c: only kept for the fallback MIME when Gemini's inlineData.mimeType
+// is missing. The final R2 key + content-type come from @marketing-auto/adapter-image-webp's
+// magic-byte sniff, not from `input.outputFormat`.
 const FORMAT_TO_MIME: Record<string, string> = {
   webp: "image/webp",
   png: "image/png",
   jpg: "image/jpeg",
-};
-
-const FORMAT_TO_EXT: Record<string, string> = {
-  webp: "webp",
-  png: "png",
-  jpg: "jpg",
 };
 
 async function getApiKey(): Promise<string> {
@@ -180,7 +176,6 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   const modelSlug = NANO_BANANA_MODELS[input.model];
   const url = `${GEMINI_API_BASE}/${modelSlug}:generateContent`;
   const body = buildModelRequestBody(input);
-  const ext = FORMAT_TO_EXT[input.outputFormat ?? "webp"] ?? "webp";
   const fallbackMime = FORMAT_TO_MIME[input.outputFormat ?? "webp"] ?? "application/octet-stream";
   // Spec 64.6b: resolution flows through to cost calculation. Default "1k" mirrors the
   // projects.image_generation_resolution column default — callers that don't know the
@@ -216,20 +211,26 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
         );
       }
 
-      const mime = extracted.mimeType || fallbackMime;
-      const key = `${input.storagePrefix.replace(/^\/|\/$/g, "")}/${randomUUID()}.${ext}`;
-      const stored = await putObject({
-        key,
-        body: extracted.bytes,
-        contentType: mime,
-        cacheControl: "public, max-age=31536000, immutable",
+      // Spec 64.6c: pipe through the WebP adapter so the R2 key extension always
+      // matches the actual bytes — Gemini may return PNG despite our outputFormat
+      // hint (Spec 64.6 Discovery #14). The adapter sniffs magic bytes, converts
+      // when needed, stores both the canonical WebP and the original side-by-side.
+      const claimedMime = extracted.mimeType || fallbackMime;
+      const converted = await convertImageToWebp({
+        projectId: input.projectId,
+        bytes: extracted.bytes,
+        contentType: claimedMime,
+        storagePrefix: input.storagePrefix,
+        ...(input.outputQuality !== undefined && { quality: input.outputQuality }),
       });
 
       return {
-        publicUrl: stored.publicUrl,
-        r2Key: stored.key,
-        bytesStored: stored.bytesStored,
-        contentType: stored.contentType,
+        publicUrl: converted.webpUrl,
+        r2Key: converted.webpKey,
+        bytesStored: converted.webpBytes,
+        contentType: "image/webp",
+        originalR2Key: converted.originalKey,
+        originalUrl: converted.originalUrl,
         seed: extracted.seed ?? input.seed ?? null,
         durationMs,
         modelSlug,
@@ -241,6 +242,7 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
       modelSlug,
       resolution,
       r2Key: r.r2Key,
+      originalR2Key: r.originalR2Key,
       bytesStored: r.bytesStored,
       seed: r.seed,
       durationMs: r.durationMs,
