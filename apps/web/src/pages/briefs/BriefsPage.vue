@@ -3,6 +3,10 @@
     <aside class="list-pane">
       <div class="page-header">
         <h1 class="page-title">{{ $t("briefs.title") as string }}</h1>
+        <!-- Spec 64.14 Phase C: manual brief creation entry point. -->
+        <GlassButton variant="primary" size="sm" @click="onOpenCreate">
+          {{ $t("briefs.create.open") as string }}
+        </GlassButton>
       </div>
 
       <div class="filter-bar" role="group" :aria-label="$t('briefs.filters.label') as string">
@@ -254,6 +258,15 @@ export default defineComponent({
         query: this.$route.query,
       });
     },
+    // Spec 64.14 Phase C: navigate to the manual brief creation form. Preserves
+    // current filter state in the query so cancel/back lands on the same view.
+    onOpenCreate(): void {
+      const slug = this.$route.params.slug as string;
+      void this.$router.push({
+        path: `/projects/${slug}/briefs/new`,
+        query: this.$route.query,
+      });
+    },
     async onBulkApproveConfirm(payload: {
       dispatch: "plan" | "immediate";
       mode: "assist" | "auto";
@@ -338,6 +351,10 @@ export default defineComponent({
 
 .page-header {
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .filter-bar {

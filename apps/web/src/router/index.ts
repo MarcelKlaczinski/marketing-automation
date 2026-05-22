@@ -62,11 +62,21 @@ const routes = [
       },
 
       // 56.2: Briefs — 3-section backlog
+      // Spec 64.14 Phase C: /briefs/new → manual brief creation page.
+      // Order matters: /new must be registered BEFORE /:briefId so the
+      // named-static route wins over the wildcard param (Memory: registering
+      // /:id before /across-projects silently captures the latter).
       {
         path: "briefs",
         name: "briefs",
         component: () => import("src/pages/briefs/BriefsPage.vue"),
         children: [
+          {
+            path: "new",
+            name: "brief-create",
+            component: () =>
+              import("src/pages/briefs/BriefCreatePage.vue"),
+          },
           {
             path: ":briefId",
             name: "brief-detail",

@@ -108,4 +108,56 @@ export default {
     readinessUnready: "Nicht angereichert",
     readinessPlanReady: "Im Plan-Pool",
   },
+
+  // Spec 64.14 Phase C: manual brief creation form.
+  create: {
+    open: "Brief anlegen",
+    title: "Neuen Brief anlegen",
+    subtitle:
+      'Manuelles Thema, das die Trend-Synthese nicht findet — z. B. "Was ist RAG?".',
+    collectionHint: "Sammlung",
+    collectionHintHelp: "Bestimmt Default-Intent und Cluster-Aktion.",
+    intentType: "Intent-Typ",
+    intentHint: "Optional. Wird sonst aus der Sammlung abgeleitet.",
+    topicTitle: "Thema",
+    topicTitlePlaceholder: "z. B. Was ist Retrieval-Augmented Generation?",
+    primaryKeyword: "Primäres Keyword",
+    primaryKeywordPlaceholder: "z. B. RAG",
+    description: "Kontext (optional)",
+    descriptionPlaceholder:
+      "Kurze Notiz für dich — landet als Meta-Beschreibung im Brief.",
+    locale: "Sprache",
+    submit: "Brief anlegen",
+    submitting: "Lege an…",
+    success: 'Brief "{title}" angelegt — landet als "Ausstehend" in der Liste.',
+    errors: {
+      titleTooShort: "Mindestens 10 Zeichen",
+      keywordRequired: "Mindestens 2 Zeichen",
+      submitFailed: "Anlegen fehlgeschlagen",
+    },
+  },
+
+  // Spec 64.14: collection-hint values for the create form.
+  collections: {
+    "ki-wissen": "ki-wissen (Erklärartikel)",
+    blog: "Blog (Standalone)",
+    comparison: "Vergleich",
+    cluster: "Cluster (neu)",
+  },
+
+  // Spec 64.14: intent-type values for the create form. Names are read-only
+  // taxonomy strings — keep in sync with INTENT_TYPES in
+  // apps/api/src/routes/projects/briefs.ts.
+  intents: {
+    knowledge: "Knowledge (Konzept-Erklärung)",
+    tutorial: "Tutorial (Tool-zentriert)",
+    use_case: "Use-Case (Branche/Persona)",
+    comparison: "Vergleich",
+    review: "Review",
+    news: "News",
+    best_practices: "Best Practices",
+    alternatives: "Alternativen",
+    pricing: "Pricing",
+    risks: "Risiken",
+  },
 };

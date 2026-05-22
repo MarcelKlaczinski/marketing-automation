@@ -14,7 +14,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { isNull, sql } from "drizzle-orm";
-import type { WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
+import type { SignalSourceContentTypeMap, WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
 import { approvalActionEnum, costServiceEnum, pipelineRunStatusEnum } from "./_enums.ts";
 import { users } from "./auth.ts";
 import { articles, externalSignals, socialPosts, topicBriefs } from "./content.ts";
@@ -619,6 +619,11 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
     .$type<string>()
     .notNull()
     .default("0.5"),
+  // Spec 64.14: per-project override for signal-source → content_type mapping in
+  // SelectOverageItemsStep. NULL = use DEFAULT_SIGNAL_CONTENT_TYPE_MAP. A null
+  // value on a known source means "skip overage emission for this source".
+  signalSourceContentTypeMap: jsonb("signal_source_content_type_map")
+    .$type<SignalSourceContentTypeMap | null>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

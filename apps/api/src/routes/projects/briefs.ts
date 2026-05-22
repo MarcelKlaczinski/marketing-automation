@@ -265,6 +265,123 @@ scopedBriefRoutes.post(
   },
 );
 
+// ─── POST /:slug/briefs (Spec 64.14 Phase C — manual brief creation) ────────
+//
+// Marcel curates ki-wissen / blog topics that the LLM synthesizer doesn't find
+// (e.g. "Was ist RAG?"). Brief lands as approval_status='pending' + source='manual'
+// and shows up in the regular /briefs/pending list for approve via the existing
+// plan-or-immediate dispatch flow. No pipeline is enqueued here — the brief
+// goes through the same routing path as gap_analysis/trend_discovery briefs.
+
+const COLLECTION_HINTS = ["blog", "comparison", "ki-wissen", "cluster"] as const;
+type CollectionHint = (typeof COLLECTION_HINTS)[number];
+
+const INTENT_TYPES = [
+  "knowledge",
+  "tutorial",
+  "use_case",
+  "comparison",
+  "review",
+  "news",
+  "best_practices",
+  "alternatives",
+  "pricing",
+  "risks",
+] as const;
+
+const manualBriefCreateSchema = z.object({
+  topicTitle: z.string().min(10).max(200),
+  primaryKeyword: z.string().min(2).max(80),
+  collectionHint: z.enum(COLLECTION_HINTS),
+  intentType: z.enum(INTENT_TYPES).optional(),
+  description: z.string().max(500).optional(),
+  locale: z.enum(["de", "en"]).default("de"),
+});
+
+/**
+ * Derive intent_type from collection_hint when the user didn't pick one
+ * explicitly. ki-wissen → knowledge is the load-bearing default (the spec's
+ * primary use-case is curating knowledge briefs the synthesizer missed).
+ */
+function deriveIntentFromCollection(collection: CollectionHint): (typeof INTENT_TYPES)[number] {
+  switch (collection) {
+    case "comparison":
+      return "comparison";
+    case "ki-wissen":
+      return "knowledge";
+    case "blog":
+    case "cluster":
+      return "use_case";
+  }
+}
+
+/**
+ * cluster_action depends on the routing target (Spec 54.3 decideRoute is the
+ * SSoT once the brief is approved). Manual briefs don't carry a clusterId, so:
+ *   - "cluster" hint = "create_new" (planner will spawn a new cluster)
+ *   - "comparison" hint = "comparison" (router enqueues article:blog comparison variant)
+ *   - everything else = "standalone" (article lands without a cluster anchor)
+ */
+function deriveClusterAction(
+  collection: CollectionHint,
+): "create_new" | "comparison" | "standalone" {
+  if (collection === "cluster") return "create_new";
+  if (collection === "comparison") return "comparison";
+  return "standalone";
+}
+
+scopedBriefRoutes.post(
+  "/:slug/briefs",
+  zValidator("json", manualBriefCreateSchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const input = c.req.valid("json");
+
+    const project = await resolveProject(slug);
+    if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const intentType = input.intentType ?? deriveIntentFromCollection(input.collectionHint);
+    const clusterAction = deriveClusterAction(input.collectionHint);
+
+    const [brief] = await db
+      .insert(topicBriefs)
+      .values({
+        projectId: project.id,
+        source: "manual",
+        topicTitle: input.topicTitle,
+        primaryKeyword: input.primaryKeyword,
+        secondaryKeywords: [],
+        locale: input.locale,
+        intentType,
+        clusterAction,
+        approvalStatus: "pending",
+        approvalRequired: true,
+        // Spec 64.14: surface the optional description as the suggested meta so
+        // BriefDetailPage can render Marcel's intent context without a new column.
+        ...(input.description !== undefined ? { suggestedMeta: input.description } : {}),
+      })
+      .returning();
+
+    if (!brief) {
+      log.error({ slug, topicTitle: input.topicTitle }, "manual brief insert returned no row");
+      return c.json({ ok: false, error: "insert_failed" }, 500);
+    }
+
+    log.info(
+      {
+        slug,
+        briefId: brief.id,
+        collectionHint: input.collectionHint,
+        intentType,
+        clusterAction,
+      },
+      "manual brief created",
+    );
+
+    return c.json({ ok: true, data: { brief } }, 201);
+  },
+);
+
 // ─── POST /:slug/briefs/bulk-dismiss ─────────────────────────────────────────
 
 const bulkDismissSchema = z.object({

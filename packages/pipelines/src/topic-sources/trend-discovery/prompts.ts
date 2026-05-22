@@ -63,6 +63,22 @@ For each topic, provide:
     Signal "Claude 4.7 released with new tool use" + "Anthropic blog: Tool use improvements" → intent_type "news".
     Signal "How to use Claude Code for refactoring" + "Cursor Composer tips" → intent_type "tutorial".
 
+  Counter-examples (Spec 64.14 — these MUST NOT be classified as knowledge):
+    "I've joined Anthropic" → news (personal/career event; no concept explained).
+    "OpenAI releases GPT-5" → news (event-driven product launch).
+    "Claude vs ChatGPT: which is better?" → comparison (tool pair, not a theme).
+    "How to use Cursor with Python" → tutorial (tool-centric step-by-step).
+    "5 ways AI changes marketing" → use_case (industry-application enumeration).
+    "Anthropic raises $500M Series E" → news (corporate event).
+
+  Positive examples (Spec 64.14 — these SHOULD be classified as knowledge):
+    "Was ist Retrieval-Augmented Generation?" → knowledge (concept question, no tool focus).
+    "Wie funktionieren Transformer-Modelle?" → knowledge (mechanism explainer).
+    "Prompt Engineering Grundlagen" → knowledge (evergreen practitioner primer).
+    "Embeddings einfach erklärt" → knowledge (concept primer).
+    "Was ist der Unterschied zwischen Supervised und Unsupervised Learning?" → knowledge (concept comparison without tool focus).
+    "Vector Databases erklärt" → knowledge (technology-category explainer).
+
 - **primary_keyword guidance**: for **knowledge** intent, the keyword MUST be theme-centric (e.g. "RAG", "Bias in KI", "Prompt-Engineering"), NOT tool-specific ("Claude RAG", "ChatGPT-Prompts"). For tutorial / review / comparison, tool-specific keywords are correct.
 - **generation_mode**: "timely" for breaking news/announcements, "evergreen" for broad topics that age well.
 - **suggested_title**: A compelling article headline (10–200 chars). Should include the primary keyword naturally.

@@ -6,3 +6,4 @@ export * from "./types/step-pause.ts";
 export * from "./types/prompt.ts";
 export * from "./types/project-goals.ts";
 export * from "./types/weekly-plan.ts";
+export * from "./types/project-config.ts";

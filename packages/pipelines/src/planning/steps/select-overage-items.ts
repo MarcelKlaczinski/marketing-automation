@@ -13,6 +13,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProjectGoal, ProjectPlannerConfig, TopicBrief } from "@marketing-auto/db";
 import type {
+  SignalSourceContentTypeMap,
   SignalTopNEntry,
   WeeklyPlanInputSnapshot,
 } from "@marketing-auto/shared";
@@ -42,27 +43,44 @@ export const selectOverageOutputSchema = z.object({
 type Output = z.infer<typeof selectOverageOutputSchema>;
 
 /**
- * Heuristic mapping from signal source → planner content type. Tunable in
- * code; see Spec 62.4 Risk #3. Returns null for sources that don't have a
- * sensible mapping yet.
+ * Spec 64.14 Phase A: default mapping from signal source → planner content
+ * type. `null` means "do not emit an overage planned_item for this source"
+ * (signal is still collected and fed to the synthesizer for brief
+ * generation — only the cheap heuristic overage path is skipped).
+ *
+ * `hackernews` + `github` were `"ki_wissen"` pre-64.14 — the heuristic dropped
+ * planned_items directly without an LLM intent gate, producing ~85% off-topic
+ * noise (e.g. "I've joined Anthropic" landing as a ki_wissen article). They
+ * are now `null` so only the synthesizer (which DOES gate on intent_type) can
+ * produce briefs from them.
  */
-export function inferContentTypeFromSignal(source: string): PlanningContentType | null {
-  switch (source) {
-    case "producthunt":
-      return "social_post";
-    case "hackernews":
-      return "ki_wissen";
-    case "reddit":
-      return "social_post";
-    case "vendor_rss":
-      return "cluster";
-    case "github":
-      return "ki_wissen";
-    case "dataforseo_trends":
-      return "cluster";
-    default:
-      return null;
+export const DEFAULT_SIGNAL_CONTENT_TYPE_MAP: Readonly<
+  Record<string, PlanningContentType | null>
+> = Object.freeze({
+  producthunt: "social_post",
+  hackernews: null,
+  reddit: "social_post",
+  vendor_rss: "cluster",
+  github: null,
+  dataforseo_trends: "cluster",
+});
+
+/**
+ * Heuristic mapping from signal source → planner content type. The
+ * `override` map is a partial per-project override (Spec 64.14):
+ * - Source key present (any value) → use override value (including `null` to
+ *   skip emission).
+ * - Source key absent → fall back to `DEFAULT_SIGNAL_CONTENT_TYPE_MAP`.
+ * - Unknown source not in either map → `null` (skip).
+ */
+export function inferContentTypeFromSignal(
+  source: string,
+  override: SignalSourceContentTypeMap | null = null,
+): PlanningContentType | null {
+  if (override && Object.prototype.hasOwnProperty.call(override, source)) {
+    return override[source] ?? null;
   }
+  return DEFAULT_SIGNAL_CONTENT_TYPE_MAP[source] ?? null;
 }
 
 /**
@@ -141,10 +159,16 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
     // Spec 63.5: pre-filter signals to the eligible set with a content type +
     // not-already-used-by-Floor. After this we either FIFO (diversity off /
     // small pool) or diversity-pick from the resulting list.
+    //
+    // Spec 64.14: per-project signal_source_content_type_map override. NULL on
+    // the config row = use DEFAULT_SIGNAL_CONTENT_TYPE_MAP. A null mapping for
+    // a known source (e.g. hackernews/github in the default) means the signal
+    // is skipped here but still available to the trend synthesizer.
+    const overrideMap = config.signalSourceContentTypeMap ?? null;
     const candidates: { signal: SignalTopNEntry; contentType: PlanningContentType }[] = [];
     for (const signal of snapshot.signalTopN.slice(0, config.topNSignalsAllowedOverage)) {
       if (used.has(signal.signalId)) continue;
-      const contentType = inferContentTypeFromSignal(signal.source);
+      const contentType = inferContentTypeFromSignal(signal.source, overrideMap);
       if (contentType === null) continue;
       candidates.push({ signal, contentType });
     }

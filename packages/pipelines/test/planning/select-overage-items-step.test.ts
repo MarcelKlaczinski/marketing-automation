@@ -41,6 +41,8 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     // Spec 63.5: numeric(4,3) on the DB side → string at the Drizzle boundary.
     diversityThreshold: "0.5",
     diversityMalusWeight: "0.5",
+    // Spec 64.14: per-project signal-source override; null = use defaults.
+    signalSourceContentTypeMap: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -94,11 +96,46 @@ describe("inferContentTypeFromSignal", () => {
   it("producthunt → social_post", () => {
     expect(inferContentTypeFromSignal("producthunt")).toBe("social_post");
   });
-  it("hackernews → ki_wissen", () => {
-    expect(inferContentTypeFromSignal("hackernews")).toBe("ki_wissen");
+  // Spec 64.14 Phase A: HN no longer maps to ki_wissen by default — the
+  // heuristic dropped ~85% noise. Signals still collected for the synthesizer.
+  it("hackernews → null (Spec 64.14)", () => {
+    expect(inferContentTypeFromSignal("hackernews")).toBeNull();
+  });
+  it("github → null (Spec 64.14, forward-compat)", () => {
+    expect(inferContentTypeFromSignal("github")).toBeNull();
+  });
+  it("reddit → social_post (unchanged)", () => {
+    expect(inferContentTypeFromSignal("reddit")).toBe("social_post");
+  });
+  it("vendor_rss → cluster (unchanged)", () => {
+    expect(inferContentTypeFromSignal("vendor_rss")).toBe("cluster");
   });
   it("returns null for unknown source", () => {
     expect(inferContentTypeFromSignal("unknown")).toBeNull();
+  });
+
+  // Spec 64.14: per-project override.
+  describe("per-project override (Spec 64.14)", () => {
+    it("override re-enables hackernews → ki_wissen", () => {
+      expect(
+        inferContentTypeFromSignal("hackernews", { hackernews: "ki_wissen" }),
+      ).toBe("ki_wissen");
+    });
+    it("override pins hackernews → cluster_spoke", () => {
+      expect(
+        inferContentTypeFromSignal("hackernews", { hackernews: "cluster_spoke" }),
+      ).toBe("cluster_spoke");
+    });
+    it("sources NOT in the override fall back to defaults", () => {
+      const override = { hackernews: "ki_wissen" } as const;
+      expect(inferContentTypeFromSignal("hackernews", override)).toBe("ki_wissen");
+      expect(inferContentTypeFromSignal("producthunt", override)).toBe("social_post");
+      expect(inferContentTypeFromSignal("vendor_rss", override)).toBe("cluster");
+    });
+    it("explicit null in override skips emit even when default would map", () => {
+      // producthunt default = "social_post"; null override overrides that.
+      expect(inferContentTypeFromSignal("producthunt", { producthunt: null })).toBeNull();
+    });
   });
 });
 
@@ -109,7 +146,9 @@ describe("SelectOverageItemsStep", () => {
   });
 
   it("emits maxOveragePerSignal items per qualifying signal", async () => {
-    const sigs = [signal({ source: "producthunt" }), signal({ source: "hackernews" })];
+    // Spec 64.14: hackernews→null by default; use vendor_rss (→ cluster) for the
+    // second mapping source so the test still exercises "two qualifying signals".
+    const sigs = [signal({ source: "producthunt" }), signal({ source: "vendor_rss" })];
     const ctx = makeMockCtx({
       getStepOutput: (name) => {
         if (name === "validate-goals") return { config: config({ maxOveragePerSignal: 1 }) } as never;
@@ -120,6 +159,52 @@ describe("SelectOverageItemsStep", () => {
     });
     const out = await step.execute({ projectId }, ctx);
     expect(out.overageItems).toHaveLength(2);
+  });
+
+  // Spec 64.14: hackernews + github are explicitly skipped at the overage path.
+  // Signals from these sources must NOT produce planned_items via the heuristic
+  // (synthesizer is the only path that can emit briefs from them).
+  it("skips hackernews + github signals from overage emission (Spec 64.14)", async () => {
+    const sigs = [
+      signal({ source: "hackernews", title: "I've joined Anthropic" }),
+      signal({ source: "github", title: "OpenAI/whisper" }),
+      signal({ source: "producthunt", title: "Some PH launch" }),
+    ];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals") return { config: config() } as never;
+        if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+        if (name === "select-floor-items") return { floorItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.overageItems as PlanningItemDraft[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.pipelineInput["title"]).toBe("Some PH launch");
+  });
+
+  // Spec 64.14: per-project override re-enables a source. Marcel can opt back
+  // into HN→ki_wissen on a per-project basis without redeploying.
+  it("respects per-project signalSourceContentTypeMap override (Spec 64.14)", async () => {
+    const sigs = [signal({ source: "hackernews", title: "Was ist RAG?" })];
+    const ctx = makeMockCtx({
+      getStepOutput: (name) => {
+        if (name === "validate-goals")
+          return {
+            config: config({
+              signalSourceContentTypeMap: { hackernews: "ki_wissen" },
+            }),
+          } as never;
+        if (name === "snapshot-inputs") return { snapshot: snapshot(sigs) } as never;
+        if (name === "select-floor-items") return { floorItems: [] } as never;
+        return undefined;
+      },
+    });
+    const out = await step.execute({ projectId }, ctx);
+    const items = out.overageItems as PlanningItemDraft[];
+    expect(items).toHaveLength(1);
+    expect(items[0]!.contentType).toBe("ki_wissen");
   });
 
   it("skips signals already represented in floor items", async () => {
@@ -152,11 +237,13 @@ describe("SelectOverageItemsStep", () => {
   });
 
   it("respects topNSignalsAllowedOverage", async () => {
+    // Spec 64.14: all four signals here MUST map to a content_type under the
+    // post-64.14 defaults (HN/github now → null). The topN gate caps at 2.
     const sigs = [
       signal({ source: "producthunt", normalizedScore: 0.9 }),
-      signal({ source: "hackernews", normalizedScore: 0.7 }),
+      signal({ source: "vendor_rss", normalizedScore: 0.7 }),
       signal({ source: "reddit", normalizedScore: 0.5 }),
-      signal({ source: "github", normalizedScore: 0.3 }),
+      signal({ source: "vendor_rss", normalizedScore: 0.3 }),
     ];
     const ctx = makeMockCtx({
       getStepOutput: (name) => {

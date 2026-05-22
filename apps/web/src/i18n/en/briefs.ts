@@ -108,4 +108,56 @@ export default {
     readinessUnready: "Not enriched",
     readinessPlanReady: "In plan pool",
   },
+
+  // Spec 64.14 Phase C: manual brief creation form.
+  create: {
+    open: "Create brief",
+    title: "Create new brief",
+    subtitle:
+      "Manual topic the trend synthesizer doesn't find — e.g. \"What is RAG?\".",
+    collectionHint: "Collection",
+    collectionHintHelp: "Determines default intent and cluster action.",
+    intentType: "Intent type",
+    intentHint: "Optional. Otherwise derived from collection.",
+    topicTitle: "Topic",
+    topicTitlePlaceholder: "e.g. What is Retrieval-Augmented Generation?",
+    primaryKeyword: "Primary keyword",
+    primaryKeywordPlaceholder: "e.g. RAG",
+    description: "Context (optional)",
+    descriptionPlaceholder:
+      "Short note for yourself — saved as the brief's meta description.",
+    locale: "Language",
+    submit: "Create brief",
+    submitting: "Creating…",
+    success: "Brief \"{title}\" created — landed as \"Pending\" in the list.",
+    errors: {
+      titleTooShort: "At least 10 characters",
+      keywordRequired: "At least 2 characters",
+      submitFailed: "Create failed",
+    },
+  },
+
+  // Spec 64.14: collection-hint values for the create form.
+  collections: {
+    "ki-wissen": "ki-wissen (knowledge explainer)",
+    blog: "Blog (standalone)",
+    comparison: "Comparison",
+    cluster: "Cluster (new)",
+  },
+
+  // Spec 64.14: intent-type values for the create form. Names are read-only
+  // taxonomy strings — keep in sync with INTENT_TYPES in
+  // apps/api/src/routes/projects/briefs.ts.
+  intents: {
+    knowledge: "Knowledge (concept explainer)",
+    tutorial: "Tutorial (tool-centric)",
+    use_case: "Use-case (industry / persona)",
+    comparison: "Comparison",
+    review: "Review",
+    news: "News",
+    best_practices: "Best practices",
+    alternatives: "Alternatives",
+    pricing: "Pricing",
+    risks: "Risks",
+  },
 };
