@@ -48,6 +48,7 @@ function makeBrief(overrides: Partial<TopicBrief> & { projectId: string }): Omit
     routedCornerstoneSpecId: null,
     routedClusterId: null,
     routedViaPlanItemId: null,
+    embedding: null,
     ...rest,
   };
 }

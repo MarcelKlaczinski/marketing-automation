@@ -19,16 +19,14 @@
 // `inlinedResponses[]`, no separate JSONL download needed (fits ≤50 hero images
 // per batch comfortably).
 
-import { randomUUID } from "node:crypto";
-import { putObject } from "@marketing-auto/adapter-storage";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { buildModelRequestBody } from "./model-inputs.ts";
 import {
-  type NanoBananaModel,
-  type NanoBananaResolution,
   NANO_BANANA_MODELS,
   NanoBananaGenerationError,
+  type NanoBananaModel,
+  type NanoBananaResolution,
 } from "./types.ts";
 
 const log = createLogger("nano-banana-batch");
@@ -42,27 +40,13 @@ const MAX_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 500;
 const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
-const FORMAT_TO_MIME: Record<string, string> = {
-  webp: "image/webp",
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-};
-
-const FORMAT_TO_EXT: Record<string, string> = {
-  webp: "webp",
-  png: "png",
-  jpg: "jpg",
-  jpeg: "jpg",
-};
-
 async function getApiKey(): Promise<string> {
   const fromVault = await getGlobal("nano-banana", "api_key");
   if (fromVault) return fromVault;
   const fromEnv = getEnv().GOOGLE_GEMINI_API_KEY;
   if (fromEnv) return fromEnv;
   throw new NanoBananaGenerationError(
-    "Google Gemini API key not configured (set via installer/vault as ('nano-banana', 'api_key') or GOOGLE_GEMINI_API_KEY env)",
+    "Google Gemini API key not configured (set via installer/vault as ('nano-banana', 'api_key') or GOOGLE_GEMINI_API_KEY env)"
   );
 }
 
@@ -115,20 +99,22 @@ export type RetrieveBatchResult = {
 };
 
 /**
- * One result entry after batch completion. The processor uploads each successful
- * inline image to R2 BEFORE returning, so `r2Key` + `publicUrl` are stable
- * references the resume worker can stash in `image_batch_requests.response_body`.
+ * One result entry after batch completion. Spec 64.15 Phase A: the adapter no
+ * longer touches R2 — it returns raw decoded bytes + the sniff-able format hint
+ * so the worker can route the bytes through `@marketing-auto/adapter-image-webp`
+ * (Pattern 119). The worker owns DB context (projectId, storagePrefix) and is
+ * the natural site for the storage hop.
  *
- * On the failure path, `error` is populated and `r2Key` / `publicUrl` are empty
- * strings — HeroImageStep's graceful-skip kicks in on resume.
+ * On the failure path, `error` is populated — HeroImageStep's graceful-skip
+ * kicks in on resume.
  */
 export type BatchImageResult =
   | {
       customId: string;
       status: "succeeded";
-      r2Key: string;
-      publicUrl: string;
-      bytesStored: number;
+      imageBytes: Uint8Array;
+      /** MIME-style format hint from Gemini's `inlineData.mimeType` (e.g. "webp", "png"). */
+      contentTypeHint: string;
       seed: number | null;
     }
   | {
@@ -206,12 +192,12 @@ export async function createImageBatch(input: {
         : undefined;
   if (typeof batchName !== "string" || !batchName.startsWith("batches/")) {
     throw new NanoBananaGenerationError(
-      `Gemini batchGenerateContent response missing 'name' (got keys: ${Object.keys(response ?? {}).join(",")})`,
+      `Gemini batchGenerateContent response missing 'name' (got keys: ${Object.keys(response ?? {}).join(",")})`
     );
   }
   log.info(
     { batchName, requestCount: input.requests.length, model: input.model },
-    "createImageBatch: submitted",
+    "createImageBatch: submitted"
   );
   return { batchName, requestCount: input.requests.length };
 }
@@ -256,11 +242,17 @@ export function classifyState(rawState: string): BatchState {
 }
 
 /**
- * Fetch results for a SUCCEEDED batch + upload each inline image to R2.
+ * Fetch results for a SUCCEEDED batch.
  *
  * Returns one entry per customId. Mixed success/failure within a batch is
  * normal (one prompt can be blocked while others succeed) — caller handles
  * per-row status individually.
+ *
+ * Spec 64.15 Phase A: the adapter no longer uploads to R2. It returns raw
+ * decoded bytes + a content-type hint so the worker can pipe them through
+ * `@marketing-auto/adapter-image-webp` (Pattern 119: magic-byte sniff + WebP
+ * conversion + forensic original side-by-side). The hint is only that — the
+ * webp adapter sniffs the actual bytes (Gemini lies, per 64.6 Discovery #14).
  */
 export async function fetchBatchResults(batchName: string): Promise<BatchImageResult[]> {
   const apiKey = await getApiKey();
@@ -271,13 +263,14 @@ export async function fetchBatchResults(batchName: string): Promise<BatchImageRe
 }
 
 /**
- * Pure-ish helper exported for unit tests. Walks the retrieve response's
- * `inlinedResponses[]` array, extracts inline images, uploads each to R2,
- * and returns the per-customId result list. The R2 upload is the only side
- * effect — credentials are resolved by adapter-storage internally.
+ * Pure helper exported for unit tests. Walks the retrieve response's
+ * `inlinedResponses[]` array and extracts inline image bytes + format hint.
+ *
+ * No side effects — the caller (worker) owns the R2 upload via
+ * `@marketing-auto/adapter-image-webp`.
  */
 export async function parseAndStoreInlinedResponses(
-  response: Record<string, unknown>,
+  response: Record<string, unknown>
 ): Promise<BatchImageResult[]> {
   // Inline-mode results live at `response.response.inlinedResponses.inlinedResponses[]`
   // OR `response.inlinedResponses[]` depending on the response shape variant.
@@ -286,7 +279,7 @@ export async function parseAndStoreInlinedResponses(
   if (!Array.isArray(inlined) || inlined.length === 0) {
     log.warn(
       { keys: Object.keys(response).join(",") },
-      "fetchBatchResults: no inlinedResponses in batch retrieve",
+      "fetchBatchResults: no inlinedResponses in batch retrieve"
     );
     return [];
   }
@@ -324,41 +317,17 @@ export async function parseAndStoreInlinedResponses(
       continue;
     }
 
-    // R2 upload — same storage path scheme as sync adapter for filename hygiene.
-    // The storagePrefix is encoded into the request_body at HeroImageStep time
-    // and passed through metadata.storagePrefix on the inlined entry; fall back
-    // to a project-neutral prefix if missing.
-    const storagePrefix =
-      typeof metadata.storagePrefix === "string" && metadata.storagePrefix.length > 0
-        ? metadata.storagePrefix
-        : "batch/articles/hero";
-    const ext = FORMAT_TO_EXT[inlineImage.format] ?? "webp";
-    const mime = FORMAT_TO_MIME[inlineImage.format] ?? "image/webp";
-    const key = `${storagePrefix.replace(/^\/|\/$/g, "")}/${randomUUID()}.${ext}`;
-
-    try {
-      const stored = await putObject({
-        key,
-        body: inlineImage.bytes,
-        contentType: mime,
-        cacheControl: "public, max-age=31536000, immutable",
-      });
-      results.push({
-        customId,
-        status: "succeeded",
-        r2Key: stored.key,
-        publicUrl: stored.publicUrl,
-        bytesStored: stored.bytesStored,
-        seed: inlineImage.seed,
-      });
-    } catch (err) {
-      log.error({ err, customId, key }, "fetchBatchResults: R2 upload failed");
-      results.push({
-        customId,
-        status: "failed",
-        error: `R2 upload failed: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
+    // Spec 64.15 Phase A: surface raw bytes — the worker will route through
+    // adapter-image-webp for magic-byte sniff + sharp conversion + originals/
+    // forensic copy. The contentTypeHint is from Gemini's `inlineData.mimeType`
+    // and is informational only (the WebP adapter sniffs the actual bytes).
+    results.push({
+      customId,
+      status: "succeeded",
+      imageBytes: inlineImage.bytes,
+      contentTypeHint: `image/${inlineImage.format}`,
+      seed: inlineImage.seed,
+    });
   }
   return results;
 }
@@ -383,7 +352,7 @@ function findInlinedResponses(response: Record<string, unknown>): unknown[] | nu
 }
 
 function extractFirstInlineImage(
-  responseObj: Record<string, unknown> | undefined,
+  responseObj: Record<string, unknown> | undefined
 ): { bytes: Uint8Array; format: string; seed: number | null } | null {
   if (!responseObj) return null;
   const candidates = responseObj.candidates as Array<Record<string, unknown>> | undefined;
@@ -417,7 +386,7 @@ async function callGeminiBatchWithRetry(
   url: string,
   apiKey: string,
   body: Record<string, unknown> | null,
-  method: "POST" | "GET" = "POST",
+  method: "POST" | "GET" = "POST"
 ): Promise<{ response: Record<string, unknown> }> {
   let lastError: unknown = null;
   let lastWasRateLimit = false;
@@ -438,14 +407,17 @@ async function callGeminiBatchWithRetry(
       if (resp.status === 429) {
         const text = await resp.text().catch(() => "");
         lastError = new NanoBananaGenerationError(
-          `Gemini batch 429 ${resp.statusText}: ${text.slice(0, 200)}`,
+          `Gemini batch 429 ${resp.statusText}: ${text.slice(0, 200)}`
         );
         lastWasRateLimit = true;
-        log.warn({ attempt, status: 429, bodyExcerpt: text.slice(0, 200) }, "Batch 429 — backing off");
+        log.warn(
+          { attempt, status: 429, bodyExcerpt: text.slice(0, 200) },
+          "Batch 429 — backing off"
+        );
       } else if (resp.status >= 500 && resp.status < 600) {
         const text = await resp.text().catch(() => "");
         lastError = new NanoBananaGenerationError(
-          `Gemini batch ${resp.status} ${resp.statusText}: ${text.slice(0, 200)}`,
+          `Gemini batch ${resp.status} ${resp.statusText}: ${text.slice(0, 200)}`
         );
         lastWasRateLimit = false;
         log.warn({ attempt, status: resp.status }, "Batch transient failure — retrying");
@@ -453,14 +425,14 @@ async function callGeminiBatchWithRetry(
         // 4xx (non-429) → fail-fast.
         const text = await resp.text().catch(() => "");
         throw new NanoBananaGenerationError(
-          `Gemini batch ${resp.status} ${resp.statusText}: ${text.slice(0, 500)}`,
+          `Gemini batch ${resp.status} ${resp.statusText}: ${text.slice(0, 500)}`
         );
       } else {
         const json = (await resp.json()) as Record<string, unknown>;
         const apiError = json.error as { message?: string; code?: number } | undefined;
         if (apiError?.message) {
           throw new NanoBananaGenerationError(
-            `Gemini batch API error: ${apiError.message} (code ${apiError.code ?? "n/a"})`,
+            `Gemini batch API error: ${apiError.message} (code ${apiError.code ?? "n/a"})`
           );
         }
         return { response: json };
@@ -488,11 +460,11 @@ async function callGeminiBatchWithRetry(
   if (lastWasRateLimit) {
     throw new NanoBananaGenerationError(
       `Batch rate limited after ${MAX_ATTEMPTS} attempts`,
-      lastError,
+      lastError
     );
   }
   throw new NanoBananaGenerationError(
     `Batch call failed after ${MAX_ATTEMPTS} attempts`,
-    lastError,
+    lastError
   );
 }

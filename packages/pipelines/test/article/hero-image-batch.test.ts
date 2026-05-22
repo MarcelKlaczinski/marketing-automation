@@ -168,6 +168,7 @@ beforeEach(async () => {
       llmMode: "batch",
       diversityThreshold: 0.5,
       diversityMalusWeight: 0.5,
+      planDiversityLookbackWeeks: 3,
       imageGenerationProvider: "nano-banana-2",
       imageGenerationResolution: "1k",
     },
@@ -318,6 +319,10 @@ describe("HeroImageStep batch-resume branch (Spec 64.7)", () => {
     expect(result.r2Key).toBe(r2Key);
     expect(result.publicUrl).toBe(publicUrl);
     expect(result.altText).toContain("Test Article");
+    // Spec 64.15 Phase A: pre-Phase-A responseBody omits originalR2Key. The
+    // step surfaces it as null so the bridge → PersistArticleStep contract
+    // stays uniform (the column is NULL-able and means "no forensic copy").
+    expect(result.originalR2Key).toBeNull();
 
     // The image-batch-processor worker writes the authoritative actual-cost
     // log when the Gemini result arrives — the resume branch in the step
@@ -328,6 +333,37 @@ describe("HeroImageStep batch-resume branch (Spec 64.7)", () => {
       .from(costLogs)
       .where(eq(costLogs.pipelineRunId, pipelineRunId));
     expect(logs).toHaveLength(0);
+  });
+
+  it("Spec 64.15 Phase A: surfaces originalR2Key from ctx.batchResult when worker stored a non-WebP original", async () => {
+    // Simulates the worker's post-64.15 responseBody — convertImageToWebp
+    // detected a PNG input and stored both canonical WebP + originals/<uuid>.png
+    // side by side. The forensic key flows through the resume content blob.
+    const r2Key = "toolwiki/articles/hero/xyz.webp";
+    const publicUrl = "https://cdn.test/xyz.webp";
+    const originalR2Key = "toolwiki/articles/hero/originals/xyz.png";
+    const responseBody = {
+      r2Key,
+      publicUrl,
+      originalR2Key,
+      costEur: 0.031,
+      seed: 42,
+    };
+
+    const step = new HeroImageStep();
+    const ctx = makeMockCtx({
+      projectId,
+      pipelineRunId,
+      llmMode: "batch",
+      batchResult: { stepKey: "hero-image", content: JSON.stringify(responseBody) },
+    });
+
+    const result = await step.execute({ articleId, projectId, projectSlug }, ctx);
+    expect(result.r2Key).toBe(r2Key);
+    expect(result.publicUrl).toBe(publicUrl);
+    // The whole point of Phase A: forensic original key reaches the step
+    // so the bridge can write it to articles.hero_image_original_r2_key.
+    expect(result.originalR2Key).toBe(originalR2Key);
   });
 
   it("returns skipped+empty hero when ctx.batchResult carries an error", async () => {

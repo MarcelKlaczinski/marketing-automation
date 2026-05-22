@@ -610,6 +610,17 @@ This works whenever the hook's side-effect (DB insert, queue enqueue) precedes a
 
 **Test injection:** all three selector classes accept optional `Select*Deps.create*EmbeddingProvider` factories. Real runs use Voyage-backed defaults; tests use `createNullBriefProvider` / `createNullSignalProvider` / `createNullArticleProvider` from `test/planning/lib/null-providers.ts` to stay offline. New planner selectors that take adapter calls should follow the same DI shape.
 
+### Cross-week diversity + precomputed embeddings (Spec 64.15)
+
+Phase B + C extend the 63.5 within-plan picker with two strictly-additive layers:
+
+- **Cross-week seeding** — [`packages/pipelines/src/planning/lib/cross-week-diversity.ts`](src/planning/lib/cross-week-diversity.ts) `loadHistoricalPlanEmbeddings(projectId, lookbackWeeks, embeddingProvider, excludePlanId?)` loads briefs from the last N past plans (`status IN approved/running/completed/partially_failed`) and feeds them into `pickWithDiversity.initialPickedEmbeddings` — the SAME field 63.5 uses for cross-step Floor → Overage seeding. `SelectFloorItemsStep` is the only consumer today; if a future selector wants cross-week awareness, call the loader once and concat into `initialPickedEmbeddings`. Gated by `lookbackWeeks > 0 && malusWeight > 0` so opt-out is free.
+- **Precomputed `topic_briefs.embedding`** — migration 0093 added `vector(1024)` + HNSW. `createPlanRunEmbeddingProvider.getForBrief` checks `brief.embedding` first; falls back to Voyage on-the-fly + lazy-backfills the column via `lazyBackfillBriefEmbedding(briefId, embedding)`. Trend-discovery's [emit-brief.ts](src/topic-sources/trend-discovery/emit-brief.ts) pre-computes via `computeBriefEmbedding(brief, opts)` (async helper chained AFTER the pure `buildBriefFromCandidate`). Soft-fail on Voyage error keeps brief insertion non-blocking.
+
+**Snapshot SSoT extension:** `planDiversityLookbackWeeks` joins `diversityThreshold + diversityMalusWeight` in `plannerConfigSnapshot.config` (62.5.1 precedent) — `SnapshotInputsStep` reads `PLAN_DIVERSITY_LOOKBACK_WEEKS` env once + freezes, all selectors read from snapshot. Default 3 keeps pre-64.15 plans replaying cleanly.
+
+**`buildBriefFromCandidate` stays pure-sync.** Voyage I/O lives in a separate async `computeBriefEmbedding(brief, opts)` chained at the call site. Same pattern applies whenever a future builder needs side-effectful enrichment: keep the structural transformation synchronous + testable, split the I/O into a named async helper that callers compose. The pure builder stays unit-testable without DB / Voyage mocks; non-trend-discovery callers (manual brief creation, gap-detection, comparison-discovery) skip the upfront Voyage call and rely on lazy-backfill at first plan-runner read.
+
 ## Adding a Planner content_type (Spec 64.1)
 
 `content_type` discriminates planner buckets, cost estimation, dispatch, and UI presentation. Adding a value requires coordinated edits across 6 files in 5 packages — no DB migration is needed because the DB columns (`planned_items.content_type` + `project_goals.content_type`) are plain `text NOT NULL` since 62.2 (Memory D12). The Zod-validated enum in `@marketing-auto/shared/types/project-goals` is the only validation gate.

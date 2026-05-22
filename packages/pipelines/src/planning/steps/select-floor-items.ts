@@ -15,14 +15,15 @@ import type { ProjectGoal, TopicBrief } from "@marketing-auto/db";
 import type { WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { loadHistoricalPlanEmbeddings } from "../lib/cross-week-diversity.ts";
 import {
-  createPlanRunEmbeddingProvider,
   type BriefEmbeddingProvider,
+  createPlanRunEmbeddingProvider,
 } from "../lib/diversity-embedding.ts";
 import {
+  type DiversityPickReason,
   normalizeBriefBaseScore,
   pickWithDiversity,
-  type DiversityPickReason,
 } from "../lib/pick-with-diversity.ts";
 import {
   PIPELINE_NAME_BY_CONTENT_TYPE,
@@ -130,7 +131,7 @@ export function targetWeeklyCount(goal: Pick<ProjectGoal, "cadenceUnit" | "minCo
  * (subtracts already-Floored picks to compute remaining capacity).
  */
 export function weeklyMaxFromGoal(
-  goal: Pick<ProjectGoal, "cadenceUnit" | "maxCount">,
+  goal: Pick<ProjectGoal, "cadenceUnit" | "maxCount">
 ): number | null {
   if (goal.maxCount === null) return null;
   return goal.cadenceUnit === "per_day" ? goal.maxCount * 7 : goal.maxCount;
@@ -144,7 +145,7 @@ function briefLocale(brief: TopicBrief): "de" | "en" | null {
 function pipelineInputFromBrief(
   brief: TopicBrief,
   contentType: PlanningContentType,
-  projectId: string,
+  projectId: string
 ): Record<string, unknown> {
   // `title` is read by PlannerItemCard for the calendar headline; prefer the
   // LLM-polished `suggestedTitle` when set, otherwise the raw NOT NULL
@@ -218,13 +219,14 @@ const DIVERSITY_FLOOR_CONTENT_TYPES: ReadonlySet<PlanningContentType> = new Set(
 ]);
 
 /**
- * Spec 63.5: optional dep-injection for the embedding provider. Real runs
- * use the Voyage-backed provider from `createPlanRunEmbeddingProvider`;
- * tests can pass a stub that returns null synchronously so the picker
- * degrades to FIFO without hitting Voyage / cost_logs.
+ * Spec 63.5 + 64.15 Phase B: optional dep-injection for the embedding provider
+ * AND the cross-week historical-embedding loader. Real runs use the Voyage-
+ * backed defaults; tests pass stubs that return empty/null so the picker
+ * degrades cleanly without hitting Voyage or external rows.
  */
 export interface SelectFloorDeps {
   createEmbeddingProvider?: typeof createPlanRunEmbeddingProvider;
+  loadHistoricalPlanEmbeddings?: typeof loadHistoricalPlanEmbeddings;
 }
 
 export class SelectFloorItemsStep extends BaseStep<Input, Output> {
@@ -232,16 +234,17 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
   readonly inputSchema = selectFloorInputSchema;
   readonly outputSchema = selectFloorOutputSchema;
   private readonly createEmbeddingProvider: typeof createPlanRunEmbeddingProvider;
+  private readonly loadHistoricalPlanEmbeddings: typeof loadHistoricalPlanEmbeddings;
 
   constructor(deps?: SelectFloorDeps) {
     super();
-    this.createEmbeddingProvider =
-      deps?.createEmbeddingProvider ?? createPlanRunEmbeddingProvider;
+    this.createEmbeddingProvider = deps?.createEmbeddingProvider ?? createPlanRunEmbeddingProvider;
+    this.loadHistoricalPlanEmbeddings =
+      deps?.loadHistoricalPlanEmbeddings ?? loadHistoricalPlanEmbeddings;
   }
 
   async execute(input: Input, ctx: StepContext): Promise<Output> {
-    const goals =
-      ctx.getStepOutput<{ goals: ProjectGoal[] }>("validate-goals")?.goals ?? [];
+    const goals = ctx.getStepOutput<{ goals: ProjectGoal[] }>("validate-goals")?.goals ?? [];
     const briefs =
       ctx.getStepOutput<{ topicBriefs: TopicBrief[] }>("load-topic-briefs")?.topicBriefs ?? [];
 
@@ -250,7 +253,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
     // Falls back to (0.5, 0.5) when the snapshot is missing the field —
     // covers pre-63.5 plans being re-executed.
     const snapshot = ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>(
-      "snapshot-inputs",
+      "snapshot-inputs"
     )?.snapshot;
     const diversityConfig = {
       threshold: snapshot?.config.diversityThreshold ?? 0.5,
@@ -266,6 +269,31 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       projectId: input.projectId,
       ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
     });
+
+    // Spec 64.15 Phase B: load historical brief embeddings ONCE per step run
+    // and pass them to the picker via `initialPickedEmbeddings`. The same
+    // historical set seeds every goal-loop iteration — within-plan diversity
+    // (pickedEmbeddings growing in the picker) layers on top, so the more
+    // floor items get picked, the harder the picker pushes new ones away
+    // from BOTH the historical anchors and the current-plan picks.
+    //
+    // `lookbackWeeks === 0` short-circuits inside the helper. Provider is
+    // shared with the within-plan picker so cache hits across both paths.
+    const lookbackWeeks = snapshot?.config.planDiversityLookbackWeeks ?? 3;
+    const historicalEmbeddings =
+      diversityConfig.malusWeight > 0 && lookbackWeeks > 0
+        ? await this.loadHistoricalPlanEmbeddings(input.projectId, lookbackWeeks, embeddingProvider)
+        : [];
+    if (historicalEmbeddings.length > 0) {
+      ctx.log.info(
+        {
+          projectId: input.projectId,
+          lookbackWeeks,
+          historicalEmbeddings: historicalEmbeddings.length,
+        },
+        "select-floor-items: cross-week diversity seeded from past plans"
+      );
+    }
 
     // Bucket briefs by matched content type once, then drain per goal.
     const buckets: Record<PlanningContentType, TopicBrief[]> = {
@@ -304,7 +332,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       if (contentType === null) {
         ctx.log.warn(
           { contentType: goal.contentType, goalId: goal.id },
-          "select-floor-items: goal has unknown content type; skipped",
+          "select-floor-items: goal has unknown content type; skipped"
         );
         continue;
       }
@@ -320,7 +348,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       if (cap < target) {
         ctx.log.warn(
           { contentType, target, weeklyMax, downsizedTo: cap, goalId: goal.id },
-          "select-floor-items: floor target capped by max_count",
+          "select-floor-items: floor target capped by max_count"
         );
       }
       const pool = buckets[contentType] ?? [];
@@ -348,6 +376,10 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
             return normalizeBriefBaseScore(brief, idx, poolSnapshot.length);
           },
           getItemId: (brief) => brief.id,
+          // Spec 64.15 Phase B: seed cross-week diversity. Same array is
+          // reused across goal iterations — the within-plan pickedEmbeddings
+          // layer extends it inside the picker per pick.
+          initialPickedEmbeddings: historicalEmbeddings,
         });
         picked = result.picked;
         diversityReasons = result.reasons;
@@ -409,7 +441,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
         shortfalls[contentType] = target - picked.length;
         ctx.log.warn(
           { contentType, requested: target, picked: picked.length, cap },
-          "select-floor-items: cadence not fully reachable",
+          "select-floor-items: cadence not fully reachable"
         );
       }
     }

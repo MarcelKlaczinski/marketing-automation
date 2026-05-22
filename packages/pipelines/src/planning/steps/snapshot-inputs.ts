@@ -6,13 +6,14 @@
 
 import { db, eq, projects, type ProjectGoal, type ProjectPlannerConfig, type TopicBrief } from "@marketing-auto/db";
 import { type SignalRefreshResult, computeSignalTopN } from "@marketing-auto/planner";
-import type {
-  GoalSnapshotEntry,
-  PlannerConfigSnapshot,
-  SignalRefreshResultSnapshot,
-  SignalTopNEntry,
-  TopicBriefSnapshotEntry,
-  WeeklyPlanInputSnapshot,
+import {
+  type GoalSnapshotEntry,
+  type PlannerConfigSnapshot,
+  type SignalRefreshResultSnapshot,
+  type SignalTopNEntry,
+  type TopicBriefSnapshotEntry,
+  type WeeklyPlanInputSnapshot,
+  getEnv,
 } from "@marketing-auto/shared";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -97,6 +98,10 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       // side → string at the Drizzle boundary; coerced to JS number here.
       diversityThreshold: Number(config.diversityThreshold),
       diversityMalusWeight: Number(config.diversityMalusWeight),
+      // Spec 64.15 Phase B: freeze the cross-week diversity lookback at plan-
+      // generation time so replays reproduce the same picks even if the env
+      // changes. Same SSoT discipline as llmMode / diversityThreshold.
+      planDiversityLookbackWeeks: getEnv().PLAN_DIVERSITY_LOOKBACK_WEEKS,
       imageGenerationProvider,
       imageGenerationResolution,
     };

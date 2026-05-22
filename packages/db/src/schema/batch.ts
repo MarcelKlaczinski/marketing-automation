@@ -170,6 +170,15 @@ export type ImageBatchRequestBody = {
 export type ImageBatchResponseBody = {
   r2Key: string;
   publicUrl: string;
+  // Spec 64.15 Phase A: R2 key of the pre-conversion original (PNG/JPEG/etc.).
+  // NULL when the input was already WebP (fast-path), when the conversion adapter
+  // opted out via discardOriginal, or when the row predates 64.15 (pre-Phase-A
+  // batch outputs never had a forensic original — populated only by new runs).
+  // Round-trips through resumeImageBatchPipeline → ctx.batchResult.content →
+  // HeroImageStep batch-resume → bridge → PersistArticleStep so batch-generated
+  // heroes land with `articles.hero_image_original_r2_key` populated, matching
+  // the sync path's Pattern 119 contract.
+  originalR2Key?: string | null;
   costEur: number;
   seed: number | null;
   // Populated on the failure path. Status is then 'failed' and resume re-enqueues

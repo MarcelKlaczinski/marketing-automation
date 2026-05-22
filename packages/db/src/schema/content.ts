@@ -798,6 +798,14 @@ export const topicBriefs = pgTable(
     refreshMetadata:    jsonb("refresh_metadata").$type<RefreshMetadata>(),
     comparisonMetadata: jsonb("comparison_metadata").$type<ComparisonMetadata>(),
 
+    // Spec 64.15 Phase C: precomputed Voyage-3 embedding (1024d). emit-brief.ts
+    // (trend-discovery) writes this at brief-creation time so the planner doesn't
+    // pay the Voyage call per plan-run. Lazy-backfilled via ensureEmbedding() for
+    // legacy + manual + comparison_discovery briefs that bypass emit-brief.ts.
+    // HNSW cosine index — see migration 0093 — also enables future
+    // "find similar briefs" UI without a follow-up migration.
+    embedding: vector("embedding", { dimensions: 1024 }),
+
     // Spec 54.3: direct FK to the article/spec created by executeDecision
     // FKs declared via raw SQL migration (54.1 convention — avoids circular ordering within this file)
     routedArticleId:         uuid("routed_article_id"),
@@ -875,6 +883,12 @@ export const TopicBriefInsertSchema = z
     trendMetadata:      TrendMetadataSchema.nullable().optional(),
     refreshMetadata:    RefreshMetadataSchema.nullable().optional(),
     comparisonMetadata: ComparisonMetadataSchema.nullable().optional(),
+
+    // Spec 64.15 Phase C: precomputed Voyage-3 embedding for plan diversity.
+    // Optional + nullable: emit-brief.ts (trend-discovery) populates this at
+    // brief creation; other sources (manual, comparison-discovery, gap-detection)
+    // rely on lazy-backfill via the diversity provider's first read.
+    embedding: z.array(z.number()).length(1024).nullable().optional(),
   })
   .superRefine((data, ctx) => {
     const hasGap        = data.gapMetadata        != null;

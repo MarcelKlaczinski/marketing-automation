@@ -134,14 +134,21 @@ export class HeroImageStep extends BaseStep<
           articleId: input.articleId,
           r2Key: parsed.r2Key,
           publicUrl: parsed.publicUrl,
+          originalR2Key: parsed.originalR2Key ?? null,
           costEur: parsed.costEur,
         },
         "HeroImageStep batch-resume: hero image restored from batch result",
       );
+      // Spec 64.15 Phase A: surface the forensic original R2 key from the
+      // worker's convertImageToWebp call. NULL when the input was already WebP
+      // (fast path) or when the row predates 64.15. Bubbles up to the bridge →
+      // PersistArticleStep so `articles.hero_image_original_r2_key` is populated
+      // for batch-generated heroes, matching the sync path's Pattern 119 contract.
       return {
         r2Key: parsed.r2Key,
         publicUrl: parsed.publicUrl,
         altText,
+        originalR2Key: parsed.originalR2Key ?? null,
       };
     }
 

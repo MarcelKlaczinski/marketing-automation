@@ -135,6 +135,12 @@ export const plannerConfigSnapshotSchema = z.object({
   // snapshots written before 63.5.
   diversityThreshold: z.number().min(0).max(1).default(0.5),
   diversityMalusWeight: z.number().min(0).max(2).default(0.5),
+  // Spec 64.15 Phase B: how many past weekly plans the Floor selector should
+  // consult to seed cross-week diversity. Set 0 to disable cross-week diversity
+  // entirely (within-plan diversity from 63.5 still runs). Default 3 matches
+  // PLAN_DIVERSITY_LOOKBACK_WEEKS env default and keeps pre-64.15 plans replaying
+  // cleanly — same SSoT discipline as llmMode / diversityThreshold.
+  planDiversityLookbackWeeks: z.number().int().min(0).default(3),
   // Spec 64.6b: hero-image generation toggle. Captured from `projects` at plan
   // time so cost estimates match the budget Marcel saw at approval. Defaults
   // mirror the DB column defaults so plans written before 64.6b parse cleanly.

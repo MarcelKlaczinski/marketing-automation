@@ -45,6 +45,7 @@ function brief(overrides: Partial<TopicBrief> = {}): TopicBrief {
     routedCornerstoneSpecId: null,
     routedClusterId: null,
     routedViaPlanItemId: null,
+    embedding: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

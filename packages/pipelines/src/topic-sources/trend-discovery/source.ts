@@ -18,7 +18,11 @@ import { synthesizeTopics } from "./synthesize.ts";
 import { checkExistingCoverage } from "./coverage.ts";
 import { computeTrendScore } from "./score.ts";
 import { findMatchingCluster } from "./cluster-match.ts";
-import { buildBriefFromCandidate, normalizeCandidateTitle } from "./emit-brief.ts";
+import {
+  buildBriefFromCandidate,
+  computeBriefEmbedding,
+  normalizeCandidateTitle,
+} from "./emit-brief.ts";
 import { loadActiveConfig } from "../../config/load-active-config.ts";
 import type { SynthesisTopic } from "./types.ts";
 
@@ -146,7 +150,17 @@ export class TrendDiscoveryTopicSource implements TopicSource<Input> {
         signalPool: signals,
       });
 
-      briefsToEmit.push(brief);
+      // Spec 64.15 Phase C: precompute the Voyage-3 embedding once at brief-
+      // creation time so the planner doesn't pay the per-plan-run Voyage
+      // call. Failures inside `computeBriefEmbedding` log a warn and return
+      // the brief unchanged — the lazy-backfill path at plan-runner read time
+      // covers the embedding-NULL case.
+      const briefWithEmbedding = await computeBriefEmbedding(brief, {
+        projectId,
+        ...(pipelineRunId !== undefined && { pipelineRunId }),
+      });
+
+      briefsToEmit.push(briefWithEmbedding);
       // Signal stamping for accepted briefs is deferred to the worker, which stamps
       // them with processed_into = brief.id after the DB insert returns the brief UUID.
 

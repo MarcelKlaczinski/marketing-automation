@@ -1,9 +1,12 @@
-// Spec 64.7: Nano-Banana batch adapter tests.
+// Spec 64.7 + 64.15: Nano-Banana batch adapter tests.
 //
 // All tests stay offline:
 //   - fetch is replaced with a mock returning canned JSON bodies
-//   - R2 putObject is replaced via mock.module() to avoid hitting real storage
 //   - getGlobal credentials are replaced with a vault stub that returns a fake key
+//
+// Spec 64.15 Phase A: the adapter no longer uploads to R2 — `fetchBatchResults`
+// returns raw decoded bytes + a content-type hint and the worker pipes them
+// through `@marketing-auto/adapter-image-webp`. No `adapter-storage` mock needed.
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 
 const ORIGINAL_FETCH = globalThis.fetch;
@@ -13,15 +16,6 @@ type FetchFn = typeof globalThis.fetch;
 
 mock.module("@marketing-auto/core/credentials", () => ({
   getGlobal: mock(async () => "test-api-key"),
-}));
-
-mock.module("@marketing-auto/adapter-storage", () => ({
-  putObject: mock(async (input: { key: string; body: Uint8Array }) => ({
-    key: input.key,
-    publicUrl: `https://cdn.test/${input.key}`,
-    bytesStored: input.body.byteLength,
-    contentType: "image/webp",
-  })),
 }));
 
 const {
@@ -199,8 +193,8 @@ describe("retrieveBatch", () => {
 
 // ─── parseAndStoreInlinedResponses ────────────────────────────────────────────
 
-describe("parseAndStoreInlinedResponses", () => {
-  it("uploads inline image to R2 and returns succeeded result with r2Key + publicUrl", async () => {
+describe("parseAndStoreInlinedResponses (Spec 64.15 Phase A — raw-bytes contract)", () => {
+  it("returns succeeded result with raw imageBytes + contentTypeHint (no R2 upload)", async () => {
     const response = {
       response: {
         inlinedResponses: {
@@ -231,8 +225,10 @@ describe("parseAndStoreInlinedResponses", () => {
     expect(r.status).toBe("succeeded");
     if (r.status === "succeeded") {
       expect(r.customId).toBe("img-run-1");
-      expect(r.r2Key).toMatch(/^toolwiki\/articles\/hero\/.+\.webp$/);
-      expect(r.publicUrl).toContain("https://cdn.test/");
+      // Spec 64.15: bytes surface directly — the worker handles convertImageToWebp.
+      expect(r.imageBytes).toBeInstanceOf(Uint8Array);
+      expect(r.imageBytes.byteLength).toBeGreaterThan(0);
+      expect(r.contentTypeHint).toBe("image/webp");
       expect(r.seed).toBe(42);
     }
   });

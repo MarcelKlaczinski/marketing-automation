@@ -1,5 +1,10 @@
-import type { TopicBriefInsert, ExternalSignal } from "@marketing-auto/db";
-import type { SynthesisTopic, ScoreBreakdown, ClusterMatchResult } from "./types.ts";
+import { voyage } from "@marketing-auto/adapter-voyage";
+import { COST_OPS } from "@marketing-auto/core/cost";
+import type { ExternalSignal, TopicBriefInsert } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
+import type { ClusterMatchResult, ScoreBreakdown, SynthesisTopic } from "./types.ts";
+
+const log = createLogger("pipelines:trend-discovery:emit-brief");
 
 // ─── Normalise candidate title for dedup ──────────────────────────────────────
 
@@ -18,12 +23,18 @@ export type BuildBriefInput = {
   signalPool: ExternalSignal[];
 };
 
+// Spec 64.15 Phase C: the Voyage embedding is NOT computed inside the pure
+// builder below. Callers chain `computeBriefEmbedding(brief, opts)` after
+// `buildBriefFromCandidate(...)` to add the embedding field. Splitting the
+// I/O from the pure shape lets unit tests exercise builder logic without a
+// network dep, and lets non-trend-discovery callers (manual brief creation,
+// gap-detection, comparison-discovery) skip the upfront Voyage call and rely
+// on lazy-backfill at first plan-runner read.
+
 export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInsert {
   const { projectId, locale, candidate, score, clusterMatch, signalPool } = input;
 
-  const candidateSignals = signalPool.filter((s) =>
-    candidate.related_signal_ids.includes(s.id),
-  );
+  const candidateSignals = signalPool.filter((s) => candidate.related_signal_ids.includes(s.id));
 
   // Spec 63.4: knowledge briefs use Hub-Spoke. With a match → append_to_existing
   // (under whatever cluster matched — Marcel's call to allow tools/comparisons
@@ -75,4 +86,64 @@ export function buildBriefFromCandidate(input: BuildBriefInput): TopicBriefInser
     trendMetadata,
     ...clusterFields,
   };
+}
+
+// ─── Voyage embedding computation (Spec 64.15 Phase C) ────────────────────────
+
+/**
+ * Build the embedding-text string for a brief insert. Mirrors
+ * `buildEmbeddingText(TopicBrief)` in diversity-embedding.ts — but works on
+ * `TopicBriefInsert` (pre-insert shape) so emit-brief.ts can compute the
+ * embedding BEFORE the row reaches the DB.
+ *
+ * Returns null when neither field carries useful text — `computeBriefEmbedding`
+ * then skips the Voyage call and the row inserts with `embedding=NULL`. The
+ * lazy-backfill in `ensureBriefEmbedding` covers that case at first read.
+ */
+function buildInsertEmbeddingText(brief: TopicBriefInsert): string | null {
+  const primary = (brief.primaryKeyword ?? "").trim();
+  const title = (brief.topicTitle ?? "").trim();
+  if (primary && title) return `${primary} ${title}`;
+  if (primary) return primary;
+  if (title) return title;
+  return null;
+}
+
+/**
+ * Compute the Voyage-3 embedding for a brief-insert and return a new insert
+ * object with `embedding` populated. Idempotent + pure-ish: when the input
+ * already carries an embedding, the existing value passes through unchanged
+ * (callers can pre-compute and chain). When Voyage fails, the function logs
+ * a warn and returns the input unchanged so the brief still inserts.
+ *
+ * Cost: 1 Voyage embed call (~€0.0003) per brief — paid once at brief-creation
+ * time instead of N times per plan-run. Spec 64.15 Phase C.
+ */
+export async function computeBriefEmbedding(
+  brief: TopicBriefInsert,
+  opts: { projectId: string; pipelineRunId?: string }
+): Promise<TopicBriefInsert> {
+  if (brief.embedding !== undefined && brief.embedding !== null) {
+    return brief;
+  }
+  const text = buildInsertEmbeddingText(brief);
+  if (text === null) {
+    return brief;
+  }
+  try {
+    const embedding = await voyage.embed(text, {
+      projectId: opts.projectId,
+      operation: COST_OPS.VOYAGE_EMBED_TEXT,
+      ...(opts.pipelineRunId !== undefined && { pipelineRunId: opts.pipelineRunId }),
+    });
+    return { ...brief, embedding };
+  } catch (err) {
+    // Soft failure: brief still inserts without an embedding; lazy-backfill
+    // at first plan-runner read will retry.
+    log.warn(
+      { err, projectId: opts.projectId, topicTitle: brief.topicTitle },
+      "computeBriefEmbedding: Voyage embed failed — proceeding without embedding"
+    );
+    return brief;
+  }
 }

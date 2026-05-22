@@ -73,6 +73,7 @@ beforeEach(async () => {
       llmMode: "batch",
       diversityThreshold: 0.5,
       diversityMalusWeight: 0.5,
+      planDiversityLookbackWeeks: 3,
       imageGenerationProvider: "nano-banana-2",
       imageGenerationResolution: "1k",
     },

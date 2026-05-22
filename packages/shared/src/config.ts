@@ -98,6 +98,15 @@ const envSchema = z.object({
   RENDER_RECONCILIATION_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(15),
   PIPELINE_NOTIFICATIONS_ENABLED: z.coerce.boolean().default(true),
 
+  // Spec 64.15 Phase B: how many past weekly plans to consider when applying
+  // cross-week topic diversity in the Floor selector. Default 3 covers typical
+  // recency-bias without forcing long-running projects to compete against
+  // multi-month-old topics. Set 0 to disable cross-week diversity (within-plan
+  // diversity from 63.5 still runs). SnapshotInputsStep freezes the value into
+  // `plannerConfigSnapshot.planDiversityLookbackWeeks` at plan-generation time,
+  // mirroring 62.5.1/63.5/64.6b SSoT discipline so replays reproduce the same picks.
+  PLAN_DIVERSITY_LOOKBACK_WEEKS: z.coerce.number().int().min(0).default(3),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

@@ -18,25 +18,23 @@
 // Memory D130: mutations live in @marketing-auto/pipelines (image-batch-resume
 // + plan-image-batch-coordinator); this worker is a thin scheduling wrapper.
 
-import {
-  fetchBatchResults,
-  retrieveBatch,
-} from "@marketing-auto/adapter-nano-banana";
+import { convertImageToWebp } from "@marketing-auto/adapter-image-webp";
+import { fetchBatchResults, retrieveBatch } from "@marketing-auto/adapter-nano-banana";
 import { COST_OPS } from "@marketing-auto/core/cost";
+import { nanoBananaImageCostEur } from "@marketing-auto/cost-tracker";
 import {
+  type ImageBatchResponseBody,
   and,
   costLogs,
   db,
   eq,
-  inArray,
   imageBatchRequests,
-  type ImageBatchResponseBody,
+  inArray,
   isNull,
   sql,
   weeklyPlans,
 } from "@marketing-auto/db";
 import { resumeImageBatchPipeline } from "@marketing-auto/pipelines/image-batch-resume";
-import { nanoBananaImageCostEur } from "@marketing-auto/cost-tracker";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
@@ -93,8 +91,8 @@ async function submitPendingBatches(): Promise<void> {
           WHERE ibr_young.weekly_plan_id = ${imageBatchRequests.weeklyPlanId}
             AND ibr_young.status = 'pending'
             AND ibr_young.created_at > ${ageCutoff.toISOString()}
-        )`,
-      ),
+        )`
+      )
     );
 
   const planIds = eligiblePlans
@@ -147,7 +145,19 @@ async function processBatches(): Promise<void> {
   }
 }
 
-async function processSingleBatch(batchId: string): Promise<void> {
+/**
+ * Process one in-flight Gemini batch end-to-end: poll status → if succeeded,
+ * fetch results, pipe each Gemini byte payload through `convertImageToWebp`
+ * (Pattern 119: magic-byte sniff + sharp conversion + forensic original
+ * side-by-side), write per-row `responseBody` + cost log, resume the pipeline.
+ *
+ * Spec 64.15 Phase A: the convertImageToWebp hop is THIS worker's job —
+ * adapter `fetchBatchResults` returns raw bytes.
+ *
+ * Exported for offline unit tests; production callers go through
+ * `processBatches()` above.
+ */
+export async function processSingleBatch(batchId: string): Promise<void> {
   const status = await retrieveBatch(batchId);
 
   if (status.state === "processing") {
@@ -193,33 +203,92 @@ async function processSingleBatch(batchId: string): Promise<void> {
 
   // Update per-row by gemini_custom_id correlation.
   for (const result of results) {
-    const responseBody: ImageBatchResponseBody =
-      result.status === "succeeded"
-        ? {
-            r2Key: result.r2Key,
-            publicUrl: result.publicUrl,
-            // Cost is computed from the row's stored resolution + model. The
-            // adapter doesn't know that here because the per-call body was
-            // pre-frozen in image_batch_requests.request_body — pull it back.
-            costEur: 0, // populated below
-            seed: result.seed,
-          }
-        : { r2Key: "", publicUrl: "", costEur: 0, seed: null, error: result.error };
-
-    // Read the row to recover model + resolution for cost math.
+    // Read the row first so we have projectId + storagePrefix + cost-math
+    // inputs available for both the success and failure paths.
     const [row] = await db
       .select()
       .from(imageBatchRequests)
       .where(
         and(
           eq(imageBatchRequests.geminiBatchId, batchId),
-          eq(imageBatchRequests.geminiCustomId, result.customId),
-        ),
+          eq(imageBatchRequests.geminiCustomId, result.customId)
+        )
       )
       .limit(1);
     if (!row) {
       log.warn({ batchId, customId: result.customId }, "No row matched batch+customId — skipping");
       continue;
+    }
+
+    // Spec 64.15 Phase A: route raw Gemini bytes through the WebP adapter so
+    // batch heroes get the same magic-byte sniff + sharp conversion + forensic
+    // original backup as the sync path. The adapter handles the R2 upload —
+    // we just pass projectId + storagePrefix from the row and capture the keys.
+    let responseBody: ImageBatchResponseBody;
+
+    if (result.status === "succeeded") {
+      try {
+        const converted = await convertImageToWebp({
+          projectId: row.projectId,
+          bytes: result.imageBytes,
+          contentType: result.contentTypeHint,
+          storagePrefix: row.requestBody.storagePrefix,
+        });
+        responseBody = {
+          r2Key: converted.webpKey,
+          publicUrl: converted.webpUrl,
+          originalR2Key: converted.originalKey,
+          costEur: 0, // populated below
+          seed: result.seed,
+        };
+      } catch (err) {
+        // Conversion-or-storage failure on a Gemini-side success is rare but
+        // not impossible (sharp throws on corrupt bytes, R2 timeout, etc.).
+        // Flip to the failure branch so HeroImageStep's graceful-skip kicks
+        // in rather than leaving the row stuck with an incomplete responseBody.
+        log.error(
+          { err, batchId, customId: result.customId, rowId: row.id },
+          "image-batch: convertImageToWebp threw — marking row failed"
+        );
+        const message = err instanceof Error ? err.message : String(err);
+        await db
+          .update(imageBatchRequests)
+          .set({
+            status: "failed",
+            responseBody: {
+              r2Key: "",
+              publicUrl: "",
+              originalR2Key: null,
+              costEur: 0,
+              seed: null,
+              error: `image-webp conversion failed: ${message}`,
+            },
+            errorMessage: `image-webp conversion failed: ${message}`,
+            completedAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(imageBatchRequests.id, row.id));
+        const [updatedFailed] = await db
+          .select()
+          .from(imageBatchRequests)
+          .where(eq(imageBatchRequests.id, row.id))
+          .limit(1);
+        if (updatedFailed) {
+          await resumeImageBatchPipeline(updatedFailed).catch((resumeErr) => {
+            log.error({ err: resumeErr, rowId: row.id }, "resumeImageBatchPipeline threw");
+          });
+        }
+        continue;
+      }
+    } else {
+      responseBody = {
+        r2Key: "",
+        publicUrl: "",
+        originalR2Key: null,
+        costEur: 0,
+        seed: null,
+        error: result.error,
+      };
     }
 
     if (result.status === "succeeded") {
@@ -296,20 +365,15 @@ async function processSingleBatch(batchId: string): Promise<void> {
     .where(
       and(
         eq(imageBatchRequests.geminiBatchId, batchId),
-        inArray(imageBatchRequests.status, ["submitted", "pending"]),
-      ),
+        inArray(imageBatchRequests.status, ["submitted", "pending"])
+      )
     );
   const pendingCount = stillPending[0]?.count ?? 0;
   if (pendingCount === 0) {
     await db
       .update(weeklyPlans)
       .set({ imageBatchCompletedAt: new Date(), updatedAt: new Date() })
-      .where(
-        and(
-          eq(weeklyPlans.imageBatchId, batchId),
-          isNull(weeklyPlans.imageBatchCompletedAt),
-        ),
-      );
+      .where(and(eq(weeklyPlans.imageBatchId, batchId), isNull(weeklyPlans.imageBatchCompletedAt)));
   }
 }
 
@@ -334,13 +398,13 @@ export function startImageBatchProcessorWorker(): Worker {
         await processBatches();
       }
     },
-    { connection: getConnection(), concurrency: 1 },
+    { connection: getConnection(), concurrency: 1 }
   );
 
   worker.on("ready", () => log.info("Image-batch processor worker started"));
   worker.on("completed", (job) => log.debug({ jobName: job.name }, "image-batch job done"));
   worker.on("failed", (job, err) =>
-    log.error({ jobName: job?.name, err }, "image-batch job failed"),
+    log.error({ jobName: job?.name, err }, "image-batch job failed")
   );
 
   _worker = worker;
@@ -352,4 +416,3 @@ export async function closeImageBatchProcessorInfrastructure(): Promise<void> {
   if (_queue) await _queue.close();
   if (_connection) await _connection.quit();
 }
-

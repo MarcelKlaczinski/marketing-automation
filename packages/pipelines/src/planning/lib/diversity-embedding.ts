@@ -13,8 +13,8 @@
 
 import { voyage } from "@marketing-auto/adapter-voyage";
 import { COST_OPS } from "@marketing-auto/core/cost";
-import { clusters, db, eq, type TopicBrief } from "@marketing-auto/db";
-import { createLogger, type SignalTopNEntry } from "@marketing-auto/shared";
+import { type TopicBrief, clusters, db, eq, topicBriefs } from "@marketing-auto/db";
+import { type SignalTopNEntry, createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("pipelines:planner:diversity-embedding");
 
@@ -85,7 +85,7 @@ async function embedWithCache(
   key: string,
   text: string | null,
   fallbackClusterId: string | null,
-  opts: EmbeddingProviderOptions,
+  opts: EmbeddingProviderOptions
 ): Promise<number[] | null> {
   if (cache.has(key)) return cache.get(key) ?? null;
 
@@ -101,7 +101,7 @@ async function embedWithCache(
     } catch (err) {
       log.warn(
         { err, key, textLength: text.length },
-        "voyage.embed failed; trying cluster fallback",
+        "voyage.embed failed; trying cluster fallback"
       );
       // Fall through to cluster fallback.
     }
@@ -118,15 +118,47 @@ async function embedWithCache(
 }
 
 /**
- * Brief-based provider. Embeds `${primaryKeyword} ${topicTitle}` per brief
- * with `clusters.embedding` fallback via `brief.clusterId`.
+ * Brief-based provider. Resolution order:
+ *
+ *   1. **Spec 64.15 Phase C precomputed `topic_briefs.embedding`** — when the
+ *      brief carries an embedding from `emit-brief.ts` / the backfill script,
+ *      use it directly (no Voyage call).
+ *   2. Voyage on-the-fly embed of `${primaryKeyword} ${topicTitle}` — for
+ *      legacy briefs (manual, comparison_discovery, gap_analysis pre-spec).
+ *      Also lazy-backfills into `topic_briefs.embedding` so the second
+ *      plan-runner pass reads precomputed.
+ *   3. `clusters.embedding` fallback via `brief.clusterId`.
+ *   4. null.
  */
 export function createPlanRunEmbeddingProvider(
-  opts: EmbeddingProviderOptions,
+  opts: EmbeddingProviderOptions
 ): BriefEmbeddingProvider {
   const cache = new Map<string, number[] | null>();
-  const getForItem = (brief: TopicBrief) =>
-    embedWithCache(cache, brief.id, buildEmbeddingText(brief), brief.clusterId ?? null, opts);
+  const getForItem = async (brief: TopicBrief) => {
+    // Spec 64.15 Phase C: prefer precomputed embedding from `topic_briefs.embedding`.
+    // The cache check still wins for repeat calls within the same step run.
+    if (cache.has(brief.id)) return cache.get(brief.id) ?? null;
+    if (Array.isArray(brief.embedding) && brief.embedding.length > 0) {
+      cache.set(brief.id, brief.embedding);
+      return brief.embedding;
+    }
+    const embedding = await embedWithCache(
+      cache,
+      brief.id,
+      buildEmbeddingText(brief),
+      brief.clusterId ?? null,
+      opts
+    );
+    // Lazy-backfill the precomputed column so subsequent reads skip Voyage.
+    // Best-effort: failures log warn and skip — the resolved embedding still
+    // serves the current call.
+    if (embedding !== null && brief.embedding === null) {
+      lazyBackfillBriefEmbedding(brief.id, embedding).catch((err) => {
+        log.warn({ err, briefId: brief.id }, "lazy-backfill of topic_briefs.embedding failed");
+      });
+    }
+    return embedding;
+  };
   return {
     getForItem,
     // Back-compat alias for callers that still use the named verb.
@@ -135,12 +167,27 @@ export function createPlanRunEmbeddingProvider(
 }
 
 /**
+ * Spec 64.15 Phase C: lazy-backfill a freshly-computed embedding into
+ * `topic_briefs.embedding`. Best-effort — the caller already has the
+ * embedding in memory, so a failed write is non-fatal for the current run.
+ *
+ * Exported for test stubbing only. Production callers go through
+ * `createPlanRunEmbeddingProvider`.
+ */
+export async function lazyBackfillBriefEmbedding(
+  briefId: string,
+  embedding: number[]
+): Promise<void> {
+  await db.update(topicBriefs).set({ embedding }).where(eq(topicBriefs.id, briefId));
+}
+
+/**
  * Signal-based provider. Embeds `signal.title`; no cluster fallback (signals
  * carry no cluster anchor — vendor_rss is the closest, and the planner already
  * lacks a structured route from signal → cluster).
  */
 export function createSignalEmbeddingProvider(
-  opts: EmbeddingProviderOptions,
+  opts: EmbeddingProviderOptions
 ): EmbeddingProvider<SignalTopNEntry> {
   const cache = new Map<string, number[] | null>();
   return {
@@ -163,7 +210,7 @@ export interface ArticleLike {
 }
 
 export function createArticleEmbeddingProvider(
-  opts: EmbeddingProviderOptions,
+  opts: EmbeddingProviderOptions
 ): EmbeddingProvider<ArticleLike> {
   const cache = new Map<string, number[] | null>();
   return {
