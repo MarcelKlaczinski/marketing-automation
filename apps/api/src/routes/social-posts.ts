@@ -822,6 +822,48 @@ socialPostRoutes.post("/:articleId/template-renders/:renderId/re-render", async 
     return c.json({ ok: false, error: "No render input snapshot available for this render" }, 422);
   }
 
+  // Rebuild renderInput from current article + discovery so re-renders pick up DB state
+  // changes since the original render — e.g. brand-asset cache hits (icons resolved after
+  // first render), tool article edits, frontmatter updates.
+  let rebuiltRenderInput: Record<string, unknown> = render.renderInput as Record<string, unknown>;
+  if (render.templateKey) {
+    try {
+      const [article] = await db.select().from(articles).where(eq(articles.id, articleId)).limit(1);
+      const [discovery] = await db
+        .select()
+        .from(articleDiscovery)
+        .where(eq(articleDiscovery.articleId, articleId))
+        .limit(1);
+      if (article && discovery) {
+        const template = templateRegistry.getById(
+          render.templateKey as import("@marketing-auto/social/templates").TemplateKey,
+        );
+        // Use the sibling article for the requested locale so render content matches.
+        let contentArticle = article;
+        if (render.locale && article.locale && render.locale !== article.locale && article.translationKey) {
+          const [sibling] = await db
+            .select()
+            .from(articles)
+            .where(
+              and(
+                eq(articles.projectId, article.projectId),
+                eq(articles.translationKey, article.translationKey),
+                eq(articles.locale, render.locale),
+              ),
+            )
+            .limit(1);
+          if (sibling) contentArticle = sibling;
+        }
+        rebuiltRenderInput = (await template.buildInput(
+          contentArticle as import("@marketing-auto/db").Article,
+          discovery as import("@marketing-auto/db").ArticleDiscovery,
+        )) as Record<string, unknown>;
+      }
+    } catch (err) {
+      log.warn({ renderId, err }, "Re-render: buildInput rebuild failed, falling back to stored snapshot");
+    }
+  }
+
   // Supersede the existing row and insert a fresh one so the re-render has its own row
   await db
     .update(templateRenders)
@@ -834,7 +876,7 @@ socialPostRoutes.post("/:articleId/template-renders/:renderId/re-render", async 
     locale: render.locale,
     theme: render.theme,
     status: "pending",
-    renderInput: render.renderInput,
+    renderInput: rebuiltRenderInput,
     userOverride: render.userOverride,
   };
   if (render.suggestedTemplate !== null && render.suggestedTemplate !== undefined) {

@@ -208,6 +208,8 @@ Templates live in `src/templates/`. Each template is a plain TypeScript object (
 
 Render output path: `/renders/<articleId>/<templateKey>/<locale>-<theme>/slide-NN.png` (written by `writeSlides` helper in `src/templates/lib/writeSlides.ts`).
 
+**`buildToolLookup` auto-resolves missing icons (Spec 63.X)** — when a slug exists as a `collection='tools'` article but has neither inline `frontmatterExtras.iconSvg/iconInitials` nor a cached `project_brand_assets` row, `buildToolLookup` now calls `resolveToolIcon(projectId, slug)` from `@marketing-auto/pipelines/icon-resolver` (subpath export) to walk the simple-icons → iconify → lobe-icons → deterministic-avatar chain. The resolved icon is written back to `project_brand_assets` so the next render hits the cache. Before this fix, missing icons fell straight through to `KNOWN_TOOL_ICONS` (initials+hue only, no brand logo) — `gemini` for instance had a perfectly good simple-icons entry but never got resolved because no upstream pipeline triggered the chain for that slug. The lazy dynamic import (`await import("@marketing-auto/pipelines/icon-resolver")`) keeps the heavy pipelines bundle off the test-time path and matches the existing `@marketing-auto/db` import pattern in the same file. Failures inside the Promise.all are swallowed per-slug; the slide falls through to `KNOWN_TOOL_ICONS` as before. Note the dep direction: `social → pipelines` (peerDep) is acyclic because pipelines does NOT import from social.
+
 ## ToolIconImage (Spec 52a)
 
 `src/shared/ToolIconImage.tsx` accepts:

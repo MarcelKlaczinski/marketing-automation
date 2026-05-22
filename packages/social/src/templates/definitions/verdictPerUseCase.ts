@@ -52,11 +52,13 @@ function buildGenerated(
   const year = new Date().getFullYear();
 
   const titleParts = (articleTitle ?? articleSlug).split(/[–—:]/);
-  const headline = (titleParts[0]?.trim() ?? articleSlug).slice(0, 40);
+  // Budgets sized to match getFontSize "cover-headline" buckets (max 120 chars combined).
+  // getFontSize auto-shrinks the rendered font; we only guard against truly absurd input.
+  const headline = (titleParts[0]?.trim() ?? articleSlug).slice(0, 72);
   const headlineEm = (
     titleParts[1]?.trim() ??
     (locale === "de" ? "im Vergleich" : "compared")
-  ).slice(0, 20);
+  ).slice(0, 40);
 
   const eyebrow = locale === "de"
     ? overridesValues.copy.eyebrow.de
@@ -81,9 +83,11 @@ function buildGenerated(
       ? `${ctx.useCases.length} Use Cases · Stand ${month}/${year}`
       : `${ctx.useCases.length} use cases · as of ${month}/${year}`,
     useCases: ctx.useCases.map((uc) => {
+      // Slide uses getFontSize("list-item") to auto-shrink long labels, with a 2-line clamp
+      // as last-resort safety. Budgets here only block pathological input.
       const base: VerdictPerUseCaseGenerated["useCases"][number] = {
-        label: uc.label.slice(0, 32),
-        winnerName: uc.winnerName.slice(0, 22),
+        label: uc.label.slice(0, 80),
+        winnerName: uc.winnerName.slice(0, 24),
       };
       if (uc.iconSvg !== undefined) base.iconSvg = uc.iconSvg;
       if (uc.iconInitials !== undefined) base.iconInitials = uc.iconInitials;
@@ -255,9 +259,9 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
         const slug = v.winner!;
         const resolved = toolLookup.get(slug);
         const base: VerdictUseCaseItem = {
-          label: (v.useCase ?? slug).slice(0, 32),
+          label: (v.useCase ?? slug).slice(0, 80),
           winnerSlug: slug,
-          winnerName: (resolved?.name ?? slug).slice(0, 22),
+          winnerName: (resolved?.name ?? slug).slice(0, 24),
         };
         if (resolved?.iconSvg !== undefined) base.iconSvg = resolved.iconSvg;
         if (resolved?.iconInitials !== undefined) base.iconInitials = resolved.iconInitials;

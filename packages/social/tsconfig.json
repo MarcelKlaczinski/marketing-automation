@@ -10,6 +10,7 @@
       "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"],
       "@marketing-auto/core": ["../../packages/core/src/index.ts"],
       "@marketing-auto/db": ["../../packages/db/src/index.ts"],
+      "@marketing-auto/pipelines/icon-resolver": ["../../packages/pipelines/src/_lib/resolve-tool-icon.ts"],
       "drizzle-orm": ["../../packages/db/node_modules/drizzle-orm/index.d.ts"],
       "drizzle-orm/*": ["../../packages/db/node_modules/drizzle-orm/*"]
     }

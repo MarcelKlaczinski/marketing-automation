@@ -45,6 +45,9 @@ export default defineConfig((/* ctx */) => ({
   devServer: {
     port: 3051,
     open: false,
+    // Static assets (rendered slides, brand uploads) are served by the API on
+    // a different port in dev (see VITE_API_BASE_URL). The frontend resolves them
+    // to absolute URLs via assetUrl() in src/lib/asset-url.ts.
   },
 
   framework: {

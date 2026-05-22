@@ -192,6 +192,8 @@ export default {
     failed: "Failed",
     errorViewDetails: "View error",
     enqueuedHint: "Render job running in background — this page updates automatically",
+    skippedNotice: "Skipped: {reason}",
+    skipReasonUnknown: "no reason given",
   },
   reRender: "Re-render",
   reRenderHint: "Re-renders slides with current brand tokens + template overrides",

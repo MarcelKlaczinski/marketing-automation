@@ -42,6 +42,7 @@
   },
   "peerDependencies": {
     "@marketing-auto/core": "workspace:*",
-    "@marketing-auto/db": "workspace:*"
+    "@marketing-auto/db": "workspace:*",
+    "@marketing-auto/pipelines": "workspace:*"
   }
 }

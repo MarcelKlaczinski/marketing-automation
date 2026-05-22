@@ -307,6 +307,7 @@
 import { defineComponent } from "vue";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import { apiGet, apiPost } from "src/lib/api";
+import { assetUrl } from "src/lib/asset-url";
 import GlassCard from "src/components/ui/GlassCard.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
@@ -589,8 +590,22 @@ export default defineComponent({
             suggestionConfidence: this.topSuggestion.confidence,
           };
         }
-        await apiPost(`/articles/${this.articleId}/generate-templates`, body);
-        this.$q.notify({ type: "positive", message: this.$t("social.render.enqueuedHint") as string });
+        const result = await apiPost<{ jobs: Array<{ templateKey: string; status: "queued" | "skipped"; reason?: string }> }>(
+          `/articles/${this.articleId}/generate-templates`,
+          body,
+        );
+        const skipped = result.jobs.filter((j) => j.status === "skipped");
+        const queued = result.jobs.filter((j) => j.status === "queued");
+        if (skipped.length > 0 && queued.length === 0) {
+          const reason = skipped[0]?.reason ?? (this.$t("social.render.skipReasonUnknown") as string);
+          this.$q.notify({
+            type: "warning",
+            message: this.$t("social.render.skippedNotice", { reason }) as string,
+            timeout: 6000,
+          });
+        } else {
+          this.$q.notify({ type: "positive", message: this.$t("social.render.enqueuedHint") as string });
+        }
         void this.queryClient.invalidateQueries({ queryKey: ["social-posts", this.articleId] });
         void this.queryClient.invalidateQueries({ queryKey: ["template-renders", this.articleId] });
       } catch (err) {
@@ -622,7 +637,7 @@ export default defineComponent({
     },
 
     postSlideUrls(post: HistoryPost): string[] {
-      return post.content?.slides?.map((s) => s.imageUrl) ?? [];
+      return post.content?.slides?.map((s) => assetUrl(s.imageUrl)) ?? [];
     },
 
     toggleSlides(postId: string): void {
@@ -634,11 +649,14 @@ export default defineComponent({
     },
 
     confirmReRender(post: HistoryPost): void {
+      // `dark: true` ensures the dialog inherits the dark theme — without it Quasar's
+      // built-in confirm renders white-on-white and the message is invisible.
       this.$q.dialog({
         title: this.$t("social.reRenderConfirm.title") as string,
         message: this.$t("social.reRenderConfirm.message") as string,
+        dark: true,
         ok: { label: this.$t("social.reRenderConfirm.ok") as string, color: "primary", flat: true },
-        cancel: { flat: true },
+        cancel: { flat: true, color: "white" },
       }).onOk(() => {
         void this.triggerReRender(post);
       });

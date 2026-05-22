@@ -192,6 +192,8 @@ export default {
     failed: "Fehlgeschlagen",
     errorViewDetails: "Fehlerdetails",
     enqueuedHint: "Render-Job läuft im Hintergrund — die Seite aktualisiert sich automatisch",
+    skippedNotice: "Übersprungen: {reason}",
+    skipReasonUnknown: "kein Grund angegeben",
   },
   reRender: "Neu rendern",
   reRenderHint: "Rendert Slides mit aktuellen Brand-Tokens + Template-Overrides neu",

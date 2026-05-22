@@ -5,6 +5,7 @@ import { DsGlow } from "../../ds-components/DsGlow";
 import { DsTop } from "../../ds-components/DsTop";
 import { DsFoot } from "../../ds-components/DsFoot";
 import { ToolIconImage } from "../../shared/ToolIconImage";
+import { getFontSize } from "../_shared/getFontSize";
 import type { VerdictPerUseCaseInput, VerdictUseCase } from "./types";
 
 export const VerdictPerUseCaseSlide: React.FC<VerdictPerUseCaseInput> = ({
@@ -45,17 +46,21 @@ export const VerdictPerUseCaseSlide: React.FC<VerdictPerUseCaseInput> = ({
         blur={50}
       />
 
-      {/* Content layer above glow */}
+      {/* Content layer above glow. Extra top padding keeps the headline clear of
+          Instagram's avatar/handle overlay (~80px tap zone). */}
       <div
         style={{
           position: "relative",
           zIndex: 1,
           height: "100%",
-          padding: 56,
+          paddingTop: 104,
+          paddingRight: 56,
+          paddingBottom: 56,
+          paddingLeft: 56,
           boxSizing: "border-box",
           display: "grid",
           gridTemplateRows: "auto auto 1fr auto",
-          rowGap: 28,
+          rowGap: 32,
         }}
       >
         {/* TOP BAR */}
@@ -66,35 +71,46 @@ export const VerdictPerUseCaseSlide: React.FC<VerdictPerUseCaseInput> = ({
           rightText={g.slideNum}
         />
 
-        {/* HERO */}
-        <div>
-          <h1
-            style={{
-              fontSize: 60,
-              fontWeight: 700,
-              lineHeight: 1.08,
-              letterSpacing: "-0.035em",
-              margin: 0,
-              color: tokens.ink.base,
-            }}
-          >
-            {g.headline}{" "}
-            {/* accent-500 here — NOT brand-300 like all other templates (Pattern 89) */}
-            <span style={{ color: tokens.accent[500] }}>{g.headlineEm}</span>
-          </h1>
-          <p
-            style={{
-              fontSize: 17,          // 17px — smallest across all templates (grid-3=18, grid-4=19)
-              color: tokens.ink.muted,
-              marginTop: 16,         // 16px — others use 18px
-              marginBottom: 0,
-              maxWidth: 880,
-              lineHeight: 1.4,
-            }}
-          >
-            {g.subline}
-          </p>
-        </div>
+        {/* HERO — auto-shrinks via getFontSize bucket so long titles never hard-clip mid-word */}
+        {(() => {
+          const heroFull = `${g.headline} ${g.headlineEm}`;
+          const heroSize = getFontSize(heroFull, "cover-headline");
+          return (
+            <div>
+              <h1
+                style={{
+                  fontSize: heroSize.fontSize,
+                  fontWeight: 700,
+                  lineHeight: heroSize.lineHeight,
+                  letterSpacing: `${heroSize.letterSpacing / 100}em`,
+                  margin: 0,
+                  color: tokens.ink.base,
+                  // 3-line safety net — engages only on pathological input
+                  display: "-webkit-box",
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {g.headline}{" "}
+                {/* accent-500 here — NOT brand-300 like all other templates (Pattern 89) */}
+                <span style={{ color: tokens.accent[500] }}>{g.headlineEm}</span>
+              </h1>
+              <p
+                style={{
+                  fontSize: 17,
+                  color: tokens.ink.muted,
+                  marginTop: 16,
+                  marginBottom: 0,
+                  maxWidth: 880,
+                  lineHeight: 1.4,
+                }}
+              >
+                {g.subline}
+              </p>
+            </div>
+          );
+        })()}
 
         {/* USE CASE LIST — flex column, fills 1fr */}
         <div style={{ display: "flex", flexDirection: "column" }}>
@@ -154,18 +170,28 @@ const UseCaseRow: React.FC<UseCaseRowProps> = ({ uc, index, isLast, tokens }) =>
       {String(index).padStart(2, "0")}
     </div>
 
-    {/* Label */}
-    <div
-      style={{
-        fontSize: 22,
-        fontWeight: 600,
-        lineHeight: 1.15,
-        letterSpacing: "-0.02em",
-        color: tokens.ink.base,
-      }}
-    >
-      {uc.label}
-    </div>
+    {/* Label — auto-shrinks via getFontSize "list-item" bucket; 2-line clamp safety net */}
+    {(() => {
+      const labelSize = getFontSize(uc.label, "list-item");
+      return (
+        <div
+          style={{
+            fontSize: Math.min(labelSize.fontSize, 26),
+            fontWeight: 600,
+            lineHeight: labelSize.lineHeight,
+            letterSpacing: `${labelSize.letterSpacing / 100}em`,
+            color: tokens.ink.base,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            minWidth: 0,
+          }}
+        >
+          {uc.label}
+        </div>
+      );
+    })()}
 
     {/* Winner pill — accent tint background + border, all accent-500 derived */}
     <div

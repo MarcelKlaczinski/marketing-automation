@@ -128,6 +128,34 @@ export async function buildToolLookup(
     }
   }
 
+  // Live resolution chain for slugs still missing icon data — calls resolveToolIcon
+  // (simple-icons → iconify → lobe-icons → deterministic avatar) and writes the result
+  // to project_brand_assets so the next render hits the cache. Without this step a slug
+  // that has never been resolved upstream falls all the way through to KNOWN_TOOL_ICONS
+  // (initials-only — no brand logo), even though a perfectly good logo exists in
+  // simple-icons. Lazy import to keep the heavy pipelines bundle off the test-time path.
+  const stillMissing = [...refMap.entries()].filter(
+    ([, ref]) => ref.iconSvg === undefined && ref.iconInitials === undefined,
+  );
+  if (stillMissing.length > 0) {
+    const { resolveToolIcon } = await import("@marketing-auto/pipelines/icon-resolver");
+    await Promise.all(
+      stillMissing.map(async ([slug, ref]) => {
+        try {
+          const resolved = await resolveToolIcon(projectId, slug);
+          if (resolved.type === "svg") {
+            ref.iconSvg = resolved.svg;
+          } else {
+            ref.iconInitials = resolved.initials;
+            ref.iconHue = resolved.hue;
+          }
+        } catch {
+          // adapter / network failure → KNOWN_TOOL_ICONS fallback below
+        }
+      }),
+    );
+  }
+
   // Last resort: KNOWN_TOOL_ICONS hardcoded fallback for tools still without icon data.
   for (const [slug, ref] of refMap.entries()) {
     if (ref.iconSvg === undefined && ref.iconInitials === undefined) {
