@@ -775,10 +775,13 @@ export default defineComponent({
       this.saving = true;
       try {
         const goalsPayload = this.goals.map((g) => {
-          const maxCountTrim = g.maxCountInput.trim();
+          // Vue's `v-model` on `<input type="number">` (without `.number`)
+          // can return either string OR number depending on whether the user
+          // edited the field — coerce defensively so `.trim()` never blows up.
+          const maxCountTrim = String(g.maxCountInput ?? "").trim();
           const maxCount =
             maxCountTrim === "" ? null : Number.parseInt(maxCountTrim, 10);
-          const noteTrim = g.noteInput.trim();
+          const noteTrim = String(g.noteInput ?? "").trim();
           return {
             contentType: g.contentType,
             cadenceUnit: g.cadenceUnit,
@@ -790,7 +793,7 @@ export default defineComponent({
 
         const perTypeMaxEur: Record<string, number> = {};
         for (const ct of ALL_CONTENT_TYPES) {
-          const raw = this.perTypeInputs[ct].trim();
+          const raw = String(this.perTypeInputs[ct] ?? "").trim();
           if (raw === "") continue;
           const n = Number.parseFloat(raw);
           if (Number.isFinite(n) && n > 0) perTypeMaxEur[ct] = n;

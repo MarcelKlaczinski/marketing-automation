@@ -171,6 +171,12 @@ export default defineComponent({
   computed: {
     contentTypeKey(): string {
       const raw = (this.item.contentType ?? "").trim().toLowerCase();
+      // Spec 64.1: pre-64.1 plans persist content_type='cluster' even for
+      // append_to_existing spokes (Backfill explicitly out-of-scope per spec
+      // §2). Detect spokes from pipelineInput so the badge reads correctly
+      // for both old and new plans. New plans persist 'cluster_spoke'
+      // directly and skip this branch.
+      if (raw === "cluster" && this.isAppendSpoke) return "cluster_spoke";
       return KNOWN_CONTENT_TYPE_KEYS.has(raw) ? raw : "article";
     },
     contentTypeLabel(): string {
@@ -180,6 +186,18 @@ export default defineComponent({
         return this.$t(`planner.contentType.${this.contentTypeKey}`) as string;
       }
       return raw;
+    },
+    /** Spec 64.1 view-layer override: legacy plan items where the DB row says
+     * 'cluster' but the stamped pipelineInput.clusterAction is 'append_to_existing'
+     * (with a clusterId). Matches the matchBriefToContentType predicate. */
+    isAppendSpoke(): boolean {
+      const input = this.item.pipelineInput;
+      if (!input) return false;
+      return (
+        input["clusterAction"] === "append_to_existing" &&
+        typeof input["clusterId"] === "string" &&
+        (input["clusterId"] as string).length > 0
+      );
     },
     title(): string {
       const input = this.item.pipelineInput;
@@ -212,9 +230,17 @@ export default defineComponent({
       }
       return null;
     },
-    /** Spec 62.8: cluster items finish in plan_proposed (not auto-spokes). */
+    /** Spec 62.8: cluster items finish in plan_proposed (not auto-spokes).
+     * Spec 64.1: legacy plan rows where content_type='cluster' but the brief
+     * was actually append_to_existing produce an article directly via the
+     * 63.7b backstop in pipeline-router — they don't need a cluster-plan
+     * review. Suppress the hint when the row is a disguised spoke. */
     showClusterReviewHint(): boolean {
-      return this.item.contentType === "cluster" && this.item.status === "completed";
+      return (
+        this.item.contentType === "cluster" &&
+        this.item.status === "completed" &&
+        !this.isAppendSpoke
+      );
     },
   },
 
