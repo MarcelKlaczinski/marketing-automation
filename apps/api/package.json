@@ -44,6 +44,7 @@
     "@marketing-auto/adapter-vendor-rss": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",
     "@marketing-auto/adapter-email": "workspace:*",
+    "@marketing-auto/adapter-nano-banana": "workspace:*",
     "@marketing-auto/adapter-pagespeed": "workspace:*",
     "@marketing-auto/adapter-replicate": "workspace:*",
     "@marketing-auto/adapter-storage": "workspace:*",

@@ -78,6 +78,12 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   replicate: {
     [COST_OPS.HERO_IMAGE]: 0.1,
   },
+  // Spec 64.6: Google Gemini Image API ("Nano Banana") — ~$0.067 per 2K image ≈ €0.062.
+  // 0.10 estimate is the assertCostBudget pre-flight upper-bound (track() records the
+  // real cost via nanoBananaImageCostEur after the call returns).
+  "google-gemini": {
+    [COST_OPS.HERO_IMAGE]: 0.1,
+  },
   smtp: {
     [COST_OPS.SMTP_MAGIC_LINK]: 0.001,
     [COST_OPS.SMTP_BRIEFING]: 0.001,

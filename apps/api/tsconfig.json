@@ -26,6 +26,10 @@
       "@marketing-auto/adapter-replicate/verify": [
         "../../packages/adapters/replicate/src/verify.ts"
       ],
+      "@marketing-auto/adapter-nano-banana": ["../../packages/adapters/nano-banana/src/index.ts"],
+      "@marketing-auto/adapter-nano-banana/verify": [
+        "../../packages/adapters/nano-banana/src/verify.ts"
+      ],
       "@marketing-auto/adapter-storage": ["../../packages/adapters/storage/src/index.ts"],
       "@marketing-auto/adapter-storage/verify": ["../../packages/adapters/storage/src/verify.ts"],
       "@marketing-auto/adapter-dataforseo": ["../../packages/adapters/dataforseo/src/index.ts"],

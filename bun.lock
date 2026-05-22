@@ -23,6 +23,7 @@
         "@marketing-auto/adapter-dataforseo": "workspace:*",
         "@marketing-auto/adapter-email": "workspace:*",
         "@marketing-auto/adapter-hackernews": "workspace:*",
+        "@marketing-auto/adapter-nano-banana": "workspace:*",
         "@marketing-auto/adapter-pagespeed": "workspace:*",
         "@marketing-auto/adapter-producthunt": "workspace:*",
         "@marketing-auto/adapter-reddit": "workspace:*",
@@ -166,6 +167,20 @@
         "zod": "^3.23.0",
       },
     },
+    "packages/adapters/nano-banana": {
+      "name": "@marketing-auto/adapter-nano-banana",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/adapter-storage": "workspace:*",
+        "@marketing-auto/core": "workspace:*",
+        "@marketing-auto/cost-tracker": "workspace:*",
+        "@marketing-auto/db": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "drizzle-orm": "^0.36.0",
+      },
+    },
     "packages/adapters/pagespeed": {
       "name": "@marketing-auto/adapter-pagespeed",
       "version": "0.1.0",
@@ -294,6 +309,7 @@
         "@marketing-auto/adapter-anthropic": "workspace:*",
         "@marketing-auto/adapter-astro-sync": "workspace:*",
         "@marketing-auto/adapter-dataforseo": "workspace:*",
+        "@marketing-auto/adapter-nano-banana": "workspace:*",
         "@marketing-auto/adapter-replicate": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/adapter-voyage": "workspace:*",
@@ -672,6 +688,8 @@
     "@marketing-auto/adapter-github-trending": ["@marketing-auto/adapter-github-trending@workspace:packages/adapters/github-trending"],
 
     "@marketing-auto/adapter-hackernews": ["@marketing-auto/adapter-hackernews@workspace:packages/adapters/hackernews"],
+
+    "@marketing-auto/adapter-nano-banana": ["@marketing-auto/adapter-nano-banana@workspace:packages/adapters/nano-banana"],
 
     "@marketing-auto/adapter-pagespeed": ["@marketing-auto/adapter-pagespeed@workspace:packages/adapters/pagespeed"],
 

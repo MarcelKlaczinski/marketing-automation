@@ -85,6 +85,8 @@ export const costServiceEnum = pgEnum("cost_service", [
   "dataforseo",
   "smtp",
   "voyage",
+  // Spec 64.6: Google Gemini Image API via @marketing-auto/adapter-nano-banana
+  "google-gemini",
 ]);
 
 export const pipelineRunStatusEnum = pgEnum("pipeline_run_status", [

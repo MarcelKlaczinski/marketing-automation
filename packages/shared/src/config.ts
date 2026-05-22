@@ -82,6 +82,10 @@ const envSchema = z.object({
   // Voyage AI (Spec 54.5) — text embeddings for trend synthesis coverage check
   VOYAGE_API_KEY: optionalStr(z.string().min(1)),
 
+  // Spec 64.6: Google Gemini Image API (Nano Banana 2) — hero-image generation
+  // Vault key: ('nano-banana', 'api_key'). Env var is the dev fallback.
+  GOOGLE_GEMINI_API_KEY: optionalStr(z.string().min(1)),
+
   // Batch API feature flag (Spec 61.4) — set to "true" to show LLM Mode toggle in UI
   BATCH_API_ENABLED: z.coerce.boolean().default(false),
 

@@ -21,6 +21,7 @@ import { verifyAnthropic } from "@marketing-auto/adapter-anthropic/verify";
 import { verifyGitHubApp } from "@marketing-auto/adapter-astro-sync/verify";
 import { verifyDataForSeo } from "@marketing-auto/adapter-dataforseo/verify";
 import { verifySmtp } from "@marketing-auto/adapter-email/verify";
+import { verifyNanoBanana } from "@marketing-auto/adapter-nano-banana/verify";
 import { verifyProductHunt } from "@marketing-auto/adapter-producthunt/verify";
 import { verifyReplicate } from "@marketing-auto/adapter-replicate/verify";
 import { verifyReddit } from "@marketing-auto/adapter-reddit/verify";
@@ -137,7 +138,7 @@ systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
 // ───── POST /api/system/verify/:adapter ─────────────────────────────────────
 // Auth required — verifying runs a live network call against a configured credential.
 
-const adapterEnum = z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]);
+const adapterEnum = z.enum(["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]);
 
 systemRoutes.post("/verify/:adapter", requireAuth, async (c) => {
   const parsed = adapterEnum.safeParse(c.req.param("adapter"));
@@ -211,6 +212,9 @@ async function runVerifyByAdapter(
     case "replicate":
       if (!creds.api_token) return { ok: false, message: "API token not set" };
       return verifyReplicate(creds.api_token);
+    case "nano-banana":
+      if (!creds.api_key) return { ok: false, message: "API key not set" };
+      return verifyNanoBanana(creds.api_key);
     case "r2":
       return verifyR2(creds);
     case "dataforseo":

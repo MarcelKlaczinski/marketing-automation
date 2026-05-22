@@ -31,6 +31,7 @@
     "@marketing-auto/adapter-voyage": "workspace:*",
     "@marketing-auto/adapter-astro-sync": "workspace:*",
     "@marketing-auto/adapter-dataforseo": "workspace:*",
+    "@marketing-auto/adapter-nano-banana": "workspace:*",
     "@marketing-auto/adapter-replicate": "workspace:*",
     "@marketing-auto/adapter-storage": "workspace:*",
     "@marketing-auto/core": "workspace:*",

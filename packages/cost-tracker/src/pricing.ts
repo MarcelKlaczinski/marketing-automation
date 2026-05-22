@@ -56,6 +56,20 @@ export function replicateImageCostEur(input: { model: ReplicateModel; count: num
   return usdToEur(usd);
 }
 
+// Spec 64.6: Google Gemini Image API ("Nano Banana") via @marketing-auto/adapter-nano-banana.
+// Pricing per generated image at 2K resolution (verified 2026-05-22 web search).
+export const NANO_BANANA_PRICING_USD_PER_IMAGE = {
+  "nano-banana-2": 0.067,
+  "nano-banana-pro": 0.134,
+} as const;
+
+export type NanoBananaModel = keyof typeof NANO_BANANA_PRICING_USD_PER_IMAGE;
+
+export function nanoBananaImageCostEur(input: { model: NanoBananaModel; count: number }): number {
+  const usd = NANO_BANANA_PRICING_USD_PER_IMAGE[input.model] * input.count;
+  return usdToEur(usd);
+}
+
 export const DATAFORSEO_PRICING_USD = {
   serpStandard: 0.0006,
   serpPriority: 0.0012,

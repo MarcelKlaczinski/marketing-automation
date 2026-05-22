@@ -91,7 +91,7 @@ Rules:
    - Each section lists 2-10 key points the draft must hit
    - Each section has an estimated word count summing to 800-3500 total
    - Sections naturally weave in satellite keywords where relevant
-6. **Hero image**: A highly specific prompt for Flux 1.1 Pro.
+6. **Hero image**: A highly specific prompt for Nano Banana 2.
    Rules:
    - Describe a concrete scene with 1-3 physical objects. No abstract concepts.
    - Include composition (overhead flatlay / 3/4 angle / close-up), lighting (diffused window
@@ -99,14 +99,15 @@ Rules:
    - For articles about a specific product/tool (ChatGPT, Claude, Midjourney, etc.):
      reference its brand color and/or visual identity (icon shape, UI style) concretely.
      Example: "ChatGPT teal-green (#10A37F) card", "Claude orange gradient sphere".
-   - Short text labels (1-3 words) ARE allowed when they aid comprehension — e.g. tier
-     names on pricing cards ("Free", "Plus", "Pro"). Keep text under 3 words per label.
-   - ALL text labels MUST be in English, even for German articles. Image generation models
-     render English text reliably; German labels produce illegible artifacts. English labels
-     are universally acceptable in the DACH market for UI/card elements.
-     ✓ "Reactive" not "Reaktiv", "Learning" not "Lernend", "Overview" not "Übersicht"
-   - AVOID: people, faces, screens showing UI, dense paragraphs of text, watermarks.
-   - Style enum picks the Flux rendering mode — choose what best fits the scene.
+   - **NO text labels of any kind.** No tier names, no brand-name lettering on cards,
+     no checklist items, no annotations, no readable writing in the scene. Convey
+     hierarchy / tiers / sequence via shape, color, position, or symbolic icons
+     (squares, circles, arrows, checkmarks, stars) — never via rendered text.
+     If a brand identity requires its name visible, the brand's official logo glyph
+     (not text) is OK; otherwise leave the surface clean.
+   - AVOID: people, faces, screens showing UI text, dense paragraphs of text,
+     watermarks, typography, signage, captions, labels, readable writing of any kind.
+   - Style enum picks the rendering mode — choose what best fits the scene.
    Target: 80-200 words. Longer is better than vague.
 7. **Estimated total words**: Realistic; do not pad.
 
@@ -131,7 +132,7 @@ Output a single JSON object with EXACTLY this shape (no extra keys, no markdown)
       "targetKeywords": ["optional satellite keyword", "..."]
     }
   ],
-  "heroImagePrompt": "string — 80-800 chars, specific Flux 1.1 Pro prompt (see rule 6 above)",
+  "heroImagePrompt": "string — 80-800 chars, specific Nano Banana 2 prompt (see rule 6 above)",
   "heroImageStyle": "photorealistic" | "illustrated" | "3d_render" | "minimalist",
   "estimatedTotalWords": 1500
 }

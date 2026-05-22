@@ -610,6 +610,20 @@
       "when": 1786400000000,
       "tag": "0086_project_goals_seed_cluster_spoke",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1786500000000,
+      "tag": "0087_cost_service_google_gemini",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1786600000000,
+      "tag": "0088_projects_image_generation_provider",
+      "breakpoints": true
     }
   ]
 }

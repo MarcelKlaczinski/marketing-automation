@@ -102,6 +102,13 @@ export const projects = pgTable(
     // Spec 61.4: 'sync' = immediate LLM calls (default), 'batch' = Anthropic Batch API (50% cost, 24h delay)
     llmMode: text("llm_mode").notNull().default("sync"),
 
+    // Spec 64.6: hero-image provider routing. 'nano-banana-2' (default) uses Google Gemini Image API
+    // via @marketing-auto/adapter-nano-banana; 'flux-1.1-pro' falls back to the legacy Replicate path.
+    imageGenerationProvider: text("image_generation_provider")
+      .$type<"nano-banana-2" | "flux-1.1-pro">()
+      .notNull()
+      .default("nano-banana-2"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
