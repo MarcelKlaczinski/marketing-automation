@@ -13,6 +13,7 @@
   - `src/lib/color-utils.ts`         OKLCH↔hex helpers + WCAG contrast ratio (Spec 52b)
   - `src/lib/icon-resolver.ts`       Re-exports `resolveToolIcon` from pipelines (Spec 52a)
   - `src/lib/divergence.ts`          Pure `detectDivergence()` helper for translation sibling conflict detection (Spec 59.2)
+  - `src/lib/brief-bulk-selector.ts` Discriminated-union body resolver + shared `buildBriefsWhere()` for bulk brief Approve/Dismiss (Spec 64.17)
 
 ## Service Layer Pattern (`src/lib/<domain>-service.ts`)
 
@@ -61,6 +62,30 @@ return c.json({ ok: true, data: paginated(rows, countRows, q) });
 Response envelope: `{ items, total, limit, offset }`.
 
 **Pair-level pagination** (e.g. `/articles/imported` DE/EN pairs): paginate over `DISTINCT translationKey` ordered by `MAX(updatedAt)`, count distinct keys separately, then load article rows for those keys and group in memory. Never apply row-level `LIMIT/OFFSET` on grouped data.
+
+## Bulk-Action Endpoint Pattern (Spec 64.17)
+
+Bulk endpoints that mutate a list of rows (Approve / Dismiss / Reject / Cancel etc.) use a **discriminated-union body** so the same endpoint accepts both an explicit ID list AND a filter-shape that the server re-queries at action time:
+
+```typescript
+const bulkBriefSelectorSchema = z.union([
+  z.object({ briefIds: z.array(z.string().uuid()).min(1).max(500) }),
+  z.object({
+    filter: filterShapeSchema,                    // mirror the list-endpoint filter
+    excludeIds: z.array(z.string().uuid()).max(500).default([]),
+  }),
+]);
+```
+
+Three rules:
+
+1. **Shared WHERE-clause helper.** Extract the filter→SQL translation from the list endpoint into a `buildXxxWhere(projectId, filter)` helper so the list endpoint AND the bulk selector share one source of truth. Lock the projectId into `conditions[0]` so multi-tenant isolation is structural, not opt-in. Canonical: [`buildBriefsWhere`](src/lib/brief-bulk-selector.ts).
+2. **Race-safety re-query.** The filter-shape branch runs a fresh `SELECT id FROM ... WHERE buildXxxWhere(...) LIMIT 500` at action time, then subtracts `excludeIds`. If cron fires between client-side selection and submit, the server picks the freshest set. Return `reQueried: true` + `totalMatched` in the response so the UI can surface a "X matched at action time, Y processed" diagnostic banner.
+3. **Cap symmetrically.** Both shapes get the same cap (currently 500 for briefs) so operational bounds match regardless of which path the client took. Filter-shape resolution must `LIMIT 500` to enforce this server-side too — Zod only checks the briefIds-shape array length.
+
+**Composing additional fields onto a union schema:** `z.union(...).extend({...})` doesn't compose (the receiver is a `ZodUnion`, not a `ZodObject`). Use `z.intersection(unionSchema, z.object({...}))` instead. Canonical: `bulkApproveSchema = z.intersection(bulkBriefSelectorSchema, z.object({mode, dispatch}))`.
+
+**Pre-flight aggregate endpoint** (when the action has conditional skip-logic): expose a sibling `POST /<resource>/bulk-preflight-<gate-name>` that takes the same selector body and returns counts via `count(*) FILTER (WHERE ...)::int` aggregates. Pure read, no side effects, no cost log. The UI calls it on modal-open so the user sees "5 of 22 need cluster assignment (will be skipped)" before submit instead of after. Canonical: `bulk-preflight-cluster-check` in [routes/projects/briefs.ts](src/routes/projects/briefs.ts).
 
 ## Worker Patterns
 - One worker per queue, queue name = step name (e.g., "draft-generation")

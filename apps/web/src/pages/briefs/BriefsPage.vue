@@ -114,8 +114,11 @@
       />
 
       <BulkSelectionBar
-        :selected-count="selectedBriefIds.length"
-        @clear="selectedBriefIds = []"
+        :selected-count="effectiveSelectedCount"
+        :total-in-filter="selectAllMatchingTotal"
+        :select-all-matching="selectAllMatching"
+        @clear="resetSelection"
+        @select-all-matching="onSelectAllMatching"
       >
         <template #actions>
           <GlassButton variant="primary" size="sm" @click="showApproveModal = true">
@@ -128,8 +131,9 @@
       </BulkSelectionBar>
 
       <BulkApproveModal
+        v-if="showApproveModal"
         v-model="showApproveModal"
-        :brief-ids="selectedBriefIds"
+        :selector="currentSelectorPayload"
         :processing="bulkProcessing"
         @confirm="onBulkApproveConfirm"
       />
@@ -153,6 +157,7 @@ import { apiPost } from "src/lib/api";
 import BriefsSection from "src/pages/briefs/BriefsSection.vue";
 import BulkSelectionBar from "src/components/ui/BulkSelectionBar.vue";
 import BulkApproveModal from "src/components/briefs/BulkApproveModal.vue";
+import type { BulkBriefSelectorPayload } from "src/components/briefs/BulkApproveModal.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import EmptyState from "src/components/ui/EmptyState.vue";
 import type { BriefListItem } from "src/types/ui";
@@ -187,6 +192,14 @@ export default defineComponent({
     selectedBriefIds: [] as string[],
     bulkProcessing: false,
     showApproveModal: false,
+    // Spec 64.17 — Mode-2 "Select all N matching filter" state. When true,
+    // bulk actions submit the filter-shape body and the server re-queries at
+    // action time; `selectedBriefIds` is ignored as the source of selection.
+    selectAllMatching: false,
+    // Server-reported total for the pending section under the active filter.
+    // null = not yet probed (Mode-1 still selecting). Set by `probePendingTotal`
+    // when the user has checkbox-selected every visible card AND more rows exist.
+    selectAllMatchingTotal: null as number | null,
     // Mirrors topic_briefs.source enum (see packages/db/src/schema/content.ts).
     availableSources: [
       "gap_analysis",
@@ -212,6 +225,57 @@ export default defineComponent({
       const raw = this.$route.query.readiness;
       const v = Array.isArray(raw) ? (raw[0] ?? "") : (raw ?? "");
       return v === "ready" || v === "unready" || v === "plan_ready" ? v : "";
+    },
+    // Spec 64.17 — value the bar shows. In Mode-2 we show the server total
+    // instead of the per-card array length (which would still equal the
+    // visible page size, misleading the user).
+    effectiveSelectedCount(): number {
+      if (this.selectAllMatching && this.selectAllMatchingTotal !== null) {
+        return this.selectAllMatchingTotal;
+      }
+      return this.selectedBriefIds.length;
+    },
+    // Spec 64.17 — selector body passed to both BulkApproveModal (preflight)
+    // and the bulk-approve/dismiss POSTs. Mirrors the backend's
+    // `bulkBriefSelectorSchema` discriminated union.
+    currentSelectorPayload(): BulkBriefSelectorPayload {
+      if (this.selectAllMatching) {
+        const filter: {
+          section: "pending";
+          source?: string[];
+          readiness?: "ready" | "unready" | "plan_ready" | "all";
+        } = { section: "pending" };
+        if (this.activeSources.length > 0) filter.source = [...this.activeSources];
+        if (this.activeReadiness !== "") filter.readiness = this.activeReadiness;
+        return { filter, excludeIds: [] };
+      }
+      return { briefIds: [...this.selectedBriefIds] };
+    },
+  },
+
+  watch: {
+    // Spec 64.17 — filter changes invalidate Mode-2 selection (the matching
+    // set has shifted). Reset both to avoid carrying a stale Mode-2 across
+    // filter chips.
+    activeSources(): void {
+      this.resetSelection();
+    },
+    activeReadiness(): void {
+      this.resetSelection();
+    },
+    // When the user checkbox-selects every visible pending card AND the
+    // server has more rows, probe the total so the banner can show "Select
+    // all N matching filter →" with a real number. Skipped when Mode-2 is
+    // already active or no probe is needed.
+    selectedBriefIds: {
+      handler(): void {
+        void this.maybeProbePendingTotal();
+      },
+    },
+    pendingBriefs: {
+      handler(): void {
+        void this.maybeProbePendingTotal();
+      },
     },
   },
 
@@ -244,12 +308,76 @@ export default defineComponent({
       void this.$router.replace({ query: next });
     },
     onToggleSelect(briefId: string): void {
+      // Spec 64.17 — checkbox interaction in Mode-2 collapses back to a fresh
+      // per-card selection containing only that brief. Cleaner than silently
+      // keeping the filter selection or trying to do an inverse-deselect.
+      if (this.selectAllMatching) {
+        this.selectAllMatching = false;
+        this.selectAllMatchingTotal = null;
+        this.selectedBriefIds = [briefId];
+        return;
+      }
       const idx = this.selectedBriefIds.indexOf(briefId);
       if (idx === -1) {
         this.selectedBriefIds.push(briefId);
       } else {
         this.selectedBriefIds.splice(idx, 1);
       }
+    },
+    // Spec 64.17 — Mode-1 → Mode-2 promotion. The banner click hands us the
+    // server-probed `selectAllMatchingTotal`; we just flip the mode flag and
+    // clear the per-card array (it's no longer the source of selection).
+    onSelectAllMatching(): void {
+      if (this.selectAllMatchingTotal === null) return;
+      this.selectAllMatching = true;
+      this.selectedBriefIds = [];
+    },
+    // Spec 64.17 — clears every selection mode and probe state at once.
+    resetSelection(): void {
+      this.selectedBriefIds = [];
+      this.selectAllMatching = false;
+      this.selectAllMatchingTotal = null;
+    },
+    // Spec 64.17 — when every visible pending card is selected AND more rows
+    // exist on the server, probe the bulk-preflight endpoint to learn the
+    // actual filter-match total. We re-use the preflight (it returns
+    // `totalMatched`) rather than introducing a separate count endpoint. The
+    // request is throttled by short-circuiting once we have a value.
+    async maybeProbePendingTotal(): Promise<void> {
+      if (this.selectAllMatching) return;
+      if (this.selectAllMatchingTotal !== null) return;
+      const visible = this.pendingBriefs.length;
+      if (visible === 0 || this.selectedBriefIds.length < visible) return;
+      if (!this.pendingHasMore) return;
+
+      const slug = this.$route.params.slug as string;
+      try {
+        const result = await apiPost<{ totalMatched: number }>(
+          `/projects/${slug}/briefs/bulk-preflight-cluster-check`,
+          this.buildFilterShapeSelector(),
+        );
+        // Only set if the server reports MORE than what's already selected —
+        // otherwise the banner has nothing to offer.
+        if (result.totalMatched > visible) {
+          this.selectAllMatchingTotal = result.totalMatched;
+        }
+      } catch {
+        // Soft fail — banner just stays hidden, Mode-1 still works.
+      }
+    },
+    // Helper: builds the filter-shape selector for the pending section under
+    // the current source + readiness filters. Mirrors `currentSelectorPayload`
+    // when `selectAllMatching` is true but is callable BEFORE Mode-2 is
+    // promoted (used by `maybeProbePendingTotal`).
+    buildFilterShapeSelector(): BulkBriefSelectorPayload {
+      const filter: {
+        section: "pending";
+        source?: string[];
+        readiness?: "ready" | "unready" | "plan_ready" | "all";
+      } = { section: "pending" };
+      if (this.activeSources.length > 0) filter.source = [...this.activeSources];
+      if (this.activeReadiness !== "") filter.readiness = this.activeReadiness;
+      return { filter, excludeIds: [] };
     },
     onSelectBrief(brief: BriefListItem): void {
       const slug = this.$route.params.slug as string;
@@ -271,24 +399,34 @@ export default defineComponent({
       dispatch: "plan" | "immediate";
       mode: "assist" | "auto";
     }): Promise<void> {
-      if (!this.selectedBriefIds.length || this.bulkProcessing) return;
+      // Spec 64.17 — Mode-1 needs at least one ID; Mode-2 always proceeds with
+      // the filter-shape selector (server may still resolve 0, that's fine).
+      if (
+        this.bulkProcessing ||
+        (!this.selectAllMatching && this.selectedBriefIds.length === 0)
+      ) {
+        return;
+      }
       this.bulkProcessing = true;
       try {
         const slug = this.$route.params.slug as string;
+        const expectedSelectedCount = this.effectiveSelectedCount;
         const result = await apiPost<{
           dispatch: "plan" | "immediate";
+          reQueried: boolean;
+          totalMatched: number;
           total: number;
           approvedCount: number;
           planQueuedCount: number;
           skippedCount: number;
           failedCount: number;
         }>(`/projects/${slug}/briefs/bulk-approve`, {
-          briefIds: this.selectedBriefIds,
+          ...this.currentSelectorPayload,
           mode: payload.mode,
           dispatch: payload.dispatch,
         });
         this.showApproveModal = false;
-        this.selectedBriefIds = [];
+        this.resetSelection();
         // Spec 63.6: 'plan' dispatch reports count under planQueuedCount, 'immediate'
         // under approvedCount — surface the correct success message per branch.
         const planQueued = result.planQueuedCount ?? 0;
@@ -303,24 +441,62 @@ export default defineComponent({
             count: payload.dispatch === "plan" ? planQueued : approved,
           }) as string,
         });
+        // Spec 64.17 — race-condition diagnostic. When the filter-shape branch
+        // resolved a different total than what we showed the user pre-submit,
+        // surface a follow-up notify so the discrepancy isn't silent.
+        if (
+          result.reQueried &&
+          expectedSelectedCount > 0 &&
+          result.totalMatched !== expectedSelectedCount
+        ) {
+          this.$q.notify({
+            type: "info",
+            message: this.$t("briefs.bulk.raceDetected", { total: result.totalMatched }) as string,
+            timeout: 6000,
+          });
+        }
         void this.refetchPending();
       } finally {
         this.bulkProcessing = false;
       }
     },
     async onBulkDismiss(): Promise<void> {
-      if (!this.selectedBriefIds.length || this.bulkProcessing) return;
+      if (
+        this.bulkProcessing ||
+        (!this.selectAllMatching && this.selectedBriefIds.length === 0)
+      ) {
+        return;
+      }
       this.bulkProcessing = true;
       try {
         const slug = this.$route.params.slug as string;
-        await apiPost(`/projects/${slug}/briefs/bulk-dismiss`, {
-          briefIds: this.selectedBriefIds,
-        });
-        this.selectedBriefIds = [];
+        const expectedSelectedCount = this.effectiveSelectedCount;
+        const result = await apiPost<{
+          reQueried: boolean;
+          totalMatched: number;
+          requested: number;
+          dismissed: number;
+          skipped: number;
+        }>(`/projects/${slug}/briefs/bulk-dismiss`, this.currentSelectorPayload);
+        this.resetSelection();
+        // Dismiss surfaces no per-count message by design — single-action
+        // ceremony is lighter than approve (which carries plan/immediate
+        // dispatch context). The race-banner below still fires when relevant.
         this.$q.notify({
           type: "info",
           message: this.$t("briefs.bulk.dismissSuccess") as string,
         });
+        if (
+          result.reQueried &&
+          expectedSelectedCount > 0 &&
+          result.totalMatched !== expectedSelectedCount
+        ) {
+          this.$q.notify({
+            type: "info",
+            message: this.$t("briefs.bulk.raceDetected", { total: result.totalMatched }) as string,
+            timeout: 6000,
+          });
+        }
         void this.refetchPending();
       } finally {
         this.bulkProcessing = false;

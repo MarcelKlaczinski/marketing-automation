@@ -28,6 +28,15 @@ export default {
     dismissSuccess: "Briefs dismissed",
     dismissConfirmTitle: "Dismiss briefs",
     dismissConfirmDescription: "{count} brief(s) will be dismissed.",
+    // Spec 64.17 — "Select all matching filter" pattern.
+    selectAllMatching: "Select all {n} briefs matching filter",
+    selectAllMatchingActive: "{n} briefs selected (all matching filter)",
+    preflightLoading: "Checking cluster assignments …",
+    preflightTotal: "{n} briefs selected",
+    preflightEligible: "{n} ready",
+    preflightNeedsCluster: "{n} need cluster assignment (will be skipped)",
+    preflightError: "Cluster check failed — submit still enabled.",
+    raceDetected: "Filter matched {total} briefs at action time.",
   },
 
   // Spec 63.6: dispatch picker for brief-approval (plan vs immediate).
@@ -42,6 +51,9 @@ export default {
       "Articles will be generated right now. The weekly budget gate is bypassed — use only for edge cases.",
     immediateSuccess: "{count} brief(s) — generation running",
     immediateConfirmTitle: "Confirm immediate generation",
+    // Spec 64.17 — Submit labels with pre-flight eligibility count.
+    submitPlanN: "Schedule {n} brief(s) into plan",
+    submitImmediateN: "Generate {n} brief(s) immediately",
   },
 
   actions: {

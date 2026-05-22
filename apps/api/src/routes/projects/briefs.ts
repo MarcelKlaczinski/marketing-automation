@@ -14,6 +14,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
 import { approveBrief } from "../../lib/brief-service.ts";
+import {
+  BRIEF_SOURCES,
+  type BriefSource,
+  buildBriefsWhere,
+  resolveBulkBriefIds,
+} from "../../lib/brief-bulk-selector.ts";
 import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("briefs-route");
@@ -32,32 +38,9 @@ async function resolveProject(slug: string): Promise<{ id: string } | null> {
   return proj ?? null;
 }
 
-// Approval status groups for section filtering.
-// Typed explicitly so inArray() gets the narrowed union rather than string[].
-// Spec 63.6: `plan_pending` (Marcel approved, waiting on Planner pickup) lives
-// in `pending` so the BriefsPage chips can filter it via readiness=plan_ready
-// without splintering the section taxonomy.
-type ApprovalStatus =
-  | "pending"
-  | "plan_pending"
-  | "approved"
-  | "rejected"
-  | "auto_approved"
-  | "superseded"
-  | "routed";
-const PENDING_STATUSES: Array<ApprovalStatus> = ["pending", "plan_pending"];
-const IN_FLIGHT_STATUSES: Array<ApprovalStatus> = ["approved", "auto_approved", "routed"];
-const DONE_STATUSES: Array<ApprovalStatus> = ["rejected", "superseded"];
-
-// Brief source enum (mirrors topic_briefs.source values — see packages/db/src/schema/content.ts).
-const BRIEF_SOURCES = [
-  "gap_analysis",
-  "trend_discovery",
-  "refresh_detection",
-  "manual",
-  "comparison_discovery",
-] as const;
-type BriefSource = (typeof BRIEF_SOURCES)[number];
+// Spec 64.17: BRIEF_SOURCES + BriefSource + buildBriefsWhere now live in
+// src/lib/brief-bulk-selector.ts so GET /briefs and the bulk-action filter-shape
+// resolver share a single source of truth for filter→SQL translation.
 
 // ─── GET /:slug/briefs ────────────────────────────────────────────────────────
 
@@ -95,31 +78,11 @@ scopedBriefRoutes.get(
     const project = await resolveProject(slug);
     if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
 
-    const conditions = [eq(topicBriefs.projectId, project.id)];
-
-    if (q.section === "pending") {
-      conditions.push(inArray(topicBriefs.approvalStatus, PENDING_STATUSES));
-    } else if (q.section === "in-flight") {
-      conditions.push(inArray(topicBriefs.approvalStatus, IN_FLIGHT_STATUSES));
-    } else if (q.section === "done") {
-      conditions.push(inArray(topicBriefs.approvalStatus, DONE_STATUSES));
-    }
-
-    if (q.source && q.source.length > 0) {
-      conditions.push(inArray(topicBriefs.source, q.source));
-    }
-
-    if (q.readiness === "ready") {
-      conditions.push(
-        sql`(${topicBriefs.primaryKeyword} IS NOT NULL OR ${topicBriefs.source} = 'comparison_discovery')`,
-      );
-    } else if (q.readiness === "unready") {
-      conditions.push(
-        sql`(${topicBriefs.primaryKeyword} IS NULL AND ${topicBriefs.source} <> 'comparison_discovery')`,
-      );
-    } else if (q.readiness === "plan_ready") {
-      conditions.push(eq(topicBriefs.approvalStatus, "plan_pending"));
-    }
+    const conditions = buildBriefsWhere(project.id, {
+      section: q.section,
+      ...(q.source !== undefined && { source: q.source }),
+      ...(q.readiness !== undefined && { readiness: q.readiness }),
+    });
 
     if (q.cursor) {
       conditions.push(lt(topicBriefs.createdAt, new Date(q.cursor)));
@@ -179,6 +142,29 @@ scopedBriefRoutes.get("/:slug/briefs/:briefId", async (c) => {
   return c.json({ ok: true, data: { brief } });
 });
 
+// ─── Bulk-action selector schema (Spec 64.17) ────────────────────────────────
+//
+// Discriminated union: either an explicit briefIds array or a filter-shape that
+// the server re-queries at action time (race-safety against cron tick between
+// selection and submit). Cap of 500 on both shapes — soft safety bound; bulk
+// status updates run in a single transaction per brief, no fan-out.
+
+const filterShapeSchema = z.object({
+  section: z.enum(["pending", "in-flight", "done", "all"]).default("pending"),
+  source: z.array(z.enum(BRIEF_SOURCES)).optional(),
+  readiness: z.enum(["ready", "unready", "plan_ready", "all"]).optional(),
+});
+
+const bulkBriefSelectorSchema = z.union([
+  z.object({
+    briefIds: z.array(z.string().uuid()).min(1).max(500),
+  }),
+  z.object({
+    filter: filterShapeSchema,
+    excludeIds: z.array(z.string().uuid()).max(500).default([]),
+  }),
+]);
+
 // ─── POST /:slug/briefs/bulk-approve ─────────────────────────────────────────
 
 // Spec 63.6: `dispatch` defaults to 'plan' — the safer path that flips briefs
@@ -186,21 +172,48 @@ scopedBriefRoutes.get("/:slug/briefs/:briefId", async (c) => {
 // Gate. `dispatch: 'immediate'` is the explicit Direct-Generate override (legacy
 // behaviour: article-INSERT + pipeline-enqueue inline). `mode` is the older
 // assist/auto field; both modes today drive identical server behaviour.
-const bulkApproveSchema = z.object({
-  briefIds: z.array(z.string().uuid()).min(1).max(50),
-  mode: z.enum(["assist", "auto"]).default("assist"),
-  dispatch: z.enum(["plan", "immediate"]).default("plan"),
-});
+//
+// Spec 64.17: selector widened to `briefIds[]` OR `{filter, excludeIds}`; cap 500.
+const bulkApproveSchema = z.intersection(
+  bulkBriefSelectorSchema,
+  z.object({
+    mode: z.enum(["assist", "auto"]).default("assist"),
+    dispatch: z.enum(["plan", "immediate"]).default("plan"),
+  }),
+);
 
 scopedBriefRoutes.post(
   "/:slug/briefs/bulk-approve",
   zValidator("json", bulkApproveSchema),
   async (c) => {
     const slug = c.req.param("slug");
-    const { briefIds, mode, dispatch } = c.req.valid("json");
+    const body = c.req.valid("json");
+    const { mode, dispatch } = body;
 
     const project = await resolveProject(slug);
     if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const { briefIds, reQueried } = await resolveBulkBriefIds(project.id, body);
+
+    if (briefIds.length === 0) {
+      return c.json(
+        {
+          ok: true,
+          data: {
+            dispatch,
+            reQueried,
+            totalMatched: 0,
+            total: 0,
+            approvedCount: 0,
+            planQueuedCount: 0,
+            skippedCount: 0,
+            failedCount: 0,
+            results: { approved: [], planQueued: [], skipped: [], failed: [] },
+          },
+        },
+        202,
+      );
+    }
 
     const results = {
       approved: [] as Array<{ briefId: string; runId: string; jobId: string }>,
@@ -238,6 +251,7 @@ scopedBriefRoutes.post(
         slug,
         mode,
         dispatch,
+        reQueried,
         total: briefIds.length,
         approved: results.approved.length,
         planQueued: results.planQueued.length,
@@ -252,6 +266,8 @@ scopedBriefRoutes.post(
         ok: true,
         data: {
           dispatch,
+          reQueried,
+          totalMatched: briefIds.length,
           total: briefIds.length,
           approvedCount: results.approved.length,
           planQueuedCount: results.planQueued.length,
@@ -262,6 +278,65 @@ scopedBriefRoutes.post(
       },
       202,
     );
+  },
+);
+
+// ─── POST /:slug/briefs/bulk-preflight-cluster-check (Spec 64.17) ───────────
+//
+// Pure read-only SQL aggregate. Returns the eligibility breakdown for both
+// dispatch modes given the current brief set, so BulkApproveModal can warn
+// before submit instead of letting Marcel discover skipped briefs after.
+//
+// Gates mirror approveBrief() in apps/api/src/lib/brief-service.ts:
+//   plan-dispatch blocks ONLY: cluster_action='append_to_existing' AND cluster_id IS NULL
+//   immediate-dispatch blocks: cluster_action='create_new' OR cluster_id IS NULL
+// (No source-based special-case — the gate is source-agnostic; comparison
+//  briefs without clusterId ARE blocked by immediate dispatch, by design.)
+
+scopedBriefRoutes.post(
+  "/:slug/briefs/bulk-preflight-cluster-check",
+  zValidator("json", bulkBriefSelectorSchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const project = await resolveProject(slug);
+    if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const { briefIds, reQueried } = await resolveBulkBriefIds(project.id, c.req.valid("json"));
+
+    if (briefIds.length === 0) {
+      return c.json({
+        ok: true,
+        data: {
+          reQueried,
+          totalMatched: 0,
+          plan: { eligible: 0, needsCluster: 0 },
+          immediate: { eligible: 0, needsCluster: 0 },
+        },
+      });
+    }
+
+    const [agg] = await db
+      .select({
+        total: sql<number>`count(*)::int`,
+        planNeedsCluster: sql<number>`count(*) FILTER (WHERE ${topicBriefs.clusterAction} = 'append_to_existing' AND ${topicBriefs.clusterId} IS NULL)::int`,
+        immediateNeedsCluster: sql<number>`count(*) FILTER (WHERE ${topicBriefs.clusterAction} = 'create_new' OR ${topicBriefs.clusterId} IS NULL)::int`,
+      })
+      .from(topicBriefs)
+      .where(and(eq(topicBriefs.projectId, project.id), inArray(topicBriefs.id, briefIds)));
+
+    const total = agg?.total ?? 0;
+    const planNeeds = agg?.planNeedsCluster ?? 0;
+    const immediateNeeds = agg?.immediateNeedsCluster ?? 0;
+
+    return c.json({
+      ok: true,
+      data: {
+        reQueried,
+        totalMatched: total,
+        plan: { eligible: total - planNeeds, needsCluster: planNeeds },
+        immediate: { eligible: total - immediateNeeds, needsCluster: immediateNeeds },
+      },
+    });
   },
 );
 
@@ -383,20 +458,31 @@ scopedBriefRoutes.post(
 );
 
 // ─── POST /:slug/briefs/bulk-dismiss ─────────────────────────────────────────
-
-const bulkDismissSchema = z.object({
-  briefIds: z.array(z.string().uuid()).min(1).max(50),
-});
+//
+// Spec 64.17: selector widened to bulkBriefSelectorSchema (same shape as
+// bulk-approve). Deliberate constraint: only flips approvalStatus='pending'
+// rows — plan_pending briefs are Marcel-vouched (Spec 63.6) and must go
+// through per-brief dismiss from the detail view to avoid misclick loss.
+// A filter-shape selector with readiness=plan_ready will resolve plan_pending
+// briefs that the UPDATE then refuses to touch; the response surfaces them
+// as `skipped`.
 
 scopedBriefRoutes.post(
   "/:slug/briefs/bulk-dismiss",
-  zValidator("json", bulkDismissSchema),
+  zValidator("json", bulkBriefSelectorSchema),
   async (c) => {
     const slug = c.req.param("slug");
-    const { briefIds } = c.req.valid("json");
-
     const project = await resolveProject(slug);
     if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const { briefIds, reQueried } = await resolveBulkBriefIds(project.id, c.req.valid("json"));
+
+    if (briefIds.length === 0) {
+      return c.json({
+        ok: true,
+        data: { reQueried, totalMatched: 0, requested: 0, dismissed: 0, skipped: 0 },
+      });
+    }
 
     const updated = await db
       .update(topicBriefs)
@@ -411,13 +497,15 @@ scopedBriefRoutes.post(
       .returning({ id: topicBriefs.id });
 
     log.info(
-      { slug, requested: briefIds.length, dismissed: updated.length },
+      { slug, reQueried, requested: briefIds.length, dismissed: updated.length },
       "bulk brief dismiss complete",
     );
 
     return c.json({
       ok: true,
       data: {
+        reQueried,
+        totalMatched: briefIds.length,
         requested: briefIds.length,
         dismissed: updated.length,
         skipped: briefIds.length - updated.length,

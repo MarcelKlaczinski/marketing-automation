@@ -28,6 +28,15 @@ export default {
     dismissSuccess: "Briefs abgelehnt",
     dismissConfirmTitle: "Briefs ablehnen",
     dismissConfirmDescription: "{count} Brief(s) werden abgelehnt.",
+    // Spec 64.17 — "Select all matching filter" pattern.
+    selectAllMatching: "Alle {n} Briefs auswählen, die zum Filter passen",
+    selectAllMatchingActive: "{n} Briefs ausgewählt (alle, die zum Filter passen)",
+    preflightLoading: "Prüfe Cluster-Zuweisungen …",
+    preflightTotal: "{n} Briefs ausgewählt",
+    preflightEligible: "{n} bereit",
+    preflightNeedsCluster: "{n} brauchen Cluster-Zuweisung (werden übersprungen)",
+    preflightError: "Cluster-Prüfung fehlgeschlagen — Submit bleibt aktiv.",
+    raceDetected: "Filter passte zur Action-Zeit auf {total} Briefs.",
   },
 
   // Spec 63.6: dispatch picker for brief-approval (plan vs immediate).
@@ -42,6 +51,9 @@ export default {
       "Artikel werden sofort erzeugt. Das wöchentliche Budget-Gate wird umgangen — nur für Edge-Cases empfohlen.",
     immediateSuccess: "{count} Brief(s) — Generation läuft",
     immediateConfirmTitle: "Sofort generieren bestätigen",
+    // Spec 64.17 — Submit-Labels mit Pre-Flight-Eligibility-Count.
+    submitPlanN: "{n} Brief(s) in Plan einreihen",
+    submitImmediateN: "{n} Brief(s) sofort generieren",
   },
 
   actions: {
