@@ -105,9 +105,21 @@ export interface WeeklyBudgetEstimate {
   overrunEur: number | null;
 }
 
+/**
+ * Spec 64.6b: optional project-level context passed to every step's
+ * `estimatedCostEur` invocation. Used by `HeroImageStep` to swap the per-image
+ * rate based on the project's image-generation provider + resolution toggle.
+ * Steps that don't read the context (the default) safely ignore it — interfaces
+ * accept extra arg via TypeScript's standard fn-arg variance.
+ */
+export interface EstimatorContext {
+  imageProvider?: "nano-banana-2" | "nano-banana-pro" | "flux-1.1-pro";
+  imageResolution?: "0.5k" | "1k" | "2k" | "4k";
+}
+
 /** Minimal step shape used to invoke `estimatedCostEur`. Avoids depending on the pipelines package. */
 export interface EstimatorStep {
-  estimatedCostEur: (input: unknown) => number;
+  estimatedCostEur: (input: unknown, context?: EstimatorContext) => number;
   /**
    * Spec 62.5.1: marks steps whose cost is dominated by an Anthropic LLM call.
    * When the project's `llmMode === 'batch'`, the estimator multiplies this
@@ -140,6 +152,14 @@ export interface EstimateWeeklyPlanCostInput {
    * flagged `llmBound = true`. Defaults to `"sync"` (no discount applied).
    */
   llmMode?: "sync" | "batch";
+  /**
+   * Spec 64.6b: image-generation provider + resolution at plan-generation time.
+   * Threaded into each step's `estimatedCostEur(input, ctx)` call so the
+   * `HeroImageStep` can pick the resolution-aware per-image rate. Defaults are
+   * a no-op for callers that don't set them.
+   */
+  imageProvider?: EstimatorContext["imageProvider"];
+  imageResolution?: EstimatorContext["imageResolution"];
 }
 
 /**
@@ -183,8 +203,14 @@ export async function estimateWeeklyPlanCost(
       const steps = input.resolvePipelineSteps(item.pipelineName);
       if (steps && steps.length > 0) {
         const isBatch = input.llmMode === "batch";
+        // Spec 64.6b: thread image-generation context into every step's
+        // estimator. HeroImageStep reads it to pick the resolution-aware rate;
+        // every other step ignores the extra arg.
+        const estimatorCtx: EstimatorContext = {};
+        if (input.imageProvider !== undefined) estimatorCtx.imageProvider = input.imageProvider;
+        if (input.imageResolution !== undefined) estimatorCtx.imageResolution = input.imageResolution;
         const sum = steps.reduce((acc, s) => {
-          const raw = s.estimatedCostEur(item.predictedInput) || 0;
+          const raw = s.estimatedCostEur(item.predictedInput, estimatorCtx) || 0;
           // Spec 62.5.1: apply batch discount per-step so mixed pipelines
           // (some llmBound steps, some not) get a partial discount.
           const factor = isBatch && s.llmBound === true ? BATCH_DISCOUNT_FACTOR : 1;

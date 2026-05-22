@@ -16,7 +16,12 @@ const log = createLogger("nano-banana");
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const MAX_ATTEMPTS = 3;
+// 5xx + network: 500ms / 1s / 2s (max 3.5s total wait)
 const BASE_BACKOFF_MS = 500;
+// Spec 64.6b: 429 rate-limit backoff is more aggressive — 1s / 2s / 4s (max 7s).
+// Justification: quota recovery needs a longer window than a transient 5xx blip;
+// hammering at 500ms during a 429 burst only burns more quota.
+const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
 const FORMAT_TO_MIME: Record<string, string> = {
   webp: "image/webp",
@@ -77,6 +82,7 @@ export async function callGeminiWithRetry(
   body: Record<string, unknown>
 ): Promise<{ response: GeminiResponse; durationMs: number }> {
   let lastError: unknown = null;
+  let lastWasRateLimit = false;
   const totalStart = Date.now();
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -90,14 +96,29 @@ export async function callGeminiWithRetry(
         body: JSON.stringify(body),
       });
 
-      // 5xx → retryable; 4xx → fail fast (auth / invalid prompt etc.)
-      if (resp.status >= 500 && resp.status < 600) {
+      // Spec 64.6b: 429 rate-limit gets its own retry branch with longer backoff
+      // (1s/2s/4s). Failure message is distinct so callers + tests can tell apart
+      // "quota exhausted" from "transient 5xx blip".
+      if (resp.status === 429) {
+        const text = await resp.text().catch(() => "");
+        lastError = new NanoBananaGenerationError(
+          `Gemini 429 ${resp.statusText}: ${text.slice(0, 200)}`
+        );
+        lastWasRateLimit = true;
+        log.warn(
+          { attempt, status: 429, bodyExcerpt: text.slice(0, 200) },
+          "Gemini rate-limited — backing off"
+        );
+      } else if (resp.status >= 500 && resp.status < 600) {
+        // 5xx → retryable transient
         const text = await resp.text().catch(() => "");
         lastError = new NanoBananaGenerationError(
           `Gemini ${resp.status} ${resp.statusText}: ${text.slice(0, 200)}`
         );
+        lastWasRateLimit = false;
         log.warn({ attempt, status: resp.status }, "Gemini transient failure — retrying");
       } else if (!resp.ok) {
+        // 4xx (non-429) → fail-fast. Auth, invalid prompt, blocked content — no point retrying.
         const text = await resp.text().catch(() => "");
         throw new NanoBananaGenerationError(
           `Gemini ${resp.status} ${resp.statusText}: ${text.slice(0, 500)}`
@@ -112,19 +133,34 @@ export async function callGeminiWithRetry(
         return { response: json, durationMs: Date.now() - totalStart };
       }
     } catch (e) {
-      if (e instanceof NanoBananaGenerationError && !String(e.message).startsWith("Gemini 5")) {
+      // Fail-fast errors (4xx non-429 + JSON parse + API error payloads) carry messages that
+      // start with "Gemini <status>" or "Gemini API error". "Gemini 5" + "Gemini 429" are
+      // the only patterns that go through the retry path.
+      if (
+        e instanceof NanoBananaGenerationError &&
+        !String(e.message).startsWith("Gemini 5") &&
+        !String(e.message).startsWith("Gemini 429")
+      ) {
         throw e;
       }
       lastError = e;
+      lastWasRateLimit = false;
       log.warn({ attempt, err: e }, "Gemini call threw — retrying");
     }
 
     if (attempt < MAX_ATTEMPTS) {
-      const backoff = BASE_BACKOFF_MS * 2 ** (attempt - 1);
+      const base = lastWasRateLimit ? RATE_LIMIT_BASE_BACKOFF_MS : BASE_BACKOFF_MS;
+      const backoff = base * 2 ** (attempt - 1);
       await new Promise((r) => setTimeout(r, backoff));
     }
   }
 
+  if (lastWasRateLimit) {
+    throw new NanoBananaGenerationError(
+      `Rate limited after ${MAX_ATTEMPTS} attempts`,
+      lastError
+    );
+  }
   throw new NanoBananaGenerationError(
     `Gemini call failed after ${MAX_ATTEMPTS} attempts`,
     lastError
@@ -146,6 +182,10 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
   const body = buildModelRequestBody(input);
   const ext = FORMAT_TO_EXT[input.outputFormat ?? "webp"] ?? "webp";
   const fallbackMime = FORMAT_TO_MIME[input.outputFormat ?? "webp"] ?? "application/octet-stream";
+  // Spec 64.6b: resolution flows through to cost calculation. Default "1k" mirrors the
+  // projects.image_generation_resolution column default — callers that don't know the
+  // resolution end up with the same accounting as legacy 64.6 callers.
+  const resolution = input.resolution ?? "1k";
 
   log.debug(
     {
@@ -155,6 +195,7 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
       modelSlug,
       promptLen: input.prompt.length,
       aspectRatio: input.aspectRatio,
+      resolution,
       seedProvided: input.seed !== undefined,
       storagePrefix: input.storagePrefix,
     },
@@ -194,10 +235,11 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
         modelSlug,
       };
     },
-    computeCostEur: () => nanoBananaImageCostEur({ model: input.model, count: 1 }),
+    computeCostEur: () => nanoBananaImageCostEur({ model: input.model, resolution, count: 1 }),
     metadata: (r: TrackResult) => ({
       model: input.model,
       modelSlug,
+      resolution,
       r2Key: r.r2Key,
       bytesStored: r.bytesStored,
       seed: r.seed,

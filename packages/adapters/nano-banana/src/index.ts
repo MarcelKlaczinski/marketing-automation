@@ -9,6 +9,7 @@ export {
 export {
   NANO_BANANA_MODELS,
   type NanoBananaModel,
+  type NanoBananaResolution,
   type AspectRatio,
   type OutputFormat,
   type GenerateImageInput,

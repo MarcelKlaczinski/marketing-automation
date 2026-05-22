@@ -56,18 +56,49 @@ export function replicateImageCostEur(input: { model: ReplicateModel; count: num
   return usdToEur(usd);
 }
 
-// Spec 64.6: Google Gemini Image API ("Nano Banana") via @marketing-auto/adapter-nano-banana.
-// Pricing per generated image at 2K resolution (verified 2026-05-22 web search).
+// Spec 64.6b: Google Gemini Image API ("Nano Banana") pricing per generated image,
+// keyed by output resolution. Source: Google Cloud Generative AI pricing page
+// (verified web-search 2026-05-23). Pro tier doesn't support 0.5k natively —
+// the adapter silently upgrades to 1K, so the 0.5k → Pro rate mirrors the 1k Pro
+// rate ($0.134) for cost-accounting consistency.
+export type NanoBananaResolution = "0.5k" | "1k" | "2k" | "4k";
+
+export const NANO_BANANA_2_PRICING_USD: Record<NanoBananaResolution, number> = {
+  "0.5k": 0.045,
+  "1k": 0.067,
+  "2k": 0.101,
+  "4k": 0.151,
+};
+
+export const NANO_BANANA_PRO_PRICING_USD: Record<NanoBananaResolution, number> = {
+  "0.5k": 0.134, // Pro doesn't support 512 — adapter upgrades to 1K, accounted at 1K rate.
+  "1k": 0.134,
+  "2k": 0.134, // Same token count as 1K per Google's pricing.
+  "4k": 0.24,
+};
+
+// Back-compat: legacy callers (Spec 64.6) keyed by model only — kept as the 1K rate
+// since 1K is the Toolwiki default. Remove once 64.6b is fully rolled out.
 export const NANO_BANANA_PRICING_USD_PER_IMAGE = {
-  "nano-banana-2": 0.067,
-  "nano-banana-pro": 0.134,
+  "nano-banana-2": NANO_BANANA_2_PRICING_USD["1k"],
+  "nano-banana-pro": NANO_BANANA_PRO_PRICING_USD["1k"],
 } as const;
 
 export type NanoBananaModel = keyof typeof NANO_BANANA_PRICING_USD_PER_IMAGE;
 
-export function nanoBananaImageCostEur(input: { model: NanoBananaModel; count: number }): number {
-  const usd = NANO_BANANA_PRICING_USD_PER_IMAGE[input.model] * input.count;
-  return usdToEur(usd);
+/**
+ * Compute real-cost EUR for a Nano Banana image generation. Spec 64.6b widened
+ * the signature to require `resolution`. Callers that don't know the resolution
+ * (or read it from the project later) should pass "1k" to mirror the column default.
+ */
+export function nanoBananaImageCostEur(input: {
+  model: NanoBananaModel;
+  resolution: NanoBananaResolution;
+  count: number;
+}): number {
+  const usdMap =
+    input.model === "nano-banana-2" ? NANO_BANANA_2_PRICING_USD : NANO_BANANA_PRO_PRICING_USD;
+  return usdToEur(usdMap[input.resolution] * input.count);
 }
 
 export const DATAFORSEO_PRICING_USD = {

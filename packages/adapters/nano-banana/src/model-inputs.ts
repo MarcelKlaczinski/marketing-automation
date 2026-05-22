@@ -1,27 +1,39 @@
-import type { GenerateImageInput } from "./types.ts";
+import type { GenerateImageInput, NanoBananaResolution } from "./types.ts";
+
+/**
+ * Spec 64.6b: maps our lowercase resolution tokens to Gemini's `imageSize` strings.
+ *
+ * Gemini docs (https://ai.google.dev/gemini-api/docs/image-generation):
+ * - Flash (gemini-3-flash-image-preview) supports: "512", "1K", "2K", "4K"
+ * - Pro   (gemini-3-pro-image-preview)   supports: "1K",  "2K", "4K"  (no 512)
+ * - "Lowercase parameters (e.g., 1k) will be rejected." Uppercase K only.
+ * - 512 has NO 'K' suffix (asymmetric naming, verbatim from docs).
+ */
+const GEMINI_RESOLUTION_MAP: Record<NanoBananaResolution, string> = {
+  "0.5k": "512",
+  "1k": "1K",
+  "2k": "2K",
+  "4k": "4K",
+};
 
 /**
  * Maps our typed input to the Google Gemini Image API request body shape.
- * Endpoint: POST https://generativelanguage.googleapis.com/v1beta/models/<slug>:generateImage
+ * Endpoint: POST https://generativelanguage.googleapis.com/v1beta/models/<slug>:generateContent
  *
- * Body shape follows the Gemini Image preview API: a single image generation
- * request with imageConfig + optional seed. Aspect ratio is passed as the
- * canonical ratio string ("16:9", "1:1", …); the API picks the closest 2K-class
- * resolution. We do not request multiple candidates — caller asks for one image
- * per call so the cost model stays predictable.
+ * Spec 64.6b corrected the field path: `generationConfig.responseFormat.image.{aspectRatio,imageSize}`
+ * matches the documented API. (Spec 64.6's `imageConfig.aspectRatio` was undocumented and never
+ * verified live — see Spec 64.6 §11 acceptance #18 which was deferred.)
  */
 export function buildModelRequestBody(input: GenerateImageInput): Record<string, unknown> {
   const aspectRatio = input.aspectRatio ?? "16:9";
-  const outputFormat = input.outputFormat ?? "webp";
+  const requestedResolution: NanoBananaResolution = input.resolution ?? "1k";
 
-  const imageConfig: Record<string, unknown> = {
-    aspectRatio,
-    outputMimeType: mimeFromFormat(outputFormat),
-  };
+  // Pro tier doesn't support 512 — silently upgrade to "1k" rather than failing
+  // a budget-approved render over a tier mismatch.
+  const effectiveResolution: NanoBananaResolution =
+    input.model === "nano-banana-pro" && requestedResolution === "0.5k" ? "1k" : requestedResolution;
 
-  if (input.outputQuality !== undefined && outputFormat !== "png") {
-    imageConfig.outputQuality = input.outputQuality;
-  }
+  const imageSize = GEMINI_RESOLUTION_MAP[effectiveResolution];
 
   const body: Record<string, unknown> = {
     contents: [
@@ -32,23 +44,16 @@ export function buildModelRequestBody(input: GenerateImageInput): Record<string,
     ],
     generationConfig: {
       candidateCount: 1,
-      imageConfig,
+      responseModalities: ["TEXT", "IMAGE"],
+      responseFormat: {
+        image: {
+          aspectRatio,
+          imageSize,
+        },
+      },
       ...(input.seed !== undefined ? { seed: input.seed } : {}),
     },
   };
 
   return body;
-}
-
-function mimeFromFormat(format: string): string {
-  switch (format) {
-    case "webp":
-      return "image/webp";
-    case "png":
-      return "image/png";
-    case "jpg":
-      return "image/jpeg";
-    default:
-      return "image/webp";
-  }
 }

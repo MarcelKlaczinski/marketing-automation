@@ -624,6 +624,13 @@
       "when": 1786600000000,
       "tag": "0088_projects_image_generation_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1786700000000,
+      "tag": "0089_projects_image_generation_resolution",
+      "breakpoints": true
     }
   ]
 }

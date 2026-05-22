@@ -135,6 +135,13 @@ export const plannerConfigSnapshotSchema = z.object({
   // snapshots written before 63.5.
   diversityThreshold: z.number().min(0).max(1).default(0.5),
   diversityMalusWeight: z.number().min(0).max(2).default(0.5),
+  // Spec 64.6b: hero-image generation toggle. Captured from `projects` at plan
+  // time so cost estimates match the budget Marcel saw at approval. Defaults
+  // mirror the DB column defaults so plans written before 64.6b parse cleanly.
+  imageGenerationProvider: z
+    .enum(["nano-banana-2", "nano-banana-pro", "flux-1.1-pro"])
+    .default("nano-banana-2"),
+  imageGenerationResolution: z.enum(["0.5k", "1k", "2k", "4k"]).default("1k"),
 });
 export type PlannerConfigSnapshot = z.infer<typeof plannerConfigSnapshotSchema>;
 

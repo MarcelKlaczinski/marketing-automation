@@ -59,16 +59,24 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       isActive: g.isActive,
     }));
 
-    // Spec 62.5.1: capture projects.llmMode in the snapshot so cost estimates
-    // are reproducible — replaying the snapshot under a different llmMode
-    // would produce different per-item costs.
+    // Spec 62.5.1 + 64.6b: capture projects.{llmMode, image_generation_provider,
+    // image_generation_resolution} in the snapshot so cost estimates are reproducible —
+    // replaying under a different setting would change per-item costs.
     const projectRow = await db
-      .select({ llmMode: projects.llmMode })
+      .select({
+        llmMode: projects.llmMode,
+        imageGenerationProvider: projects.imageGenerationProvider,
+        imageGenerationResolution: projects.imageGenerationResolution,
+      })
       .from(projects)
       .where(eq(projects.id, input.projectId))
       .limit(1);
     const llmMode: "sync" | "batch" =
       projectRow[0]?.llmMode === "batch" ? "batch" : "sync";
+    const imageGenerationProvider: PlannerConfigSnapshot["imageGenerationProvider"] =
+      projectRow[0]?.imageGenerationProvider === "flux-1.1-pro" ? "flux-1.1-pro" : "nano-banana-2";
+    const imageGenerationResolution: PlannerConfigSnapshot["imageGenerationResolution"] =
+      projectRow[0]?.imageGenerationResolution ?? "1k";
 
     const configSnap: PlannerConfigSnapshot = {
       weeklyBudgetEur: Number(config.weeklyBudgetEur),
@@ -84,6 +92,8 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       // side → string at the Drizzle boundary; coerced to JS number here.
       diversityThreshold: Number(config.diversityThreshold),
       diversityMalusWeight: Number(config.diversityMalusWeight),
+      imageGenerationProvider,
+      imageGenerationResolution,
     };
 
     const briefSnap: TopicBriefSnapshotEntry[] = briefs.map((b) => ({

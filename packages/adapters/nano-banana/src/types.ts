@@ -10,6 +10,18 @@ export type AspectRatio = "1:1" | "4:3" | "3:4" | "16:9" | "9:16" | "4:5";
 
 export type OutputFormat = "webp" | "png" | "jpg";
 
+/**
+ * Spec 64.6b: hero-image output resolution. Lowercase tokens match
+ * `projects.image_generation_resolution`; the adapter maps them to Gemini's
+ * `imageSize` string ("512" / "1K" / "2K" / "4K" — uppercase K is required, the
+ * Gemini API rejects lowercase). The "0.5k" → "512" mapping is asymmetric
+ * because Gemini uses "512" (no K) for the sub-1K tier.
+ *
+ * Pro tier supports only "1k" / "2k" / "4k" — "0.5k" is silently upgraded to
+ * "1K" in `model-inputs.ts` to avoid an HTTP 400.
+ */
+export type NanoBananaResolution = "0.5k" | "1k" | "2k" | "4k";
+
 export type GenerateImageInput = {
   // Tracking
   projectId: string;
@@ -22,6 +34,8 @@ export type GenerateImageInput = {
   model: NanoBananaModel;
   prompt: string;
   aspectRatio?: AspectRatio;
+  /** Spec 64.6b: output resolution. Defaults to "1k" when omitted. */
+  resolution?: NanoBananaResolution;
   outputFormat?: OutputFormat;
   /** 1-100 — applied to webp/jpg only (png is lossless). */
   outputQuality?: number;

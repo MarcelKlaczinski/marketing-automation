@@ -109,6 +109,14 @@ export const projects = pgTable(
       .notNull()
       .default("nano-banana-2"),
 
+    // Spec 64.6b: hero-image output resolution. Adapter maps the lowercase token to
+    // Gemini's imageSize string ("0.5k" → "512", "1k" → "1K", "2k" → "2K", "4k" → "4K").
+    // Pro tier doesn't support 0.5k — adapter falls back to 1K silently for Pro.
+    imageGenerationResolution: text("image_generation_resolution")
+      .$type<"0.5k" | "1k" | "2k" | "4k">()
+      .notNull()
+      .default("1k"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

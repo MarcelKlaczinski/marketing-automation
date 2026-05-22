@@ -1,4 +1,10 @@
 import { createLogger } from "@marketing-auto/shared";
+import {
+  EUR_PER_USD,
+  NANO_BANANA_2_PRICING_USD,
+  NANO_BANANA_PRO_PRICING_USD,
+  type NanoBananaResolution,
+} from "@marketing-auto/cost-tracker";
 import { COST_OPS, VALID_COST_OPS } from "./operations.ts";
 
 const log = createLogger("cost-estimates");
@@ -78,11 +84,13 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   replicate: {
     [COST_OPS.HERO_IMAGE]: 0.1,
   },
-  // Spec 64.6: Google Gemini Image API ("Nano Banana") — ~$0.067 per 2K image ≈ €0.062.
-  // 0.10 estimate is the assertCostBudget pre-flight upper-bound (track() records the
-  // real cost via nanoBananaImageCostEur after the call returns).
+  // Spec 64.6 + 64.6b: Google Gemini Image API ("Nano Banana"). 4K Pro is the worst case
+  // (€0.221), so 0.25 is the assertCostBudget pre-flight upper-bound across all
+  // {model, resolution} pairs. Plan-level estimates use the project-aware
+  // `estimateHeroImageCost(provider, resolution)` helper below — this constant is only
+  // the per-call budget gate.
   "google-gemini": {
-    [COST_OPS.HERO_IMAGE]: 0.1,
+    [COST_OPS.HERO_IMAGE]: 0.25,
   },
   smtp: {
     [COST_OPS.SMTP_MAGIC_LINK]: 0.001,
@@ -117,4 +125,33 @@ export function estimateCostEur(service: string, operation: string, multiplier =
     );
   }
   return baseEur * multiplier;
+}
+
+/**
+ * Spec 64.6b: Flux 1.1 Pro per-image price ($0.04 → ~€0.037). Flux only generates 1K
+ * natively; the `resolution` parameter is ignored when provider is `"flux-1.1-pro"`.
+ */
+const FLUX_1_1_PRO_USD_PER_IMAGE = 0.04;
+
+export type ImageProvider = "nano-banana-2" | "nano-banana-pro" | "flux-1.1-pro";
+
+/**
+ * Spec 64.6b: project-aware hero-image cost estimate. Used by the Planner cost estimator
+ * (via `SnapshotInputsStep` + `HeroImageStep.estimatedCostEur`) so plans approved with
+ * the 2K toggle don't drift from the budget the user saw at approval time.
+ *
+ * NOT used as the pre-flight `assertCostBudget` upper bound — that stays the conservative
+ * €0.25 in `COST_ESTIMATES_EUR["google-gemini"]` so a sudden price hike doesn't bypass
+ * the limit guard.
+ */
+export function estimateHeroImageCost(
+  provider: ImageProvider,
+  resolution: NanoBananaResolution
+): number {
+  if (provider === "flux-1.1-pro") {
+    return FLUX_1_1_PRO_USD_PER_IMAGE * EUR_PER_USD;
+  }
+  const usdMap =
+    provider === "nano-banana-2" ? NANO_BANANA_2_PRICING_USD : NANO_BANANA_PRO_PRICING_USD;
+  return usdMap[resolution] * EUR_PER_USD;
 }
