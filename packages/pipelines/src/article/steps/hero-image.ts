@@ -1,6 +1,10 @@
-import { generateImage as nanoBananaGenerate } from "@marketing-auto/adapter-nano-banana";
+import {
+  type NanoBananaResolution,
+  generateImage as nanoBananaGenerate,
+} from "@marketing-auto/adapter-nano-banana";
 import { replicate } from "@marketing-auto/adapter-replicate";
-import { COST_OPS } from "@marketing-auto/core/cost";
+import { COST_OPS, estimateHeroImageCost } from "@marketing-auto/core/cost";
+import { type EstimatorContext } from "@marketing-auto/cost-tracker";
 import { articles, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -22,6 +26,11 @@ const OutputSchema = z.object({
 
 type ImageProvider = "nano-banana-2" | "flux-1.1-pro";
 
+interface ProjectImageConfig {
+  provider: ImageProvider;
+  resolution: NanoBananaResolution;
+}
+
 /**
  * Spec 64.6: deterministic 31-bit non-negative seed from the article UUID.
  * Same articleId → same seed for every regeneration, enabling controlled A/B
@@ -38,15 +47,21 @@ export function seedFromArticleId(articleId: string): number {
   return Math.abs(hash);
 }
 
-async function resolveImageProvider(projectId: string): Promise<ImageProvider> {
+async function resolveImageConfig(projectId: string): Promise<ProjectImageConfig> {
   const [row] = await db
-    .select({ provider: projects.imageGenerationProvider })
+    .select({
+      provider: projects.imageGenerationProvider,
+      resolution: projects.imageGenerationResolution,
+    })
     .from(projects)
     .where(eq(projects.id, projectId))
     .limit(1);
-  // Defensive default — column default is "nano-banana-2" but if the projects
-  // row was inserted before migration 0088 the column would be NULL.
-  return (row?.provider ?? "nano-banana-2") as ImageProvider;
+  // Defensive defaults — column defaults are "nano-banana-2" + "1k" but if the
+  // projects row was inserted before migration 0088 / 0089 either could be NULL.
+  return {
+    provider: (row?.provider ?? "nano-banana-2") as ImageProvider,
+    resolution: (row?.resolution ?? "1k") as NanoBananaResolution,
+  };
 }
 
 export class HeroImageStep extends BaseStep<
@@ -57,9 +72,16 @@ export class HeroImageStep extends BaseStep<
   readonly inputSchema = InputSchema;
   readonly outputSchema = OutputSchema;
 
-  override estimatedCostEur(): number {
-    // Upper-bound across providers: Nano Banana 2K ≈ €0.062, Flux 1.1 Pro ≈ €0.04.
-    // Pre-flight cost gate uses this; real cost is logged after the call returns.
+  override estimatedCostEur(_input: unknown, context?: EstimatorContext): number {
+    // Spec 64.6b: when the planner passes provider + resolution via the
+    // EstimatorContext (read from the frozen plan snapshot), use the project-
+    // aware rate. Otherwise fall back to the legacy worst-case 1K upper bound.
+    if (context?.imageProvider && context.imageResolution) {
+      return estimateHeroImageCost(context.imageProvider, context.imageResolution);
+    }
+    // Upper-bound for callers without the snapshot context (e.g. ad-hoc runs):
+    // Nano Banana 2 @ 1K ≈ €0.062, Flux 1.1 Pro ≈ €0.037. 0.07 keeps the
+    // pre-snapshot legacy behaviour intact.
     return 0.07;
   }
 
@@ -94,12 +116,15 @@ export class HeroImageStep extends BaseStep<
       };
     }
 
-    const provider = await resolveImageProvider(input.projectId);
+    const { provider, resolution } = await resolveImageConfig(input.projectId);
     const seed = seedFromArticleId(input.articleId);
     const storagePrefix = `${input.projectSlug}/articles/hero`;
+    // Use project-aware estimate for the per-call assertCostBudget pre-flight
+    // (still capped by COST_ESTIMATES_EUR["google-gemini"][HERO_IMAGE] = 0.25 inside the adapter).
+    const perCallEstimate = estimateHeroImageCost(provider, resolution);
 
     ctx.log.info(
-      { articleId: input.articleId, provider, seed },
+      { articleId: input.articleId, provider, resolution, seed },
       "HeroImageStep: generating hero image"
     );
 
@@ -114,11 +139,12 @@ export class HeroImageStep extends BaseStep<
           model: "nano-banana-2",
           prompt: outline.heroImagePrompt,
           aspectRatio: "16:9",
+          resolution,
           outputFormat: "webp",
           outputQuality: 90,
           seed,
           storagePrefix,
-          estimatedCostEur: this.estimatedCostEur(),
+          estimatedCostEur: perCallEstimate,
         });
         result = { r2Key: out.r2Key, publicUrl: out.publicUrl };
       } else {
@@ -132,7 +158,7 @@ export class HeroImageStep extends BaseStep<
           aspectRatio: "16:9",
           outputFormat: "webp",
           storagePrefix,
-          estimatedCostEur: this.estimatedCostEur(),
+          estimatedCostEur: perCallEstimate,
           seed,
         });
       }
