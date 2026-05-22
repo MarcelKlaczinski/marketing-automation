@@ -77,6 +77,11 @@ export default defineComponent({
         keys: [{ key: "api_token", labelKey: "settings.credentials.keys.apiToken" }],
       },
       {
+        id: "nano-banana",
+        name: "Google Gemini (Nano Banana)",
+        keys: [{ key: "api_key", labelKey: "settings.credentials.keys.apiKey" }],
+      },
+      {
         id: "producthunt",
         name: "Product Hunt",
         keys: [

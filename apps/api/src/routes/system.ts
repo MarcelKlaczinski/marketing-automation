@@ -76,7 +76,7 @@ systemRoutes.get("/status", async (c) => {
 // Auth required — only logged-in users may write credentials.
 
 const credentialSchema = z.object({
-  service: z.enum(["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]),
+  service: z.enum(["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]),
   key: z.string().min(1).max(100),
   value: z.string().min(1).max(10_000),
   metadata: z.record(z.unknown()).optional(),

@@ -41,9 +41,10 @@ export async function getAdapterStatus(
 }
 
 export async function getAllAdapterStatuses() {
-  const [anthropic, replicate, r2, dataforseo, smtp, githubApp, producthunt, voyage, reddit, github] = await Promise.all([
+  const [anthropic, replicate, nanoBanana, r2, dataforseo, smtp, githubApp, producthunt, voyage, reddit, github] = await Promise.all([
     getAdapterStatus("anthropic", ["api_key"]),
     getAdapterStatus("replicate", ["api_token"]),
+    getAdapterStatus("nano-banana", ["api_key"]),
     getAdapterStatus("r2", [
       "account_id",
       "access_key_id",
@@ -59,7 +60,7 @@ export async function getAllAdapterStatuses() {
     getAdapterStatus("reddit", ["client_id", "client_secret", "user_agent"]),
     getAdapterStatus("github", ["personal_access_token"]),
   ]);
-  return { anthropic, replicate, r2, dataforseo, smtp, githubApp, producthunt, voyage, reddit, github };
+  return { anthropic, replicate, "nano-banana": nanoBanana, r2, dataforseo, smtp, githubApp, producthunt, voyage, reddit, github };
 }
 
 export async function checkPostgres(): Promise<{
