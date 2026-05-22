@@ -1,59 +1,41 @@
-import type { GenerateImageInput, NanoBananaResolution } from "./types.ts";
-
-/**
- * Spec 64.6b: maps our lowercase resolution tokens to Gemini's `imageSize` strings.
- *
- * Gemini docs (https://ai.google.dev/gemini-api/docs/image-generation):
- * - Flash (gemini-3-flash-image-preview) supports: "512", "1K", "2K", "4K"
- * - Pro   (gemini-3-pro-image-preview)   supports: "1K",  "2K", "4K"  (no 512)
- * - "Lowercase parameters (e.g., 1k) will be rejected." Uppercase K only.
- * - 512 has NO 'K' suffix (asymmetric naming, verbatim from docs).
- */
-const GEMINI_RESOLUTION_MAP: Record<NanoBananaResolution, string> = {
-  "0.5k": "512",
-  "1k": "1K",
-  "2k": "2K",
-  "4k": "4K",
-};
+import type { GenerateImageInput } from "./types.ts";
 
 /**
  * Maps our typed input to the Google Gemini Image API request body shape.
  * Endpoint: POST https://generativelanguage.googleapis.com/v1beta/models/<slug>:generateContent
  *
- * Spec 64.6b corrected the field path: `generationConfig.responseFormat.image.{aspectRatio,imageSize}`
- * matches the documented API. (Spec 64.6's `imageConfig.aspectRatio` was undocumented and never
- * verified live — see Spec 64.6 §11 acceptance #18 which was deferred.)
+ * Spec 64.6d (2026-05-22 live verification, Discovery 64.8 §4): minimal-shape body
+ * is the ONLY shape the real Gemini Image API accepts. Both 64.6 (`imageConfig.aspectRatio`)
+ * and 64.6b (`responseFormat.image.{aspectRatio,imageSize}`) field paths return HTTP 400
+ * with `Invalid value at 'generation_config.…'` against the live endpoint — those keys
+ * exist in the docs but not on the real API surface.
+ *
+ * Aspect-ratio + resolution are derived by Gemini from the prompt text. HeroImageStep
+ * (and any future caller) is responsible for injecting the relevant hints via
+ * `buildPromptWithResolutionHint(prompt, resolution)` from
+ * `@marketing-auto/pipelines/article/lib/prompt-resolution-hints` BEFORE calling
+ * the adapter — the adapter itself never modifies the prompt.
+ *
+ * The `resolution` field on `GenerateImageInput` is still load-bearing — it flows
+ * into `nanoBananaImageCostEur({model, resolution, count})` so cost accounting
+ * stays correct even though the value is not encoded in the request body.
  */
 export function buildModelRequestBody(input: GenerateImageInput): Record<string, unknown> {
-  const aspectRatio = input.aspectRatio ?? "16:9";
-  const requestedResolution: NanoBananaResolution = input.resolution ?? "1k";
+  const generationConfig: Record<string, unknown> = {
+    candidateCount: 1,
+    responseModalities: ["TEXT", "IMAGE"],
+  };
+  if (input.seed !== undefined) {
+    generationConfig.seed = input.seed;
+  }
 
-  // Pro tier doesn't support 512 — silently upgrade to "1k" rather than failing
-  // a budget-approved render over a tier mismatch.
-  const effectiveResolution: NanoBananaResolution =
-    input.model === "nano-banana-pro" && requestedResolution === "0.5k" ? "1k" : requestedResolution;
-
-  const imageSize = GEMINI_RESOLUTION_MAP[effectiveResolution];
-
-  const body: Record<string, unknown> = {
+  return {
     contents: [
       {
         role: "user",
         parts: [{ text: input.prompt }],
       },
     ],
-    generationConfig: {
-      candidateCount: 1,
-      responseModalities: ["TEXT", "IMAGE"],
-      responseFormat: {
-        image: {
-          aspectRatio,
-          imageSize,
-        },
-      },
-      ...(input.seed !== undefined ? { seed: input.seed } : {}),
-    },
+    generationConfig,
   };
-
-  return body;
 }

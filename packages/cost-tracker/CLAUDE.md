@@ -30,6 +30,16 @@ const result = await track({
 - ALWAYS provide a realistic `estimatedCostEur` (used for limit check before execution)
 - `computeCostEur` runs AFTER execution and uses real tokens — gives accurate billing
 
+## Metadata Callback (Spec 64.6d)
+
+`track()` accepts `metadata?: (result: T) => Record<string, unknown>` which gets spread into
+`cost_logs.metadata` alongside `durationMs` + `estimatedCostEur`. **No signature change is needed
+to add new audit fields** — the adapter call-site widens its returned object. Example: Spec 64.6d
+added `prompt` / `resolution` / `aspectRatio` to nano-banana + replicate metadata callbacks for
+quality-audit reconstruction; `track()` itself was untouched. JSONB-additive so no DB migration.
+When adding new audit fields, also extend the matching test in `cost-tracker/test/` to assert
+the field round-trips through `cost_logs.metadata`.
+
 ## Limits
 
 - Configured per project in `projects.costLimits` JSONB

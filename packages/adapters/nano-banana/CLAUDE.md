@@ -35,21 +35,22 @@ damit Dormant-Block (May 2026 policy change) nicht greift.
   Supports `1k / 2k / 4k` only; `0.5k` is silently upgraded to `1k` inside
   [model-inputs.ts](src/model-inputs.ts) to avoid an HTTP 400.
 
-## Resolution Toggle (Spec 64.6b)
+## Resolution Handling (Spec 64.6 → 64.6d)
 
-`projects.image_generation_resolution` controls output resolution per tenant.
-The adapter accepts `'0.5k' | '1k' | '2k' | '4k'` (lowercase, matches the DB
-column) and maps to Gemini's `imageSize` string per the API docs:
+`projects.image_generation_resolution` accepts `'0.5k' | '1k' | '2k' | '4k'`
+(lowercase, matches the DB column). **The Gemini Image API does NOT accept a
+resolution config parameter** — Discovery 64.8 §4 verified live that
+`generationConfig.responseFormat.image.imageSize` (Spec 64.6b) and
+`generationConfig.imageConfig.outputResolution` (Spec 64.6) both return HTTP 400.
+The only request shape that works is the minimal
+`{contents, generationConfig: {responseModalities, candidateCount, seed?}}`.
 
-| DB value | Gemini `imageSize` | Pixel target | Notes |
-|---|---|---|---|
-| `'0.5k'` | `"512"` | 512px | Flash only; no "K" suffix per API docs |
-| `'1k'` | `"1K"` | 1024px | Toolwiki default |
-| `'2k'` | `"2K"` | 2048px | Premium quality |
-| `'4k'` | `"4K"` | 4096px | Print quality |
-
-**Uppercase `K` is required by the Gemini API** — lowercase is rejected. The
-adapter's `GEMINI_RESOLUTION_MAP` is the single translation point.
+Resolution is now delivered to Gemini as **prompt-text injection** done upstream
+by `HeroImageStep` via [`buildPromptWithResolutionHint(prompt, resolution)`](../../pipelines/src/article/lib/prompt-resolution-hints.ts).
+The adapter receives the already-augmented prompt — it never modifies the prompt
+itself. The `resolution` parameter still flows through `GenerateImageInput`
+because [`nanoBananaImageCostEur`](../../cost-tracker/src/pricing.ts) keys cost
+accounting off it (the pricing table is real even though the request body isn't).
 
 ### Resolution Pricing Reference
 
@@ -185,10 +186,17 @@ endpoint (see [articles-standalone.ts](../../../apps/api/src/routes/projects/art
 - DO NOT trust the `seed` echoed in `GenerateImageResult.seed` when none was
   passed in — Gemini does not always return a deterministic seed for random
   generations; the field will be `null` in that case
-- DO NOT send the `imageSize` value in lowercase (`"1k"` etc.) — the Gemini API
-  rejects it. The adapter's `GEMINI_RESOLUTION_MAP` is the single translation
-  point; new callers should pass the DB-style lowercase token and let the
-  adapter handle the conversion.
+- DO NOT re-add `generationConfig.responseFormat.*` or `generationConfig.imageConfig.*`
+  to the Gemini request body without re-verifying against the live endpoint —
+  both shapes appeared in the API docs but returned HTTP 400 in production
+  (Spec 64.6 + 64.6b + Discovery 64.8 §4). The minimal shape
+  `{contents, generationConfig: {responseModalities, candidateCount, seed?}}`
+  is the only verified-working form. The regression-guard test in
+  [client.test.ts](test/client.test.ts) asserts these keys stay absent.
+- DO NOT inject resolution/aspect-ratio hints into the prompt inside the adapter —
+  that's HeroImageStep's job via `buildPromptWithResolutionHint`. The adapter
+  passes `input.prompt` to Gemini verbatim so the audit trail in
+  `cost_logs.metadata.prompt` matches exactly what was sent.
 - DO NOT use `nano-banana-pro` with `resolution: "0.5k"` and expect 512px output —
   Pro doesn't support 512, the adapter silently upgrades to 1K. Pricing accounts
   for this in `NANO_BANANA_PRO_PRICING_USD['0.5k'] = $0.134` (mirrors 1K rate).

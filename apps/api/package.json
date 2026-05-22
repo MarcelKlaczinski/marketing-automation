@@ -31,7 +31,8 @@
     "cluster:rebuild-links": "bun --env-file ../../.env src/scripts/cluster/rebuild-links.ts",
     "seed-toolwiki-goals": "bun --env-file ../../.env src/scripts/seed-toolwiki-goals.ts",
     "plan:generate": "bun --env-file ../../.env src/scripts/generate-plan.ts",
-    "convert-existing-heroes": "bun --env-file ../../.env src/scripts/convert-existing-heroes.ts"
+    "convert-existing-heroes": "bun --env-file ../../.env src/scripts/convert-existing-heroes.ts",
+    "rebake-hero-samples": "bun --env-file ../../.env src/scripts/rebake-hero-samples.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",

@@ -119,11 +119,13 @@ describe("createImageBatch", () => {
     const request = first.request as Record<string, unknown>;
     const gen = request.generationConfig as Record<string, unknown>;
     expect(gen.responseModalities).toEqual(["TEXT", "IMAGE"]);
+    expect(gen.candidateCount).toBe(1);
     expect(gen.seed).toBe(42);
-    const responseFormat = gen.responseFormat as Record<string, unknown>;
-    const image = responseFormat.image as Record<string, unknown>;
-    expect(image.imageSize).toBe("1K"); // uppercase per Gemini docs
-    expect(image.aspectRatio).toBe("16:9");
+    // Spec 64.6d: responseFormat.image.{aspectRatio,imageSize} removed — those keys
+    // return HTTP 400 from the live Gemini API (Discovery 64.8 §4). Resolution +
+    // aspect-ratio are encoded in the prompt text upstream by HeroImageStep.
+    expect(gen.responseFormat).toBeUndefined();
+    expect(gen.imageConfig).toBeUndefined();
   });
 
   it("throws on empty request array (caller bug, not API call)", async () => {

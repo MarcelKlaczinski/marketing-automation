@@ -32,10 +32,10 @@ afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH;
 });
 
-// ─── Request body shape (Spec 64.6b: responseFormat.image) ────────────────────
+// ─── Request body shape (Spec 64.6d: minimal shape — responseFormat.image removed) ───
 
-describe("buildModelRequestBody", () => {
-  it("uses generationConfig.responseFormat.image.{aspectRatio,imageSize} per Gemini docs", () => {
+describe("buildModelRequestBody (Spec 64.6d minimal-shape)", () => {
+  it("sends minimal-shape body with contents + responseModalities + candidateCount", () => {
     const body = buildModelRequestBody({
       projectId: "p1",
       operation: "hero-image-generation",
@@ -53,13 +53,22 @@ describe("buildModelRequestBody", () => {
 
     const gen = body.generationConfig as Record<string, unknown>;
     expect(gen.candidateCount).toBe(1);
-    expect(gen.seed).toBe(42);
     expect(gen.responseModalities).toEqual(["TEXT", "IMAGE"]);
+    expect(gen.seed).toBe(42);
+  });
 
-    const responseFormat = gen.responseFormat as Record<string, unknown>;
-    const image = responseFormat.image as Record<string, unknown>;
-    expect(image.aspectRatio).toBe("16:9");
-    expect(image.imageSize).toBe("1K");
+  it("includes seed in generationConfig when provided", () => {
+    const body = buildModelRequestBody({
+      projectId: "p1",
+      operation: "hero-image-generation",
+      model: "nano-banana-2",
+      prompt: "x",
+      seed: 123,
+      storagePrefix: "toolwiki/hero",
+      estimatedCostEur: 0.1,
+    });
+    const gen = body.generationConfig as Record<string, unknown>;
+    expect(gen.seed).toBe(123);
   });
 
   it("omits seed when not provided", () => {
@@ -74,58 +83,43 @@ describe("buildModelRequestBody", () => {
     const gen = body.generationConfig as Record<string, unknown>;
     expect(gen.seed).toBeUndefined();
   });
-});
 
-// ─── Resolution routing (Spec 64.6b) ──────────────────────────────────────────
-
-describe("buildModelRequestBody — resolution routing (Spec 64.6b)", () => {
-  function imageSizeFor(resolution: "0.5k" | "1k" | "2k" | "4k", model: "nano-banana-2" | "nano-banana-pro" = "nano-banana-2") {
-    const body = buildModelRequestBody({
-      projectId: "p",
-      operation: "hero-image-generation",
-      model,
-      prompt: "x",
-      resolution,
-      storagePrefix: "toolwiki/hero",
-      estimatedCostEur: 0.1,
-    });
-    const gen = body.generationConfig as Record<string, unknown>;
-    const responseFormat = gen.responseFormat as Record<string, unknown>;
-    return (responseFormat.image as Record<string, unknown>).imageSize;
-  }
-
-  it("sends imageSize='512' for resolution '0.5k' (Flash)", () => {
-    expect(imageSizeFor("0.5k")).toBe("512");
-  });
-
-  it("sends imageSize='1K' for resolution '1k'", () => {
-    expect(imageSizeFor("1k")).toBe("1K");
-  });
-
-  it("sends imageSize='2K' for resolution '2k'", () => {
-    expect(imageSizeFor("2k")).toBe("2K");
-  });
-
-  it("sends imageSize='4K' for resolution '4k'", () => {
-    expect(imageSizeFor("4k")).toBe("4K");
-  });
-
-  it("defaults to '1K' when resolution is omitted", () => {
+  // Regression guard — Discovery 64.8 §4 verified live that both
+  // `responseFormat.image.*` (Spec 64.6b) and `imageConfig.*` (Spec 64.6)
+  // return HTTP 400 from the real Gemini Image API. Never re-add these keys
+  // unless Google publishes a new shape AND you re-verify against the live endpoint.
+  it("does NOT include responseFormat or imageConfig in generationConfig (Spec 64.6d regression guard)", () => {
     const body = buildModelRequestBody({
       projectId: "p",
       operation: "hero-image-generation",
       model: "nano-banana-2",
       prompt: "x",
+      aspectRatio: "16:9",
+      resolution: "2k",
       storagePrefix: "toolwiki/hero",
       estimatedCostEur: 0.1,
     });
     const gen = body.generationConfig as Record<string, unknown>;
-    const responseFormat = gen.responseFormat as Record<string, unknown>;
-    expect((responseFormat.image as Record<string, unknown>).imageSize).toBe("1K");
+    expect(gen.responseFormat).toBeUndefined();
+    expect(gen.imageConfig).toBeUndefined();
   });
 
-  it("upgrades '0.5k' → '1K' for nano-banana-pro (Pro doesn't support 512)", () => {
-    expect(imageSizeFor("0.5k", "nano-banana-pro")).toBe("1K");
+  it("ignores aspectRatio + resolution at the request-body level (they flow through to cost tracking only)", () => {
+    // Different resolutions should produce IDENTICAL request bodies — the resolution
+    // is now expressed in the prompt text upstream (HeroImageStep prompt-injection)
+    // and used by the adapter only for cost calculation.
+    const args = {
+      projectId: "p",
+      operation: "hero-image-generation" as const,
+      model: "nano-banana-2" as const,
+      prompt: "x",
+      aspectRatio: "16:9" as const,
+      storagePrefix: "toolwiki/hero",
+      estimatedCostEur: 0.1,
+    };
+    const body1k = buildModelRequestBody({ ...args, resolution: "1k" });
+    const body4k = buildModelRequestBody({ ...args, resolution: "4k" });
+    expect(body1k).toEqual(body4k);
   });
 });
 

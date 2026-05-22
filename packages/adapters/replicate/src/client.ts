@@ -172,6 +172,12 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
     metadata: (r: TrackResult) => ({
       model: input.model,
       modelSlug,
+      // Spec 64.6d: full prompt + aspect ratio for audit-trail. Mirrors the nano-banana
+      // adapter shape so quality audits work across providers from the same JSONB query.
+      // The replicate adapter has no per-call resolution toggle (Flux derives dimensions
+      // from its own aspect ratio), so `resolution` is omitted here.
+      prompt: input.prompt,
+      aspectRatio: input.aspectRatio ?? "16:9",
       r2Key: r.r2Key,
       originalR2Key: r.originalR2Key,
       bytesStored: r.bytesStored,

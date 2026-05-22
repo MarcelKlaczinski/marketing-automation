@@ -172,17 +172,32 @@ dependencies. They are NOT inherited from `apps/api`. Currently added: `adapter-
 `adapter-voyage`, `adapter-astro-sync`. Run `bun install` after adding a new workspace dep or
 typecheck will fail.
 
-## Hero-Image Provider Routing (Spec 64.6)
+## Hero-Image Provider Routing (Spec 64.6 → 64.6d)
 
 `HeroImageStep` selects its provider per-call by reading `projects.image_generation_provider`
 (`'nano-banana-2'` default → `@marketing-auto/adapter-nano-banana`, `'flux-1.1-pro'` → legacy
-`replicate.generateImage`). The provider lookup is a private `resolveImageProvider(projectId)`
-helper inside [hero-image.ts](src/article/steps/hero-image.ts) — extract to `src/_lib/` only
-when a second consumer needs it.
+`replicate.generateImage`). The provider + resolution lookup lives in
+[`resolveImageConfig(projectId)`](src/article/lib/image-config.ts) — extracted from
+`hero-image.ts` in Spec 64.6d when the `rebake-hero-samples` script became the second consumer.
 
 The step also exports a pure `seedFromArticleId(articleId): number` helper that produces a
 31-bit non-negative deterministic seed (`(h << 5) - h + charCode` accumulator). Same articleId →
 same seed across reruns. Pair with `seed + 1` in a future UI re-roll button for controlled A/B.
+
+**Resolution + aspect-ratio are prompt-text-derived, not API-config (Spec 64.6d).** The Gemini
+Image API has no config field for either (Discovery 64.8 §4 verified live; both 64.6's
+`imageConfig.*` and 64.6b's `responseFormat.image.*` returned HTTP 400). `HeroImageStep` computes
+`augmentedPrompt = buildPromptWithResolutionHint(outline.heroImagePrompt, resolution)` once after
+`resolveImageConfig` and threads it through all three dispatch paths (batch enqueue, sync
+nano-banana, sync replicate). The [`buildPromptWithResolutionHint`](src/article/lib/prompt-resolution-hints.ts)
+helper appends `\n\nFormat: 16:9 widescreen aspect ratio, <qualitative hint>.`. Alt-text still
+uses raw `outline.heroImagePrompt` — the Format suffix is rendering noise, not screen-reader content.
+
+The ad-hoc [`apps/api/src/scripts/rebake-hero-samples.ts`](../../apps/api/src/scripts/rebake-hero-samples.ts)
+reuses `resolveImageConfig` + `buildPromptWithResolutionHint` + `seedFromArticleId` (all
+re-exported from `@marketing-auto/pipelines`) and a `buildFallbackHeroPrompt(article)` for
+imported content where `outline IS NULL`. Use the same pricing helper (`estimateHeroImageCost`),
+never hardcode estimates.
 
 Existing graceful try/catch skip-with-warn (returns `{r2Key: "", publicUrl: "", skipped: true}`
 on failure) stays as the outer backstop for API errors — the article lands in `final_review`
@@ -633,6 +648,8 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 
 ## Common Mistakes
 
+- DO NOT include explicit pixel counts (e.g. `"1024px"`, `"4096 pixels"`) in hero-image prompts or in `RESOLUTION_HINTS` — Gemini Image API may parse numeric tokens as crop / layout hints rather than resolution hints, producing the wrong composition. Use qualitative phrases (`"standard editorial quality"`, `"premium print quality, ultra-detailed"`) instead. The regression-guard test in [prompt-resolution-hints.test.ts](test/article/lib/prompt-resolution-hints.test.ts) iterates all 4 resolutions and asserts no `\d+\s*px` / no `\b(512|1024|2048|4096)\b` ever leak into the hint text. Marcel-decision 2026-05-22 — escalate to explicit numerics only if qualitative hints prove insufficient in a future audit.
+- DO NOT call the Nano Banana adapter directly with `prompt: outline.heroImagePrompt` (or any raw text) — always pass through `buildPromptWithResolutionHint(prompt, resolution)` from [src/article/lib/prompt-resolution-hints.ts](src/article/lib/prompt-resolution-hints.ts) first. The Gemini API derives aspect-ratio + resolution from prompt text (Discovery 64.8 §4) so any caller that skips augmentation gets Gemini's default 1:1 square crop regardless of the project's configured resolution. Same rule for `replicate.generateImage` in the legacy Flux path. HeroImageStep + the rebake script are the only current callers; future additions must follow.
 - DO NOT validate LLM output against a markdown body without accounting for trailing tagged blocks (`<TITLE>…</TITLE>`, `<META_DESCRIPTION>…</META_DESCRIPTION>`, `<TAGS>…</TAGS>`). Validators in `#runWithValidationRetry` (Spec 64.4 + 64.5) run on the **raw** LLM output before the bridge strips the tagged blocks; the tag-inner text (~22 words for the canonical translation step) is counted as part of the body. Production-negligible for typical 500-3000-word bodies, but tests using `~100-word` fixtures will see false "drift exceeded" results — use ≥350-word sources so the +25% cap (~438 words) dwarfs the tagged-block overhead. The validator stays source-shape-agnostic on purpose; do not retroactively strip tags inside the validator.
 - DO NOT do business logic outside of `execute()` — it won't be tracked
 - DO NOT skip cost-tracker for "small" calls — they accumulate

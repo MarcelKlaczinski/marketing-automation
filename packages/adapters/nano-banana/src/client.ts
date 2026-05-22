@@ -241,6 +241,12 @@ export async function generateImage(input: GenerateImageInput): Promise<Generate
       model: input.model,
       modelSlug,
       resolution,
+      // Spec 64.6d: full prompt + aspect ratio for audit-trail. The prompt is the
+      // post-augmentation text actually sent to Gemini (HeroImageStep injects the
+      // resolution + aspect hints upstream via buildPromptWithResolutionHint).
+      // Stored on cost_logs.metadata (JSONB-additive — no migration needed).
+      prompt: input.prompt,
+      aspectRatio: input.aspectRatio ?? "16:9",
       r2Key: r.r2Key,
       originalR2Key: r.originalR2Key,
       bytesStored: r.bytesStored,

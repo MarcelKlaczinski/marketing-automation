@@ -1,7 +1,4 @@
-import {
-  type NanoBananaResolution,
-  generateImage as nanoBananaGenerate,
-} from "@marketing-auto/adapter-nano-banana";
+import { generateImage as nanoBananaGenerate } from "@marketing-auto/adapter-nano-banana";
 import { replicate } from "@marketing-auto/adapter-replicate";
 import { COST_OPS, estimateHeroImageCost } from "@marketing-auto/core/cost";
 import { type EstimatorContext } from "@marketing-auto/cost-tracker";
@@ -10,12 +7,13 @@ import {
   db,
   type ImageBatchResponseBody,
   plannedItems,
-  projects,
 } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { enqueueImageBatch } from "../../engine/image-batch-client.ts";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { resolveImageConfig } from "../lib/image-config.ts";
+import { buildPromptWithResolutionHint } from "../lib/prompt-resolution-hints.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
 const InputSchema = z.object({
@@ -34,13 +32,6 @@ const OutputSchema = z.object({
   // out via discardOriginal. Persisted by PersistArticleStep via the bridge.
   originalR2Key: z.string().nullable().optional(),
 });
-
-type ImageProvider = "nano-banana-2" | "flux-1.1-pro";
-
-interface ProjectImageConfig {
-  provider: ImageProvider;
-  resolution: NanoBananaResolution;
-}
 
 /**
  * Spec 64.6: deterministic 31-bit non-negative seed from the article UUID.
@@ -70,23 +61,6 @@ function buildHeroAltTextForResume(
   locale: string | null | undefined,
 ): string {
   return locale === "de" ? `${title} – Beitragsbild` : `${title} — ${heroPrompt.slice(0, 100)}`;
-}
-
-async function resolveImageConfig(projectId: string): Promise<ProjectImageConfig> {
-  const [row] = await db
-    .select({
-      provider: projects.imageGenerationProvider,
-      resolution: projects.imageGenerationResolution,
-    })
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
-  // Defensive defaults — column defaults are "nano-banana-2" + "1k" but if the
-  // projects row was inserted before migration 0088 / 0089 either could be NULL.
-  return {
-    provider: (row?.provider ?? "nano-banana-2") as ImageProvider,
-    resolution: (row?.resolution ?? "1k") as NanoBananaResolution,
-  };
 }
 
 export class HeroImageStep extends BaseStep<
@@ -191,6 +165,13 @@ export class HeroImageStep extends BaseStep<
     const seed = seedFromArticleId(input.articleId);
     const storagePrefix = `${input.projectSlug}/articles/hero`;
 
+    // Spec 64.6d: aspect-ratio + resolution are derived by Gemini from prompt text
+    // (Discovery 64.8 §4). Augment ONCE here; all three downstream paths (batch
+    // enqueue / sync nano-banana / sync replicate) receive the augmented prompt.
+    // The alt-text builder still uses outline.heroImagePrompt (raw) — the Format
+    // suffix is rendering noise, not human-readable alt content.
+    const augmentedPrompt = buildPromptWithResolutionHint(outline.heroImagePrompt, resolution);
+
     // Spec 64.7 Pattern 118 (image variant): batch enqueue path. Only Nano-Banana
     // providers participate — Flux has no batch tier (cascade in sync mode).
     if (ctx.llmMode === "batch" && provider === "nano-banana-2") {
@@ -225,7 +206,7 @@ export class HeroImageStep extends BaseStep<
             pipelineRunId: ctx.pipelineRunId,
             weeklyPlanId,
             articleId: input.articleId,
-            prompt: outline.heroImagePrompt,
+            prompt: augmentedPrompt,
             model: "nano-banana-2",
             resolution,
             aspectRatio: "16:9",
@@ -263,7 +244,7 @@ export class HeroImageStep extends BaseStep<
           articleId: input.articleId,
           operation: COST_OPS.HERO_IMAGE,
           model: "nano-banana-2",
-          prompt: outline.heroImagePrompt,
+          prompt: augmentedPrompt,
           aspectRatio: "16:9",
           resolution,
           outputFormat: "webp",
@@ -280,7 +261,7 @@ export class HeroImageStep extends BaseStep<
           articleId: input.articleId,
           operation: COST_OPS.HERO_IMAGE,
           model: "flux-1.1-pro",
-          prompt: outline.heroImagePrompt,
+          prompt: augmentedPrompt,
           aspectRatio: "16:9",
           outputFormat: "webp",
           storagePrefix,
