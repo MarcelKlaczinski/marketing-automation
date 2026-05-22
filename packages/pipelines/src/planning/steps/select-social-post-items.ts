@@ -176,15 +176,17 @@ export class SelectSocialPostItemsStep extends BaseStep<Input, Output> {
       socialGoal.cadenceUnit === "per_day" ? socialGoal.minCount * 7 : socialGoal.minCount;
     const perSourceCap = Math.ceil(target / 3);
 
-    // 1) From today's planned clusters. We emit one social_post per cluster
-    //    item, capped at perSourceCap. The social planned_item references
-    //    its parent cluster via parentDraftId; the executor (Spec 62.8)
-    //    resolves the freshly-published article when the cluster completes.
+    // 1) From today's planned clusters AND cluster_spokes. We emit one
+    //    social_post per item, capped at perSourceCap. The social planned_item
+    //    references its parent via parentDraftId; the executor (Spec 62.8)
+    //    resolves the freshly-published article when the parent completes.
     //    slotDate carries over from the parent: scheduling-wise the social
-    //    post lives the same day as its source cluster (the executor will
-    //    naturally only fire it once the article publishes).
+    //    post lives the same day as its source (the executor will naturally
+    //    only fire it once the article publishes). cluster_spoke included
+    //    since 64.1: a spoke article is a publishable surface too, so it
+    //    deserves an auto-paired social post just like a new-cluster hub.
     const clusterItems = [...floor, ...overage].filter(
-      (it) => it.contentType === "cluster",
+      (it) => it.contentType === "cluster" || it.contentType === "cluster_spoke",
     );
     const fromTodayPlans: PlanningItemDraft[] = [];
     for (const cluster of clusterItems.slice(0, perSourceCap)) {

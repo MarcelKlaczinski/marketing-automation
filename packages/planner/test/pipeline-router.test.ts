@@ -137,6 +137,61 @@ describe("getPipelineForItem", () => {
     expect(route.kind).toBe("inline");
   });
 
+  // Spec 64.1: cluster_spoke is the new first-class bucket for
+  // append_to_existing briefs — same dispatch shape as the cluster legacy
+  // backstop, but reached via the dedicated content_type so Plan-Goals can
+  // count spokes separately.
+  it("routes cluster_spoke → article:blog (Spec 64.1)", () => {
+    const item = mkItem({
+      contentType: "cluster_spoke",
+      pipelineInput: {
+        briefId: "brief-spoke",
+        projectId: "proj-1",
+        title: "Claude Sonnet 4.6 review",
+        clusterAction: "append_to_existing",
+        clusterId: "cluster-claude",
+        intentType: "tutorial",
+      },
+    });
+    const route = getPipelineForItem(item, "sync");
+    expect(route.kind).toBe("enqueue");
+    if (route.kind === "enqueue") {
+      expect(route.pipelineName).toBe("article:blog");
+      expect(route.jobData.briefId).toBe("brief-spoke");
+      expect(route.jobData.projectId).toBe("proj-1");
+      expect(route.jobData.collectionType).toBe("blog");
+      expect(route.jobData.plannedItemId).toBe(item.id);
+      expect(route.jobData.llmMode).toBe("sync");
+    }
+  });
+
+  it("routes cluster_spoke with knowledge intent → ki-wissen collection (Spec 64.1)", () => {
+    const item = mkItem({
+      contentType: "cluster_spoke",
+      pipelineInput: {
+        briefId: "brief-know-spoke",
+        projectId: "proj-1",
+        clusterAction: "append_to_existing",
+        clusterId: "cluster-ai",
+        intentType: "knowledge",
+      },
+    });
+    const route = getPipelineForItem(item, "batch");
+    expect(route.kind).toBe("enqueue");
+    if (route.kind === "enqueue") {
+      expect(route.jobData.collectionType).toBe("ki-wissen");
+      expect(route.jobData.llmMode).toBe("batch");
+    }
+  });
+
+  it("throws when a cluster_spoke item has no briefId (Spec 64.1)", () => {
+    const item = mkItem({
+      contentType: "cluster_spoke",
+      pipelineInput: { projectId: "proj-1", clusterId: "cluster-x" },
+    });
+    expect(() => getPipelineForItem(item, "sync")).toThrow(/missing/);
+  });
+
   it("routes comparison → article:blog with collectionType=comparison (Spec 63.7b enum fix)", () => {
     // Pre-63.7b this returned the Astro folder name "comparisons" (plural),
     // which was dead code (executor dropped it). Now the executor threads it

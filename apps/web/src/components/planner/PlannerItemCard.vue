@@ -141,6 +141,7 @@ import type { PlannedItem } from "src/types/ui";
 
 const KNOWN_CONTENT_TYPE_KEYS = new Set([
   "cluster",
+  "cluster_spoke",
   "comparison",
   "ki_wissen",
   "social_post",
@@ -309,6 +310,15 @@ export default defineComponent({
   background: rgba(124, 92, 255, 0.12);
   color: var(--accent-primary, #7c5cff);
   border-color: rgba(124, 92, 255, 0.25);
+}
+
+/* Spec 64.1: cluster_spoke uses the same hue family as cluster (purple) but a
+   lighter shade so the relationship reads visually — both are cluster work,
+   spokes are the cheaper append-to-existing variant. */
+.ct-cluster_spoke {
+  background: rgba(168, 140, 255, 0.12);
+  color: #a88cff;
+  border-color: rgba(168, 140, 255, 0.25);
 }
 
 .ct-comparison {

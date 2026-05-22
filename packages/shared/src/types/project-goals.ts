@@ -7,7 +7,17 @@ import { z } from "zod";
  * at the DB layer (62.0a Lesson D12 — no pgEnum), so adding a value here is a code-only
  * change with no migration.
  */
-export const CONTENT_TYPES = ["cluster", "comparison", "social_post", "ki_wissen"] as const;
+// Spec 64.1: `cluster_spoke` splits `cluster` along the cluster_action axis.
+// `cluster`        = create_new (inline cluster:full-plan, €4.20 hub + spokes)
+// `cluster_spoke`  = append_to_existing (article:blog under brief.clusterId, €1.06)
+// Plan-Goals get separate min/max so Marcel controls the create_new vs append mix.
+export const CONTENT_TYPES = [
+  "cluster",
+  "cluster_spoke",
+  "comparison",
+  "social_post",
+  "ki_wissen",
+] as const;
 export const contentTypeSchema = z.enum(CONTENT_TYPES);
 export type ContentType = z.infer<typeof contentTypeSchema>;
 

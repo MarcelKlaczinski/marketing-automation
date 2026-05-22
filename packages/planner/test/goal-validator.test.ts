@@ -249,4 +249,41 @@ describe("validateProjectGoals — warning codes", () => {
     //   = 29.4 + 0.3 + 0.42 + 0.9 = 31.02
     expect(result.estimatedWeeklyFloorEur).toBeCloseTo(31.02, 2);
   });
+
+  // Spec 64.1: cluster_spoke goal expands to article:blog cost just like
+  // comparison/ki_wissen. Verifies CONTENT_TYPE_TO_PIPELINE has the entry —
+  // without it expandGoalsToPlannedItems would silently skip the bucket and
+  // estimatedWeeklyFloorEur would understate cost by the spoke contribution.
+  it("expands cluster_spoke goal into article:blog cost (Spec 64.1)", async () => {
+    await upsertProjectPlannerConfig({
+      projectId,
+      weeklyBudgetEur: 50,
+      perTypeMaxEur: null,
+      topNSignalsAllowedOverage: 3,
+      maxOveragePerSignal: 1,
+    });
+    await db.insert(projectGoals).values([
+      // Two-bucket plan: 1 cluster (€4.20) + 5 cluster_spoke (5 × €0.30).
+      { projectId, contentType: "cluster", cadenceUnit: "per_week", minCount: 1, maxCount: 2 },
+      {
+        projectId,
+        contentType: "cluster_spoke",
+        cadenceUnit: "per_week",
+        minCount: 5,
+        maxCount: 10,
+      },
+    ]);
+    const result = await validateProjectGoals(projectId, {
+      resolvePipelineSteps: (name) =>
+        name === "cluster:full-plan"
+          ? [step(4.2)]
+          : name === "article:blog"
+            ? [step(0.3)]
+            : undefined,
+    });
+    expect(result.valid).toBe(true);
+    expect(result.resolvedGoals.length).toBe(2);
+    // 1×4.2 (cluster) + 5×0.3 (cluster_spoke) = 4.2 + 1.5 = 5.7
+    expect(result.estimatedWeeklyFloorEur).toBeCloseTo(5.7, 2);
+  });
 });

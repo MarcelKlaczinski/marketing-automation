@@ -112,11 +112,38 @@ describe("matchBriefToContentType", () => {
 
   // Spec 63.4 regression: tutorial+cluster still routes to cluster (tool-specific
   // tutorials live under the tool cluster, not in ki-wissen).
-  it("maps append_to_existing+tutorial → cluster (tool-specific tutorial)", () => {
+  // Spec 64.1: append_to_existing with a stamped clusterId is the new
+  // cluster_spoke bucket. This was "cluster" pre-64.1 (then routed to
+  // article:blog via the 63.7b in-router branch) — now matchBriefToContentType
+  // owns the split so Plan-Goals can target spokes separately.
+  it("maps append_to_existing+tutorial+clusterId → cluster_spoke (Spec 64.1)", () => {
     expect(
       matchBriefToContentType(brief({
         clusterAction: "append_to_existing",
         clusterId: "11111111-1111-1111-1111-111111111111",
+        intentType: "tutorial",
+      })),
+    ).toBe("cluster_spoke");
+  });
+
+  it("maps append_to_existing+general+clusterId → cluster_spoke (Spec 64.1)", () => {
+    expect(
+      matchBriefToContentType(brief({
+        clusterAction: "append_to_existing",
+        clusterId: "22222222-2222-2222-2222-222222222222",
+        intentType: "general",
+      })),
+    ).toBe("cluster_spoke");
+  });
+
+  it("orphan append_to_existing (no clusterId) falls through to cluster (Spec 64.1 safe default)", () => {
+    // The pipeline-router's cluster case also has a defensive backstop that
+    // re-routes orphan appends to cluster:full-plan. Misclassified briefs stay
+    // executable instead of producing a NULL cluster spoke.
+    expect(
+      matchBriefToContentType(brief({
+        clusterAction: "append_to_existing",
+        clusterId: null,
         intentType: "tutorial",
       })),
     ).toBe("cluster");
@@ -346,10 +373,11 @@ describe("SelectFloorItemsStep", () => {
     expect(item.pipelineInput["title"]).toBe("Raw Headline");
   });
 
-  // Spec 63.7b: cluster items stamp clusterAction/clusterId/intentType into
-  // pipelineInput so the pipeline-router can decide between cluster:full-plan
-  // (create_new) and article:blog (append_to_existing) without re-querying.
-  it("stamps clusterAction + clusterId + intentType into cluster pipelineInput (Spec 63.7b)", async () => {
+  // Spec 63.7b + 64.1: append_to_existing briefs now land in the
+  // `cluster_spoke` bucket (not `cluster`). The clusterAction/clusterId/
+  // intentType stamping still happens so the router can pick the correct
+  // collectionType WITHOUT re-querying topic_briefs.
+  it("routes append_to_existing into cluster_spoke bucket + stamps cluster fields (Spec 63.7b + 64.1)", async () => {
     const briefs = [
       brief({
         clusterAction: "append_to_existing",
@@ -358,7 +386,7 @@ describe("SelectFloorItemsStep", () => {
         topicTitle: "spoke topic",
       }),
     ];
-    const goals = [goal({ contentType: "cluster", cadenceUnit: "per_week", minCount: 1 })];
+    const goals = [goal({ contentType: "cluster_spoke", cadenceUnit: "per_week", minCount: 1 })];
     const ctx = makeMockCtx({
       getStepOutput: (name) => {
         if (name === "validate-goals") return { goals } as never;
@@ -374,12 +402,12 @@ describe("SelectFloorItemsStep", () => {
     }>;
     const item = items[0];
     if (!item) throw new Error("expected one item");
-    expect(item.contentType).toBe("cluster");
+    expect(item.contentType).toBe("cluster_spoke");
     expect(item.pipelineInput["clusterAction"]).toBe("append_to_existing");
     expect(item.pipelineInput["clusterId"]).toBe("22222222-2222-2222-2222-222222222222");
     expect(item.pipelineInput["intentType"]).toBe("tutorial");
-    // Spec 63.7b: pipelineName overrides to article:blog so the cost estimator's
-    // tier-1 step sum reflects the cheaper spoke cost.
+    // 64.1: pipelineName defaults to article:blog via PIPELINE_NAME_BY_CONTENT_TYPE
+    // — no per-item override needed since the content_type already discriminates.
     expect(item.pipelineName).toBe("article:blog");
   });
 

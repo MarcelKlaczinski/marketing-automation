@@ -435,7 +435,15 @@ import { defineComponent } from "vue";
 import { Notify } from "quasar";
 import { apiGet, apiPut } from "src/lib/api";
 
-type ContentType = "cluster" | "comparison" | "social_post" | "ki_wissen";
+// Spec 64.1: `cluster_spoke` splits cluster along the cluster_action axis.
+// Keep this union in lockstep with `CONTENT_TYPES` in
+// packages/shared/src/types/project-goals.ts.
+type ContentType =
+  | "cluster"
+  | "cluster_spoke"
+  | "comparison"
+  | "social_post"
+  | "ki_wissen";
 type CadenceUnit = "per_day" | "per_week";
 
 interface GoalRow {
@@ -515,6 +523,7 @@ interface ValidationResult {
 
 const ALL_CONTENT_TYPES: ContentType[] = [
   "cluster",
+  "cluster_spoke",
   "comparison",
   "social_post",
   "ki_wissen",
@@ -547,6 +556,7 @@ export default defineComponent({
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
+      cluster_spoke: "",
       comparison: "",
       social_post: "",
       ki_wissen: "",

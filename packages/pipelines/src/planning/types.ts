@@ -8,7 +8,16 @@
 
 import { z } from "zod";
 
-export const PLANNING_CONTENT_TYPES = ["cluster", "comparison", "social_post", "ki_wissen"] as const;
+// Spec 64.1: `cluster_spoke` is the append_to_existing sibling of `cluster`.
+// Routes through article:blog (spoke under brief.clusterId), so its default
+// pipeline name is the cheaper €1.06 article:blog, not cluster:full-plan.
+export const PLANNING_CONTENT_TYPES = [
+  "cluster",
+  "cluster_spoke",
+  "comparison",
+  "social_post",
+  "ki_wissen",
+] as const;
 export type PlanningContentType = (typeof PLANNING_CONTENT_TYPES)[number];
 
 /**
@@ -19,6 +28,7 @@ export type PlanningContentType = (typeof PLANNING_CONTENT_TYPES)[number];
  */
 export const PIPELINE_NAME_BY_CONTENT_TYPE: Record<PlanningContentType, string> = {
   cluster: "cluster:full-plan",
+  cluster_spoke: "article:blog",
   comparison: "article:blog",
   ki_wissen: "article:blog",
   social_post: "article:social-image",

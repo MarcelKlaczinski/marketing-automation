@@ -75,6 +75,15 @@ export class DistributeSlotDatesStep extends BaseStep<Input, Output> {
         counters.cluster = (counters.cluster ?? 0) + 1;
         return addDaysUtc(weekStart, offset);
       }
+      case "cluster_spoke": {
+        // Spec 64.1: spokes are spread Mon..Sun with their own counter so
+        // they don't pile onto the same days as new-cluster items. A typical
+        // week has 1-2 cluster + 5-10 cluster_spokes, so a separate
+        // round-robin keeps the calendar evenly populated.
+        const offset = (counters.cluster_spoke ?? 0) % 7;
+        counters.cluster_spoke = (counters.cluster_spoke ?? 0) + 1;
+        return addDaysUtc(weekStart, offset);
+      }
       case "comparison":
         // Single Wednesday slot per week (multiple comparisons stack on Wed).
         return addDaysUtc(weekStart, 2);

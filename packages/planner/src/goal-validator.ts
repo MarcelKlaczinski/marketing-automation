@@ -77,6 +77,8 @@ export interface ValidateProjectGoalsOptions {
  */
 const CONTENT_TYPE_TO_PIPELINE: Record<string, { itemType: string; pipelineName: string }> = {
   cluster: { itemType: "cluster", pipelineName: "cluster:full-plan" },
+  // Spec 64.1: append_to_existing spoke — same article:blog cost as comparison/ki_wissen.
+  cluster_spoke: { itemType: "blog_article", pipelineName: "article:blog" },
   comparison: { itemType: "blog_article", pipelineName: "article:blog" },
   social_post: { itemType: "social_image", pipelineName: "article:social-image" },
   ki_wissen: { itemType: "blog_article", pipelineName: "article:blog" },

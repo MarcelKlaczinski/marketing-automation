@@ -116,17 +116,25 @@ export class SelectOverageItemsStep extends BaseStep<Input, Output> {
       candidates.push({ signal, contentType });
     }
 
-    // Spec 63.5: diversity config + initial picked-set seeded from Floor.
-    // We resolve embeddings for each Floor brief whose content type is in
-    // DIVERSITY_FLOOR_CONTENT_TYPES (cluster + social_post) — the Overage
-    // picker then sees them as "already picked" and penalises near-dups.
+    // Spec 63.5 + 64.1: diversity config + initial picked-set seeded from
+    // Floor. We resolve embeddings for each Floor brief whose content type is
+    // in DIVERSITY_FLOOR_CONTENT_TYPES (cluster, cluster_spoke, social_post)
+    // — the Overage picker then sees them as "already picked" and penalises
+    // near-dups. cluster_spoke must be in the seed set so a thematically
+    // similar Overage signal isn't picked alongside a Floor spoke of the
+    // same theme (e.g. ChatGPT-spoke at Floor + ChatGPT-trend at Overage).
     const diversityConfig = {
       threshold: snapshot.config.diversityThreshold ?? 0.5,
       malusWeight: snapshot.config.diversityMalusWeight ?? 0.5,
     };
     const briefById = new Map<string, TopicBrief>(briefs.map((b) => [b.id, b]));
     const floorDiversityBriefIds = floorItems
-      .filter((it) => it.contentType === "cluster" || it.contentType === "social_post")
+      .filter(
+        (it) =>
+          it.contentType === "cluster" ||
+          it.contentType === "cluster_spoke" ||
+          it.contentType === "social_post",
+      )
       .map((it) => it.sourceBriefId)
       .filter((id): id is string => id !== null);
 

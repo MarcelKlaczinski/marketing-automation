@@ -67,12 +67,15 @@ function deriveCollectionFromIntent(intentType: string | null): ArticleCollectio
  * function (Memory D127). We route cluster items to the inline path. `llmMode`
  * is still threaded through for non-cluster pipelines that honour it.
  *
- * Spec 63.7b: cluster items now branch on `pipelineInput.clusterAction`.
- * `append_to_existing` (with a stamped `clusterId`) routes to `article:blog`
- * so the resulting article becomes a spoke under the existing cluster — keeps
- * Hub-Spoke routing semantically correct and avoids phantom-cluster creation.
- * `create_new` (and any legacy planned_item missing the stamped fields) keep
- * the inline `cluster:full-plan` behaviour.
+ * Spec 63.7b: cluster items used to branch on `pipelineInput.clusterAction` —
+ * `append_to_existing` routed to `article:blog` (spoke), `create_new` stayed on
+ * the inline `cluster:full-plan` path.
+ *
+ * Spec 64.1: the append_to_existing branch now has its own content_type bucket
+ * (`cluster_spoke`) so Plan-Goals can target spokes vs new clusters separately.
+ * The `cluster` case keeps the inline-`cluster:full-plan` predicate plus a
+ * defensive append→article:blog fallthrough for legacy planned_items that
+ * were persisted before 64.1's matchBriefToContentType change shipped.
  */
 export function getPipelineForItem(
   item: Pick<PlannedItem, "id" | "contentType" | "pipelineInput">,
@@ -89,10 +92,9 @@ export function getPipelineForItem(
         );
       }
 
-      // Spec 63.7b: append_to_existing → article:blog spoke under brief.clusterId.
-      // Both fields must be present to route to article:blog — a missing
-      // clusterId means the brief is misclassified, so we fall through to the
-      // inline cluster:full-plan path (safe default).
+      // Legacy backstop: 64.1 routes append_to_existing into the `cluster_spoke`
+      // case below. Pre-64.1 plans persist `cluster` for these — keep the
+      // article:blog fallthrough so replays still execute correctly.
       const clusterAction =
         typeof pipelineInput.clusterAction === "string" ? pipelineInput.clusterAction : null;
       const clusterId =
@@ -115,6 +117,32 @@ export function getPipelineForItem(
       }
 
       return { kind: "inline", action: "cluster:full-plan", briefId };
+    }
+
+    case "cluster_spoke": {
+      // Spec 64.1: single spoke under an existing cluster. matchBriefToContentType
+      // guarantees clusterId is set (orphan append_to_existing falls back to
+      // the `cluster` bucket), but we re-check here so a hand-crafted
+      // planned_items row can't crash the router.
+      const briefId = typeof pipelineInput.briefId === "string" ? pipelineInput.briefId : null;
+      if (briefId === null) {
+        throw new Error(
+          `planned_item ${item.id} is content_type='cluster_spoke' but pipelineInput.briefId is missing`,
+        );
+      }
+      const intentType =
+        typeof pipelineInput.intentType === "string" ? pipelineInput.intentType : null;
+      return {
+        kind: "enqueue",
+        pipelineName: "article:blog",
+        jobData: {
+          briefId,
+          projectId: pipelineInput.projectId,
+          collectionType: deriveCollectionFromIntent(intentType),
+          llmMode,
+          plannedItemId: item.id,
+        },
+      };
     }
 
     case "comparison": {

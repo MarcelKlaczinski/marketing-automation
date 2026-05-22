@@ -548,6 +548,33 @@ This works whenever the hook's side-effect (DB insert, queue enqueue) precedes a
 
 **Test injection:** all three selector classes accept optional `Select*Deps.create*EmbeddingProvider` factories. Real runs use Voyage-backed defaults; tests use `createNullBriefProvider` / `createNullSignalProvider` / `createNullArticleProvider` from `test/planning/lib/null-providers.ts` to stay offline. New planner selectors that take adapter calls should follow the same DI shape.
 
+## Adding a Planner content_type (Spec 64.1)
+
+`content_type` discriminates planner buckets, cost estimation, dispatch, and UI presentation. Adding a value requires coordinated edits across 6 files in 5 packages — no DB migration is needed because the DB columns (`planned_items.content_type` + `project_goals.content_type`) are plain `text NOT NULL` since 62.2 (Memory D12). The Zod-validated enum in `@marketing-auto/shared/types/project-goals` is the only validation gate.
+
+**Checklist:**
+
+1. **Shared enum + Zod gate** — `packages/shared/src/types/project-goals.ts` `CONTENT_TYPES` array. `contentTypeSchema = z.enum(CONTENT_TYPES)` auto-widens; the `PUT/PATCH /goals` boundary now accepts the new value.
+2. **Planner type aliases** — `packages/pipelines/src/planning/types.ts` `PLANNING_CONTENT_TYPES` + `PIPELINE_NAME_BY_CONTENT_TYPE` (defaults the per-item `pipeline_name`).
+3. **Cost-estimation map** — `packages/planner/src/goal-validator.ts` `CONTENT_TYPE_TO_PIPELINE`. Without this entry, `expandGoalsToPlannedItems()` silently skips the bucket and `estimatedWeeklyFloorEur` understates cost.
+4. **Selector mapping** — `packages/pipelines/src/planning/steps/select-floor-items.ts`:
+   - `matchBriefToContentType()` — new branch with the discriminator predicate.
+   - `pipelineInputFromBrief()` — stamp the fields the router needs (e.g. `intentType` for `deriveCollectionFromIntent`).
+   - `DIVERSITY_FLOOR_CONTENT_TYPES` Set if the new type should go through the 63.5 diversity-aware picker.
+   - `buckets` literal record — required because the type is `Record<PlanningContentType, TopicBrief[]>` and TS catches the missing key.
+5. **Router dispatch** — `packages/planner/src/execution/pipeline-router.ts` new `case` returning either `{kind: "enqueue", pipelineName, jobData}` or `{kind: "inline", action, briefId}` per Spec 62.8.
+6. **Downstream filter sites** — these use string equality (`it.contentType === "cluster"`), NOT exhaustive matching, so TypeScript will NOT catch missing updates:
+   - `select-overage-items.ts` — Floor-seeded diversity set (`floorDiversityBriefIds` filter).
+   - `select-social-post-items.ts` — auto-paired social-post parent filter (`clusterItems`).
+   - `distribute-slot-dates.ts` — **the only exhaustive switch in the chain**; TS error catches this one immediately.
+7. **Frontend badge** — `apps/web/src/components/planner/PlannerItemCard.vue` `KNOWN_CONTENT_TYPE_KEYS` Set + `.ct-<name>` CSS rule.
+8. **Frontend Settings** — `apps/web/src/pages/settings/SettingsPlannerPage.vue` widen `ContentType` union (3 spots: union type, `ALL_CONTENT_TYPES`, `perTypeInputs`).
+9. **i18n DE+EN** — `planner.contentType.<name>` (calendar badge) + `settings.planner.contentTypes.<name>` (goals dropdown).
+10. **Seed script** — `apps/api/src/scripts/seed-toolwiki-goals.ts` to keep manual seed in sync with the migration. (Optional but recommended.)
+11. **Backfill migration** — `INSERT INTO project_goals … WHERE NOT EXISTS …` for existing projects. The partial unique index `project_goals_one_active_per_type` makes the INSERT idempotent.
+
+The Drizzle column types don't need changes — `planned_items.content_type` and `project_goals.content_type` are both `text NOT NULL`. The TypeScript `.$type<>()` on planned_items uses `text("content_type").notNull()` without a narrow union, so widening the shared enum is invisible to the schema.
+
 ## Cost Enforcement Integration (Spec 41)
 
 `getPipelineQueue()` registers the BullMQ pause/resume callbacks with `registerQueuePauser` from `@marketing-auto/core/cost`. This must fire before any cost limit can be hit, so:

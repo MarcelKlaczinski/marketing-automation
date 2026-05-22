@@ -38,6 +38,16 @@ const DEFAULTS = {
       maxCount: null,
     },
     {
+      // Spec 64.1: cluster_spoke = single article:blog spoke under an
+      // existing cluster. Kept separate from `cluster` (= create_new hub) so
+      // Marcel sees the mix explicitly. Migration 0086 backfills the same
+      // defaults for existing projects.
+      contentType: "cluster_spoke",
+      cadenceUnit: "per_week" as const,
+      minCount: 5,
+      maxCount: 10,
+    },
+    {
       contentType: "comparison",
       cadenceUnit: "per_week" as const,
       minCount: 1,

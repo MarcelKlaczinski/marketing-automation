@@ -117,6 +117,7 @@ export default {
   // Content-type badges
   contentType: {
     cluster: "Cluster",
+    cluster_spoke: "Spoke",
     comparison: "Comparison",
     ki_wissen: "KI-Wissen",
     social_post: "Social",

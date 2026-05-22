@@ -392,7 +392,8 @@ export default {
       ALL_GOALS_INACTIVE_OR_ZERO: "Alle Ziele haben Min = 0 — der Planner wird nichts produzieren.",
     },
     contentTypes: {
-      cluster: "Cluster",
+      cluster: "Cluster (neu)",
+      cluster_spoke: "Cluster-Spoke (existing)",
       comparison: "Vergleichsartikel",
       social_post: "Social-Post",
       ki_wissen: "KI-Wissen",

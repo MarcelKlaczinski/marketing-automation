@@ -55,7 +55,8 @@ type Output = z.infer<typeof selectFloorOutputSchema>;
  *   - cluster_action='refresh'     → null (refresh briefs go via the refresh pipeline directly)
  *   - intentType='knowledge'                                → "ki_wissen"  (Spec 63.4 — regardless of clusterAction so Hub-Spoke briefs route correctly)
  *   - intentType='tutorial' AND clusterAction='standalone'  → "ki_wissen"  (tool-agnostic tutorial)
- *   - everything else (create_new / append_to_existing / standalone) → "cluster"
+ *   - cluster_action='append_to_existing' AND clusterId set → "cluster_spoke"  (Spec 64.1 — single spoke under existing hub)
+ *   - everything else (create_new / standalone / orphan append) → "cluster"
  */
 export function matchBriefToContentType(brief: TopicBrief): PlanningContentType | null {
   if (brief.source === "comparison_discovery" || brief.clusterAction === "comparison") {
@@ -85,6 +86,15 @@ export function matchBriefToContentType(brief: TopicBrief): PlanningContentType 
   // the cluster bucket.
   if (brief.intentType === "tutorial" && brief.clusterAction === "standalone") {
     return "ki_wissen";
+  }
+  // Spec 64.1: append_to_existing with a stamped clusterId is a single spoke
+  // under an existing hub — cheap (€1.06 article:blog) and semantically
+  // distinct from create_new (€4.20 cluster:full-plan). Plan-Goals get
+  // separate cluster vs cluster_spoke min/max so Marcel sees and controls
+  // the mix. Orphan append (no clusterId — misclassified brief) falls
+  // through to "cluster" so the inline cluster:full-plan safe default fires.
+  if (brief.clusterAction === "append_to_existing" && brief.clusterId !== null) {
+    return "cluster_spoke";
   }
   return "cluster";
 }
@@ -134,13 +144,14 @@ function pipelineInputFromBrief(
   };
   if (contentType === "comparison") input.collectionType = "comparison";
   if (contentType === "ki_wissen") input.collectionType = "ki-wissen";
-  // Spec 63.7b: cluster items need cluster_action + cluster_id + intent_type
-  // available at execution time so `getPipelineForItem` (pure router) can
-  // decide between cluster:full-plan (create_new — phantom-cluster generation)
-  // and article:blog (append_to_existing — spoke under brief.clusterId)
-  // WITHOUT a re-query of topic_briefs. Stamped only for cluster items;
-  // comparison + ki_wissen items don't use these.
-  if (contentType === "cluster") {
+  // Spec 63.7b + 64.1: cluster + cluster_spoke items need cluster_action +
+  // cluster_id + intent_type available at execution time so `getPipelineForItem`
+  // (pure router) can route WITHOUT a re-query of topic_briefs. cluster items
+  // discriminate create_new (inline cluster:full-plan) vs the safe-default
+  // fallback; cluster_spoke items always append (clusterId is guaranteed by
+  // matchBriefToContentType's guard) and need intent_type to derive
+  // collectionType in `deriveCollectionFromIntent`.
+  if (contentType === "cluster" || contentType === "cluster_spoke") {
     input.clusterAction = brief.clusterAction;
     if (brief.clusterId !== null) input.clusterId = brief.clusterId;
     if (brief.intentType !== null) input.intentType = brief.intentType;
@@ -149,14 +160,17 @@ function pipelineInputFromBrief(
 }
 
 /**
- * Spec 63.7b: per-item pipelineName selector. Cluster items with
- * `cluster_action='append_to_existing'` execute as `article:blog` (spoke
- * generation under brief.clusterId), not `cluster:full-plan`. Persisting the
- * correct pipelineName at plan-generation time lets the cost estimator's
- * tier-1 step-sum reflect the cheaper article:blog cost instead of the
- * cluster:full-plan default.
+ * Spec 63.7b + 64.1: per-item pipelineName selector. Since 64.1 the
+ * cluster/append_to_existing case is matched upstream by
+ * `matchBriefToContentType` and lands in the `cluster_spoke` bucket; the
+ * `PIPELINE_NAME_BY_CONTENT_TYPE['cluster_spoke']` default is already
+ * `article:blog`. The `cluster` → `article:blog` fallback below stays as a
+ * defensive backstop for legacy briefs that somehow reach this function under
+ * `cluster` despite being append (cannot happen via matchBriefToContentType,
+ * but keeps the helper robust to future call paths).
  *
- * Keep in sync with `pipeline-router.ts` `case "cluster":` — same predicate.
+ * Keep in sync with `pipeline-router.ts` `case "cluster":` + `case
+ * "cluster_spoke":` — both predicates resolve to article:blog for append.
  */
 function pipelineNameForItem(brief: TopicBrief, contentType: PlanningContentType): string {
   if (
@@ -180,6 +194,12 @@ function pipelineNameForItem(brief: TopicBrief, contentType: PlanningContentType
  */
 const DIVERSITY_FLOOR_CONTENT_TYPES: ReadonlySet<PlanningContentType> = new Set([
   "cluster",
+  // Spec 64.1: cluster_spoke pools tend to be larger than cluster pools (more
+  // append_to_existing briefs land per week than fresh create_new candidates).
+  // Diversity prevents thematically-clustered spoke runs (e.g. 5 ChatGPT
+  // spokes in one week). Preserves today's behaviour since these briefs were
+  // previously diversified inside the cluster bucket.
+  "cluster_spoke",
   "social_post",
 ]);
 
@@ -236,6 +256,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
     // Bucket briefs by matched content type once, then drain per goal.
     const buckets: Record<PlanningContentType, TopicBrief[]> = {
       cluster: [],
+      cluster_spoke: [],
       comparison: [],
       ki_wissen: [],
       social_post: [],
