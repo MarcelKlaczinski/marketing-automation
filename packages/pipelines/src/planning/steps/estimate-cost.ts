@@ -50,14 +50,16 @@ export class EstimateCostStep extends BaseStep<Input, Output> {
       throw new Error("estimate-cost: validate-goals.config missing");
     }
 
-    // Spec 62.5.1: read llmMode from the snapshot so the estimator can apply
-    // the Batch API discount (~50%) to llmBound steps when batch mode is on.
-    // SnapshotInputsStep loaded it once from projects.llmMode and persisted it
-    // into inputSnapshot.config.llmMode for reproducibility.
+    // Spec 62.5.1 + 64.6b: read llmMode + image-generation toggles from the
+    // snapshot so the estimator can apply the Batch API discount AND pick the
+    // resolution-aware hero-image rate. SnapshotInputsStep loaded them once
+    // from `projects` and froze them into inputSnapshot.config for reproducibility.
     const snapshot = ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>(
       "snapshot-inputs",
     )?.snapshot;
     const llmMode: "sync" | "batch" = snapshot?.config.llmMode ?? "sync";
+    const imageProvider = snapshot?.config.imageGenerationProvider ?? "nano-banana-2";
+    const imageResolution = snapshot?.config.imageGenerationResolution ?? "1k";
 
     const opts: Parameters<typeof estimateWeeklyPlanCost>[0] = {
       plannedItems: distributedItems.map((it) => ({
@@ -69,6 +71,8 @@ export class EstimateCostStep extends BaseStep<Input, Output> {
       weeklyBudgetEur: Number(config.weeklyBudgetEur),
       projectId: input.projectId,
       llmMode,
+      imageProvider,
+      imageResolution,
     };
     if (this.resolvePipelineSteps !== undefined) {
       opts.resolvePipelineSteps = this.resolvePipelineSteps;
