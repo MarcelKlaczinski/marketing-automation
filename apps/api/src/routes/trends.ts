@@ -1,5 +1,4 @@
 import { zValidator } from "@hono/zod-validator";
-import { COST_OPS } from "@marketing-auto/core";
 import {
   and,
   clusters,
@@ -18,18 +17,12 @@ import {
   sql,
   topicBriefs,
 } from "@marketing-auto/db";
-import {
-  enqueueBlogGenerationPipeline,
-  executeDecision,
-  type GenerationMode,
-  type RoutingDecision,
-} from "@marketing-auto/pipelines";
 import { createLogger } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../middleware/auth.ts";
+import { approveBrief } from "../lib/brief-service.ts";
 import { paginated, paginationQuerySchema } from "../lib/pagination.ts";
-import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { getTrendSynthesizerQueue } from "../workers/trend-synthesizer.ts";
 
 const log = createLogger("trends-route");
@@ -187,6 +180,11 @@ trendRoutes.get(
 
 // ─── POST /:slug/trends/briefs/:briefId/approve ───────────────────────────────
 
+// Spec 64.9: thin wrapper over `approveBrief()` from brief-service. The
+// dispatch decision is driven by `mode`: `queue` → plan (Planner picks at the
+// next cycle), `generate` → immediate (legacy article-INSERT + pipeline-enqueue).
+// All cluster-gate logic lives in brief-service so the bulk-approve endpoint
+// and this single-brief endpoint stay in sync.
 const approveBodySchema = z.object({
   mode: z.enum(["generate", "queue"]).default("queue"),
 });
@@ -200,90 +198,58 @@ trendRoutes.post(
     const { mode } = c.req.valid("json");
 
     const proj = await resolveProject(slug);
-    if (!proj) return c.json({ ok: false, error: "Project not found" }, 404);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
 
-    const [brief] = await db
-      .select()
-      .from(topicBriefs)
-      .where(
-        and(
-          eq(topicBriefs.id, briefId),
-          eq(topicBriefs.projectId, proj.id),
-          eq(topicBriefs.source, "trend_discovery"),
-          eq(topicBriefs.approvalStatus, "pending"),
-        ),
-      )
-      .limit(1);
+    const dispatch = mode === "queue" ? "plan" : "immediate";
+    const result = await approveBrief(briefId, proj, dispatch);
 
-    if (!brief) return c.json({ ok: false, error: "Trend brief not found or already processed" }, 404);
+    switch (result.kind) {
+      case "plan_queued":
+        log.info({ briefId, mode, slug }, "trend brief flipped to plan_pending");
+        return c.json({ ok: true, status: "plan_pending", briefId });
 
-    // create_new briefs must go through Cluster Creator (Spec 54.7) first
-    if (brief.clusterAction === "create_new" || !brief.clusterId) {
-      return c.json(
-        {
-          ok: false,
-          error: "cluster_assignment_required",
-          message:
-            "This trend brief requires a cluster before it can be approved. Use the Cluster Creator flow to propose or select a cluster.",
-          brief_id: brief.id,
-          next_action: {
-            type: "cluster_creator",
-            url: `/projects/${slug}/clusters/new?fromBrief=${brief.id}`,
+      case "success":
+        log.info(
+          { briefId, runId: result.runId, jobId: result.jobId, mode, slug },
+          "trend brief approved (immediate)",
+        );
+        return c.json({
+          ok: true,
+          status: "executed",
+          briefId,
+          runId: result.runId,
+          jobId: result.jobId,
+        });
+
+      case "cluster_assignment_required":
+        return c.json(
+          {
+            ok: false,
+            error: "cluster_assignment_required",
+            message:
+              "This brief references an existing cluster but no cluster is assigned. Please assign one before approving.",
+            brief_id: briefId,
+            next_action: {
+              type: "cluster_assign",
+              url: `/projects/${slug}/clusters?fromBrief=${briefId}`,
+            },
           },
-        },
-        409,
-      );
+          409,
+        );
+
+      case "skipped":
+        return c.json({ ok: false, status: "skipped", reason: result.reason });
+
+      case "error":
+        return c.json({ ok: false, error: result.error }, 500);
+
+      default: {
+        // Exhaustiveness check — compile error if a new ApproveBriefResult kind is added.
+        const _exhaustive: never = result;
+        void _exhaustive;
+        return c.json({ ok: false, error: "unexpected_result" }, 500);
+      }
     }
-
-    // Construct routing decision directly — decideRoute skips non-gap_analysis sources in 54.3
-    const decision: RoutingDecision = {
-      kind: "create_article",
-      clusterId: brief.clusterId,
-      intentType: brief.intentType ?? "general",
-      mode: (brief.generationMode ?? "spoke") as GenerationMode, // brief.generationMode is string | null; default "spoke" is always a valid GenerationMode
-    };
-
-    const routeResult = await db.transaction(async (tx) => executeDecision(decision, brief, tx));
-
-    if (routeResult.kind === "skipped") {
-      return c.json({ ok: false, error: routeResult.reason }, 422);
-    }
-    if (routeResult.kind !== "article_created") {
-      return c.json({ ok: false, error: "Unexpected routing result" }, 500);
-    }
-
-    // Trend briefs always have locale + clusterId (guarded above) — route to blog pipeline
-    const triggerResult = await triggerWithPreRunId({
-      pipelineName: "article:blog",
-      projectId:    proj.id,
-      uniqueKey:    { field: "articleId", value: routeResult.articleId },
-      costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
-      extraInput:   { articleId: routeResult.articleId, briefId: brief.id },
-      enqueue:      enqueueBlogGenerationPipeline,
-    });
-
-    if ("error" in triggerResult) {
-      return c.json({ ok: false, error: triggerResult.error }, 402);
-    }
-
-    log.info(
-      { briefId, articleId: routeResult.articleId, mode, slug },
-      "trend brief approved",
-    );
-
-    return c.json(
-      {
-        ok:   true,
-        data: {
-          articleId: routeResult.articleId,
-          runId:     triggerResult.runId,
-          jobId:     triggerResult.jobId,
-          deduped:   triggerResult.deduped,
-          briefId:   routeResult.briefId,
-        },
-      },
-      triggerResult.deduped ? 200 : 202,
-    );
   },
 );
 

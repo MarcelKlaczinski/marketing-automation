@@ -74,7 +74,10 @@ export default {
 
     routingPreview: "Routing-Vorschau",
     routingAppend: 'Wird Cluster "{cluster}" hinzugefügt',
-    routingCreateNew: 'Neuen Cluster erstellen — über "Cluster erstellen & generieren" starten.',
+    routingCreateNew:
+      "Wird mit dem nächsten Plan eingeplant. Der Cluster wird vom Planner automatisch erstellt.",
+    appendNeedsCluster:
+      "Brief verweist auf einen bestehenden Cluster — bitte einen Cluster zuweisen, bevor genehmigt wird.",
     noCluster: "Kein Cluster zugewiesen",
     assignCluster: "Cluster manuell zuweisen",
     assignClusterSave: "Zuweisen",

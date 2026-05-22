@@ -118,19 +118,34 @@ describe("brief-service approveBrief dispatch (Spec 63.6)", () => {
     expect(second).toEqual({ kind: "skipped", reason: "not_found_or_not_pending" });
   });
 
-  it("rejects create_new briefs as cluster_assignment_required (both modes)", async () => {
+  // Spec 64.9: gate is path-aware. Plan-dispatch lets create_new through (Planner
+  // routes via cluster:full-plan); immediate-dispatch still requires a clusterId.
+  it("create_new + plan-dispatch flips to plan_pending (Spec 64.9: Planner regelt es)", async () => {
     const brief = await insertPendingBrief({
       clusterId: null,
       clusterAction: "create_new",
     });
 
-    const planRes = await approveBrief(brief.id, { id: projectId }, "plan");
-    expect(planRes).toEqual({ kind: "cluster_assignment_required" });
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+    expect(result).toEqual({ kind: "plan_queued" });
 
-    const immediateRes = await approveBrief(brief.id, { id: projectId }, "immediate");
-    expect(immediateRes).toEqual({ kind: "cluster_assignment_required" });
+    const [reloaded] = await db
+      .select()
+      .from(topicBriefs)
+      .where(eq(topicBriefs.id, brief.id))
+      .limit(1);
+    expect(reloaded?.approvalStatus).toBe("plan_pending");
+  });
 
-    // brief stays pending — neither branch wrote anything
+  it("create_new + immediate-dispatch still requires a cluster (regression)", async () => {
+    const brief = await insertPendingBrief({
+      clusterId: null,
+      clusterAction: "create_new",
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "immediate");
+    expect(result).toEqual({ kind: "cluster_assignment_required" });
+
     const [reloaded] = await db
       .select()
       .from(topicBriefs)
@@ -202,7 +217,37 @@ describe("brief-service approveBrief dispatch (Spec 63.6)", () => {
     expect(reloaded?.approvalStatus).toBe("pending");
   });
 
-  it("dispatch='plan' on non-comparison brief without cluster still fails (regression)", async () => {
+  // Spec 64.9: append_to_existing WITHOUT clusterId is the only true editorial gap.
+  it("dispatch='plan' on append_to_existing without cluster fails (true editorial gap)", async () => {
+    const brief = await insertPendingBrief({
+      source: "gap_analysis",
+      clusterAction: "append_to_existing",
+      clusterId: null,
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+    expect(result).toEqual({ kind: "cluster_assignment_required" });
+
+    const [reloaded] = await db
+      .select()
+      .from(topicBriefs)
+      .where(eq(topicBriefs.id, brief.id))
+      .limit(1);
+    expect(reloaded?.approvalStatus).toBe("pending");
+  });
+
+  it("dispatch='plan' on append_to_existing WITH valid clusterId flips to plan_pending", async () => {
+    const brief = await insertPendingBrief({
+      source: "gap_analysis",
+      clusterAction: "append_to_existing",
+      clusterId,
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+    expect(result).toEqual({ kind: "plan_queued" });
+  });
+
+  it("dispatch='plan' on trend_discovery create_new flips to plan_pending (Spec 64.9 Marcel-Bug)", async () => {
     const brief = await insertPendingBrief({
       source: "trend_discovery",
       clusterAction: "create_new",
@@ -210,7 +255,17 @@ describe("brief-service approveBrief dispatch (Spec 63.6)", () => {
     });
 
     const result = await approveBrief(brief.id, { id: projectId }, "plan");
+    expect(result).toEqual({ kind: "plan_queued" });
+  });
 
+  it("dispatch='immediate' on append_to_existing without cluster fails", async () => {
+    const brief = await insertPendingBrief({
+      source: "gap_analysis",
+      clusterAction: "append_to_existing",
+      clusterId: null,
+    });
+
+    const result = await approveBrief(brief.id, { id: projectId }, "immediate");
     expect(result).toEqual({ kind: "cluster_assignment_required" });
   });
 });

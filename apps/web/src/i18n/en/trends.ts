@@ -74,7 +74,10 @@ export default {
 
     routingPreview: "Routing Preview",
     routingAppend: "Will append to cluster \"{cluster}\"",
-    routingCreateNew: "Create new cluster — use \"Create cluster & generate\" below.",
+    routingCreateNew:
+      "Scheduled for the next plan. The Planner will create the cluster automatically.",
+    appendNeedsCluster:
+      "Brief references an existing cluster — please assign one before approving.",
     noCluster: "No cluster assigned",
     assignCluster: "Assign cluster manually",
     assignClusterSave: "Assign",

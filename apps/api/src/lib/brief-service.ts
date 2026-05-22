@@ -57,22 +57,24 @@ export async function approveBrief(
     return { kind: "skipped", reason: "not_found_or_not_pending" };
   }
 
-  // Comparison-discovery briefs are intentionally standalone
-  // (clusterId: null, clusterAction: "comparison"). Cross-linking in Astro
-  // happens via `toolSlugs`, not via cluster membership, so plan-dispatch can
-  // route them straight through to the Planner without a parent cluster.
-  // Immediate-dispatch still requires a cluster because `executeDecision`
-  // INSERTs an article row that downstream pipelines join against.
-  const isComparisonDiscovery = brief.source === "comparison_discovery";
-
+  // Spec 64.9: path-aware cluster gate.
+  //
+  // Plan-dispatch lets the weekly Planner route the brief:
+  //   - `create_new` → routed to `cluster:full-plan` (Planner generates cluster + spokes)
+  //   - `comparison` → routed to `article:blog` collection=comparison (cluster-less by design)
+  //   - `append_to_existing` WITH clusterId → spoke under that cluster
+  //   - `append_to_existing` WITHOUT clusterId → editorial gap; Marcel must assign a cluster
+  //
+  // Immediate-dispatch still requires a concrete clusterId because executeDecision
+  // INSERTs an article row that downstream pipelines join against; create_new and
+  // null-cluster briefs can't go inline.
   if (dispatch === "plan") {
-    if (!isComparisonDiscovery && (brief.clusterAction === "create_new" || !brief.clusterId)) {
+    if (brief.clusterAction === "append_to_existing" && !brief.clusterId) {
       return { kind: "cluster_assignment_required" };
     }
     return await markBriefPlanPending(briefId, project.id);
   }
 
-  // Immediate-dispatch branch — strict cluster gate for all sources.
   if (brief.clusterAction === "create_new" || !brief.clusterId) {
     return { kind: "cluster_assignment_required" };
   }

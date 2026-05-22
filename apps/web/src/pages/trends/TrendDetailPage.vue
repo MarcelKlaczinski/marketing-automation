@@ -46,14 +46,19 @@
           </GlassButton>
         </div>
 
-        <!-- cluster_assignment_required notice -->
-        <div v-if="needsCluster" class="needs-cluster-notice">
+        <!-- Positive info: create_new briefs are auto-routed by the Planner (Spec 64.9) -->
+        <div v-if="trend.clusterAction === 'create_new'" class="info-notice">
           <p>{{ $t("trends.detail.routingCreateNew") as string }}</p>
+        </div>
+
+        <!-- True editorial gap: append_to_existing without a clusterId -->
+        <div v-if="needsCluster" class="needs-cluster-notice">
+          <p>{{ $t("trends.detail.appendNeedsCluster") as string }}</p>
           <router-link
-            :to="`/projects/${$route.params.slug}/clusters/new?fromBrief=${trend.id}`"
+            :to="`/projects/${$route.params.slug}/clusters?fromBrief=${trend.id}`"
             class="create-cluster-link"
           >
-            {{ $t("trends.detail.createClusterAndGenerate") as string }}
+            {{ $t("trends.detail.assignCluster") as string }}
           </router-link>
         </div>
       </div>
@@ -344,6 +349,20 @@ export default defineComponent({
 
 .needs-cluster-notice p {
   margin: 0 0 6px;
+}
+
+.info-notice {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: color-mix(in oklch, #10b981 8%, transparent);
+  border: 1px solid color-mix(in oklch, #10b981 25%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.info-notice p {
+  margin: 0;
 }
 
 .create-cluster-link {
