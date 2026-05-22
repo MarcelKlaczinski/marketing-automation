@@ -64,3 +64,40 @@ describe("buildTrendSynthesisDefaultPrompt (Spec 64.14)", () => {
     expect(prompt).toContain("knowledge vs news");
   });
 });
+
+describe("trend-synthesis prompt SEO-focus (Spec 64.16)", () => {
+  const prompt = buildTrendSynthesisDefaultPrompt(emptyScope);
+
+  it("instructs SEO-optimized headlines instead of compelling/journalistic", () => {
+    expect(prompt).toContain("SEO-optimized");
+    expect(prompt).toContain("not like a journalist");
+    // Anti-pattern: old "compelling" knob should be gone
+    expect(prompt).not.toMatch(/compelling article headline/i);
+  });
+
+  it("includes English-term preserve-list for AI/tech concepts", () => {
+    expect(prompt).toContain("Guardrails");
+    expect(prompt).toContain("Prompts");
+    expect(prompt).toContain("Embeddings");
+    expect(prompt).toContain("RAG");
+    expect(prompt).toContain("DO NOT translate these to German");
+  });
+
+  it("includes drama-blocklist with concrete examples", () => {
+    expect(prompt).toContain("Kampf um");
+    expect(prompt).toContain("Schlacht");
+    expect(prompt).toContain("Krieg gegen");
+    expect(prompt).toContain("DO NOT add dramatic framing");
+  });
+
+  it("includes year-tag policy with source-evidence gate", () => {
+    expect(prompt).toMatch(/DO NOT add year tags/i);
+    expect(prompt).toMatch(/unless the source signals explicitly contain a year/i);
+  });
+
+  it("includes topic_title anchor-preserve instruction", () => {
+    expect(prompt).toMatch(/Stay close to topic_title/i);
+    expect(prompt).toMatch(/preserve its key anchors/i);
+    expect(prompt).toMatch(/NOT a creative rewrite/i);
+  });
+});

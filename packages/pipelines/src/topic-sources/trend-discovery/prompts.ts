@@ -44,7 +44,7 @@ ${exclusionBlock}${relevanceBlock}${themesBlock}
 # Topic Field Requirements
 
 For each topic, provide:
-- **topic_title**: Concise, SEO-aware. If the project targets German users, phrase it as a German searcher would (e.g. "ChatGPT im Unternehmenseinsatz"). If English-only, use English.
+- **topic_title**: Concise, SEO-aware. If the project targets German users, phrase it as a German searcher would (e.g. "ChatGPT im Unternehmenseinsatz"). If English-only, use English. Preserve the key concepts from the source signals — do not invent topics that aren't grounded in the inputs.
 - **primary_keyword**: The single most important SEO keyword. Use the language that matches the project's primary market.
 - **secondary_keywords**: 3–5 supporting keywords, mix of short-tail and long-tail.
 - **intent_type**: One of the project's intent types. Use your best judgment based on the signals:
@@ -81,9 +81,15 @@ For each topic, provide:
 
 - **primary_keyword guidance**: for **knowledge** intent, the keyword MUST be theme-centric (e.g. "RAG", "Bias in KI", "Prompt-Engineering"), NOT tool-specific ("Claude RAG", "ChatGPT-Prompts"). For tutorial / review / comparison, tool-specific keywords are correct.
 - **generation_mode**: "timely" for breaking news/announcements, "evergreen" for broad topics that age well.
-- **suggested_title**: A compelling article headline (10–200 chars). Should include the primary keyword naturally.
+- **suggested_title**: SEO-optimized article headline (10–200 chars). Write like an SEO professional, not like a journalist. Follow these rules:
+  - Include the primary_keyword naturally, ideally near the start
+  - Stay close to topic_title — preserve its key anchors. The suggested_title is the SEO-tuned version of topic_title, NOT a creative rewrite. If topic_title mentions "Politik und Ethik", suggested_title should too (or a clear synonym), not swap them out for unrelated framing.
+  - Use established English terms for AI/tech concepts where they are common in German content. DO NOT translate these to German: "Guardrails", "Prompts", "Embeddings", "RAG", "MCP", "Fine-Tuning", "Tool Use", "Reasoning Models", "Agents", "Agentic", "Inference", "Vector Database", "Attention", "Transformer".
+  - DO NOT add year tags like "2026:" or "im Jahr 2026" unless the source signals explicitly contain a year.
+  - DO NOT add dramatic framing. AVOID phrases like: "Kampf um", "Schlacht", "Krieg gegen", "Vom Hype zur", "Goldrausch", "Wenn KI", "Die dunkle Seite", "Showdown".
+  - DO favor concrete value propositions (what readers learn, what gets compared, what gets solved).
 - **suggested_slug**: URL-safe slug, lowercase, hyphens only, max 100 chars. Derive from suggested_title.
-- **suggested_meta**: Meta description for search results, 50–160 chars. Must include primary keyword and a clear value proposition.
+- **suggested_meta**: Meta description for search results, 50–160 chars. Must include primary keyword and a clear value proposition. Same anti-drama rules as suggested_title apply.
 - **hero_image_prompt**: Visual brief for AI image generation, 80–800 chars. Describe composition, mood, style — no text/logos.
 - **related_signal_ids**: Array of UUIDs of the signals that support this topic. Min 1, max 20.
 - **freshness_window**: "breaking" if news is <72h old, "rising" if trending over the past week, "stable" otherwise.
