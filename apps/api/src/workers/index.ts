@@ -47,6 +47,10 @@ import {
   closeBatchProcessorInfrastructure,
   startBatchProcessorWorker,
 } from "./batch-processor.worker.ts";
+import {
+  closeImageBatchProcessorInfrastructure,
+  startImageBatchProcessorWorker,
+} from "./image-batch-processor.worker.ts";
 import { registerCronOrchestrator, startCronOrchestratorWorker } from "./cron-orchestrator.ts";
 import { startDiscoveryWorker } from "./discoveryWorker.ts";
 import { startGapAutoApproverWorker } from "./gap-auto-approver.ts";
@@ -316,6 +320,7 @@ async function main() {
   const socialRenderWorker = startSocialRenderWorker();
   const articleQualityAnalysisWorker = startArticleQualityAnalysisWorker();
   const batchProcessorWorker = startBatchProcessorWorker();
+  const imageBatchProcessorWorker = startImageBatchProcessorWorker();
   const stepPauseCleanupWorker = startStepPauseCleanupWorker();
   const plannerWeeklyGenerationWorker = startPlannerWeeklyGenerationWorker();
   const planExecutionWorker = startPlanExecutionWorker();
@@ -349,6 +354,8 @@ async function main() {
     await closeArticleQualityAnalysisQueue();
     await batchProcessorWorker.close();
     await closeBatchProcessorInfrastructure();
+    await imageBatchProcessorWorker.close();
+    await closeImageBatchProcessorInfrastructure();
     await stepPauseCleanupWorker.close();
     await plannerWeeklyGenerationWorker.close();
     await planExecutionWorker.close();

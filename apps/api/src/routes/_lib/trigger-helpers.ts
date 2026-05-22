@@ -35,6 +35,16 @@ export interface TriggerOptions {
    * (omitted) is production-mode execution.
    */
   runMode?: "production" | "debug";
+  /**
+   * Spec 64.7: optional LLM-mode override. Used by:
+   *   - articles-standalone routes: pass `"sync"` so one-off generations stay
+   *     immediate even when `projects.llmMode === "batch"`.
+   *   - plan-execute worker: pass the frozen `inputSnapshot.config.llmMode` so
+   *     plan-dispatched runs honour the mode in effect at approval time.
+   * Wrappers downstream (e.g. enqueueBlogGenerationPipeline) read this field
+   * off the payload and forward to `enqueuePipeline.overrideLlmMode`.
+   */
+  overrideLlmMode?: "sync" | "batch";
 }
 
 export type TriggerResult =
@@ -103,6 +113,10 @@ export async function triggerWithPreRunId(opts: TriggerOptions): Promise<Trigger
     // enqueue wrappers (e.g. enqueuePlanWeekPipeline) read this field off the
     // payload and forward it to enqueuePipeline so the runner picks it up.
     ...(opts.runMode !== undefined ? { runMode: opts.runMode } : {}),
+    // Spec 64.7: forward overrideLlmMode (sync/batch) if the route passed one.
+    // Same convention as runMode — the enqueue wrapper reads it and threads
+    // it to enqueuePipeline.
+    ...(opts.overrideLlmMode !== undefined ? { overrideLlmMode: opts.overrideLlmMode } : {}),
   };
 
   await db.insert(pipelineRuns).values({

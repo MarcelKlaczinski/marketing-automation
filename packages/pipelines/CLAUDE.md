@@ -751,6 +751,61 @@ override estimatedCostEur(_input: unknown, context?: EstimatorContext): number {
 5. Extend `EstimateCostStep` to read from snapshot and pass to `estimateWeeklyPlanCost`
 6. Add the `context?.<field>` check inside the relevant step's `estimatedCostEur` override
 
+## Image-Batch Suspension Contract (Spec 64.7)
+
+Parallel to the Anthropic LLM batch (61.4) — same Pattern 118 mechanism, different
+provider + cost units + processor worker. `HeroImageStep` is the only consumer today.
+
+**Suspension signal:** `{ imageBatchPending: true, imageBatchRequestId }` (note the
+field NAME discriminates from `batchPending` — the runner detects each shape
+separately and writes a different `SuspensionCheckpoint.kind`).
+
+**Checkpoint:** `kind: "image_batch"` (sibling of `"batch"` and `"step_pause"` in
+the [SuspensionCheckpoint union](packages/db/src/schema/batch.ts)). `pipeline_runs.status` reuses `batch_pending` —
+no enum widening. Two worker files own different source tables:
+`batch-processor.worker.ts` handles `batch_requests`, `image-batch-processor.worker.ts`
+handles `image_batch_requests`. Each has a defensive kind-guard before re-enqueue.
+
+**Resume channel:** reuses `ctx.batchResult` (NOT a new `ctx.imageBatchResult` field).
+Discriminator is `ctx.batchResult?.stepKey === "hero-image"`. The `content` field
+carries a JSON-encoded `ImageBatchResponseBody` (`{r2Key, publicUrl, costEur, seed, error?}`)
+instead of LLM text — the step JSON-parses at the top of `execute()`.
+
+**Cost logging is the worker's job, NOT the step's.** When the Gemini batch result
+arrives, `image-batch-processor.worker.ts` writes the authoritative
+`image_batch:result` cost_log row (stage='actual') BEFORE re-enqueueing the pipeline.
+`HeroImageStep`'s resume branch only consumes the result — adding a step-level
+cost log would double-write. (Different from Anthropic batch where each LLM step
+is its own cost-bearing call; here the batch is a single billable unit at
+result-arrival time.)
+
+**Submit timing is cron-driven, NOT plan-approve-delayed.** Plan-Approve does NOT
+schedule a delayed coordinator job — `*/2 * * * *` cron in
+[image-batch-processor.worker.ts](apps/api/src/workers/image-batch-processor.worker.ts) discovers approved plans with
+≥1 pending row AND no `image_batch_id` yet, then calls `submitPlanImageBatch(planId)`.
+A 90-second `SUBMIT_AGE_BUFFER_MS` absorbs the transactional race where
+HeroImageStep writes a fresh pending row while older siblings are mid-batch.
+The 30s-delayed-job sketch in the original spec assumed HeroImageStep would be
+reached within 30 seconds — in reality it's step 11/13, ~5-10 min in.
+
+**Idempotency:** layered — (1) `weekly_plans.image_batch_id IS NULL` short-circuit
+in `submitPlanImageBatch` makes re-runs no-ops; (2) deterministic BullMQ jobId
+(`SUBMIT_JOB`) prevents concurrent cron ticks. Same anti-double-submit pattern
+as Spec 62.8 `plan-exec-${planId}`.
+
+**Standalone runs are immediate.** [articles-standalone.ts](apps/api/src/routes/projects/articles-standalone.ts) pins
+`overrideLlmMode: "sync"` on `triggerWithPreRunId` — even if the project's
+`llmMode` is `"batch"`, the standalone wizard stays on the sync hero-image path
+for fast feedback. The plan-execute worker reads `llmMode` from the plan's
+frozen `inputSnapshot.config.llmMode` (62.5.1 SSoT) and passes it through the
+same field. Adding a third trigger surface for hero-image-bearing pipelines
+requires the same `overrideLlmMode` decision at the trigger boundary.
+
+**Per-batch single-model constraint.** Gemini's `batchGenerateContent` encodes
+the model in the endpoint path, so all requests in one batch share one model.
+The Plan-Coordinator groups by model before calling `createImageBatch`; mixed-
+model plans throw explicit error rather than silently splitting.
+
 ## Batch Mode Step Contract (Spec 61.4)
 
 Steps that support Anthropic Batch API follow this pattern:

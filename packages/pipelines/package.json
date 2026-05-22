@@ -8,6 +8,8 @@
     "./social-render-queue": "./src/engine/social-render-queue.ts",
     "./article-quality-analysis-queue": "./src/engine/article-quality-analysis-queue.ts",
     "./batch-resume": "./src/engine/batch-resume.ts",
+    "./image-batch-client": "./src/engine/image-batch-client.ts",
+    "./image-batch-resume": "./src/engine/image-batch-resume.ts",
     "./cost-calculator": "./src/engine/cost-calculator.ts",
     "./article-quality": "./src/article-quality/index.ts",
     "./engine": "./src/engine/index.ts",

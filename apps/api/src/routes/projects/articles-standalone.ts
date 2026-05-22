@@ -153,13 +153,17 @@ articleStandaloneRoutes.post(
     if (input.toolSlugs?.length) extraInput.comparisonToolSlugs = input.toolSlugs;
     if (comparisonToolNames?.length) extraInput.comparisonToolNames = comparisonToolNames;
 
-    // Trigger the blog pipeline (handles pause + cost + idempotency + pipeline_runs + enqueue)
+    // Trigger the blog pipeline (handles pause + cost + idempotency + pipeline_runs + enqueue).
+    // Spec 64.7: standalone generations are immediate by design (fast feedback for
+    // the "try it now" wizard). Pinning overrideLlmMode='sync' here means even if
+    // projects.llmMode is "batch" the standalone run won't suspend at HeroImageStep.
     const result = await triggerWithPreRunId({
       pipelineName: "article:blog",
       projectId: project.id,
       uniqueKey: { field: "articleId", value: articleId },
       costEstimate: { service: "anthropic", operation: COST_OPS.ARTICLE_OUTLINE },
       extraInput,
+      overrideLlmMode: "sync",
       enqueue: enqueueBlogGenerationPipeline,
     });
 

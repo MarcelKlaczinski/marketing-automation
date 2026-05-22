@@ -678,6 +678,13 @@ export const weeklyPlans = pgTable(
       .notNull(),
     generationNotes: text("generation_notes"),
 
+    // Spec 64.7: Image-batch reference. Populated by the plan-coordinator when
+    // it submits all this plan's pending image_batch_requests as ONE Gemini
+    // batch. NULL = no batch submitted yet (sync mode or no hero-image items).
+    imageBatchId: text("image_batch_id"),
+    imageBatchSubmittedAt: timestamp("image_batch_submitted_at", { withTimezone: true }),
+    imageBatchCompletedAt: timestamp("image_batch_completed_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

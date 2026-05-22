@@ -47,8 +47,18 @@ export const COST_OPS = {
   INTERNAL_LINK_ANALYSIS: "internal-link-analysis",
   INTERNAL_LINK_REBUILD: "internal-link-rebuild",
 
-  // === Hero image (Replicate) ===
+  // === Hero image (Replicate + Gemini sync; Spec 64.6) ===
   HERO_IMAGE: "hero-image-generation",
+
+  // === Spec 64.7: Hero-image batch via Google Gemini Batch API ===
+  // Logged TWICE per hero-image in batch mode:
+  //   image_batch:submit  → estimate at HeroImageStep enqueue (suspend)
+  //   image_batch:result  → actual cost after process-results cron resumes pipeline
+  // service='google-gemini' for both (consistent with sync hero-image-generation
+  // — the operation field is the discriminator, mirroring Anthropic's
+  // 'anthropic/batch:<model>' convention from Spec 61.4).
+  HERO_IMAGE_BATCH_SUBMIT: "image_batch:submit",
+  HERO_IMAGE_BATCH_RESULT: "image_batch:result",
 
   // === DataForSEO ===
   DATAFORSEO_SERP_ANALYSIS: "serp-analysis",

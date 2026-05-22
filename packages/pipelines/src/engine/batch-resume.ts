@@ -48,14 +48,17 @@ export async function resumePipeline(batchRow: BatchRequest): Promise<void> {
     log.warn({ pipelineRunId: run.id }, "No checkpoint on batch_pending run — skipping resume");
     return;
   }
-  // Defensive: a step-pause checkpoint must never reach the batch-resume code path —
-  // batch_pending runs only ever carry `kind: "batch"` (or legacy rows pre-62.0a-followup
-  // with no `kind` field at all, which we assume to be batch since the run status is
-  // batch_pending). Bail out if we ever see a step_pause checkpoint here.
-  if ("kind" in checkpoint && checkpoint.kind === "step_pause") {
+  // Defensive: a step-pause OR image-batch checkpoint must never reach the
+  // Anthropic batch-resume code path — batch_pending runs may carry `kind`
+  // values `"batch"` (LLM), `"image_batch"` (Spec 64.7 hero-image), or
+  // `"step_pause"` (Spec 62.0a). Only `"batch"` (or legacy rows pre-62.0a-followup
+  // with no `kind` field at all, which we assume to be Anthropic batch since the
+  // run was previously batch_pending under that single-batch-type regime) should
+  // proceed here.
+  if ("kind" in checkpoint && checkpoint.kind !== "batch") {
     log.warn(
       { pipelineRunId: run.id, kind: checkpoint.kind },
-      "Refusing to batch-resume a step-pause checkpoint"
+      "Refusing to (Anthropic) batch-resume a non-batch checkpoint"
     );
     return;
   }

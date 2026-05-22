@@ -77,6 +77,24 @@ export const NANO_BANANA_PRO_PRICING_USD: Record<NanoBananaResolution, number> =
   "4k": 0.24,
 };
 
+// Spec 64.7: Gemini Batch API is priced at exactly 50% of the sync ("interactive")
+// rate per https://ai.google.dev/gemini-api/docs/pricing. The maps are pre-computed
+// so the batch cost path doesn't depend on a runtime multiply that could drift if
+// Google ever introduces a tier-specific discount.
+export const NANO_BANANA_2_BATCH_PRICING_USD: Record<NanoBananaResolution, number> = {
+  "0.5k": NANO_BANANA_2_PRICING_USD["0.5k"] * 0.5, // $0.0225
+  "1k": NANO_BANANA_2_PRICING_USD["1k"] * 0.5, //    $0.0335
+  "2k": NANO_BANANA_2_PRICING_USD["2k"] * 0.5, //    $0.0505
+  "4k": NANO_BANANA_2_PRICING_USD["4k"] * 0.5, //    $0.0755
+};
+
+export const NANO_BANANA_PRO_BATCH_PRICING_USD: Record<NanoBananaResolution, number> = {
+  "0.5k": NANO_BANANA_PRO_PRICING_USD["0.5k"] * 0.5,
+  "1k": NANO_BANANA_PRO_PRICING_USD["1k"] * 0.5,
+  "2k": NANO_BANANA_PRO_PRICING_USD["2k"] * 0.5,
+  "4k": NANO_BANANA_PRO_PRICING_USD["4k"] * 0.5,
+};
+
 // Back-compat: legacy callers (Spec 64.6) keyed by model only — kept as the 1K rate
 // since 1K is the Toolwiki default. Remove once 64.6b is fully rolled out.
 export const NANO_BANANA_PRICING_USD_PER_IMAGE = {
@@ -87,17 +105,27 @@ export const NANO_BANANA_PRICING_USD_PER_IMAGE = {
 export type NanoBananaModel = keyof typeof NANO_BANANA_PRICING_USD_PER_IMAGE;
 
 /**
- * Compute real-cost EUR for a Nano Banana image generation. Spec 64.6b widened
- * the signature to require `resolution`. Callers that don't know the resolution
- * (or read it from the project later) should pass "1k" to mirror the column default.
+ * Compute real-cost EUR for a Nano Banana image generation.
+ *
+ * Spec 64.6b widened the signature to require `resolution`. Spec 64.7 added
+ * the optional `mode` discriminator — `mode: "batch"` halves the rate (per
+ * Google's Batch API pricing policy). Defaults to "sync" so existing call
+ * sites (Spec 64.6 + 64.6b sync HeroImageStep) stay backwards-compatible.
  */
 export function nanoBananaImageCostEur(input: {
   model: NanoBananaModel;
   resolution: NanoBananaResolution;
   count: number;
+  mode?: "sync" | "batch";
 }): number {
-  const usdMap =
+  const mode = input.mode ?? "sync";
+  const syncMap =
     input.model === "nano-banana-2" ? NANO_BANANA_2_PRICING_USD : NANO_BANANA_PRO_PRICING_USD;
+  const batchMap =
+    input.model === "nano-banana-2"
+      ? NANO_BANANA_2_BATCH_PRICING_USD
+      : NANO_BANANA_PRO_BATCH_PRICING_USD;
+  const usdMap = mode === "batch" ? batchMap : syncMap;
   return usdToEur(usdMap[input.resolution] * input.count);
 }
 

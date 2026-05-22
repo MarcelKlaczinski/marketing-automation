@@ -221,6 +221,11 @@ export async function executePlan(planId: string): Promise<PlanExecutionJobResul
             projectId: plan.projectId,
             preRunId: runId,
             plannedItemId: item.id,
+            // Spec 64.7: thread the frozen snapshot llmMode so plan-dispatched
+            // runs match the cost the user approved. Without this the run
+            // falls back to projects.llmMode (which could have flipped after
+            // plan approval) and HeroImageStep would route wrong.
+            overrideLlmMode: llmMode,
           };
           if (blogInput.collectionType !== undefined) {
             enqueueBlogInput.collectionType = blogInput.collectionType;

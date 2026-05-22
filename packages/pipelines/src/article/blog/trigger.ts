@@ -27,6 +27,12 @@ export type EnqueueBlogGenerationInput = {
    * (so the bridge → PersistArticleStep sets the final collection too).
    */
   collectionType?: ArticleCollectionType;
+  /**
+   * Spec 64.7: optional LLM-mode override. The plan-execute worker reads the
+   * frozen `inputSnapshot.config.llmMode` from the approved plan and threads
+   * it here so hero-image batch routing matches the mode at approval time.
+   */
+  overrideLlmMode?: "sync" | "batch";
 };
 
 export type EnqueueBlogGenerationResult = {
@@ -90,6 +96,9 @@ export async function enqueueBlogGeneration(
   if (input.preRunId) {
     enqueueOpts.preRunId = input.preRunId;
   }
+  if (input.overrideLlmMode !== undefined) {
+    enqueueOpts.overrideLlmMode = input.overrideLlmMode;
+  }
 
   const { jobId } = await enqueuePipeline(enqueueOpts);
 
@@ -120,6 +129,13 @@ export async function enqueueBlogGenerationPipeline(input: {
   collectionType?: ArticleCollectionType;
   comparisonToolSlugs?: string[];
   comparisonToolNames?: string[];
+  /**
+   * Spec 64.7: optional LLM-mode override threaded through from triggerWithPreRunId.
+   * `"sync"` from articles-standalone keeps one-offs immediate; `"batch"` from
+   * the plan-execute worker (via the plan snapshot) lets hero-image step
+   * suspend for the image-batch coordinator.
+   */
+  overrideLlmMode?: "sync" | "batch";
 }): Promise<{ jobId: string }> {
   const pipelineInput: Record<string, unknown> = {
     articleId: input.articleId,
@@ -130,12 +146,16 @@ export async function enqueueBlogGenerationPipeline(input: {
   if (input.comparisonToolSlugs?.length) pipelineInput.comparisonToolSlugs = input.comparisonToolSlugs;
   if (input.comparisonToolNames?.length) pipelineInput.comparisonToolNames = input.comparisonToolNames;
 
-  const { jobId } = await enqueuePipeline({
+  const enqueueOpts: Parameters<typeof enqueuePipeline>[0] = {
     pipelineName: "article:blog",
     projectId: input.projectId,
     input: pipelineInput,
     preRunId: input.preRunId,
     jobOptions: { jobId: `article-blog-${input.articleId}` },
-  });
+  };
+  if (input.overrideLlmMode !== undefined) {
+    enqueueOpts.overrideLlmMode = input.overrideLlmMode;
+  }
+  const { jobId } = await enqueuePipeline(enqueueOpts);
   return { jobId };
 }

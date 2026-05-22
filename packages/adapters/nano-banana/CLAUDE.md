@@ -135,6 +135,46 @@ EN siblings × HTTP/og:image variants are deduped):
 dashboard. The 250-figure used historically is illustrative — actual limits
 may differ by region.
 
+## Batch Mode (Spec 64.7)
+
+The adapter exposes three batch surfaces alongside the sync `generateImage`:
+
+- `createImageBatch({ model, displayName, requests })` — submits ONE Gemini
+  batch (all requests share the model encoded in the endpoint path).
+- `retrieveBatch(batchName)` — maps Gemini's `JOB_STATE_*` enum to a 3-state
+  `"processing" | "succeeded" | "failed"` representation.
+- `fetchBatchResults(batchName)` — when state is `succeeded`, walks the
+  inlined response and uploads each image to R2; returns per-customId result
+  list.
+
+**Wire format vs Spec sketch (verified 2026-05-23):** the Gemini Batch API
+contract differs substantially from Spec 64.7's pre-implementation sketch
+— actual endpoint is `models/{slug}:batchGenerateContent` (model in path,
+not flat `/batches:create`), correlation key is `metadata.key` (not the
+guessed `custom_id`), and state enum is `JOB_STATE_*` (not `BATCH_STATE_*`).
+The deeply-nested request shape `batch.input_config.requests.requests[]`
+is intentional — Gemini supports either inline OR file-input modes through
+the same `input_config` envelope. The adapter uses inline mode only — fits
+≤50 hero images per batch comfortably and avoids a separate JSONL upload.
+
+**Pricing:** all four resolutions × both models are documented at 50% of the
+sync rate. The pre-computed maps `NANO_BANANA_2_BATCH_PRICING_USD` and
+`NANO_BANANA_PRO_BATCH_PRICING_USD` in `packages/cost-tracker/src/pricing.ts`
+mirror the sync maps. Pass `mode: "batch"` to `nanoBananaImageCostEur({...})`
+to apply the discount; defaults to `"sync"` for back-compat.
+
+**Per-batch model constraint:** the `batchGenerateContent` endpoint takes one
+model in the path. The Plan-Coordinator (`apps/api/src/lib/plan-image-batch-coordinator.ts`)
+groups pending rows by model before calling `createImageBatch`. Mixed-model
+plans currently raise an error rather than silently splitting — single-
+provider projects (Toolwiki's current setup) never hit this path.
+
+**Single-image re-roll stays sync:** the batch surface is for plan-approved
+bulk generation only. UI re-roll buttons and standalone test generations
+use the sync `generateImage` path so the user gets immediate feedback. The
+trigger boundary enforces this via `overrideLlmMode: "sync"` on the standalone
+endpoint (see [articles-standalone.ts](../../../apps/api/src/routes/projects/articles-standalone.ts)).
+
 ## Common Mistakes
 
 - DO NOT pass `storagePrefix` starting or ending with `/` (the adapter strips them, but cleanly)
@@ -152,3 +192,16 @@ may differ by region.
 - DO NOT use `nano-banana-pro` with `resolution: "0.5k"` and expect 512px output —
   Pro doesn't support 512, the adapter silently upgrades to 1K. Pricing accounts
   for this in `NANO_BANANA_PRO_PRICING_USD['0.5k'] = $0.134` (mirrors 1K rate).
+- DO NOT mix `nano-banana-2` and `nano-banana-pro` requests in one
+  `createImageBatch()` call (Spec 64.7) — the model is encoded in the endpoint
+  path. The Plan-Coordinator pre-groups by model before calling. If you call
+  this adapter directly from a future use case that batches multiple models,
+  you must split into one createImageBatch per model.
+- DO NOT write a cost log inside HeroImageStep's batch-resume branch — the
+  image-batch-processor worker is the authoritative `image_batch:result`
+  logger (cost is paid at billing-time, not at pipeline-resume time). Adding
+  a step-level log would duplicate the row and double the dashboard total.
+- DO NOT pass an empty `requests` array to `createImageBatch()` — the adapter
+  throws `NanoBananaGenerationError` instead of submitting a no-op batch.
+  The Plan-Coordinator handles this via its `no_pending` short-circuit; if
+  you're calling the adapter directly, gate on `requests.length > 0` first.

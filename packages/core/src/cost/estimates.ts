@@ -91,6 +91,13 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
   // the per-call budget gate.
   "google-gemini": {
     [COST_OPS.HERO_IMAGE]: 0.25,
+    // Spec 64.7: batch ops. Both share the same conservative €0.25 upper-bound
+    // pre-flight — covers 4K Pro worst-case. The actual logged values are the
+    // real per-call cost (estimate vs actual) computed in the engine/processor;
+    // these entries exist so `assertCostBudget("google-gemini", "image_batch:*")`
+    // doesn't emit the "no estimate found" warn at the boundary.
+    [COST_OPS.HERO_IMAGE_BATCH_SUBMIT]: 0.25,
+    [COST_OPS.HERO_IMAGE_BATCH_RESULT]: 0.25,
   },
   smtp: {
     [COST_OPS.SMTP_MAGIC_LINK]: 0.001,
@@ -136,22 +143,31 @@ const FLUX_1_1_PRO_USD_PER_IMAGE = 0.04;
 export type ImageProvider = "nano-banana-2" | "nano-banana-pro" | "flux-1.1-pro";
 
 /**
- * Spec 64.6b: project-aware hero-image cost estimate. Used by the Planner cost estimator
- * (via `SnapshotInputsStep` + `HeroImageStep.estimatedCostEur`) so plans approved with
- * the 2K toggle don't drift from the budget the user saw at approval time.
+ * Spec 64.6b + 64.7: project-aware hero-image cost estimate. Used by the
+ * Planner cost estimator (via `SnapshotInputsStep` + `HeroImageStep.estimatedCostEur`)
+ * so plans approved with the 2K toggle don't drift from the budget the user
+ * saw at approval time.
  *
- * NOT used as the pre-flight `assertCostBudget` upper bound — that stays the conservative
- * €0.25 in `COST_ESTIMATES_EUR["google-gemini"]` so a sudden price hike doesn't bypass
- * the limit guard.
+ * NOT used as the pre-flight `assertCostBudget` upper bound — that stays the
+ * conservative €0.25 in `COST_ESTIMATES_EUR["google-gemini"]` so a sudden
+ * price hike doesn't bypass the limit guard.
+ *
+ * Spec 64.7: `mode` defaults to "sync" for backwards compatibility. Pass
+ * "batch" to apply the documented 50% Gemini Batch API discount — only meaningful
+ * for nano-banana-* providers; Flux has no batch tier, so the mode is ignored.
  */
 export function estimateHeroImageCost(
   provider: ImageProvider,
-  resolution: NanoBananaResolution
+  resolution: NanoBananaResolution,
+  mode: "sync" | "batch" = "sync",
 ): number {
   if (provider === "flux-1.1-pro") {
+    // Flux has no batch API; mode is ignored on this branch.
     return FLUX_1_1_PRO_USD_PER_IMAGE * EUR_PER_USD;
   }
   const usdMap =
     provider === "nano-banana-2" ? NANO_BANANA_2_PRICING_USD : NANO_BANANA_PRO_PRICING_USD;
-  return usdMap[resolution] * EUR_PER_USD;
+  const baseUsd = usdMap[resolution];
+  const usd = mode === "batch" ? baseUsd * 0.5 : baseUsd;
+  return usd * EUR_PER_USD;
 }

@@ -110,6 +110,20 @@ export type PipelineRunResult<TOutput> =
       batchRequestId: string;
     }
   | {
+      // Spec 64.7: pipeline suspended pending Google Gemini Image Batch result.
+      // Mirrors batch_suspended — the only difference is the source table
+      // (image_batch_requests vs batch_requests) and the resumer worker. The
+      // run status is still `batch_pending` to avoid widening the enum.
+      ok: false;
+      suspended: true;
+      runId: string;
+      error: "image_batch_suspended";
+      failedAtStep: "";
+      stepOutputs: Record<string, unknown>;
+      stepKey: string;
+      imageBatchRequestId: string;
+    }
+  | {
       // Spec 62.0a: pipeline suspended awaiting user resolution of a step-pause.
       // BullMQ treats this as a successful job completion (no retry); the API
       // endpoint POST /pipeline-runs/:id/step-pauses/:id/resolve re-enqueues.
@@ -586,6 +600,50 @@ export async function runPipeline<TInput, TOutput>(
           stepKey: step.name,
           batchRequestId: suspension.batchRequestId,
           error: "batch_suspended" as const,
+          failedAtStep: "" as const,
+          stepOutputs,
+        };
+      }
+
+      // Spec 64.7 Pattern 118 (image variant): detect image-batch suspension signal.
+      // Step returns { imageBatchPending: true, imageBatchRequestId } from HeroImageStep
+      // when `ctx.llmMode === "batch"`. Status reuses `batch_pending` (no enum change);
+      // checkpoint `kind: "image_batch"` discriminates which resume worker handles it.
+      if (
+        typeof stepOutput === "object" &&
+        stepOutput !== null &&
+        "imageBatchPending" in stepOutput &&
+        (stepOutput as { imageBatchPending: boolean }).imageBatchPending
+      ) {
+        const suspension = stepOutput as {
+          imageBatchPending: true;
+          imageBatchRequestId: string;
+        };
+        const checkpoint: SuspensionCheckpoint = {
+          kind: "image_batch",
+          stepKey: step.name,
+          imageBatchRequestId: suspension.imageBatchRequestId,
+          accumulatedOutput: stepOutputs,
+        };
+        await db
+          .update(pipelineRuns)
+          .set({
+            status: "batch_pending",
+            suspensionCheckpoint: checkpoint as unknown as Record<string, unknown>,
+            completedAt: new Date(),
+          })
+          .where(eq(pipelineRuns.id, runId));
+        stepLog.info(
+          { stepKey: step.name, imageBatchRequestId: suspension.imageBatchRequestId },
+          "Pipeline suspended — awaiting Google Gemini Image Batch result"
+        );
+        return {
+          ok: false,
+          suspended: true,
+          runId,
+          stepKey: step.name,
+          imageBatchRequestId: suspension.imageBatchRequestId,
+          error: "image_batch_suspended" as const,
           failedAtStep: "" as const,
           stepOutputs,
         };
