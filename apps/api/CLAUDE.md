@@ -68,6 +68,43 @@ Response envelope: `{ items, total, limit, offset }`.
 - Always wrap external calls in cost-tracker decorator
 - Always log structured (pino, JSON output)
 
+## Worker Lifecycle (Spec 64.11)
+
+### Startup reconciliation
+
+`reconcileStalledRenders()` in [src/workers/lib/render-reconciliation.ts](src/workers/lib/render-reconciliation.ts) runs ONCE at worker startup, BEFORE `acquirePidLock()` releases the lock and any BullMQ worker spawns. It resets two classes of orphaned rows so the next poll finds clean state:
+
+- `social_posts.render_status='rendering' AND render_started_at < NOW() - X min` → `pending` + `render_started_at = null`. Clearing the timestamp is what makes the row look fresh to the next reconciliation; without it, the row would be reset on every restart.
+- `pipeline_runs.status='running' AND started_at < NOW() - X min` → `failed` with an `errorMessage` audit trail and `completedAt = NOW()`. The `pipelineRunStatusEnum` has **no `pending` value** — `failed` is the only correct destination, since the BullMQ job is gone and a fresh run is a Marcel-side decision.
+
+The cutoff is configurable via `RENDER_RECONCILIATION_TIMEOUT_MINUTES` (default 15 — Remotion renders top out around 10 min, BullMQ `lockDuration` is 10 min, +5 min buffer). Idempotent: a second invocation against the same state finds 0 rows.
+
+**Other pipeline-run states are deliberately left alone:** `batch_pending`, `paused`, `queued`, `superseded` represent intentional suspension states whose lifecycle is owned by other workers (batch-processor, step-pause flow, BullMQ pickup). The reconciliation never touches them.
+
+If `reconcileStalledRenders()` itself throws (e.g. DB unreachable at startup), the error is logged but worker startup proceeds — running with stale rows is preferable to a worker that won't start.
+
+### Pipeline-completion notifications
+
+Long-running pipelines fire push notifications via [`notifyPipelineCompletion`](../../packages/core/src/notifications/pipeline-completion.ts) so Marcel gets a signal when a 5–10 min `article:blog` run or a 3–5 min `social-render` finishes (or fails). Currently wired in two places:
+
+- **`apps/api/src/workers/social-render.worker.ts`** — `worker.on('completed' | 'failed')` listeners attached after the existing `ready`/`error` handlers.
+- **`packages/pipelines/src/engine/queue.ts`** — the shared `startPipelineWorker` adds a `RICH_COMPLETION_PIPELINES` set (currently just `article:blog`) that short-circuits the legacy `MEANINGFUL_PIPELINES` fan-out + the legacy `pipeline_failure` fan-out so the same job never fires two competing notifications.
+
+The helper:
+- Fans out one notification per `users.role='owner'` row (mirrors `notifyStepPaused`).
+- Coalesces by `(type='pipeline_completed', metadata->>'pipelineRunId')` so retries don't double-notify.
+- Severity is `info` on success (SSE only) and `critical` on failure (Web Push fires).
+- Resolves the deep link from `projects.slug` + (article slug or social path).
+- All errors are swallowed in a try/catch — a failed dispatch must never escalate into a worker job failure.
+
+**Kill switch:** `PIPELINE_NOTIFICATIONS_ENABLED=false` disables dispatch without a redeploy (default `true`). Use during noisy local-dev sessions.
+
+**Out of scope for V1:** `cluster:full-plan` is not a registered BullMQ pipeline — it runs inline via `runClusterFullPlanFromBrief`, with no `worker.on('completed')` to hook. Successful spokes already fire their own `article:blog` notification, so a cluster-level event is redundant.
+
+### Test gotcha: notification coalesce is GLOBAL, not per-user
+
+`notifyPipelineCompletion` (and `notifyStepPaused`) coalesce by `(type, metadata->>'pipelineRunId')` across **all** users. Real-DB tests that use static run IDs (`"run-success-1"`) collide with prior test runs whose tenant owners weren't cleaned up by CASCADE (because their projects survived). The second run silently no-ops and assertions on `rows.length === 1` fail with `Received: 0`. Always stamp test `pipelineRunId` values with `Date.now() + random` so each invocation is unique. See `apps/api/test/workers/lib/pipeline-notification.test.ts` for the canonical pattern.
+
 ## Worker-Restart bei Pipeline-Code-Änderungen
 
 **Wann nötig**: Jede Änderung an Files unter

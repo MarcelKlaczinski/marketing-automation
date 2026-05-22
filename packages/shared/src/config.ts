@@ -89,6 +89,15 @@ const envSchema = z.object({
   // Batch API feature flag (Spec 61.4) — set to "true" to show LLM Mode toggle in UI
   BATCH_API_ENABLED: z.coerce.boolean().default(false),
 
+  // Spec 64.11: stalled-render reconciliation + pipeline-completion push notifications
+  // — `RENDER_RECONCILIATION_TIMEOUT_MINUTES` controls how stale a `rendering` /
+  //   `running` row must be before worker startup resets it (default 15 — Remotion
+  //   renders top out near 10 min, BullMQ `lockDuration` is 10 min, +5 min buffer).
+  // — `PIPELINE_NOTIFICATIONS_ENABLED` kills the BullMQ completion listeners
+  //   without redeploying (e.g. local-dev quiet mode). Default true.
+  RENDER_RECONCILIATION_TIMEOUT_MINUTES: z.coerce.number().int().positive().default(15),
+  PIPELINE_NOTIFICATIONS_ENABLED: z.coerce.boolean().default(true),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),

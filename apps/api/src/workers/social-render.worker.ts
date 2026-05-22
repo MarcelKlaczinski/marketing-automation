@@ -3,6 +3,7 @@
 // All render inputs come from job.data snapshot; DB writes are status transitions only.
 import { Worker } from "bullmq";
 import { publishPipelineEvent } from "@marketing-auto/core/events";
+import { notifyPipelineCompletion } from "@marketing-auto/core/notifications";
 import { type RenderError, db, eq, socialPosts, sql } from "@marketing-auto/db";
 import { r2 } from "@marketing-auto/adapter-storage";
 import { createLogger, getEnv } from "@marketing-auto/shared";
@@ -273,6 +274,32 @@ export function startSocialRenderWorker(): Worker<SocialRenderJobData, SocialRen
 
   worker.on("ready", () => log.info("social-render worker ready (concurrency=1)"));
   worker.on("error", (err) => log.error({ err }, "social-render worker error"));
+
+  // Spec 64.11 Fix B: completion + failure notifications. Listener is async +
+  // fire-and-forget — failures are swallowed inside notifyPipelineCompletion so
+  // a notification miss never escalates into a job retry.
+  worker.on("completed", (job, result) => {
+    void notifyPipelineCompletion({
+      pipelineName: "social-render",
+      projectId: job.data.projectId,
+      pipelineRunId: String(job.id ?? "unknown"),
+      articleId: job.data.articleId,
+      socialPostId: result.socialPostId ?? job.data.socialPostId,
+      status: "success",
+    });
+  });
+  worker.on("failed", (job, error) => {
+    if (!job) return; // BullMQ permits undefined here (rare: pre-job error)
+    void notifyPipelineCompletion({
+      pipelineName: "social-render",
+      projectId: job.data.projectId,
+      pipelineRunId: String(job.id ?? "unknown"),
+      articleId: job.data.articleId,
+      socialPostId: job.data.socialPostId,
+      status: "failed",
+      errorMessage: error.message,
+    });
+  });
 
   return worker;
 }

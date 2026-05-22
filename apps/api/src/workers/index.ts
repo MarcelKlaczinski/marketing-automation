@@ -71,6 +71,7 @@ import {
   startStepPauseCleanupWorker,
 } from "./step-pause-cleanup.worker.ts";
 import { startTrendSynthesizerWorker, seedTrendSynthesizerCron } from "./trend-synthesizer.ts";
+import { reconcileStalledRenders } from "./lib/render-reconciliation.ts";
 
 const log = createLogger("worker");
 
@@ -227,6 +228,18 @@ async function releasePidLock(): Promise<void> {
 
 async function main() {
   await acquirePidLock();
+
+  // Spec 64.11 Fix A: reset stalled `rendering` / `running` rows BEFORE workers
+  // spawn so the next poll finds clean state. Idempotent — re-runs find 0 rows.
+  // Sequential is intentional (pure DB write, ~10ms; downstream worker spawn
+  // depends on the clean state).
+  try {
+    await reconcileStalledRenders();
+  } catch (err) {
+    // Reconciliation failure must not block worker startup — workers can still
+    // function, just with stale rows that Marcel can clean manually.
+    log.error({ err }, "render reconciliation at startup failed — continuing without reset");
+  }
 
   log.info("Starting workers");
 

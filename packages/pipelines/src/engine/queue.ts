@@ -1,5 +1,9 @@
 import { registerQueuePauser } from "@marketing-auto/core/cost";
-import { createNotification } from "@marketing-auto/core/notifications";
+import {
+  createNotification,
+  notifyPipelineCompletion,
+  type PipelineCompletionPipelineName,
+} from "@marketing-auto/core/notifications";
 import { db, pipelineRuns, plannedItems, users } from "@marketing-auto/db";
 import {
   emitPlanStatusIfFinalized,
@@ -351,6 +355,27 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
     "cold-start:cornerstone-spec": "Cornerstone spec complete",
   };
 
+  // Spec 64.11 Fix B: rich-payload completion notifications for long-running
+  // pipelines that need a deep link (article slug etc.). Listed pipelines are
+  // routed through `notifyPipelineCompletion` AND skip the legacy
+  // MEANINGFUL_PIPELINES fan-out below to avoid double-notify.
+  //
+  // Declared as ReadonlySet<string> so `.has(pipelineName)` accepts the
+  // arbitrary string read from job.data without per-call casts. Values are
+  // still constrained to the narrow union at construction time.
+  const RICH_COMPLETION_PIPELINES: ReadonlySet<string> = new Set<PipelineCompletionPipelineName>([
+    "article:blog",
+  ]);
+
+  const readJobArticleId = (job: { data?: unknown }): string | null => {
+    const data = job.data as { input?: { articleId?: unknown }; articleId?: unknown } | undefined;
+    const fromInput = data?.input?.articleId;
+    if (typeof fromInput === "string" && fromInput.length > 0) return fromInput;
+    const fromTop = data?.articleId;
+    if (typeof fromTop === "string" && fromTop.length > 0) return fromTop;
+    return null;
+  };
+
   worker.on("ready", () => log.info({ concurrency }, "Pipeline worker started"));
 
   worker.on("completed", async (job) => {
@@ -358,6 +383,20 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
 
     const pipelineName = String(job.data?.pipelineName ?? "");
     const projectId = String(job.data?.projectId ?? "");
+
+    // Rich-payload path (Spec 64.11): runs BEFORE the legacy block and short-
+    // circuits so the same job doesn't fire two competing notifications.
+    if (projectId && RICH_COMPLETION_PIPELINES.has(pipelineName)) {
+      void notifyPipelineCompletion({
+        pipelineName: pipelineName as PipelineCompletionPipelineName,
+        projectId,
+        pipelineRunId: String(job.id ?? "unknown"),
+        articleId: readJobArticleId(job),
+        status: "success",
+      });
+      return;
+    }
+
     if (!MEANINGFUL_PIPELINES.has(pipelineName) || !projectId) return;
 
     const owners = await db.select({ id: users.id }).from(users).where(eq(users.role, "owner"));
@@ -402,6 +441,23 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
 
     const projectId = String(job?.data?.projectId ?? "");
     if (!projectId) return;
+
+    const pipelineNameForFailure = String(job?.data?.pipelineName ?? "");
+
+    // Spec 64.11 Fix B: rich-payload failure notifications for selected
+    // pipelines. Runs BEFORE the legacy fan-out and short-circuits so the
+    // same job doesn't fire two competing critical notifications.
+    if (job && RICH_COMPLETION_PIPELINES.has(pipelineNameForFailure)) {
+      void notifyPipelineCompletion({
+        pipelineName: pipelineNameForFailure as PipelineCompletionPipelineName,
+        projectId,
+        pipelineRunId: String(job.id ?? "unknown"),
+        articleId: readJobArticleId(job),
+        status: "failed",
+        errorMessage: err.message,
+      });
+      return;
+    }
 
     const owners = await db
       .select({ id: users.id })

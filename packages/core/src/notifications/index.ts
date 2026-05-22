@@ -279,3 +279,12 @@ export async function pruneOldNotifications(): Promise<{
 
 // Spec 62.0a: step-pause notification helper + canonical type constant.
 export { notifyStepPaused, STEP_PAUSED_NOTIFICATION_TYPE } from "./step-pause.ts";
+
+// Spec 64.11 Fix B: pipeline-completion notification helper.
+export {
+  notifyPipelineCompletion,
+  PIPELINE_COMPLETED_NOTIFICATION_TYPE,
+  type PipelineCompletionInput,
+  type PipelineCompletionPipelineName,
+  type PipelineCompletionStatus,
+} from "./pipeline-completion.ts";
