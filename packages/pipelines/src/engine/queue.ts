@@ -306,6 +306,17 @@ export function startPipelineWorker(opts?: { concurrency?: number }): Worker {
         await emitPlanStatusIfFinalized(projectId, plannedItemPlanId).catch(() => undefined);
       }
 
+      // Runner returns this when the project was deleted between enqueue and pickup.
+      // No pipeline_runs row was inserted, no work to settle — treat as a clean
+      // job completion so BullMQ doesn't emit a failure notification.
+      if (!result.ok && result.error === "project_deleted") {
+        log.info(
+          { pipelineName, projectId, jobId: String(job.id) },
+          "BullMQ job completed as no-op: project deleted before worker pickup"
+        );
+        return { runId: "", output: null, skipped: "project_deleted" };
+      }
+
       if (!result.ok) {
         throw new Error(`Pipeline failed at step "${result.failedAtStep}": ${result.error}`);
       }

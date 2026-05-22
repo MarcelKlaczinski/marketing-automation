@@ -84,6 +84,19 @@ export type PipelineRunResult<TOutput> =
       stepOutputs: Record<string, unknown>;
     }
   | {
+      // Project was deleted between enqueue and worker pickup (e.g. test cleanup race —
+      // BullMQ job survives in Redis after PG CASCADE wipes the projects row). No
+      // pipeline_runs row is inserted; the BullMQ worker treats this as a clean
+      // completion so no "Pipeline failed" notification fires.
+      ok: false;
+      suspended?: false;
+      runId: "";
+      error: "project_deleted";
+      failedAtStep: "";
+      stepOutputs: Record<string, unknown>;
+      projectId: string;
+    }
+  | {
       // Spec 61.4 Pattern 118: pipeline suspended pending Anthropic Batch API result.
       // ok: false so BullMQ job doesn't count this as a successful pipeline completion.
       // Processor will resume the pipeline when the batch result arrives.
@@ -134,12 +147,31 @@ export async function runPipeline<TInput, TOutput>(
 
   // Spec 61.4: load project's LLM mode once at pipeline start and pass to every step.
   // Spec 62.0a: PipelineRunOptions.overrideLlmMode is a per-run escape hatch.
+  // Also serves as the "project still exists" guard — bail out before any
+  // pipeline_runs INSERT if the project was deleted while the job sat in BullMQ.
+  // ON DELETE CASCADE wipes related DB rows but BullMQ jobs live in Redis and
+  // survive the delete; the worker discriminates on error="project_deleted" and
+  // returns clean instead of marking the job failed.
   const [projectRow] = await db
     .select({ llmMode: projects.llmMode })
     .from(projects)
     .where(eq(projects.id, options.projectId))
     .limit(1);
-  const projectLlmMode = (projectRow?.llmMode ?? "sync") as "sync" | "batch";
+  if (!projectRow) {
+    log.info(
+      { pipelineName: pipeline.name, projectId: options.projectId, jobId: options.jobId },
+      "Pipeline skipped: project no longer exists (race with delete)"
+    );
+    return {
+      ok: false,
+      runId: "",
+      error: "project_deleted",
+      failedAtStep: "",
+      stepOutputs: {},
+      projectId: options.projectId,
+    };
+  }
+  const projectLlmMode = (projectRow.llmMode ?? "sync") as "sync" | "batch";
   const llmMode: "sync" | "batch" = options.overrideLlmMode ?? projectLlmMode;
   const runMode: "production" | "debug" = options.runMode ?? "production";
 

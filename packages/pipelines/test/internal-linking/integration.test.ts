@@ -24,6 +24,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { runPipeline } from "../../src/engine/runner.ts";
 import { ArticleLinkUpdatePipeline } from "../../src/internal-linking/article-pipeline.ts";
+import { drainProjectJobs } from "../fixtures/drain-project-jobs.ts";
 
 const LIVE = process.env.RUN_LIVE_INTERNAL_LINKING === "1";
 
@@ -70,6 +71,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Drain BullMQ jobs enqueued by ArticleSyncPipeline.afterComplete BEFORE the
+  // project DELETE so PG CASCADE doesn't leave them as orphans in Redis. The
+  // runner guard handles surviving orphans at worker pickup, but draining keeps
+  // the queue clean for follow-on tests + production observation.
+  await drainProjectJobs(projectId);
   await db.delete(projects).where(eq(projects.id, projectId));
 });
 
