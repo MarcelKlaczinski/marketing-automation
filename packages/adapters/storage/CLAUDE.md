@@ -7,7 +7,7 @@ Object storage for generated assets. Uses Bun's native `Bun.S3Client` (zero deps
 All R2 config is resolved from the global vault first (keys: `r2.account_id`,
 `r2.access_key_id`, `r2.secret_access_key`, `r2.bucket`, `r2.public_base_url`),
 falling back to env vars (`R2_ACCOUNT_ID`, etc.). Set via installer or env vars.
-`getFile()`, `deleteObject()`, `presignedUrl()` are now async (previously sync) to support
+`getFile()`, `deleteObject()`, `presignedUrl()`, `listObjects()` are now async (previously sync) to support
 the async vault lookup; all callers must `await` them.
 
 ## Usage
@@ -55,6 +55,23 @@ import { isR2Configured } from "@marketing-auto/adapter-storage";
 const hasR2 = await isR2Configured(); // false = local fallback active
 ```
 
+## Listing keys (Spec 64.10)
+
+`listObjects({prefix, maxKeys?})` enumerates keys under a prefix. Handles real R2
+(paginated `S3Client.list` with transparent `continuationToken` loop, 1000-key
+pages) and the local-fallback uploads directory (recursive `readdir` walk)
+identically. Returns relative POSIX-style keys (no leading slash).
+
+```typescript
+import { r2 } from "@marketing-auto/adapter-storage";
+
+const keys = await r2.list({ prefix: "toolwiki/articles/hero" });
+// → ["toolwiki/articles/hero/abc...webp", "toolwiki/articles/hero/originals/def...png", ...]
+```
+
+Use for orphan-cleanup, audit, or migration scripts. Do NOT use from request-handling
+code — listing 100k+ keys takes seconds and blocks the worker.
+
 ## Common Mistakes
 
 - DO NOT call `r2.put` from request-handling code unless you control the input — body size
@@ -62,3 +79,9 @@ const hasR2 = await isR2Configured(); // false = local fallback active
 - DO NOT use the same `key` for different content (no auto-versioning) — generate unique keys
   via UUID or content hash
 - DO NOT delete objects pointed to by published articles (you'd 404 the page)
+- DO NOT iterate `listObjects()` output as a cleanup candidate-set without filtering to a
+  known producer-shape first — Astro static-site builds emit responsive-image artifacts
+  (`<slug>-<aspect>-<width>.webp` / `.avif`) under the same prefixes as pipeline output.
+  Always allow-list by filename shape (e.g. UUID regex for hero keys) before any delete.
+  See [apps/api/src/scripts/cleanup-orphan-heroes.ts](../../../apps/api/src/scripts/cleanup-orphan-heroes.ts)
+  `isPipelineHeroKey()` for the canonical Spec 64.10 pattern.

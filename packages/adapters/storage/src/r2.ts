@@ -1,5 +1,5 @@
-import { mkdir } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { mkdir, readdir } from "node:fs/promises";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { S3Client } from "bun";
@@ -191,4 +191,82 @@ export async function presignedUrl(input: {
     method: input.method,
     expiresIn: input.expiresInSeconds ?? 3600,
   });
+}
+
+export interface ListObjectsInput {
+  /** Key prefix to list (e.g. "toolwiki/articles/hero"). No leading slash. */
+  prefix: string;
+  /** Optional cap on the total number of keys returned. Default: unlimited. */
+  maxKeys?: number;
+}
+
+/**
+ * List object keys under a prefix. Handles pagination transparently and works
+ * against both real R2 and the local-fallback uploads directory.
+ *
+ * Spec 64.10: used by cleanup-orphan-heroes to discover candidate keys before
+ * cross-referencing the DB.
+ */
+export async function listObjects(input: ListObjectsInput): Promise<string[]> {
+  if (!(await isR2Configured())) {
+    return listObjectsLocal(input);
+  }
+
+  const { client } = await getClientAndConfig();
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+  const pageSize = 1000;
+
+  while (true) {
+    const remaining = input.maxKeys === undefined ? pageSize : input.maxKeys - keys.length;
+    if (remaining <= 0) break;
+
+    const result = await client.list({
+      prefix: input.prefix,
+      maxKeys: Math.min(pageSize, remaining),
+      ...(continuationToken ? { continuationToken } : {}),
+    });
+
+    for (const obj of result.contents ?? []) {
+      if (obj.key) keys.push(obj.key);
+    }
+
+    if (!result.isTruncated || !result.nextContinuationToken) break;
+    continuationToken = result.nextContinuationToken;
+  }
+
+  return keys;
+}
+
+async function listObjectsLocal(input: ListObjectsInput): Promise<string[]> {
+  if (input.prefix.includes("..")) {
+    throw new Error(`R2 local fallback: invalid prefix containing ".." — ${input.prefix}`);
+  }
+
+  const root = join(LOCAL_UPLOADS_ROOT, input.prefix);
+  const keys: string[] = [];
+
+  async function walk(dir: string): Promise<void> {
+    let names: string[];
+    try {
+      names = await readdir(dir);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw e;
+    }
+    for (const name of names) {
+      if (input.maxKeys !== undefined && keys.length >= input.maxKeys) return;
+      const full = join(dir, name);
+      const stat = await Bun.file(full).stat();
+      if (stat.isDirectory()) {
+        await walk(full);
+      } else if (stat.isFile()) {
+        const relPath = relative(LOCAL_UPLOADS_ROOT, full);
+        keys.push(relPath.split(sep).join("/"));
+      }
+    }
+  }
+
+  await walk(root);
+  return keys;
 }
