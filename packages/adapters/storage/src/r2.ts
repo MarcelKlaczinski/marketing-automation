@@ -1,4 +1,4 @@
-import { mkdir, readdir } from "node:fs/promises";
+import { mkdir, readdir, unlink } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { getGlobal } from "@marketing-auto/core/credentials";
 import { createLogger, getEnv } from "@marketing-auto/shared";
@@ -171,12 +171,34 @@ export async function getFile(key: string): Promise<S3File> {
 }
 
 export async function deleteObject(key: string): Promise<boolean> {
+  if (!(await isR2Configured())) {
+    return deleteObjectLocal(key);
+  }
   const { client } = await getClientAndConfig();
   try {
     await client.delete(key);
     return true;
   } catch (e) {
     log.warn({ key, err: e }, "R2 delete failed");
+    return false;
+  }
+}
+
+async function deleteObjectLocal(key: string): Promise<boolean> {
+  if (key.includes("..")) {
+    throw new Error(`R2 local fallback: invalid key containing ".." — ${key}`);
+  }
+  const localPath = join(LOCAL_UPLOADS_ROOT, key);
+  try {
+    await unlink(localPath);
+    log.info({ key, localPath }, "R2 not configured — deleted local file");
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") {
+      log.debug({ key, localPath }, "R2 local fallback: file already gone");
+      return true;
+    }
+    log.warn({ key, localPath, err: e }, "R2 local fallback: delete failed");
     return false;
   }
 }
