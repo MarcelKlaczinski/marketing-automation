@@ -5,13 +5,30 @@ import { searchHnByDate, type HnHit } from "./client.ts";
 
 const log = createLogger("adapter:hackernews");
 
-// Algolia HN silently returns 0 hits for queries with 7+ OR terms.
-// Use multiple short queries (≤5 OR terms each) and deduplicate by objectID.
+// Algolia HN degrades sharply with OR-syntax: 5-term ORs return ≤3 hits even
+// in a 30-day window, while single-keyword queries hit the 50-hit page cap on
+// popular terms (verified Spec 63.9 diagnose 2026-05-22). Use single words and
+// short multi-word phrases; deduplicate by objectID across queries.
 const DEFAULT_QUERIES = [
-  'ai OR llm OR gpt OR claude OR gemini',
-  'midjourney OR "stable diffusion" OR flux OR sora OR runway',
-  'cursor OR copilot OR devin OR codeium',
-  'openai OR anthropic OR huggingface OR replicate',
+  "AI",
+  "LLM",
+  "GPT",
+  "Claude",
+  "Gemini",
+  "OpenAI",
+  "Anthropic",
+  "agentic",
+  "agent",
+  "MCP",
+  "RAG",
+  "embeddings",
+  "open source LLM",
+  "AI safety",
+  "hallucination",
+  "context window",
+  "diffusion",
+  "Copilot",
+  "Cursor",
 ];
 
 const _InputSchema = z.object({
