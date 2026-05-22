@@ -87,7 +87,7 @@ if (en.translationKey) {
   de = row;
 }
 
-function summary(label: string, a: typeof en) {
+function summary(label: string, a: NonNullable<typeof en>) {
   console.log(`\n========================== ${label} ==========================`);
   console.log(JSON.stringify({
     id: a.id,

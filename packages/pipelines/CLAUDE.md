@@ -722,6 +722,33 @@ export class DraftStep extends BaseStep<Input, Output> {
 
 **Reading `llmMode` in planner steps**: never query `projects.llmMode` directly in steps after `SnapshotInputsStep`. The snapshot step persists `llmMode` into `inputSnapshot.config.llmMode` for reproducibility. Downstream steps (`EstimateCostStep`) read it back via `ctx.getStepOutput<{ snapshot: WeeklyPlanInputSnapshot }>("snapshot-inputs")?.snapshot.config.llmMode ?? "sync"`. The `?? "sync"` fallback lets pre-62.5.1 plans replay safely.
 
+## EstimatorContext for project-aware step costs (Spec 64.6b)
+
+`EstimatorStep.estimatedCostEur(input, context?: EstimatorContext)` accepts an optional second arg threaded through by the tier-1 step-sum loop in `estimateWeeklyPlanCost`. Used by `HeroImageStep` to switch the per-image rate based on the project's `image_generation_provider` + `image_generation_resolution` toggles.
+
+```typescript
+override estimatedCostEur(_input: unknown, context?: EstimatorContext): number {
+  // Planner path: project-aware rate from frozen snapshot.
+  if (context?.imageProvider && context.imageResolution) {
+    return estimateHeroImageCost(context.imageProvider, context.imageResolution);
+  }
+  // Ad-hoc path (no snapshot context): legacy upper bound.
+  return 0.07;
+}
+```
+
+**Same SSoT discipline as `llmMode`**: `SnapshotInputsStep` freezes both columns into `inputSnapshot.config.image{GenerationProvider,GenerationResolution}` at plan-generation time; `EstimateCostStep` reads them from the snapshot and passes them via `EstimateWeeklyPlanCostInput.{imageProvider, imageResolution}`. The estimator wraps them into an `EstimatorContext` and threads to every step. Never inline-query `projects` from a per-step `estimatedCostEur()` — replays must reproduce the same cost even after Marcel flips the resolution.
+
+**The live `execute()` path is separate**: actual hero-image generation reads from `projects` (via `resolveImageConfig`) because the running pipeline should respect the *current* toggle, not the plan-time frozen value. The two paths differ intentionally — cost reproducibility ≠ generation reproducibility.
+
+**Adding a new project-level cost toggle:**
+1. Extend `EstimatorContext` in `packages/cost-tracker/src/weekly-budget.ts` with the new optional field
+2. Extend `EstimateWeeklyPlanCostInput` in the same file with the matching optional input field; thread into the `estimatorCtx` build at the top of the tier-1 loop
+3. Extend `plannerConfigSnapshotSchema` in `packages/shared/src/types/weekly-plan.ts` with `.default(...)` so pre-spec plans replay
+4. Extend `SnapshotInputsStep` to read the column from `projects` + freeze into `configSnap`
+5. Extend `EstimateCostStep` to read from snapshot and pass to `estimateWeeklyPlanCost`
+6. Add the `context?.<field>` check inside the relevant step's `estimatedCostEur` override
+
 ## Batch Mode Step Contract (Spec 61.4)
 
 Steps that support Anthropic Batch API follow this pattern:

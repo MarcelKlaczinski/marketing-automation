@@ -67,6 +67,9 @@ async function seedPlan(
           // Spec 63.5: diversity-modifier knobs frozen into the snapshot.
           diversityThreshold: 0.5,
           diversityMalusWeight: 0.5,
+          // Spec 64.6b: hero-image toggle frozen into the snapshot.
+          imageGenerationProvider: "nano-banana-2" as const,
+          imageGenerationResolution: "1k" as const,
         },
         signalRefreshResult: {
           projectId,

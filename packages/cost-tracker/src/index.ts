@@ -15,6 +15,7 @@ export {
   DEFAULT_COST_BY_PIPELINE,
   defaultCostFor,
   estimateWeeklyPlanCost,
+  type EstimatorContext,
   type EstimatorStep,
   type EstimateWeeklyPlanCostInput,
   type PerItemEstimate,

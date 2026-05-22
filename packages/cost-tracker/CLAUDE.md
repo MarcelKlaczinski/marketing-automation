@@ -98,7 +98,7 @@ When the callback is omitted, tier 1 is skipped and the estimator falls straight
 ```typescript
 // EstimatorStep gained an optional flag
 export interface EstimatorStep {
-  estimatedCostEur: (input: unknown) => number;
+  estimatedCostEur: (input: unknown, context?: EstimatorContext) => number;
   llmBound?: boolean;  // undefined = false (treated as "not LLM-bound")
 }
 
@@ -107,6 +107,27 @@ await estimateWeeklyPlanCost({
   llmMode: "batch",  // omitted defaults to "sync" (no discount)
 });
 ```
+
+## EstimatorContext (Spec 64.6b)
+
+`EstimatorContext` is an optional second arg threaded into every step's `estimatedCostEur(input, ctx?)` invocation by the tier-1 step-sum loop. Used so per-step rates can depend on project-level toggles that aren't part of `predictedInput` (which is just the item's `pipelineInput` JSONB).
+
+```typescript
+export interface EstimatorContext {
+  imageProvider?: "nano-banana-2" | "nano-banana-pro" | "flux-1.1-pro";
+  imageResolution?: "0.5k" | "1k" | "2k" | "4k";
+}
+
+await estimateWeeklyPlanCost({
+  ...,
+  imageProvider: snapshot.config.imageGenerationProvider,
+  imageResolution: snapshot.config.imageGenerationResolution,
+});
+```
+
+**Backward-compatible:** the second arg is optional. Steps that don't read it (the default for all but `HeroImageStep`) safely ignore it under TypeScript's fn-arg variance rules. Adding a new toggle = extend `EstimatorContext` + add corresponding `EstimateWeeklyPlanCostInput.<field>` + thread from snapshot. Don't make `EstimatorContext` fields required — that would be a breaking change for every existing step's `estimatedCostEur()` override.
+
+**SSoT discipline:** callers must thread the values from the plan's frozen `inputSnapshot.config`, not from the live `projects` row. Mirrors 62.5.1 `llmMode` — toggling the resolution after plan approval must not change the cost the user saw at approve time. The execute path (live generation) is a separate code path and reads from `projects` because actual generation should respect the *current* toggle. See [`SnapshotInputsStep`](../pipelines/src/planning/steps/snapshot-inputs.ts) + [`EstimateCostStep`](../pipelines/src/planning/steps/estimate-cost.ts).
 
 **Tiers 2 + 3 NOT discounted**: historical averages aggregate past runs whose mode mix is empirically baked in; defaults are conservative fallbacks where the discount is in the noise. Discounting them would double-count when a project switches from sync to batch (the historical avg is already lower if past runs were batch).
 

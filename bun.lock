@@ -268,6 +268,7 @@
       "name": "@marketing-auto/core",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
         "@types/web-push": "^3.6.4",

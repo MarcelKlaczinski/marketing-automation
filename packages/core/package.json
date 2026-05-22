@@ -16,6 +16,7 @@
     "test": "cd ../.. && bun test packages/core/test"
   },
   "dependencies": {
+    "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/db": "workspace:*",
     "@marketing-auto/shared": "workspace:*",
     "@types/web-push": "^3.6.4",

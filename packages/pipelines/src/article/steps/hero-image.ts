@@ -167,7 +167,7 @@ export class HeroImageStep extends BaseStep<
       // Draft + self-review are already done — do NOT fail the pipeline.
       // The article lands in final_review without a hero image; image can be added later.
       ctx.log.warn(
-        { err, articleId: input.articleId, provider },
+        { err, articleId: input.articleId, provider, resolution },
         "HeroImageStep: image generation failed — skipping, draft will still be persisted"
       );
       return { r2Key: "", publicUrl: "", altText: outline.title, skipped: true };

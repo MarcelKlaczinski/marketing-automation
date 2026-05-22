@@ -32,33 +32,34 @@ afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH;
 });
 
-// ─── Request body shape ───────────────────────────────────────────────────────
+// ─── Request body shape (Spec 64.6b: responseFormat.image) ────────────────────
 
 describe("buildModelRequestBody", () => {
-  it("includes prompt + aspectRatio + outputMimeType + seed", () => {
+  it("uses generationConfig.responseFormat.image.{aspectRatio,imageSize} per Gemini docs", () => {
     const body = buildModelRequestBody({
       projectId: "p1",
       operation: "hero-image-generation",
       model: "nano-banana-2",
       prompt: "Editorial flatlay",
       aspectRatio: "16:9",
+      resolution: "1k",
       outputFormat: "webp",
       seed: 42,
       storagePrefix: "toolwiki/articles/hero",
       estimatedCostEur: 0.1,
     });
 
-    expect(body.contents).toEqual([
-      { role: "user", parts: [{ text: "Editorial flatlay" }] },
-    ]);
+    expect(body.contents).toEqual([{ role: "user", parts: [{ text: "Editorial flatlay" }] }]);
 
     const gen = body.generationConfig as Record<string, unknown>;
     expect(gen.candidateCount).toBe(1);
     expect(gen.seed).toBe(42);
+    expect(gen.responseModalities).toEqual(["TEXT", "IMAGE"]);
 
-    const imageConfig = gen.imageConfig as Record<string, unknown>;
-    expect(imageConfig.aspectRatio).toBe("16:9");
-    expect(imageConfig.outputMimeType).toBe("image/webp");
+    const responseFormat = gen.responseFormat as Record<string, unknown>;
+    const image = responseFormat.image as Record<string, unknown>;
+    expect(image.aspectRatio).toBe("16:9");
+    expect(image.imageSize).toBe("1K");
   });
 
   it("omits seed when not provided", () => {
@@ -75,17 +76,86 @@ describe("buildModelRequestBody", () => {
   });
 });
 
-// ─── Cost calculation ─────────────────────────────────────────────────────────
+// ─── Resolution routing (Spec 64.6b) ──────────────────────────────────────────
 
-describe("nanoBananaImageCostEur", () => {
-  it("returns ~€0.062 for nano-banana-2 at 2K", () => {
-    // $0.067 × 0.92 EUR/USD = 0.06164
-    expect(nanoBananaImageCostEur({ model: "nano-banana-2", count: 1 })).toBeCloseTo(0.062, 2);
+describe("buildModelRequestBody — resolution routing (Spec 64.6b)", () => {
+  function imageSizeFor(resolution: "0.5k" | "1k" | "2k" | "4k", model: "nano-banana-2" | "nano-banana-pro" = "nano-banana-2") {
+    const body = buildModelRequestBody({
+      projectId: "p",
+      operation: "hero-image-generation",
+      model,
+      prompt: "x",
+      resolution,
+      storagePrefix: "toolwiki/hero",
+      estimatedCostEur: 0.1,
+    });
+    const gen = body.generationConfig as Record<string, unknown>;
+    const responseFormat = gen.responseFormat as Record<string, unknown>;
+    return (responseFormat.image as Record<string, unknown>).imageSize;
+  }
+
+  it("sends imageSize='512' for resolution '0.5k' (Flash)", () => {
+    expect(imageSizeFor("0.5k")).toBe("512");
   });
 
-  it("returns ~€0.123 for nano-banana-pro at 2K", () => {
-    // $0.134 × 0.92 EUR/USD = 0.12328
-    expect(nanoBananaImageCostEur({ model: "nano-banana-pro", count: 1 })).toBeCloseTo(0.123, 2);
+  it("sends imageSize='1K' for resolution '1k'", () => {
+    expect(imageSizeFor("1k")).toBe("1K");
+  });
+
+  it("sends imageSize='2K' for resolution '2k'", () => {
+    expect(imageSizeFor("2k")).toBe("2K");
+  });
+
+  it("sends imageSize='4K' for resolution '4k'", () => {
+    expect(imageSizeFor("4k")).toBe("4K");
+  });
+
+  it("defaults to '1K' when resolution is omitted", () => {
+    const body = buildModelRequestBody({
+      projectId: "p",
+      operation: "hero-image-generation",
+      model: "nano-banana-2",
+      prompt: "x",
+      storagePrefix: "toolwiki/hero",
+      estimatedCostEur: 0.1,
+    });
+    const gen = body.generationConfig as Record<string, unknown>;
+    const responseFormat = gen.responseFormat as Record<string, unknown>;
+    expect((responseFormat.image as Record<string, unknown>).imageSize).toBe("1K");
+  });
+
+  it("upgrades '0.5k' → '1K' for nano-banana-pro (Pro doesn't support 512)", () => {
+    expect(imageSizeFor("0.5k", "nano-banana-pro")).toBe("1K");
+  });
+});
+
+// ─── Cost calculation (Spec 64.6b: resolution-aware) ──────────────────────────
+
+describe("nanoBananaImageCostEur (Spec 64.6b)", () => {
+  it("returns correct EUR for nano-banana-2 across all resolutions", () => {
+    // $ × 0.92 EUR/USD
+    expect(nanoBananaImageCostEur({ model: "nano-banana-2", resolution: "0.5k", count: 1 }))
+      .toBeCloseTo(0.0414, 3); // 0.045 × 0.92
+    expect(nanoBananaImageCostEur({ model: "nano-banana-2", resolution: "1k", count: 1 }))
+      .toBeCloseTo(0.0616, 3); // 0.067 × 0.92
+    expect(nanoBananaImageCostEur({ model: "nano-banana-2", resolution: "2k", count: 1 }))
+      .toBeCloseTo(0.0929, 3); // 0.101 × 0.92
+    expect(nanoBananaImageCostEur({ model: "nano-banana-2", resolution: "4k", count: 1 }))
+      .toBeCloseTo(0.1389, 3); // 0.151 × 0.92
+  });
+
+  it("returns correct EUR for nano-banana-pro across all resolutions", () => {
+    expect(nanoBananaImageCostEur({ model: "nano-banana-pro", resolution: "1k", count: 1 }))
+      .toBeCloseTo(0.1233, 3); // 0.134 × 0.92
+    expect(nanoBananaImageCostEur({ model: "nano-banana-pro", resolution: "2k", count: 1 }))
+      .toBeCloseTo(0.1233, 3);
+    expect(nanoBananaImageCostEur({ model: "nano-banana-pro", resolution: "4k", count: 1 }))
+      .toBeCloseTo(0.2208, 3); // 0.240 × 0.92
+  });
+
+  it("scales linearly with count", () => {
+    expect(nanoBananaImageCostEur({ model: "nano-banana-2", resolution: "1k", count: 5 }))
+      .toBeCloseTo(0.308, 2); // 0.067 × 5 × 0.92 = 0.3082
   });
 });
 
@@ -124,7 +194,7 @@ describe("extractInlineImage", () => {
   });
 });
 
-// ─── callGeminiWithRetry ──────────────────────────────────────────────────────
+// ─── callGeminiWithRetry — 5xx + 4xx (Spec 64.6 unchanged) ───────────────────
 
 describe("callGeminiWithRetry", () => {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${NANO_BANANA_MODELS["nano-banana-2"]}:generateContent`;
@@ -188,6 +258,69 @@ describe("callGeminiWithRetry", () => {
 
     await expect(callGeminiWithRetry(url, "k", body)).rejects.toThrow(/content blocked/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── callGeminiWithRetry — 429 rate-limit handling (Spec 64.6b) ──────────────
+
+describe("callGeminiWithRetry — 429 rate-limit handling (Spec 64.6b)", () => {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${NANO_BANANA_MODELS["nano-banana-2"]}:generateContent`;
+  const body = { contents: [{ parts: [{ text: "x" }] }] };
+
+  it("retries on 429 and resolves on eventual 200", async () => {
+    const successBody = { candidates: [{ content: { parts: [{ inlineData: { data: "AA==" } }] } }] };
+    const { fetchMock } = mockFetchResponses([
+      { status: 429, body: { error: { message: "rate limit" } } },
+      { status: 429, body: { error: { message: "rate limit" } } },
+      { status: 200, body: successBody },
+    ]);
+
+    const start = Date.now();
+    const result = await callGeminiWithRetry(url, "k", body);
+    const elapsed = Date.now() - start;
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(result.response).toEqual(successBody);
+    // 429 backoff is 1s + 2s = 3000ms minimum between 3 attempts.
+    // Allow a small jitter floor (>= 2800ms) to dodge clock-resolution flake.
+    expect(elapsed).toBeGreaterThanOrEqual(2800);
+  });
+
+  it("throws \"Rate limited after 3 attempts\" after 3 failed 429s", async () => {
+    const { fetchMock } = mockFetchResponses([
+      { status: 429, body: { error: { message: "rate limit" } } },
+      { status: 429, body: { error: { message: "rate limit" } } },
+      { status: 429, body: { error: { message: "rate limit" } } },
+    ]);
+
+    await expect(callGeminiWithRetry(url, "k", body)).rejects.toThrow(/Rate limited after 3 attempts/);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("429 backoff is longer than 5xx backoff (cycle-time comparison)", async () => {
+    // Two cycles of two retries each — 429 should take ~3s (1s+2s), 5xx ~1.5s (500ms+1s).
+    const { fetchMock: fm429 } = mockFetchResponses([
+      { status: 429, body: {} },
+      { status: 429, body: {} },
+      { status: 429, body: {} },
+    ]);
+    const t429Start = Date.now();
+    await callGeminiWithRetry(url, "k", body).catch(() => undefined);
+    const t429 = Date.now() - t429Start;
+    expect(fm429).toHaveBeenCalledTimes(3);
+
+    const { fetchMock: fm5xx } = mockFetchResponses([
+      { status: 503, body: {} },
+      { status: 503, body: {} },
+      { status: 503, body: {} },
+    ]);
+    const t5xxStart = Date.now();
+    await callGeminiWithRetry(url, "k", body).catch(() => undefined);
+    const t5xx = Date.now() - t5xxStart;
+    expect(fm5xx).toHaveBeenCalledTimes(3);
+
+    // 429: 1s + 2s = 3s. 5xx: 500ms + 1s = 1.5s. Expect a clear gap.
+    expect(t429).toBeGreaterThan(t5xx + 800);
   });
 });
 

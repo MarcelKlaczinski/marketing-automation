@@ -13,6 +13,10 @@ either path works for local dev.
 
 Get a key at https://aistudio.google.com/apikey.
 
+Plus: aktiviere "Restrict to Gemini API" in AI Studio damit der Key bei einem Leak
+nicht für andere Google-APIs missbraucht werden kann. Plus: regelmäßig nutzen
+damit Dormant-Block (May 2026 policy change) nicht greift.
+
 ## Hard Rules
 
 - ALL hero-image steps that need Nano Banana use this adapter — never call
@@ -25,23 +29,107 @@ Get a key at https://aistudio.google.com/apikey.
 
 ## Model Routing
 
-- `nano-banana-2` (default): editorial hero images, premium composition, ~$0.067/2K image.
-- `nano-banana-pro`: premium tier (~$0.134/2K image) — reserved for future per-style routing.
+- `nano-banana-2` (default): editorial hero images, premium composition. Supports
+  all four resolutions (`0.5k / 1k / 2k / 4k`).
+- `nano-banana-pro`: premium tier — reserved for future per-style routing.
+  Supports `1k / 2k / 4k` only; `0.5k` is silently upgraded to `1k` inside
+  [model-inputs.ts](src/model-inputs.ts) to avoid an HTTP 400.
+
+## Resolution Toggle (Spec 64.6b)
+
+`projects.image_generation_resolution` controls output resolution per tenant.
+The adapter accepts `'0.5k' | '1k' | '2k' | '4k'` (lowercase, matches the DB
+column) and maps to Gemini's `imageSize` string per the API docs:
+
+| DB value | Gemini `imageSize` | Pixel target | Notes |
+|---|---|---|---|
+| `'0.5k'` | `"512"` | 512px | Flash only; no "K" suffix per API docs |
+| `'1k'` | `"1K"` | 1024px | Toolwiki default |
+| `'2k'` | `"2K"` | 2048px | Premium quality |
+| `'4k'` | `"4K"` | 4096px | Print quality |
+
+**Uppercase `K` is required by the Gemini API** — lowercase is rejected. The
+adapter's `GEMINI_RESOLUTION_MAP` is the single translation point.
+
+### Resolution Pricing Reference
+
+USD/EUR prices verified 2026-05-23 via Google Cloud Generative AI pricing page.
+EUR uses the workspace-wide `EUR_PER_USD = 0.92` constant from `@marketing-auto/cost-tracker`.
+
+| Resolution | nano-banana-2 USD/EUR | nano-banana-pro USD/EUR | Use-Case |
+|---|---|---|---|
+| 0.5k | $0.045 / €0.041 | (upgraded to 1k) | Thumbnails, social preview |
+| **1k** | **$0.067 / €0.062** | $0.134 / €0.123 | **Editorial hero (Toolwiki default)** |
+| 2k | $0.101 / €0.093 | $0.134 / €0.123 | Premium-quality, retina displays |
+| 4k | $0.151 / €0.139 | $0.240 / €0.221 | Print quality (overkill for blog) |
+
+Pricing maps live in `packages/cost-tracker/src/pricing.ts`
+(`NANO_BANANA_2_PRICING_USD` + `NANO_BANANA_PRO_PRICING_USD`). The Planner's
+cost estimate uses `estimateHeroImageCost(provider, resolution)` from
+`@marketing-auto/core/cost` so plans approved with the 2K toggle don't drift
+from the budget Marcel saw at approval time.
 
 ## Cost Math
 
-Cost is computed AFTER the call returns via `nanoBananaImageCostEur` in
-`@marketing-auto/cost-tracker`. The `estimateCostEur("google-gemini", operation)`
-pre-flight check uses the conservative €0.10/image upper bound from
-`COST_ESTIMATES_EUR` so a sudden price hike doesn't bypass the limit guard.
+Cost is computed AFTER the call returns via `nanoBananaImageCostEur({model, resolution, count})`
+in `@marketing-auto/cost-tracker`. The `estimateCostEur("google-gemini", operation)`
+pre-flight check uses the conservative **€0.25/image** upper bound from
+`COST_ESTIMATES_EUR` — covers the 4K Pro worst case so a sudden price hike
+or accidental Pro routing doesn't bypass the limit guard.
 
 ## Retry Logic
 
-3 attempts with exponential backoff (500ms → 1000ms) on 5xx responses or
-network errors. 4xx responses fail fast (auth issues, invalid prompts, etc.) —
-no point retrying those. The graceful skip in
-`HeroImageStep.execute` is the outer backstop: if all 3 attempts fail the
-article lands without a hero image rather than failing the whole pipeline.
+Three branches with distinct backoff profiles:
+
+| Failure | Retry? | Backoff | Final error |
+|---|---|---|---|
+| **429** (rate limited) | yes | **1s → 2s → 4s** (max 7s) | `"Rate limited after 3 attempts"` |
+| **5xx** (transient) | yes | 500ms → 1s → 2s (max 3.5s) | `"Gemini call failed after 3 attempts"` |
+| **4xx non-429** (auth / blocked / invalid prompt) | no | fail-fast | original status + body excerpt |
+
+The 429 backoff is intentionally aggressive — quota recovery needs a longer
+window than a transient 5xx blip; hammering at 500ms during a 429 burst only
+burns more quota. 4xx (non-429) fail-fast because retrying an invalid prompt
+or revoked API key just wastes budget.
+
+The graceful skip in `HeroImageStep.execute` is the outer backstop: if all
+three attempts fail the article lands in `final_review` without a hero image
+rather than failing the whole pipeline. Marcel can re-render later from the UI.
+
+## Rate Limits & Quota Management
+
+**Quotas apply per Google Cloud Project**, NOT per API key
+([docs](https://ai.google.dev/gemini-api/docs/rate-limits)).
+Live tier limits (RPM / TPM / RPD / Images-per-Min) are visible at
+<https://aistudio.google.com/rate-limit> and depend on usage tier. Google's
+docs intentionally don't publish fixed numbers — they vary by region, model
+version, and account history. Treat the dashboard as the source of truth.
+
+**Tier 1 qualification**: link a billing account and stay under the $250
+cumulative cap. Tier 2 unlocks after $250 cumulative spend + 3 days.
+
+### Toolwiki Usage Profile (May 2026)
+
+- ~3.4 hero images/day average
+- ~14 images/day during plan-approve spikes (KW21 burst)
+- Well within Tier 1 budget for current article cadence
+
+### Scale Thresholds
+
+Rough article-to-image expansion at the current ~5 hero images / article (DE +
+EN siblings × HTTP/og:image variants are deduped):
+
+| Articles / month | Daily hero generations | Headroom vs typical 250 RPD ceiling |
+|---|---|---|
+| 50 (current) | ~3.4 | ~73× |
+| 200 | ~13 | ~19× |
+| 500 | ~33 | ~7.5× |
+| 1000 | ~66 | ~3.8× |
+| **2500** | **~165** | **~1.5× — re-check the dashboard** |
+
+**Decision point:** at >1000 articles/month, verify the live Tier 2 RPD on the
+dashboard. The 250-figure used historically is illustrative — actual limits
+may differ by region.
 
 ## Common Mistakes
 
@@ -53,3 +141,10 @@ article lands without a hero image rather than failing the whole pipeline.
 - DO NOT trust the `seed` echoed in `GenerateImageResult.seed` when none was
   passed in — Gemini does not always return a deterministic seed for random
   generations; the field will be `null` in that case
+- DO NOT send the `imageSize` value in lowercase (`"1k"` etc.) — the Gemini API
+  rejects it. The adapter's `GEMINI_RESOLUTION_MAP` is the single translation
+  point; new callers should pass the DB-style lowercase token and let the
+  adapter handle the conversion.
+- DO NOT use `nano-banana-pro` with `resolution: "0.5k"` and expect 512px output —
+  Pro doesn't support 512, the adapter silently upgrades to 1K. Pricing accounts
+  for this in `NANO_BANANA_PRO_PRICING_USD['0.5k'] = $0.134` (mirrors 1K rate).

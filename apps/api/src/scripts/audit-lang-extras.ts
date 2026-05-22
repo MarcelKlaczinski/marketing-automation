@@ -1,4 +1,4 @@
-import { db, articles, projects, eq, sql } from "@marketing-auto/db";
+import { db, projects, eq, sql } from "@marketing-auto/db";
 
 async function main() {
   const [proj] = await db.select({ id: projects.id }).from(projects).where(eq(projects.slug, "toolwiki")).limit(1);

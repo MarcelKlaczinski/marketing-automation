@@ -73,6 +73,11 @@ export class SnapshotInputsStep extends BaseStep<Input, Output> {
       .limit(1);
     const llmMode: "sync" | "batch" =
       projectRow[0]?.llmMode === "batch" ? "batch" : "sync";
+    // Spec 64.6b: the snapshot schema is forward-compat with a future Pro
+    // toggle, but `projects.image_generation_provider` is narrowed to
+    // {"nano-banana-2","flux-1.1-pro"} via Drizzle `$type<>()`. When that DB
+    // column widens to include "nano-banana-pro", extend this match to forward
+    // the new value (the TS type-error here will fire and force the update).
     const imageGenerationProvider: PlannerConfigSnapshot["imageGenerationProvider"] =
       projectRow[0]?.imageGenerationProvider === "flux-1.1-pro" ? "flux-1.1-pro" : "nano-banana-2";
     const imageGenerationResolution: PlannerConfigSnapshot["imageGenerationResolution"] =
