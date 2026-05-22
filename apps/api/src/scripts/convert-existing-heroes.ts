@@ -21,8 +21,8 @@
  *   bun --filter @marketing-auto/api convert-existing-heroes [<project-slug>] [--dry-run]
  */
 
-import { getFile } from "@marketing-auto/adapter-storage";
 import { convertImageToWebp, sniffImageFormat } from "@marketing-auto/adapter-image-webp";
+import { getFile } from "@marketing-auto/adapter-storage";
 import { articles, db, projects } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
@@ -44,6 +44,7 @@ async function processArticle(
   article: {
     id: string;
     slug: string | null;
+    projectId: string;
     projectSlug: string;
     heroImageR2Key: string;
     heroImageOriginalR2Key: string | null;
@@ -85,10 +86,13 @@ async function processArticle(
   // This is safe: re-runs will see the column populated and skip. R2 storage cost is the same.
   if (sniffed === "webp") {
     if (!options.dryRun) {
+      // CAS guard: only stamp the marker if no concurrent pipeline run filled it in
+      // between our SELECT and this UPDATE. Defensive — this script is manual-run only,
+      // but pre-empts a future "called from a worker on a schedule" misuse.
       await db
         .update(articles)
         .set({ heroImageOriginalR2Key: article.heroImageR2Key })
-        .where(eq(articles.id, article.id));
+        .where(and(eq(articles.id, article.id), isNull(articles.heroImageOriginalR2Key)));
     }
     return {
       ...base,
@@ -119,13 +123,16 @@ async function processArticle(
     lastSlash > 0 ? article.heroImageR2Key.slice(0, lastSlash) : `${article.projectSlug}/articles/hero`;
 
   const converted = await convertImageToWebp({
-    projectId: article.id, // backfill doesn't have project_id at script time without a join; not used for cost-tracker
+    projectId: article.projectId,
     bytes,
     contentType: `image/${sniffed}`,
     storagePrefix,
   });
 
-  await db
+  // CAS guard on the UPDATE — prevents clobbering a fresh pipeline write that
+  // raced between our SELECT and this point. If the WHERE doesn't match, the
+  // script silently no-ops on this row (count check below for observability).
+  const updated = await db
     .update(articles)
     .set({
       heroImageR2Key: converted.webpKey,
@@ -134,7 +141,15 @@ async function processArticle(
       // to the prior canonical key if for some reason the adapter didn't keep a copy.
       heroImageOriginalR2Key: converted.originalKey ?? article.heroImageR2Key,
     })
-    .where(eq(articles.id, article.id));
+    .where(and(eq(articles.id, article.id), isNull(articles.heroImageOriginalR2Key)))
+    .returning({ id: articles.id });
+
+  if (updated.length === 0) {
+    log.warn(
+      { articleId: article.id, newWebpKey: converted.webpKey, newOriginalKey: converted.originalKey },
+      "convert-existing-heroes: row was filled in by a concurrent process — uploaded artifacts are orphans",
+    );
+  }
 
   return {
     ...base,
@@ -182,6 +197,7 @@ async function main(): Promise<void> {
       slug: articles.slug,
       heroImageR2Key: articles.heroImageR2Key,
       heroImageOriginalR2Key: articles.heroImageOriginalR2Key,
+      projectId: projects.id,
       projectSlug: projects.slug,
     })
     .from(articles)
@@ -199,12 +215,13 @@ async function main(): Promise<void> {
   };
 
   for (const row of rows) {
-    // Defensive narrow — the LEFT JOIN-shape Drizzle returns guarantees these but TS doesn't.
+    // Defensive narrow — the inner-JOIN shape Drizzle returns guarantees these but TS doesn't.
     if (!row.heroImageR2Key || !row.projectSlug) continue;
     const result = await processArticle(
       {
         id: row.id,
         slug: row.slug,
+        projectId: row.projectId,
         projectSlug: row.projectSlug,
         heroImageR2Key: row.heroImageR2Key,
         heroImageOriginalR2Key: row.heroImageOriginalR2Key,
