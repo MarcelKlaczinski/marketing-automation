@@ -362,6 +362,21 @@ Pair every locale-bridge change with a "no source-locale stopwords in target out
 
 **Bridge synchronicity gotcha.** `Pipeline.bridge()` is **synchronous** — no `await db.select()`. When the bridge needs project- or article-level config to compute target-locale fields (e.g. `projects.domain` for the canonical URL, `articles.collection` for the URL path segment), plumb those values through the **setup-step's `OutputSchema`** so the setup step queries them once and the bridge reads via `getStepOutput(...)`. Canonical example: `TranslationSetupOutput` exposes `projectDomain` + `sourceCollection` (Spec 64.3). Adding the field to the setup step's existing SELECT is one column wider — no extra round-trip.
 
+**Rich-type schemas are owned by schema-extension, not the bridge (Spec 64.4).** The Article schema is written by `buildTranslationPersistInput()` because `PersistArticleStep` is the natural single-write surface. `FAQPage` / `HowTo` / `Review` schemas are NOT — `TranslationPipeline.afterComplete` enqueues `SchemaExtensionPipeline`, whose `DetectRichTypesStep` + `BuildJsonLdStep` scan the target-locale body and emit those rich types from EN H3 questions, EN how-to steps, EN frontmatter rating. `PersistSchemaStep` then overwrites the entire `schemaJsonLd` column. If a future bridge change tries to pre-write `FAQPage` for the EN article, schema-extension wipes it within seconds. The translation bug-fix for FAQ asymmetry (Spec 64.4) lives entirely in the body-step (prompt + retry); the schema side took care of itself once the body had the FAQ section.
+
+**FAQ preservation in `TranslationBodyStep` (Spec 64.4).** The LLM occasionally drops FAQ items under token pressure on long articles. The step now wraps each body-generating call (literal path × 1, adaptive draft × 1 — outline call stays single-shot because it only carries headings, not FAQ items) in a private `#runWithFaqRetry()` helper:
+
+1. `FAQ_TRANSLATION_REQUIREMENT` is injected into the user message of every attempt.
+2. After the first attempt, `validateFaqPreservation(sourceBody, targetBody)` from [`translation/lib/faq-validator.ts`](packages/pipelines/src/article/translation/lib/faq-validator.ts) counts H3 headers under recognised FAQ H2 sections (`FAQ` / `FAQs` / `Häufige Fragen` / `Frequently Asked Questions`).
+3. On mismatch, `STRONGER_FAQ_GUIDANCE` (with `{sourceCount}` substituted via `String.replaceAll`) is appended to the user message and the call retries 1× max.
+4. **The step does NOT throw on persistent asymmetry** — Marcel reviews EN siblings before publish anyway. The validation result is surfaced in `OutputSchema.faqValidation` (optional) so downstream callers and any future review-UI hint can read it.
+
+Reusable pattern for other LLM steps with verifiable output invariants (word-count drift, frontmatter completeness, tool-link count, etc.):
+- Pure validator helper colocated in `<step>/lib/<thing>-validator.ts`.
+- Step builds its user message via `buildUserMessage(retrySuffix: string)` lambda; first attempt passes `""`.
+- Shared retry wrapper runs both attempts with the same `systemPrefix` (so the `resolvePrompt` cache hit is preserved).
+- Final attempt's validation result is included in step output as an optional field — never throws, never blocks the pipeline.
+
 ### Voice Reference Loader
 
 `loadVoiceReferences({ projectId, clusterId, locale, excludeArticleId, limit })` in `src/article/voice-reference/loader.ts` returns top-N published articles (same cluster + locale, ranked by `selfReviewScore DESC, createdAt DESC`). Falls back to project-wide if cluster yields fewer than `limit` results. Used by both Refresh and Translation pipelines.
