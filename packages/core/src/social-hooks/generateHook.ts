@@ -46,6 +46,7 @@ export async function generateHookWithGate(
           toolNames: article.toolNames,
           primaryKeyword: article.primaryKeyword ?? "KI-Tools",
         },
+        undefined, // nicheLabel — uses default "AI tools niche" (this is back-compat path)
         lastViolations,
       );
 

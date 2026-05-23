@@ -116,10 +116,18 @@ export function buildPromiseBlock(pattern: HookPattern, ctx: HookContext): Promi
 export function programmaticFallbackHook(
   article: HookArticleContext,
   pattern: HookPattern,
+  /**
+   * Spec multi-domain-evolution S4.4 — tenant fallback keyword used when
+   * `article.primaryKeyword` is unset. Toolwiki: "KI-Tools" (byte-identical
+   * to the legacy hardcoded fallback). Future tenants pass their own
+   * niche-German keyword. Optional + defaults to "KI-Tools" for back-compat
+   * with any caller that doesn't yet thread tenantVars (test fixtures).
+   */
+  fallbackKeyword: string = "KI-Tools",
 ): HookOutput {
   const ctx: HookContext = {
     toolCount: article.toolCount,
-    primaryKeyword: article.primaryKeyword ?? "KI-Tools",
+    primaryKeyword: article.primaryKeyword ?? fallbackKeyword,
   };
   const promiseBlock = buildPromiseBlock(pattern, ctx);
 

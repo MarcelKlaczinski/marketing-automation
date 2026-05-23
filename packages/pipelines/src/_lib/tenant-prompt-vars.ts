@@ -19,6 +19,9 @@
  * `targetNiche` column value.
  */
 import { db, eq, projects } from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
+
+const log = createLogger("pipelines:tenant-prompt-vars");
 
 /**
  * Per-niche variable bundle injected into LLM prompts. All fields are
@@ -98,7 +101,11 @@ const NICHE_PROMPT_VARS: Record<string, TenantPromptVars> = {
     knowledgePillarLabel: "knowledge pillar",
     comparisonEntityLabel: "2-4 named AI tools",
     socialEditorScope: "comparison-grid-4 Instagram slide",
-    socialHookNiche: "German AI tools niche",
+    // Spec multi-domain-evolution S4.4: matches the live core/social-hooks/
+    // hookPrompt.ts string "for the AI tools niche". The legacy pipelines/
+    // social-image/hookPrompt.ts had "German AI tools niche" but that file
+    // is dead code (no consumers per grep) — the live path is core's.
+    socialHookNiche: "AI tools niche",
     nicheGermanKeyword: "KI-Tools",
   },
   // BK + future tenants extend this map as they onboard. Until they do,
@@ -125,9 +132,11 @@ function fallbackPromptVars(domain: string): TenantPromptVars {
  * from the live `projects.domain` column; niche-specific fields come from
  * NICHE_PROMPT_VARS keyed by `projects.targetNiche`.
  *
- * Throws on unknown projectId — pipeline steps already gate on this via
- * their own DB queries, so a missing row means a much larger problem than
- * a prompt-resolution failure.
+ * When the project row is not found (offline tests, malformed projectId,
+ * race during deletion), the helper logs a warn and returns the Toolwiki
+ * defaults with a synthetic "example.com" domain — better to ship a
+ * Toolwiki-shaped prompt than to fail the whole pipeline at a non-LLM
+ * data-load step. Production tenants always have a real row + domain.
  */
 export async function loadTenantPromptVars(projectId: string): Promise<TenantPromptVars> {
   const [row] = await db
@@ -137,7 +146,11 @@ export async function loadTenantPromptVars(projectId: string): Promise<TenantPro
     .limit(1);
 
   if (!row) {
-    throw new Error(`tenant-prompt-vars: project ${projectId} not found`);
+    log.warn(
+      { projectId },
+      "[tenant-prompt-vars] project not found — falling back to Toolwiki defaults",
+    );
+    return fallbackPromptVars("example.com");
   }
 
   // `projects.domain` defaults to `${slug}.example.com` for fresh test

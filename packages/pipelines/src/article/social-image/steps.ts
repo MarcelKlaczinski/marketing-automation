@@ -13,6 +13,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
+import { loadTenantPromptVars } from "../../_lib/tenant-prompt-vars.ts";
 import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import {
   buildCloserHeadline,
@@ -273,6 +274,11 @@ export class ExtractToolsStep extends BaseStep<
     const sourceTitle = enSibling?.title ?? input.articleTitle;
     const sourceUrl = enSibling?.articleUrl ?? input.articleUrl;
 
+    // Spec multi-domain-evolution S4.4: tenant-resolved fallback keyword +
+    // hook niche label. Toolwiki: nicheGermanKeyword="KI-Tools",
+    // socialHookNiche="German AI tools niche" — byte-identical to legacy.
+    const tenantVars = await loadTenantPromptVars(input.projectId);
+
     const stunningSuffix = `
 
 STUNNING VARIANT — additional fields per tool:
@@ -373,7 +379,7 @@ Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match t
       : (parsed.coverHeadlineLead ?? defaultLead);
 
     // ─── Hook generation (new phrase-based multi-pattern engine) ───────────────
-    const primaryKeyword = parsed.coverHeadlineHighlight ?? tools[0]?.name ?? "KI-Tools";
+    const primaryKeyword = parsed.coverHeadlineHighlight ?? tools[0]?.name ?? tenantVars.nicheGermanKeyword;
     const toolNames = tools.map((t) => t.name);
     const articleCtx: HookArticleContext = {
       id: input.articleId,
@@ -384,7 +390,7 @@ Extract 3-10 tools. Keep all text in ${isEnOnly ? "ENGLISH" : "GERMAN"} (match t
     };
     const articleType = inferArticleType(input.articleTitle, tools.length);
     const pattern = selectPattern(input.articleId, articleType);
-    const coverHookOutput: HookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic, this.name);
+    const coverHookOutput: HookOutput = await generateHookWithGate(articleCtx, pattern, ctx, anthropic, this.name, tenantVars);
 
     // ─── Tool-use-case-token enrichment + deterministic closer engine ──────────
     const tokenMap = await enrichToolUseCaseTokens(
@@ -546,6 +552,10 @@ async function generateHookWithGate(
   // Spec 62.0a Section 4.4: stepName threaded from the calling step's `this.name` so the
   // edit-prompt resume override is keyed correctly (same key as the rest of the step).
   stepName: string,
+  // Spec multi-domain-evolution S4.4: tenant-resolved niche label + fallback keyword.
+  // Toolwiki: socialHookNiche="German AI tools niche", nicheGermanKeyword="KI-Tools"
+  // — byte-identical to legacy hardcoded values.
+  tenantVars: import("../../_lib/tenant-prompt-vars.ts").TenantPromptVars,
   maxRetries = 2,
 ): Promise<HookOutput> {
   let lastViolations: string[] | undefined;
@@ -556,10 +566,14 @@ async function generateHookWithGate(
       {
         articleTitle: article.title,
         toolNames: article.toolNames,
-        primaryKeyword: article.primaryKeyword ?? "KI-Tools",
+        primaryKeyword: article.primaryKeyword ?? tenantVars.nicheGermanKeyword,
       },
+      tenantVars.socialHookNiche,
       lastViolations,
     );
+    // ^ Spec multi-domain-evolution S4.4: positional args are
+    // (pattern, ctx, nicheLabel?, previousViolations?). Toolwiki nicheLabel
+    // resolves to "AI tools niche" — byte-identical to legacy hardcoded string.
 
     let hookPartial: { leadPhrase: string; highlightWord: string; trailPhrase: string } | null = null;
     try {
@@ -734,7 +748,11 @@ export class GenerateComparisonGrid4Step extends BaseStep<
     const outputLocale = isDE ? "German (de), du-form" : "English (en)";
     const slug = input.articleSlug;
 
-    const prompt = `You are an editor for toolwiki.ai. Create content for a comparison-grid-4 Instagram slide.
+    // Spec multi-domain-evolution S4.4: domain comes from projects.domain
+    // via tenantVars. Toolwiki resolves to "toolwiki.ai" — byte-identical.
+    const tenantVars = await loadTenantPromptVars(input.projectId);
+
+    const prompt = `You are an editor for ${tenantVars.domain}. Create content for a ${tenantVars.socialEditorScope}.
 Output locale: ${outputLocale}
 
 Article context:
@@ -755,8 +773,8 @@ ${isDE ? `{
   "eyebrow": "<e.g. 'Vergleich · 4 KI-Tools', max 32 chars>",
   "slide_num": "01 / 01",
   "cta_line1": "${ctaDefault}",
-  "cta_line2": "toolwiki.ai/${slug}",
-  "date_label": "Stand ${month}/${year} · toolwiki.ai/${slug}",
+  "cta_line2": "${tenantVars.domain}/${slug}",
+  "date_label": "Stand ${month}/${year} · ${tenantVars.domain}/${slug}",
   "tools": [
     {
       "name": "<tool name, max 16 chars>",
@@ -776,7 +794,7 @@ ${isDE ? `{
   "eyebrow": "<e.g. 'Comparison · 4 AI Tools', max 32 chars>",
   "slide_num": "01 / 01",
   "cta_line1": "${ctaDefault}",
-  "cta_line2": "toolwiki.ai/${slug}",
+  "cta_line2": "${tenantVars.domain}/${slug}",
   "date_label": "As of ${month}/${year} · toolwiki.ai/${slug}",
   "tools": [
     {

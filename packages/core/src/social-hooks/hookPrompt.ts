@@ -24,8 +24,23 @@ export interface ContentPromptContext {
   toolCategory?: string;
 }
 
-const HOOK_SYSTEM_PROMPTS: Record<HookPattern, string> = {
-  superlative_question: `You are an Instagram hook specialist for the AI tools niche.
+/**
+ * Spec multi-domain-evolution S4.4: per-niche hook-prompt builder. The niche
+ * label ("AI tools niche" for Toolwiki, "balcony-solar niche" for BK, etc.)
+ * is injected by the caller via `nicheLabel` — templates stay identical so
+ * a per-tenant override is a single string swap. Callers pass
+ * `tenantVars.socialHookNiche` from `loadTenantPromptVars(projectId)`.
+ *
+ * The function shape mirrors the legacy `HOOK_SYSTEM_PROMPTS` constant; this
+ * is the only behavioural change required at this site to support
+ * per-tenant hooks. Deeper localizations (German vs English examples,
+ * niche-specific BAD-hook examples, INFERENCE RULE entries) stay as
+ * Toolwiki defaults — non-Toolwiki tenants override the full prompt via
+ * `project_configurations.masterPrompts` if/when needed.
+ */
+function buildHookSystemPrompts(nicheLabel: string): Record<HookPattern, string> {
+  return {
+  superlative_question: `You are an Instagram hook specialist for the ${nicheLabel}.
 
 PATTERN: superlative_question
 Format: "Which [specific subject] is the [highlight] [object]?"
@@ -61,7 +76,7 @@ CONSTRAINTS:
 
 RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  number_promise: `You are an Instagram hook specialist for the AI tools niche.
+  number_promise: `You are an Instagram hook specialist for the ${nicheLabel}.
 
 PATTERN: number_promise
 Format: "[N] [subjects] [highlight] [result]"
@@ -79,7 +94,7 @@ CONSTRAINTS:
 
 RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  negative_frame: `You are an Instagram hook specialist for the AI tools niche.
+  negative_frame: `You are an Instagram hook specialist for the ${nicheLabel}.
 
 PATTERN: negative_frame
 Format: "Stop [doing problem]." OR "Not [wrong thing] — [better alternative]."
@@ -97,7 +112,7 @@ CONSTRAINTS:
 
 RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  identity_frame: `You are an Instagram hook specialist for the AI tools niche.
+  identity_frame: `You are an Instagram hook specialist for the ${nicheLabel}.
 
 PATTERN: identity_frame
 Format: "You [activity]? [This/These] [tool/tools] you need to know."
@@ -116,7 +131,7 @@ CONSTRAINTS:
 
 RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
 
-  curiosity_gap: `You are an Instagram hook specialist for the AI tools niche.
+  curiosity_gap: `You are an Instagram hook specialist for the ${nicheLabel}.
 
 PATTERN: curiosity_gap
 Format: "Nobody talks about [topic]." OR "Most people miss [thing] about [topic]."
@@ -133,7 +148,8 @@ CONSTRAINTS:
 - leadPhrase MUST start with capital letter
 
 RETURN ONLY JSON: { "leadPhrase": "...", "highlightWord": "...", "trailPhrase": "..." }`,
-};
+  };
+}
 
 function mapContentType(ct: ContentPromptContext["contentType"]): ContentType {
   if (ct === "comparison" || ct === "use-case") return "comparison";
@@ -181,14 +197,25 @@ ${hashtagSection}`;
 export function buildHookPrompt(
   pattern: HookPattern,
   ctx: HookPromptContext,
+  /**
+   * Spec multi-domain-evolution S4.4: tenant niche label, e.g. "AI tools niche"
+   * for Toolwiki. Default keeps the legacy hardcoded Toolwiki string for any
+   * caller that doesn't yet thread tenantVars (test fixtures, future callers
+   * during the migration window). Production call sites in
+   * packages/pipelines/src/article/social-image/steps.ts pass the resolved
+   * value from `loadTenantPromptVars(projectId)`.
+   */
+  nicheLabel: string = "AI tools niche",
   previousViolations?: string[],
 ): { systemPrompt: string; userPrompt: string } {
   const violationNote = previousViolations?.length
     ? `\n\nPREVIOUS ATTEMPT WAS INVALID:\n${previousViolations.map((v) => `- ${v}`).join("\n")}\nPlease strictly follow the CONSTRAINTS.`
     : "";
 
+  const templates = buildHookSystemPrompts(nicheLabel);
+
   return {
-    systemPrompt: HOOK_SYSTEM_PROMPTS[pattern] + violationNote,
+    systemPrompt: templates[pattern] + violationNote,
     userPrompt: `INPUT:
 - Article title: ${ctx.articleTitle}
 - Tools: ${ctx.toolNames.join(", ")}
@@ -202,13 +229,21 @@ export function buildContentPrompt(
   pattern: HookPattern,
   ctx: ContentPromptContext,
   previousViolations?: string[],
+  /**
+   * Spec multi-domain-evolution S4.4: tenant niche label. Default keeps
+   * back-compat — callers in template definitions pass tenantVars.socialHookNiche
+   * when they wire up Sprint-5 Domain-Registry. For now defaults to the
+   * Toolwiki string "AI tools niche".
+   */
+  nicheLabel: string = "AI tools niche",
 ): { systemPrompt: string; userPrompt: string } {
   const violationNote = previousViolations?.length
     ? `\n\nPREVIOUS ATTEMPT WAS INVALID:\n${previousViolations.map((v) => `- ${v}`).join("\n")}\nPlease strictly follow all CONSTRAINTS.`
     : "";
 
+  const templates = buildHookSystemPrompts(nicheLabel);
   const systemPrompt =
-    HOOK_SYSTEM_PROMPTS[pattern] +
+    templates[pattern] +
     "\n\n---\n" +
     buildCaptionSection(ctx) +
     "\n\nRETURN ONLY JSON with all fields:\n" +
