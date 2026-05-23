@@ -673,6 +673,13 @@
       "when": 1787300000000,
       "tag": "0095_seed_toolwiki_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1787400000000,
+      "tag": "0096_articles_collection_type_text",
+      "breakpoints": true
     }
   ]
 }

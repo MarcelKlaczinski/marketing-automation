@@ -13,8 +13,8 @@ import {
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { vector } from "drizzle-orm/pg-core";
+import type { ArticleCollectionType } from "@marketing-auto/shared";
 import {
-  articleCollectionTypeEnum,
   articleSourceEnum,
   articleStatusEnum,
   cornerstoneSpecStatusEnum,
@@ -123,8 +123,15 @@ export const articles = pgTable(
     // Vector embedding for internal linking (Spec 24) — 1024 dims = Voyage AI voyage-3
     embedding: vector("embedding", { dimensions: 1024 }),
 
-    // Collection type — drives Astro content folder routing (Spec 61.1)
-    collectionType: articleCollectionTypeEnum("collection_type")
+    // Collection type — drives Astro content folder routing (Spec 61.1).
+    // Spec multi-domain-evolution S4.2: was pgEnum articleCollectionTypeEnum,
+    // now plain text with Drizzle `.$type<ArticleCollectionType>()` narrowing.
+    // Per-tenant value set widens via Domain-Registry (Sprint 5); Toolwiki
+    // keeps the 5-value union via the TypeScript constraint. The pgEnum type
+    // itself stays in PostgreSQL for back-compat (other code may reference
+    // `articleCollectionTypeEnum.enumValues` for select options etc.).
+    collectionType: text("collection_type")
+      .$type<ArticleCollectionType>()
       .notNull()
       .default("blog"),
 
