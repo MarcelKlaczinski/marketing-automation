@@ -641,6 +641,55 @@ Genutzt von:
 
 **Sprint 1 — Safety-Layer complete.**
 
+### Sprint 2 — Workspace-Package extrahieren
+
+**S2.1 Scaffold `@marketing-auto/content-schema` workspace** (committed 2026-05-23)
+
+- New package `packages/content-schema/` with the 5 subpath exports defined in spec §3.2: `.`, `./core`, `./enums`, `./domains/toolwiki`, `./registry`, `./validators`
+- Layout matches spec exactly; subtask placeholders in each barrel point at the upcoming sub-task that populates them
+- Picked up by `packages/*` workspace glob (no root `package.json` edit needed)
+- Workspace count went from 24 → 25 with 0 typecheck errors
+
+**S2.2 `COLLECTION_ASTRO_NAME` single source** (committed 2026-05-23)
+
+- New [`packages/content-schema/src/enums/routing.ts`](../../../packages/content-schema/src/enums/routing.ts) holds `COLLECTION_ASTRO_NAME` as a precise `as const` map + derived reverse map + defensive helpers `astroFolderFor()` / `collectionForAstroFolder()`
+- Five in-tree copies (4 forward + 1 reverse in apps/api) replaced with imports from the new module
+- Workspace dep added to `packages/pipelines`, `packages/adapters/astro-sync`, `apps/api`
+- Root CLAUDE.md updated: existing line-159 rule references the new single source; new DO-NOT rule lands explicitly stating "no 5th copy" while preserving Pattern 107 validity for genuinely-independent constants
+- 8 new tests covering forward/reverse symmetry + the `comparison`↔`comparisons` singular/plural rename + defensive fallback
+
+**S2.3 `ARTICLE_COLLECTION_TYPES` migration** (committed 2026-05-23)
+
+- Canonical home moved to [`packages/content-schema/src/enums/collection.ts`](../../../packages/content-schema/src/enums/collection.ts) (`ARTICLE_COLLECTION_TYPES` + `ArticleCollectionType` + `isArticleCollectionType`)
+- `packages/shared/src/types/article-collection.ts` reduced to a back-compat re-export — droppable post-BK-launch
+- Drizzle `articleCollectionTypeEnum` in [`packages/db/src/schema/_enums.ts`](../../../packages/db/src/schema/_enums.ts) now reads the literal list from `ARTICLE_COLLECTION_TYPES` so the pgEnum and the TypeScript const cannot drift
+- Workspace dep added: `packages/shared → @marketing-auto/content-schema` (no cycle; verified `content-schema ← shared ← db ← pipelines ← api` stays acyclic)
+- 6 new tests for the collection module
+
+**S2.4 Toolwiki extras schemas migration** (committed 2026-05-23)
+
+- Five collection-specific FRONTMATTER_EXTRAS schemas now under [`packages/content-schema/src/domains/toolwiki/`](../../../packages/content-schema/src/domains/toolwiki/):
+  - `extras-comparison.ts` migrated verbatim from `packages/pipelines/src/article/frontmatter/comparison.ts`
+  - `extras-ki-wissen.ts` migrated verbatim from `packages/pipelines/src/article/frontmatter/ki-wissen.ts`
+  - **NEW** `extras-blog.ts` — `BlogIntentTypeSchema` (9 values from Spec 64.14) + `BlogBottomLinksVariantSchema` + `primaryTool` + `showTopicLinks` + `validateBlogExtras`
+  - **NEW** `extras-tools.ts` — `features/pros/cons/useCases/integrations/pricing/priceFrom/rating/votes/affiliateSlug/website/relatedPillars`. `relatedPillars` loosened from the pre-spec hardcoded 12-Toolwiki-pillar enum to plain `z.string()` array (Phase-1 E1 fix; Sprint 5 Domain-Registry will add a per-tenant superRefine)
+  - **NEW** `extras-usecases.ts` — `relatedTags/industryFocus/featuredToolSlugs/highlights` + `UsecaseContentTypeSchema` (stub/expanded/pillar/hub)
+- Pipeline `frontmatter/{comparison,ki-wissen}.ts` files are now back-compat re-exports — all named exports + types preserved
+- 22 new tests across the 5 modules
+
+**S2.5 `baseFrontmatter()` Core factory** (committed 2026-05-23)
+
+- Five new modules under [`packages/content-schema/src/core/`](../../../packages/content-schema/src/core/):
+  - `seo.ts` — `seoCore` + `isoDate` + `imagePath` + `FaqItemSchema`
+  - `i18n.ts` — `i18nCore(locales)` factory + `makeLocaleEnum` + `LocaleSet` type
+  - `cluster.ts` — `clusterCore` + `ClusterRoleSchema`
+  - `monetization.ts` — `monetizationCore(defaultSlots, defaultAffiliate)` factory
+  - `base.ts` — `baseFrontmatter(locales)` composition that merges `seoCore + i18nCore + clusterCore` onto a universal frontmatter object with `publishedAt + updatedAt` as the canonical timestamp pair (resolves Phase-1 E13)
+- 18 new tests including the Spec §3.2 acceptance criterion: `baseFrontmatter(['de','en']).merge(BlogExtrasSchema)` composes without type errors
+- Core modules are NOT yet wired into the pipeline (Sprint 5 work) — they're available for any consumer to import
+
+**Sprint 2 — Workspace-Package extrahieren: COMPLETE. Branch B sync-point released.**
+
 ### Pre-Sprint-1 verification
 
 - ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
@@ -672,6 +721,18 @@ Genutzt von:
 **Deviation — unknown-extras passthrough**: the spec sketch implied that any field Astro Zod rejects should throw. In practice, the existing field-filter in `buildFrontmatter()` (line 226-232) drops unknown keys before they reach Astro, so unknown extras are not a write-time failure today. The validator catches the real failure modes that DID propagate: missing required fields (was warn-only) and type/enum mismatches on KNOWN fields. Tightening unknown-extras to a throw is deferred to Sprint 5 when Domain-Registry replaces the JSONB snapshot.
 
 **Pre-existing test failure not regressed**: `packages/adapters/astro-sync/test/sync-clusters.test.ts:205` "counts uncategorized articles" fails with `expected 2, received 1` on both master and this branch (verified via `git stash` baseline). Unrelated to S1.2 — filed as branch-level test debt; will not be fixed in this PR.
+
+### S2.x — Sprint 2 deviations
+
+**S2.2 fifth copy**: the spec said "4 in-tree copies" of `COLLECTION_ASTRO_NAME`. Actual count was 5 — there's a reverse-direction map at [`apps/api/src/routes/projects/articles-standalone.ts`](../../../apps/api/src/routes/projects/articles-standalone.ts) (`ASTRO_FOLDER_TO_COLLECTION_TYPE`). The new module provides BOTH directions via `astroFolderFor()` + `collectionForAstroFolder()` so the reverse site folded in cleanly.
+
+**S2.3 Drizzle wiring**: spec said "Drizzle-`$type<>()`-Cast in `packages/db/src/schema/_enums.ts:127` aktualisieren". Line 127 is the `pgEnum` definition itself, not a `$type<>()` cast. Updated the literal list to read from `ARTICLE_COLLECTION_TYPES` instead — needed `as unknown as [string, ...string[]]` workaround for drizzle's mutable-tuple signature, justified inline.
+
+**S2.4 `relatedPillars` loosening**: pre-S2.4 the field was a hardcoded `z.enum([...])` of 12 Toolwiki pillar slugs (Phase-1 E1 "härteste Toolwiki-Bindung im Schema"). Spec §3.2 told us to migrate the schemas; the Phase-1 E1 fix and the per-domain registry concern naturally landed at the same point. Loosened to `z.array(z.string())` so other tenants can use their own pillar set; Sprint 5 Domain-Registry will add the per-tenant superRefine that re-narrows for Toolwiki.
+
+**S2.4 extras schemas not yet wired into RenderMdxStep boundary validator**: the validator from S1.2 currently uses the Spec-50 JSONB snapshot. Sprint 5 (Domain-Registry) is the natural integration point — schemas exist now but the integration is one sprint away to avoid double-touching the boundary validator.
+
+**S2.5 Core modules are leaf-only today**: the schemas under `./core/` and `./domains/` exist + are tested, but no pipeline step or RenderMdxStep call site imports them yet. Wiring them in (replacing the Spec-50 JSONB path) is Sprint 5 S5.2 Domain-Registry work. The factory shape was validated by the acceptance-criterion test composing `baseFrontmatter(['de','en']).merge(BlogExtrasSchema)`.
 
 ### S1.3 — notification fan-out reuses the existing surface
 
