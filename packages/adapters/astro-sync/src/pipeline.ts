@@ -12,6 +12,7 @@ import { LoadArticleStep } from "./steps/load-article.ts";
 import { RenderMdxStep } from "./steps/render-mdx.ts";
 import { ResolveSchemaStep } from "./steps/resolve-schema.ts";
 import { UpdateDbStatusStep } from "./steps/update-db-status.ts";
+import { AstroSyncValidationError } from "./errors.ts";
 import { AstroSyncError } from "./types.ts";
 
 const log = createLogger("astro-sync:pipeline");
@@ -172,26 +173,51 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
       // Cleanup failure must not affect BullMQ retry behavior
     }
 
-    // Notify owners of sync failure (critical — triggers Web Push)
+    // Notify owners of sync failure (critical — triggers Web Push).
+    // Spec multi-domain-evolution S1.3: AstroSyncValidationError gets a
+    // dedicated notification type so the UI can render the structured
+    // failures[] payload. Generic Errors fall through to the legacy
+    // "sync_failure" notification unchanged.
     try {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
       const owners = await db
         .select({ id: users.id })
         .from(users)
         .where(eq(users.role, "owner"));
-      const errorStageLabel =
-        error instanceof AstroSyncError ? ` (${error.stage})` : "";
-      for (const owner of owners) {
-        void createNotification({
-          userId: owner.id,
-          type: "sync_failure",
-          severity: "critical",
-          title: "Astro-Sync failed",
-          message: `${errorMessage.slice(0, 200)}${errorStageLabel}`,
-          link: `/articles/${pipelineInput.articleId}`,
-          metadata: { articleId: pipelineInput.articleId },
-        });
+
+      if (error instanceof AstroSyncValidationError) {
+        const failureLines = error.failures
+          .map((f) => `• ${f.fieldPath} (${f.reason}): expected ${f.expected}${f.actual ? `, got ${f.actual}` : ""}`)
+          .join("\n");
+        const message = `${error.failures.length} field(s) failed validation against the Astro schema:\n${failureLines}`.slice(0, 500);
+        for (const owner of owners) {
+          void createNotification({
+            userId: owner.id,
+            type: "astro_sync_validation",
+            severity: "critical",
+            title: `Astro-Sync blocked: ${error.collection}/${pipelineInput.articleId.slice(0, 8)}`,
+            message,
+            link: `/articles/${pipelineInput.articleId}`,
+            metadata: {
+              articleId: pipelineInput.articleId,
+              collection: error.collection,
+              failures: error.failures as unknown as Record<string, unknown>[],
+            },
+          });
+        }
+      } else {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStageLabel = error instanceof AstroSyncError ? ` (${error.stage})` : "";
+        for (const owner of owners) {
+          void createNotification({
+            userId: owner.id,
+            type: "sync_failure",
+            severity: "critical",
+            title: "Astro-Sync failed",
+            message: `${errorMessage.slice(0, 200)}${errorStageLabel}`,
+            link: `/articles/${pipelineInput.articleId}`,
+            metadata: { articleId: pipelineInput.articleId },
+          });
+        }
       }
     } catch {
       // Notification failure must not affect retry behavior
