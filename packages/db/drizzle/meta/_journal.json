@@ -659,6 +659,13 @@
       "when": 1787100000000,
       "tag": "0093_topic_briefs_embedding",
       "breakpoints": true
+    },
+    {
+      "idx": 94,
+      "version": "7",
+      "when": 1787200000000,
+      "tag": "0094_content_categories",
+      "breakpoints": true
     }
   ]
 }
