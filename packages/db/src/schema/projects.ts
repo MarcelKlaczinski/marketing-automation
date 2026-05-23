@@ -38,6 +38,14 @@ export const projects = pgTable(
     // e.g. "ai-tool-wiki", "automotive-dealer", "solar-energy" — null = generic fallback
     targetNiche: text("target_niche"),
 
+    // Spec multi-domain-evolution S4.4 site 9 — per-project structured
+    // classifier examples for the trend-synthesizer prompt. NULL = fall
+    // back to Toolwiki defaults hardcoded in topic-sources/trend-discovery/
+    // prompts.ts (Spec 64.14 examples). Toolwiki is seeded by migration
+    // 0098; future tenants set their own niche-specific examples via
+    // direct SQL or the future Domain-Registry UI (Sprint 5).
+    classifierExamples: jsonb("classifier_examples").$type<ClassifierExamples | null>(),
+
     // Astro repo config for Spec 21 sync adapter (null = not wired up yet)
     astroRepo: jsonb("astro_repo").$type<AstroRepoConfig>(),
 
@@ -124,6 +132,33 @@ export const projects = pgTable(
     slugIdx: index("projects_slug_idx").on(t.slug),
   })
 );
+
+/**
+ * Spec multi-domain-evolution S4.4 site 9 — per-intent classifier example
+ * blocks consumed by `buildTrendSynthesisDefaultPrompt`. Today only the
+ * `knowledge` intent has structured examples (Spec 64.14 Phase B); future
+ * intents (tutorial / news / use_case / etc.) layer in the same shape per
+ * tenant.
+ */
+export interface ClassifierExampleSet {
+  /** Examples that MUST NOT be classified as the parent intent. */
+  counterExamples: Array<{
+    title: string;
+    reasonExcluded: string;
+    correctIntent: string;
+  }>;
+  /** Examples that SHOULD be classified as the parent intent. */
+  positiveExamples: Array<{
+    title: string;
+    reasonIncluded: string;
+  }>;
+}
+
+export interface ClassifierExamples {
+  knowledge?: ClassifierExampleSet;
+  // Forward-compat: future intent buckets are additive — each tenant fills
+  // only the buckets that apply to its niche.
+}
 
 export type BrandIdentity = {
   voice?: string;

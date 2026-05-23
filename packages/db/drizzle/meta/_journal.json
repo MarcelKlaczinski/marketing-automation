@@ -680,6 +680,20 @@
       "when": 1787400000000,
       "tag": "0096_articles_collection_type_text",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1787500000000,
+      "tag": "0097_projects_classifier_examples",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1787600000000,
+      "tag": "0098_seed_toolwiki_classifier_examples",
+      "breakpoints": true
     }
   ]
 }

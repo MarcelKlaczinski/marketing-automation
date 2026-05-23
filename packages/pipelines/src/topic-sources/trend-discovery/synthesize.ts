@@ -1,6 +1,6 @@
 import { createLogger } from "@marketing-auto/shared";
 import { anthropic } from "@marketing-auto/adapter-anthropic";
-import type { ExternalSignal } from "@marketing-auto/db";
+import { db, eq, type ExternalSignal, projects } from "@marketing-auto/db";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { resolveMasterPrompt } from "../../config/resolve-master-prompt.ts";
 import { loadActiveConfig } from "../../config/load-active-config.ts";
@@ -49,7 +49,19 @@ export async function synthesizeTopics(
 
   const config = await loadActiveConfig(projectId);
   const scope = config.topicScope;
-  const defaultPrompt = buildTrendSynthesisDefaultPrompt(scope);
+
+  // Spec multi-domain-evolution S4.4 site 9: per-project classifier examples
+  // override the legacy hardcoded Spec-64.14 examples. NULL = fall back to
+  // Toolwiki defaults baked into buildTrendSynthesisDefaultPrompt.
+  const [projectRow] = await db
+    .select({ classifierExamples: projects.classifierExamples })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const defaultPrompt = buildTrendSynthesisDefaultPrompt(
+    scope,
+    projectRow?.classifierExamples ?? null,
+  );
 
   const stepInstructions = await resolveMasterPrompt({
     projectId,

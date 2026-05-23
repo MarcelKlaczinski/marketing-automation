@@ -1,4 +1,31 @@
-import type { TopicScope } from "@marketing-auto/db";
+import type { ClassifierExamples, TopicScope } from "@marketing-auto/db";
+
+/**
+ * Toolwiki-default classifier examples used when a project doesn't have
+ * `projects.classifier_examples` populated yet. The data here is byte-
+ * identical to the seed in migration 0098 + the legacy hardcoded blocks
+ * pre-S4.4. Future tenants override via the DB column.
+ */
+const TOOLWIKI_DEFAULT_CLASSIFIER_EXAMPLES: ClassifierExamples = {
+  knowledge: {
+    counterExamples: [
+      { title: "I've joined Anthropic", reasonExcluded: "personal/career event; no concept explained", correctIntent: "news" },
+      { title: "OpenAI releases GPT-5", reasonExcluded: "event-driven product launch", correctIntent: "news" },
+      { title: "Claude vs ChatGPT: which is better?", reasonExcluded: "tool pair, not a theme", correctIntent: "comparison" },
+      { title: "How to use Cursor with Python", reasonExcluded: "tool-centric step-by-step", correctIntent: "tutorial" },
+      { title: "5 ways AI changes marketing", reasonExcluded: "industry-application enumeration", correctIntent: "use_case" },
+      { title: "Anthropic raises $500M Series E", reasonExcluded: "corporate event", correctIntent: "news" },
+    ],
+    positiveExamples: [
+      { title: "Was ist Retrieval-Augmented Generation?", reasonIncluded: "concept question, no tool focus" },
+      { title: "Wie funktionieren Transformer-Modelle?", reasonIncluded: "mechanism explainer" },
+      { title: "Prompt Engineering Grundlagen", reasonIncluded: "evergreen practitioner primer" },
+      { title: "Embeddings einfach erklärt", reasonIncluded: "concept primer" },
+      { title: "Was ist der Unterschied zwischen Supervised und Unsupervised Learning?", reasonIncluded: "concept comparison without tool focus" },
+      { title: "Vector Databases erklärt", reasonIncluded: "technology-category explainer" },
+    ],
+  },
+};
 
 /**
  * Build the default system-prompt instructions for the trend synthesis LLM call.
@@ -6,11 +33,31 @@ import type { TopicScope } from "@marketing-auto/db";
  * Scoped inside a function (not a module-level const) because it interpolates
  * runtime values from TopicScope — exclusions, relevance_keywords, etc.
  * Per CLAUDE.md: dynamic prompts MUST live inside a function, not at module level.
+ *
+ * Spec multi-domain-evolution S4.4 site 9: `classifierExamples` is an optional
+ * per-project override (read from `projects.classifier_examples` JSONB).
+ * NULL falls back to the Toolwiki defaults above — byte-identical to the
+ * pre-S4.4 hardcoded prompt for Toolwiki.
  */
-export function buildTrendSynthesisDefaultPrompt(scope: TopicScope): string {
+export function buildTrendSynthesisDefaultPrompt(
+  scope: TopicScope,
+  classifierExamples: ClassifierExamples | null = null,
+): string {
   const exclusions = scope.exclusions;
   const relevanceKeywords = scope.relevance_keywords;
   const primaryThemes = scope.primary_themes;
+
+  // Spec multi-domain-evolution S4.4: render the knowledge-intent classifier
+  // examples from project data (or Toolwiki defaults if null). Format
+  // byte-identical to the pre-S4.4 hardcoded blocks.
+  const knowledgeSet =
+    classifierExamples?.knowledge ?? TOOLWIKI_DEFAULT_CLASSIFIER_EXAMPLES.knowledge!;
+  const counterExamplesBlock = knowledgeSet.counterExamples
+    .map((e) => `    "${e.title}" → ${e.correctIntent} (${e.reasonExcluded}).`)
+    .join("\n");
+  const positiveExamplesBlock = knowledgeSet.positiveExamples
+    .map((e) => `    "${e.title}" → knowledge (${e.reasonIncluded}).`)
+    .join("\n");
 
   const exclusionBlock =
     exclusions.length > 0
@@ -64,20 +111,10 @@ For each topic, provide:
     Signal "How to use Claude Code for refactoring" + "Cursor Composer tips" → intent_type "tutorial".
 
   Counter-examples (Spec 64.14 — these MUST NOT be classified as knowledge):
-    "I've joined Anthropic" → news (personal/career event; no concept explained).
-    "OpenAI releases GPT-5" → news (event-driven product launch).
-    "Claude vs ChatGPT: which is better?" → comparison (tool pair, not a theme).
-    "How to use Cursor with Python" → tutorial (tool-centric step-by-step).
-    "5 ways AI changes marketing" → use_case (industry-application enumeration).
-    "Anthropic raises $500M Series E" → news (corporate event).
+${counterExamplesBlock}
 
   Positive examples (Spec 64.14 — these SHOULD be classified as knowledge):
-    "Was ist Retrieval-Augmented Generation?" → knowledge (concept question, no tool focus).
-    "Wie funktionieren Transformer-Modelle?" → knowledge (mechanism explainer).
-    "Prompt Engineering Grundlagen" → knowledge (evergreen practitioner primer).
-    "Embeddings einfach erklärt" → knowledge (concept primer).
-    "Was ist der Unterschied zwischen Supervised und Unsupervised Learning?" → knowledge (concept comparison without tool focus).
-    "Vector Databases erklärt" → knowledge (technology-category explainer).
+${positiveExamplesBlock}
 
 - **primary_keyword guidance**: for **knowledge** intent, the keyword MUST be theme-centric (e.g. "RAG", "Bias in KI", "Prompt-Engineering"), NOT tool-specific ("Claude RAG", "ChatGPT-Prompts"). For tutorial / review / comparison, tool-specific keywords are correct.
 - **generation_mode**: "timely" for breaking news/announcements, "evergreen" for broad topics that age well.
