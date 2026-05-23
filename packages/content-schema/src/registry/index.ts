@@ -1,4 +1,8 @@
-// Subpath barrel — populated by Sprint 5 S5.2 (Domain-Registry mechanism).
-// The registry maps `projectId → DomainContext` so the boundary validator
-// (S1.2) and LLM-output validators can resolve per-tenant schemas.
-export {};
+// Sprint 5 S5.2: Domain-Registry mechanism.
+// `createDbBackedRegistry` is the production constructor; `forNicheStatic`
+// is the test-only helper. The registry maps projectId → DomainContext,
+// which exposes per-collection validators + per-tenant enum sets so
+// consumers (RenderMdxStep boundary, DraftStep LLM-output validators,
+// manual-brief gating) never hardcode Toolwiki values.
+export * from "./types.ts";
+export * from "./domain-registry.ts";
