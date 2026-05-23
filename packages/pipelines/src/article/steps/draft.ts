@@ -1,5 +1,6 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
+import { TOOLWIKI_BLOG_INTENT_TYPES } from "@marketing-auto/content-schema/domains/toolwiki";
 import { eq, type FrontmatterFieldDescriptor, articles, db, projects } from "@marketing-auto/db";
 import { ARTICLE_COLLECTION_TYPES, type ArticleCollectionType } from "@marketing-auto/shared";
 import { z } from "zod";
@@ -134,7 +135,7 @@ FRONTMATTER_EXTRAS fields — output every field that applies:
   - "author": slug from the author list above (or omit if list is empty)
   - "category": pick from the allowed enum in "# Frontmatter Requirements" (exact value, no modifications)
   - "intentType": pick EXACTLY ONE of these values — copy it character-for-character:
-      "overview" | "pricing" | "features" | "use-cases" | "comparison" | "tutorial" | "review" | "ethics" | "general"
+      ${TOOLWIKI_BLOG_INTENT_TYPES.map((v) => `"${v}"`).join(" | ")}
       Note: "use-cases" has a hyphen, NOT an underscore. "general" is the fallback when nothing else fits.
   - "tags": 5-8 specific tags matching the article topic (strings array)
   - "excerpt": 1-2 sentences (max 160 chars) summarising the article's core answer — used as Astro collection excerpt.

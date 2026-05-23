@@ -13,11 +13,24 @@ import { z } from "zod";
 
 /**
  * Article intent classification used by the LLM to pick a draft template
- * variant. The 9 values mirror the prompt-level enum in `DraftStep`
- * (see [packages/pipelines/src/article/steps/draft.ts](../../../../pipelines/src/article/steps/draft.ts))
- * and Spec 64.14's classifier counter/positive examples.
+ * variant. The 9 values mirror the prompt-level enum in `DraftStep` /
+ * `OutlineStep` / the `deriveIntentFromCollection` helper in
+ * `apps/api/src/routes/projects/briefs.ts` (64.14 Phase C).
+ *
+ * Spec multi-domain-evolution S4.3: this is the canonical Toolwiki source
+ * of truth for the article-intent taxonomy. Consumers across the pipeline
+ * import `TOOLWIKI_BLOG_INTENT_TYPES` (the `as const` tuple) and join it
+ * into LLM prompts so the enum lives in ONE place — not 4 hardcoded
+ * copies. Per-tenant overrides will arrive via Sprint 5 Domain-Registry
+ * when BK launches with its own intent vocabulary.
+ *
+ * NOTE: this enum is distinct from `project_configurations.intentTaxonomyDefault`
+ * (which is the cluster-gap-detection intent set, currently 4 values:
+ * comparison/pricing/alternatives/use_case). The two concepts share a name
+ * but have different value sets and consumers; merging them is a Sprint-5+
+ * decision.
  */
-export const BlogIntentTypeSchema = z.enum([
+export const TOOLWIKI_BLOG_INTENT_TYPES = [
   "overview",
   "pricing",
   "features",
@@ -27,7 +40,9 @@ export const BlogIntentTypeSchema = z.enum([
   "review",
   "ethics",
   "general",
-]);
+] as const;
+
+export const BlogIntentTypeSchema = z.enum(TOOLWIKI_BLOG_INTENT_TYPES);
 export type BlogIntentType = z.infer<typeof BlogIntentTypeSchema>;
 
 /**
