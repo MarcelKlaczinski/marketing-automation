@@ -740,6 +740,45 @@ Genutzt von:
 
 **Sprint 3 — Categories-Refactor: COMPLETE. Branch B sync-point B released.**
 
+### Sprint 4 — Toolwiki-Bias rauslösen (3 of 5 done)
+
+**S4.1 `tool_*` column semantic tagging** (committed 2026-05-23)
+
+- Header comment in [`packages/db/src/schema/content.ts`](../../../packages/db/src/schema/content.ts) documents the 6 `tool_*` columns as BUCKET-C TOOLWIKI-PROMOTION
+- Domain-guard in [`packages/adapters/astro-sync/src/import/steps/upsert-articles.ts`](../../../packages/adapters/astro-sync/src/import/steps/upsert-articles.ts) — `isToolwikiDomain = project.industry === "ai_education"` gates `buildToolColumns()`
+- Per-row loop optimization: project industry loaded ONCE before the loop (no N+1 on 250-row imports)
+- Zero DB migration; non-Toolwiki tenants leave the columns NULL even if they have a `tools` Astro collection
+
+**S4.2 `articleCollectionTypeEnum` aufweichen → text** (committed 2026-05-23)
+
+- Migration 0096 drops the pgEnum constraint on `articles.collection_type`, converts to text (DROP DEFAULT → SET DATA TYPE text USING …::text → SET DEFAULT 'blog')
+- Drizzle schema uses `text("collection_type").$type<ArticleCollectionType>()` — TS narrowing preserved at write sites for Toolwiki today
+- pgEnum type `article_collection_type` intentionally NOT dropped — other code may reference `articleCollectionTypeEnum.enumValues`
+- Live verify: `pg_typeof(collection_type) = 'text'`; 252+ existing Toolwiki values unchanged; INSERTs default to 'blog' as before
+- `PlanningContentType` aufweichen scope (spec §3.4) NOT included — `planned_items.content_type` is already plain text since 62.2 (Memory D12), no pgEnum to drop; consumer-side validation can widen per-project via Domain-Registry (Sprint 5) without DDL
+
+**S4.3 DraftStep intentType enum extracted to TOOLWIKI_BLOG_INTENT_TYPES** (committed 2026-05-23)
+
+- `TOOLWIKI_BLOG_INTENT_TYPES` exported as `as const` tuple from [`packages/content-schema/src/domains/toolwiki/extras-blog.ts`](../../../packages/content-schema/src/domains/toolwiki/extras-blog.ts)
+- DraftStep imports + interpolates: `${TOOLWIKI_BLOG_INTENT_TYPES.map((v) => `"${v}"`).join(" | ")}`
+- Runtime byte-equivalence verified — interpolated line is identical to the legacy hardcoded `"overview" | "pricing" | …`
+- Scope reductions from spec (documented in §12 deviations):
+  - OutlineStep doesn't have the 9-value enum (its `intent` field is freeform descriptor per H2)
+  - `deriveIntentFromCollection` in `briefs.ts` uses a SEPARATE 10-value `INTENT_TYPES` (brief-CREATION classification — distinct concept from article-OUTPUT intent); not touched
+  - `project_configurations.intentTaxonomyDefault` is YET ANOTHER intent set (cluster-gap-detection, 4 values); not touched — its value set is incompatible with the 9-value draft enum
+
+**S4.4 LLM-prompt tenant-var swap** (NOT STARTED — deferred)
+
+The remaining 8 hardcoded sites (draft.ts site 1 done via S4.3 partial; outline.ts, prompts/comparison.ts, prompts/ki-wissen.ts, social-image/steps.ts ×2, social-image/hookPrompt.ts, social-image/hookEngine.ts, trend-discovery/prompts.ts) + the new `projects.classifier_examples` JSONB column + seed migration are deferred to a dedicated session.
+
+Reason: each touched prompt is captured in `__tests__/snapshots/baseline-toolwiki-prompts.json` with a `mustContainSubstrings` array. Byte-equivalence verification per-site requires running each builder with the live Toolwiki project context and diffing the produced bytes. The blast radius (9 LLM prompts touching Toolwiki output quality + cost) warrants focused attention rather than tacking it onto a multi-sprint session.
+
+**S4.5 Synthesizer-prompt test-suite per-project fixtures** (deferred with S4.4)
+
+Depends on S4.4 — once the synthesizer prompt reads `projects.classifier_examples`, the test suite migrates from hardcoded Toolwiki-only fixtures to per-project fixtures.
+
+**Sprint 4 status: 3 of 5 sub-tasks done. S4.4 + S4.5 deferred to a focused session.**
+
 ### Pre-Sprint-1 verification
 
 - ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
