@@ -1,20 +1,14 @@
+import { COLLECTION_ASTRO_NAME } from "@marketing-auto/content-schema/enums";
 import { type SelfReviewIssue, articleVersions, articles, cornerstoneSpecs, db } from "@marketing-auto/db";
-import { type ArticleCollectionType, ARTICLE_COLLECTION_TYPES } from "@marketing-auto/shared";
+import { ARTICLE_COLLECTION_TYPES } from "@marketing-auto/shared";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { mergePreservedExtras } from "../refresh/preserved-fields.ts";
 
-// Spec 61.2: mirror of COLLECTION_FOLDER in adapter-astro-sync — keeps the
-// articles.collection (text) column aligned with the Astro folder routing.
-// Separate map (not import) per Pattern 107: each concern owns its constant.
-const COLLECTION_ASTRO_NAME: Record<ArticleCollectionType, string> = {
-  blog: "blog",
-  comparison: "comparisons",
-  "ki-wissen": "ki-wissen",
-  tools: "tools",
-  usecases: "usecases",
-};
+// Spec multi-domain-evolution S2.2: COLLECTION_ASTRO_NAME single source
+// lives in @marketing-auto/content-schema/enums. Pre-S2.2 this was duplicated
+// in 4 in-tree copies under Pattern 107 (now superseded).
 
 const InputSchema = z.object({
   articleId: z.string().uuid(),

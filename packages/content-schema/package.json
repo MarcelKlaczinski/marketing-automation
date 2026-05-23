@@ -12,7 +12,8 @@
     "./validators": "./src/validators/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../.. && bun test packages/content-schema/test"
   },
   "dependencies": {
     "zod": "^3.23.8"

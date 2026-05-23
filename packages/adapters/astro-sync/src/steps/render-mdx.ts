@@ -1,20 +1,15 @@
+import { astroFolderFor } from "@marketing-auto/content-schema/enums";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
-import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
+import { createLogger } from "@marketing-auto/shared";
 import yaml from "yaml";
 import { z } from "zod";
 import { AstroSyncValidationError } from "../errors.ts";
 import { validateFrontmatterAgainstSchema } from "../lib/validate-frontmatter.ts";
 import type { FrontmatterField } from "../types.ts";
 
-// Spec 61.1 Pattern 107: single source of truth for collection type → Astro folder mapping.
-// Never inline the folder name at the call site — always look it up here.
-const COLLECTION_FOLDER: Record<ArticleCollectionType, string> = {
-  blog: "blog",
-  comparison: "comparisons",
-  "ki-wissen": "ki-wissen",
-  tools: "tools",
-  usecases: "usecases",
-};
+// Spec multi-domain-evolution S2.2: collection→Astro-folder lookup migrated to
+// @marketing-auto/content-schema/enums. Pre-S2.2 this lived as a 4th copy of
+// the same map under Pattern 107.
 
 const log = createLogger("astro-sync:render");
 
@@ -89,11 +84,10 @@ export class RenderMdxStep extends BaseStep<
   }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
-    // Safe cast: DB column is article_collection_type enum NOT NULL — always one of the known values.
-    // Schema uses z.string() (not z.enum) to avoid Zod _input/_output variance breaking BaseStep (Spec 61.1).
-    // The fallback handles any future enum values added before COLLECTION_FOLDER is updated.
-    const collectionType = input.article.collectionType as ArticleCollectionType;
-    const astroFolder = COLLECTION_FOLDER[collectionType] ?? input.article.collectionType;
+    // Safe lookup: `astroFolderFor` returns the input unchanged for unknown
+    // collections, so a future enum widening in @marketing-auto/content-schema
+    // does not silently route into the wrong folder.
+    const astroFolder = astroFolderFor(input.article.collectionType);
     const mdxPath = `${input.astroRepoRoot}/${astroFolder}/${input.article.slug}.mdx`;
     const fm = buildFrontmatter(input);
 

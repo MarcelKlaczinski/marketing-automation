@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { COST_OPS } from "@marketing-auto/core";
 import { and, articles, db, eq, inArray, projects, topicBriefs } from "@marketing-auto/db";
 import { enqueueBlogGenerationPipeline } from "@marketing-auto/pipelines";
+import { collectionForAstroFolder } from "@marketing-auto/content-schema/enums";
 import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -12,17 +13,11 @@ import {
   triggerResultToResponse,
 } from "../_lib/trigger-helpers.ts";
 
-// Spec 61.2: Astro folder name (text) ↔ DB enum mapping for the standalone endpoint.
-// Mirrors COLLECTION_FOLDER (render-mdx.ts) + COLLECTION_ASTRO_NAME (persist-article.ts)
-// from the other direction: the UI sends the user-facing Astro folder name, this maps
-// it to the enum that drives pipeline routing.
-const ASTRO_FOLDER_TO_COLLECTION_TYPE: Record<string, ArticleCollectionType> = {
-  blog: "blog",
-  comparisons: "comparison",
-  "ki-wissen": "ki-wissen",
-  tools: "tools",
-  usecases: "usecases",
-};
+// Spec multi-domain-evolution S2.2: folder→collection lookup migrated to
+// @marketing-auto/content-schema/enums. The standalone endpoint sends the
+// Astro folder name (e.g. "comparisons") and the helper returns the enum
+// value ("comparison") for pipeline routing, or `null` for unknown folders.
+// The helper is imported below to keep this route as thin glue.
 
 const log = createLogger("routes:articles-standalone");
 
@@ -79,12 +74,14 @@ articleStandaloneRoutes.post(
     const articleSlug = slugifyTopic(input.topic);
     const dbApprovalMode = input.approvalMode === "auto" ? "auto" : "manual";
 
-    // Spec 61.2: derive collection enum from the Astro folder name the UI sent.
-    // Unmapped folder names (e.g. "tool-categories") fall back to "blog" — the
-    // DB column accepts the broader text in `collection`, but `collectionType`
-    // (enum) only carries the values that have pipeline support.
+    // Spec 61.2 + S2.2: derive collection enum from the Astro folder name the
+    // UI sent. Unmapped folder names (e.g. "tool-categories") fall back to
+    // "blog" — the DB column accepts the broader text in `collection`, but
+    // `collectionType` (enum) only carries the values that have pipeline
+    // support. The lookup helper is the single source of truth for the
+    // forward AND reverse direction since S2.2.
     const collectionType: ArticleCollectionType =
-      ASTRO_FOLDER_TO_COLLECTION_TYPE[input.collection] ?? "blog";
+      (collectionForAstroFolder(input.collection) as ArticleCollectionType | null) ?? "blog";
 
     // Spec 61.2: resolve tool display names for the comparison prompt.
     // Missing rows fall back to the slug; the pipeline tolerates either.

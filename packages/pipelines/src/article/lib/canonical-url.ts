@@ -14,20 +14,13 @@
  * the narrow form; unknown values fall through as-is.
  */
 
+import { astroFolderFor } from "@marketing-auto/content-schema/enums";
 import type { Locale } from "../translation/lib/locale-strings.ts";
 
-// Pattern 107 — third parallel copy of the narrow→Astro-folder map kept in
-// sync with packages/pipelines/src/article/blog/persist.ts:18 and
-// packages/pipelines/src/article/steps/persist-article.ts:10. Inlined here
-// (rather than imported) so packages/pipelines/src/article/lib/ stays a leaf
-// with no dependency on any step file.
-const COLLECTION_ASTRO_NAME: Record<string, string> = {
-  blog: "blog",
-  comparison: "comparisons",
-  "ki-wissen": "ki-wissen",
-  tools: "tools",
-  usecases: "usecases",
-};
+// Spec multi-domain-evolution S2.2: collection→Astro-folder lookup migrated
+// to @marketing-auto/content-schema/enums (single source). `astroFolderFor`
+// returns the input unchanged for unknown collections so forward-compat for
+// future tenant collections is preserved.
 
 export interface CanonicalUrlInput {
   projectDomain: string;
@@ -37,6 +30,5 @@ export interface CanonicalUrlInput {
 }
 
 export function buildCanonicalUrl(input: CanonicalUrlInput): string {
-  const collectionPath = COLLECTION_ASTRO_NAME[input.collection] ?? input.collection;
-  return `https://${input.projectDomain}/${input.locale}/${collectionPath}/${input.slug}`;
+  return `https://${input.projectDomain}/${input.locale}/${astroFolderFor(input.collection)}/${input.slug}`;
 }

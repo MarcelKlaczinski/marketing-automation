@@ -15,6 +15,7 @@
     "verify-app": "bun --env-file ../../../.env src/scripts/verify-app.ts"
   },
   "dependencies": {
+    "@marketing-auto/content-schema": "workspace:*",
     "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/db": "workspace:*",

@@ -1,3 +1,4 @@
+import { COLLECTION_ASTRO_NAME } from "@marketing-auto/content-schema/enums";
 import { articles, and, db, eq, topicBriefs } from "@marketing-auto/db";
 import type { TopicBrief } from "@marketing-auto/db";
 import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
@@ -11,17 +12,9 @@ export class BlogPipelineError extends Error {
 
 const log = createLogger("pipelines:blog-persist");
 
-// Spec 63.7b: enum → Astro folder name. Mirror of `COLLECTION_ASTRO_NAME` in
-// `packages/pipelines/src/article/steps/persist-article.ts` (Pattern 107 — each
-// concern owns its constant rather than importing across step boundaries). When
-// adding a new collection, update BOTH maps in lockstep.
-const COLLECTION_ASTRO_NAME: Record<ArticleCollectionType, string> = {
-  blog: "blog",
-  comparison: "comparisons",
-  "ki-wissen": "ki-wissen",
-  tools: "tools",
-  usecases: "usecases",
-};
+// Spec multi-domain-evolution S2.2: COLLECTION_ASTRO_NAME single source
+// lives in `@marketing-auto/content-schema/enums`. Pre-S2.2 this was
+// duplicated in 4 in-tree copies under Pattern 107.
 
 /**
  * Create the article row for a blog brief if it does not already exist.

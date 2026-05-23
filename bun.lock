@@ -31,6 +31,7 @@
         "@marketing-auto/adapter-replicate": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/adapter-vendor-rss": "workspace:*",
+        "@marketing-auto/content-schema": "workspace:*",
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
@@ -106,6 +107,7 @@
       "name": "@marketing-auto/adapter-astro-sync",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/content-schema": "workspace:*",
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",
@@ -333,6 +335,7 @@
         "@marketing-auto/adapter-replicate": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
         "@marketing-auto/adapter-voyage": "workspace:*",
+        "@marketing-auto/content-schema": "workspace:*",
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
         "@marketing-auto/db": "workspace:*",

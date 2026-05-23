@@ -36,6 +36,7 @@
     "@marketing-auto/adapter-nano-banana": "workspace:*",
     "@marketing-auto/adapter-replicate": "workspace:*",
     "@marketing-auto/adapter-storage": "workspace:*",
+    "@marketing-auto/content-schema": "workspace:*",
     "@marketing-auto/core": "workspace:*",
     "@marketing-auto/cost-tracker": "workspace:*",
     "@marketing-auto/db": "workspace:*",
