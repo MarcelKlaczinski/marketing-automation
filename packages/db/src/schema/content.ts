@@ -207,13 +207,32 @@ export const articles = pgTable(
     // 'hub' | 'spoke' | null — generation role; distinct from clusterRole (Astro frontmatter field)
     role: text("role").$type<"hub" | "spoke" | null>(),
 
-    // Spec 54.8: tool-specific columns (populated only when collection='tools')
+    // ─── BUCKET-C TOOLWIKI-PROMOTION (Spec 54.8 + multi-domain-evolution S4.1) ──
+    //
+    // Columns prefixed `tool_*` are Toolwiki-domain-specific promotions —
+    // they exist on the central `articles` table for Spec 54.8 query
+    // performance on the AI-tools collection. Per Phase-1 §2 / Phase-2 §2
+    // (Bucket-C semantics), these fields belong to one tenant's vertical
+    // and MUST be left NULL for non-Toolwiki projects.
+    //
+    // Domain-guard in adapter-astro-sync `buildToolColumns()` enforces this
+    // at the write boundary: rows imported for projects whose industry is
+    // NOT `ai_education` skip the promotion. Future per-domain promoted
+    // columns follow the same pattern: a `<domain>_<field>` prefix + a
+    // guard at the importer (e.g. `product_einspeisung_w` for a future
+    // balkon-kraft-werk.de tenant would gate on `industry='renewable_affiliate'`).
+    //
+    // Sprint 5 Domain-Registry adds the `domain` axis to the lookup so
+    // callers don't need to grep for these manually; until then, the
+    // header comment IS the source of truth for which columns are
+    // tenant-locked.
     toolPricing: text("tool_pricing"),
     toolPriceFrom: numeric("tool_price_from", { precision: 10, scale: 2 }),
     toolRating: numeric("tool_rating", { precision: 3, scale: 1 }),
     toolVotes: integer("tool_votes"),
     toolAffiliateSlug: text("tool_affiliate_slug"),
     toolWebsite: text("tool_website"),
+    // ───────────────────────────────────────────────────────────────────────────
 
     // Spec 44: catch-all for collection-specific frontmatter fields
     frontmatterExtras: jsonb("frontmatter_extras")

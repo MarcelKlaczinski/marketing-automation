@@ -1,7 +1,16 @@
-import { articles, db } from "@marketing-auto/db";
+import { articles, db, eq, projects } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
+
+// Spec multi-domain-evolution S4.1: tool_* promoted columns on `articles`
+// are Toolwiki-domain-specific (Phase-2 Bucket-C). Only the Toolwiki tenant
+// (industry='ai_education') populates them; non-Toolwiki projects leave
+// them NULL. Future per-domain promotions follow the same guard pattern
+// (e.g. `product_*` columns gated on industry='renewable_affiliate'). The
+// header comment on `articles.tool_*` columns in packages/db/src/schema/
+// content.ts is the source of truth for which columns are tenant-locked.
+const TOOLWIKI_INDUSTRY = "ai_education";
 
 const log = createLogger("astro-import:upsert");
 
@@ -34,6 +43,16 @@ export class UpsertArticlesStep extends BaseStep<
     let failed = 0;
     const now = new Date();
 
+    // Spec multi-domain-evolution S4.1: load the project's industry once
+    // (not per-row) so the tool_* promotion gate doesn't add N+1 queries
+    // on imports of ~250 articles.
+    const [project] = await db
+      .select({ industry: projects.industry })
+      .from(projects)
+      .where(eq(projects.id, input.projectId))
+      .limit(1);
+    const isToolwikiDomain = project?.industry === TOOLWIKI_INDUSTRY;
+
     for (const p of input.parsed) {
       const typed = p.typed as Record<string, unknown>;
       const slug = typed.slug as string;
@@ -56,8 +75,12 @@ export class UpsertArticlesStep extends BaseStep<
       const intentType =
         (typed.intentType as string | null) ?? (collection === "tools" ? "review" : null);
 
-      // Spec 54.8: tool-specific column promotion
-      const toolColumns = collection === "tools" ? buildToolColumns(extras) : {};
+      // Spec 54.8 + multi-domain-evolution S4.1: tool-specific column promotion
+      // gated on BOTH collection='tools' (write-time scope) AND project industry
+      // (tenant scope). Non-Toolwiki tenants leave the columns NULL even when
+      // they happen to have a `tools` collection in their Astro repo.
+      const toolColumns =
+        isToolwikiDomain && collection === "tools" ? buildToolColumns(extras) : {};
 
       try {
         const result = await db
