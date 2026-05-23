@@ -7,6 +7,7 @@ import { BaseStep, type StepContext } from "../../engine/step.ts";
 import { buildSystemPrompt } from "../../prompts/builder.ts";
 import { resolvePrompt } from "../../engine/prompt-resolver.ts";
 import { resolveMasterPrompt } from "../../config/index.ts";
+import { validateCategoryAndNotify } from "../category-validation/validate-and-notify.ts";
 import { validateComparisonExtras } from "../frontmatter/comparison.ts";
 import { validateKiWissenExtras } from "../frontmatter/ki-wissen.ts";
 import { buildComparisonContextFragment, selectDraftPrompt } from "../prompts/index.ts";
@@ -361,6 +362,27 @@ Output format:
           "draft",
         );
       }
+    }
+
+    // Spec multi-domain-evolution S3.4: soft-validate the LLM-emitted
+    // category slug against content_categories. Fire-and-forget — a
+    // mismatch produces a severity=info notification, never a throw
+    // (additive phase per spec §3.3). S3.5 uses the accumulated
+    // notifications as input for the manual consolidation script.
+    try {
+      await validateCategoryAndNotify({
+        projectId: input.projectId,
+        collectionType,
+        category: frontmatterExtras?.category,
+        articleId: input.articleId,
+      });
+    } catch (e) {
+      // Soft-validator must never escalate — catch-all keeps the pipeline
+      // running even if the lookup query itself blew up.
+      ctx.log.warn(
+        { err: e, articleId: input.articleId },
+        "[draft] category soft-validation failed — skipped",
+      );
     }
 
     // Inject HubCarousel: import at the top, component before the last ## section (Fazit).
