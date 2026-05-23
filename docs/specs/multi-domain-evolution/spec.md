@@ -767,17 +767,27 @@ Genutzt von:
   - `deriveIntentFromCollection` in `briefs.ts` uses a SEPARATE 10-value `INTENT_TYPES` (brief-CREATION classification — distinct concept from article-OUTPUT intent); not touched
   - `project_configurations.intentTaxonomyDefault` is YET ANOTHER intent set (cluster-gap-detection, 4 values); not touched — its value set is incompatible with the 9-value draft enum
 
-**S4.4 LLM-prompt tenant-var swap** (NOT STARTED — deferred)
+**S4.4 LLM-prompt tenant-var swap** (committed 2026-05-23 in 3 batches)
 
-The remaining 8 hardcoded sites (draft.ts site 1 done via S4.3 partial; outline.ts, prompts/comparison.ts, prompts/ki-wissen.ts, social-image/steps.ts ×2, social-image/hookPrompt.ts, social-image/hookEngine.ts, trend-discovery/prompts.ts) + the new `projects.classifier_examples` JSONB column + seed migration are deferred to a dedicated session.
+All 9 hardcoded sites swapped, runtime byte-equivalence verified for Toolwiki:
 
-Reason: each touched prompt is captured in `__tests__/snapshots/baseline-toolwiki-prompts.json` with a `mustContainSubstrings` array. Byte-equivalence verification per-site requires running each builder with the live Toolwiki project context and diffing the produced bytes. The blast radius (9 LLM prompts touching Toolwiki output quality + cost) warrants focused attention rather than tacking it onto a multi-sprint session.
+- **New helper** [`packages/pipelines/src/_lib/tenant-prompt-vars.ts`](../../../packages/pipelines/src/_lib/tenant-prompt-vars.ts):
+  - `TenantPromptVars` interface (domain + 8 niche-specific labels)
+  - `NICHE_PROMPT_VARS` keyed by `projects.targetNiche` ("ai-tool-wiki" populated; future tenants extend)
+  - `loadTenantPromptVars(projectId)` async loader with Toolwiki-default fallback on missing project (logs warn, never throws — keeps offline tests viable)
+  - `tenantPromptVarsForNiche()` sync test-fixture helper
+- **Batch 1 (sites 1-4)**: draft.ts + outline.ts + prompts/comparison.ts + prompts/ki-wissen.ts; DraftPromptFn signature extended with `tenantVars` param
+- **Batch 2 (sites 5-8)**: social-image/steps.ts (GenerateComparisonGrid4Step + ExtractToolsStep) + core/social-hooks/hookPrompt.ts (5 HOOK_SYSTEM_PROMPTS templates + buildContentPrompt) + hookEngine.ts (programmaticFallbackHook with default-param). The legacy `packages/pipelines/src/article/social-image/hookPrompt.ts` confirmed as dead code via grep — left untouched (Sprint 5 polish can drop)
+- **Batch 3 (site 9 + DB)**: migration 0097 ADD COLUMN `projects.classifier_examples jsonb`; migration 0098 seeds Toolwiki with the 12 Spec-64.14 examples; Drizzle schema adds `ClassifierExamples` + `ClassifierExampleSet` types; `buildTrendSynthesisDefaultPrompt(scope, classifierExamples?)` interpolates from DB; `synthesizeTopics` loads classifierExamples per-project with Toolwiki fallback
 
-**S4.5 Synthesizer-prompt test-suite per-project fixtures** (deferred with S4.4)
+**S4.5 Synthesizer-prompt test-suite per-project fixtures** (committed 2026-05-23)
 
-Depends on S4.4 — once the synthesizer prompt reads `projects.classifier_examples`, the test suite migrates from hardcoded Toolwiki-only fixtures to per-project fixtures.
+- Extended [`packages/pipelines/test/topic-sources/trend-discovery/prompts.test.ts`](../../../packages/pipelines/test/topic-sources/trend-discovery/prompts.test.ts) with 5 new test cases
+- `BK_SOLAR_CLASSIFIER_EXAMPLES` synthetic fixture (3 counter + 3 positive examples for the solar niche — fixture-only, not DB-seeded)
+- Cases: Toolwiki-default byte-identical (12 examples), BK fixture renders, BK fixture has no Toolwiki leakage (multi-domain proof), empty-counter defensive, missing-knowledge-key fallback
+- Existing 10 64.14 + 64.16 regression guards stay green
 
-**Sprint 4 status: 3 of 5 sub-tasks done. S4.4 + S4.5 deferred to a focused session.**
+**Sprint 4 — Toolwiki-Bias rauslösen: COMPLETE. 5/5 sub-tasks.**
 
 ### Pre-Sprint-1 verification
 
