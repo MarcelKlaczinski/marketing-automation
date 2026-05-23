@@ -632,6 +632,15 @@ Genutzt von:
 - Workspace typecheck: 0 errors across 24 packages
 - [packages/adapters/astro-sync/CLAUDE.md](../../../packages/adapters/astro-sync/CLAUDE.md) "Astro silent-exclusion trap" updated to point at the new validator
 
+**S1.3 Notification wiring for validation failures** (committed 2026-05-23)
+
+- [`ArticleSyncPipeline.afterError`](../../../packages/adapters/astro-sync/src/pipeline.ts) discriminates `AstroSyncValidationError` and fires a dedicated `type: "astro_sync_validation"` notification (severity `critical`, fans out to SSE + Web Push)
+- Notification payload: title `"Astro-Sync blocked: <collection>/<articleId-short>"`, message = bullet-list of failures (truncated at 500 chars), `metadata.failures` preserves the FULL structured array (UI-renderable)
+- Legacy `sync_failure` notification unchanged for non-validation errors (single discriminator branch, no behavior drift)
+- 3 new tests (structured-payload, truncation w/ full metadata preserved, legacy fallthrough). Tests poll with 1500ms timeout because the pipeline uses `void createNotification(...)` (fire-and-forget — documented in inline comment)
+
+**Sprint 1 — Safety-Layer complete.**
+
 ### Pre-Sprint-1 verification
 
 - ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
@@ -663,6 +672,19 @@ Genutzt von:
 **Deviation — unknown-extras passthrough**: the spec sketch implied that any field Astro Zod rejects should throw. In practice, the existing field-filter in `buildFrontmatter()` (line 226-232) drops unknown keys before they reach Astro, so unknown extras are not a write-time failure today. The validator catches the real failure modes that DID propagate: missing required fields (was warn-only) and type/enum mismatches on KNOWN fields. Tightening unknown-extras to a throw is deferred to Sprint 5 when Domain-Registry replaces the JSONB snapshot.
 
 **Pre-existing test failure not regressed**: `packages/adapters/astro-sync/test/sync-clusters.test.ts:205` "counts uncategorized articles" fails with `expected 2, received 1` on both master and this branch (verified via `git stash` baseline). Unrelated to S1.2 — filed as branch-level test debt; will not be fixed in this PR.
+
+### S1.3 — notification fan-out reuses the existing surface
+
+**Spec sketch said**: `notifyOwners({projectId, severity, title, body, channel})`.
+
+**Reality**: there is no `notifyOwners` helper. The codebase ships `createNotification` from `@marketing-auto/core/notifications` invoked per-owner in a loop (existing `sync_failure` pattern). S1.3 reuses that surface, adding a discriminator branch inside `ArticleSyncPipeline.afterError`:
+
+- **AstroSyncValidationError → `type: "astro_sync_validation"`** with `metadata.failures` preserving the full structured array even when `message` is truncated at 500 chars
+- **Generic Error → `type: "sync_failure"`** (legacy path) unchanged
+
+No new helper, no new module — the spec's `channel: 'sse_push'` field is implicit (severity=`critical` already fans out to BOTH SSE and Web Push via `createNotification`'s built-in dispatch).
+
+**Test-side gotcha discovered**: the existing pipeline uses `void createNotification(...)` (fire-and-forget) which races the test's SELECT. The new test polls with a 1500ms timeout. Documented inline so future test authors copy the pattern.
 
 ### Pre-Sprint-1 — branch + spec creation
 
