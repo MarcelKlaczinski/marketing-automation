@@ -789,6 +789,31 @@ All 9 hardcoded sites swapped, runtime byte-equivalence verified for Toolwiki:
 
 **Sprint 4 — Toolwiki-Bias rauslösen: COMPLETE. 5/5 sub-tasks.**
 
+### Sprint 5 — Polish
+
+**S5.1 `frontmatter_extras → domain_extras` Rename** (DEFERRED with rationale)
+
+- Pre-implementation grep found **163 references across 56 files** — far above the spec's "~15 sites" estimate, putting this purely-cosmetic refactor in the 1-2 day range with high blast radius.
+- Marcel's earlier sign-off ("include in Sprint 5") was made before the actual ref count was known. Re-evaluated mid-sprint: the rename is semantically nice-to-have but functionally inert. The risk-vs-value math (1-2 days of mechanical edits + retest of all 56 files vs. zero behaviour change) tipped toward defer.
+- The column stays `frontmatter_extras` in DB + `frontmatterExtras` in TS. Future spec can do the rename when it's bundled with another structural change.
+
+**S5.2 Domain-Registry mechanism** (committed 2026-05-23)
+
+- New module [`packages/content-schema/src/registry/`](../../../packages/content-schema/src/registry/) with `types.ts` (`DomainSchemaRegistry` / `DomainContext` / `CollectionContext`) + `domain-registry.ts` (`DomainSpec`, `ProjectLookup`, `createDbBackedRegistry`, `createStaticRegistry`, `forNicheStatic`)
+- New module [`packages/content-schema/src/domains/toolwiki/spec.ts`](../../../packages/content-schema/src/domains/toolwiki/spec.ts) — `toolwikiDomain` DomainSpec wires the 5 collections + bilingual locales + 9-value intent taxonomy
+- DI seam pattern keeps content-schema leaf — `ProjectLookup` resolves `projectId → {niche, domain, locales}` from the live `projects` row, no Drizzle import inside content-schema
+- 12 new tests covering single-tenant happy path, multi-tenant DB-backed lookup with synthetic BK fixture, multi-domain isolation (BK rejects Toolwiki's "review" intent), null-on-unknown-niche
+- **Production wiring NOT included**: the registry IS the contract; rewiring RenderMdxStep boundary validator (replace Spec-50 JSONB), DraftStep LLM-output validators, manual-brief route (Spec 64.14 Phase C) to consume the registry is incremental follow-up polish that can ship without a spec
+
+**S5.3 Documentation** (committed 2026-05-23)
+
+- New [`docs/onboarding/new-domain-checklist.md`](../../onboarding/new-domain-checklist.md) — 10-step end-to-end onboarding for a 3rd / 4th tenant with verify SQL/test commands per step + an honest "Known limitations" section
+- Updated [`packages/content-schema/README.md`](../../../packages/content-schema/README.md) — public-API table by subpath, consumer list, conventions, migration guide
+- Updated root [`CLAUDE.md`](../../../CLAUDE.md) — concise Architecture-section pointer to the onboarding checklist + the three key surfaces (extras module, tenant-prompt-vars helper, classifier_examples JSONB, Domain-Registry)
+- No code change, no test change
+
+**Sprint 5 — Polish: 2 of 3 sub-tasks done. S5.1 (frontmatter_extras rename) deferred with rationale documented above.**
+
 ### Pre-Sprint-1 verification
 
 - ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
