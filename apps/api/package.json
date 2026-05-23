@@ -34,7 +34,8 @@
     "convert-existing-heroes": "bun --env-file ../../.env src/scripts/convert-existing-heroes.ts",
     "rebake-hero-samples": "bun --env-file ../../.env src/scripts/rebake-hero-samples.ts",
     "cleanup-orphan-heroes": "bun --env-file ../../.env src/scripts/cleanup-orphan-heroes.ts",
-    "backfill-brief-embeddings": "bun --env-file ../../.env src/scripts/backfill-brief-embeddings.ts"
+    "backfill-brief-embeddings": "bun --env-file ../../.env src/scripts/backfill-brief-embeddings.ts",
+    "consolidate-article-categories": "bun --env-file ../../.env src/scripts/consolidate-article-categories.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
