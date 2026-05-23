@@ -604,8 +604,48 @@ Genutzt von:
 
 ## 11. Implemented
 
-_(wird beim Spec-Abschluss gefüllt)_
+### Sprint 1 — Safety-Layer
+
+**S1.1 Refresh-Field-Whitelist** (committed 2026-05-23, branch `feature/multi-domain-datamodel`)
+
+- New module [`packages/pipelines/src/article/refresh/preserved-fields.ts`](../../../packages/pipelines/src/article/refresh/preserved-fields.ts):
+  - `REFRESH_PRESERVED_COLUMNS` (5 `tool_*` promoted columns — defensive guard, currently not written by `PersistArticleStep`)
+  - `REFRESH_PRESERVED_EXTRAS_KEYS` (`featured`, `pricingVerifiedAt` — JSONB keys, actual lost-update surface)
+  - Pure `mergePreservedExtras(current, incoming)` helper
+- [`PersistArticleStep`](../../../packages/pipelines/src/article/steps/persist-article.ts) now SELECTs `frontmatter_extras` alongside `bodyMd` inside its transaction and merges the whitelist before UPDATE
+- 16 new tests (8 helper-unit + 8 static-source RefreshPipeline regression guard)
+- Full pipelines suite 678/0/74, workspace typecheck 0 errors across 24 packages
+- [packages/pipelines/CLAUDE.md](../../../packages/pipelines/CLAUDE.md) gets new subsection "Editorial-field preservation in PersistArticleStep"
+
+### Pre-Sprint-1 verification
+
+- ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
+- ✅ Baseline snapshot [`__tests__/snapshots/baseline-toolwiki-prompts.json`](../../../__tests__/snapshots/baseline-toolwiki-prompts.json) captures SHA-1 + size + must-contain-substrings for all 9 Toolwiki-biased prompt sites
 
 ## 12. Discovered & Deviations
 
-_(wird beim Spec-Abschluss gefüllt)_
+### S1.1 — file path and write-site mismatch
+
+**Spec said**: "Datei: `packages/pipelines/src/article/refresh/steps/persist-body.ts`"
+
+**Reality**:
+1. The file `packages/pipelines/src/article/refresh/steps/persist-body.ts` does not exist. Refresh uses the shared `packages/pipelines/src/article/steps/persist-body.ts` which is a body-checkpoint only — it writes `bodyMd`/`wordCount`/`updatedAt`, nothing else.
+2. `RefreshPipeline` does NOT touch any field in the spec's preserved list today. Its 8 steps write `outline`/`bodyMd`/`selfReviewScore`/`selfReviewIssues`/`updatedAt`/`lastRefreshedAt` only.
+3. The actual lost-update surface is `PersistArticleStep` (called by `BlogPipeline`, not `RefreshPipeline`) when re-generating an existing imported article. Its line-120 `frontmatterExtras` overwrite is where `featured` / `pricingVerifiedAt` get clobbered.
+
+**Marcel-decision 2026-05-23** (scope A+B): implement the merge at the real write site (`PersistArticleStep`) AND keep the documentary whitelist + RefreshPipeline static-source regression guard so a future refactor that adds writes to refresh fails the test immediately.
+
+**Whitelist split** (deviation from spec's flat list): split into two arrays — `REFRESH_PRESERVED_COLUMNS` (the 5 `tool_*` promoted columns; currently defensive, not written) and `REFRESH_PRESERVED_EXTRAS_KEYS` (the 2 JSONB-resident keys; the actual fix surface). The split is structural: columns and JSONB keys are merged differently (columns are skipped in the UPDATE `.set()`, JSONB keys are merged inside the `frontmatter_extras` blob).
+
+**Cross-pipeline side-effect** (positive): the merge fires for ALL `PersistArticleStep` calls including `TranslationPipeline`'s EN-sibling persist. On `refresh_propagation` / `manual_resync` re-translation, this correctly preserves Marcel's per-locale `featured: true` curation on the EN article. Not a regression.
+
+### Pre-Sprint-1 — branch + spec creation
+
+The branch `feature/multi-domain-datamodel` and the spec file `docs/specs/multi-domain-evolution/spec.md` did not exist when the task started; both were created at the beginning of session 2026-05-23 from Marcel's inline-pasted spec.
+
+### Pre-Sprint-1 — §10 open questions resolved
+
+- **Q1 BK-Launch**: 8+ weeks. Sprint 5 stays at full width; no compression of S5.1/S5.2/S5.3.
+- **Q2 Spec-50 deprecation**: NO — stays as fallback. Deprecation is a post-BK aufräum-Aktion.
+- **Q3 Toolwiki pipelines live during refactor**: assumed YES (default per spec).
+- **Q4 `frontmatter_extras → domain_extras` rename**: INCLUDE in Sprint 5 (S5.1).

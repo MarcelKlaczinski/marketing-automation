@@ -425,6 +425,14 @@ Never gate with an `if` at the top of `execute()` — use `shouldRun()` so the e
 
 **Pattern 104 — `template_renders` is canonical**: `social_posts` is legacy. No new rows should be written to `social_posts` after Spec 60.7. During the transition period both tables are read via `mergeRenderHistory()` in `ArticleSocialTab.vue`.
 
+## Editorial-field preservation in PersistArticleStep (Spec multi-domain-evolution S1.1)
+
+`PersistArticleStep` SELECTs the current `frontmatter_extras` alongside `bodyMd` inside its transaction, then applies `mergePreservedExtras()` from [`src/article/refresh/preserved-fields.ts`](src/article/refresh/preserved-fields.ts) before the UPDATE. Whitelisted keys (`featured`, `pricingVerifiedAt`) survive from the current row even when the bridge supplies a fresh extras blob from the LLM. Non-whitelist keys still flow from incoming (LLM/bridge wins).
+
+**Rule for future "preserve editorial fields" needs**: extend `REFRESH_PRESERVED_EXTRAS_KEYS` (JSONB-resident) or `REFRESH_PRESERVED_COLUMNS` (defensive — promoted-column guard) in the same module. The merge is pure + unit-tested; no changes needed in `PersistArticleStep` for additions. Sprint 3+ will generalize this to a per-domain config; until then keep the whitelist surface narrow and well-documented in the module JSDoc.
+
+**Regression guard pattern**: [`test/article/refresh/refresh-no-touch-preserved.test.ts`](test/article/refresh/refresh-no-touch-preserved.test.ts) is the canonical "this pipeline does NOT write to field X" test — it reads step source files and asserts no `.set({...})` block mentions a preserved field. Reusable any time a pipeline must provably stay out of a column set.
+
 ## afterComplete Hook
 
 `Pipeline` has an optional `afterComplete?(output, input): Promise<void>` hook called by the runner after all steps succeed. Use it for post-pipeline side-effects that must happen outside the step chain (e.g., auto-enqueuing a follow-up pipeline). The runner wraps it in its own `try-catch` — failures log a `warn` but do NOT mark the pipeline as failed or trigger BullMQ retries. If `afterComplete` fails silently, manual recovery is needed (e.g., `article:continue`).
