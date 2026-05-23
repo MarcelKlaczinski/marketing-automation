@@ -617,6 +617,21 @@ Genutzt von:
 - Full pipelines suite 678/0/74, workspace typecheck 0 errors across 24 packages
 - [packages/pipelines/CLAUDE.md](../../../packages/pipelines/CLAUDE.md) gets new subsection "Editorial-field preservation in PersistArticleStep"
 
+**S1.2 Boundary-Validator beim Astro-Write** (committed 2026-05-23)
+
+- New module [`packages/adapters/astro-sync/src/errors.ts`](../../../packages/adapters/astro-sync/src/errors.ts):
+  - `AstroSyncValidationError` class carrying `articleId` + `collection` + structured `ValidationFailureDetail[]` (failure reasons: `missing_required` / `type_mismatch` / `enum_mismatch`)
+- New module [`packages/adapters/astro-sync/src/lib/validate-frontmatter.ts`](../../../packages/adapters/astro-sync/src/lib/validate-frontmatter.ts):
+  - Pure `validateFrontmatterAgainstSchema(fm, fields) → {success, failures[]}` against the Spec-50 JSONB snapshot
+  - Permissive on empty schema (matches existing `buildFrontmatter` fallback)
+  - Unknown extras pass through — the existing `RenderMdxStep` field-filter handles them; tighter validation deferred to Sprint 5 Domain-Registry
+- [`RenderMdxStep`](../../../packages/adapters/astro-sync/src/steps/render-mdx.ts) wires the validator after `buildFrontmatter` + `transformImageFields`; on failure: structured `log.error` + throw. `article.id` added to InputSchema so the error payload carries it.
+- Re-exported from package [`index.ts`](../../../packages/adapters/astro-sync/src/index.ts) so S1.3 + future callers can import the error class
+- 23 new tests (18 validator-unit + 5 RenderMdxStep integration)
+- Astro-sync suite: 66/0/1 (1 failure pre-existing in `sync-clusters.test.ts:205`, unrelated — verified via stash baseline)
+- Workspace typecheck: 0 errors across 24 packages
+- [packages/adapters/astro-sync/CLAUDE.md](../../../packages/adapters/astro-sync/CLAUDE.md) "Astro silent-exclusion trap" updated to point at the new validator
+
 ### Pre-Sprint-1 verification
 
 - ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
@@ -638,6 +653,16 @@ Genutzt von:
 **Whitelist split** (deviation from spec's flat list): split into two arrays — `REFRESH_PRESERVED_COLUMNS` (the 5 `tool_*` promoted columns; currently defensive, not written) and `REFRESH_PRESERVED_EXTRAS_KEYS` (the 2 JSONB-resident keys; the actual fix surface). The split is structural: columns and JSONB keys are merged differently (columns are skipped in the UPDATE `.set()`, JSONB keys are merged inside the `frontmatter_extras` blob).
 
 **Cross-pipeline side-effect** (positive): the merge fires for ALL `PersistArticleStep` calls including `TranslationPipeline`'s EN-sibling persist. On `refresh_propagation` / `manual_resync` re-translation, this correctly preserves Marcel's per-locale `featured: true` curation on the EN article. Not a regression.
+
+### S1.2 — boundary scope kept narrow
+
+**Spec said**: import the future Domain-Registry from `@marketing-auto/content-schema` (with Spec-50 JSONB as transitional fallback).
+
+**Reality**: implemented against the Spec-50 JSONB snapshot directly (the workspace package doesn't exist yet — that's Sprint 2). The validator's signature `validateFrontmatterAgainstSchema(fm, fields: FrontmatterField[])` will become the contract the Domain-Registry implements in Sprint 5; only the call-site in `RenderMdxStep` needs to swap `input.collectionInfo.fields` for the registry lookup at that point.
+
+**Deviation — unknown-extras passthrough**: the spec sketch implied that any field Astro Zod rejects should throw. In practice, the existing field-filter in `buildFrontmatter()` (line 226-232) drops unknown keys before they reach Astro, so unknown extras are not a write-time failure today. The validator catches the real failure modes that DID propagate: missing required fields (was warn-only) and type/enum mismatches on KNOWN fields. Tightening unknown-extras to a throw is deferred to Sprint 5 when Domain-Registry replaces the JSONB snapshot.
+
+**Pre-existing test failure not regressed**: `packages/adapters/astro-sync/test/sync-clusters.test.ts:205` "counts uncategorized articles" fails with `expected 2, received 1` on both master and this branch (verified via `git stash` baseline). Unrelated to S1.2 — filed as branch-level test debt; will not be fixed in this PR.
 
 ### Pre-Sprint-1 — branch + spec creation
 
