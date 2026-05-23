@@ -24,6 +24,7 @@ Designed to evolve into SaaS.
 ## Architecture
 - Hexagonal Architecture (ports & adapters), inspired by Marcel's Vanilla v3
 - Multi-tenant via `project_id` foreign key (NO schema-per-tenant)
+- **Multi-domain content-schema** (Spec multi-domain-evolution): per-tenant Astro-content schemas live in `@marketing-auto/content-schema`. Toolwiki-specific extras under `domains/toolwiki/`; new tenants (BK etc.) register their own `domains/<slug>/spec.ts` per the onboarding checklist at [`docs/onboarding/new-domain-checklist.md`](docs/onboarding/new-domain-checklist.md). Per-tenant prompt-variables resolve via `loadTenantPromptVars(projectId)` in `packages/pipelines/src/_lib/tenant-prompt-vars.ts`. Per-tenant intent-classifier examples live in `projects.classifier_examples` JSONB. Domain-Registry mechanism in `@marketing-auto/content-schema/registry` is the contract for projectId → DomainContext resolution.
 - Pipeline-Templates as classes with composable Steps
 - Skills (in packages/skills) provide marketing domain knowledge
 - Each pipeline step loads relevant skill MD + project context into LLM prompt
