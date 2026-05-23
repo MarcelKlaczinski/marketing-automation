@@ -1,3 +1,4 @@
+import { ARTICLE_COLLECTION_TYPES } from "@marketing-auto/shared";
 import { pgEnum } from "drizzle-orm/pg-core";
 
 export const lifecycleStageEnum = pgEnum("lifecycle_stage", [
@@ -124,10 +125,11 @@ export const refreshSuggestionSourceEnum = pgEnum("refresh_suggestion_source", [
   "quality",
 ]);
 
-export const articleCollectionTypeEnum = pgEnum("article_collection_type", [
-  "blog",
-  "comparison",
-  "ki-wissen",
-  "tools",
-  "usecases",
-]);
+// Spec multi-domain-evolution S2.3: pgEnum literal list reads from the
+// canonical `ARTICLE_COLLECTION_TYPES` in `@marketing-auto/content-schema`
+// (re-exported via shared during the migration window). Drift between the
+// pgEnum and the TypeScript const is now structurally impossible.
+export const articleCollectionTypeEnum = pgEnum(
+  "article_collection_type",
+  ARTICLE_COLLECTION_TYPES as unknown as [string, ...string[]],
+);

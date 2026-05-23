@@ -1,13 +1,11 @@
-export const ARTICLE_COLLECTION_TYPES = [
-  "blog",
-  "comparison",
-  "ki-wissen",
-  "tools",
-  "usecases",
-] as const;
-
-export type ArticleCollectionType = (typeof ARTICLE_COLLECTION_TYPES)[number];
-
-export function isArticleCollectionType(v: unknown): v is ArticleCollectionType {
-  return ARTICLE_COLLECTION_TYPES.includes(v as ArticleCollectionType);
-}
+/**
+ * Back-compat re-export. Canonical home since Spec multi-domain-evolution
+ * S2.3 is `@marketing-auto/content-schema/enums`. Consumers can migrate
+ * their imports at their own pace; the re-export will be dropped after
+ * the BK launch (per spec §10 Q3 default: additive migration).
+ */
+export {
+  ARTICLE_COLLECTION_TYPES,
+  type ArticleCollectionType,
+  isArticleCollectionType,
+} from "@marketing-auto/content-schema/enums";

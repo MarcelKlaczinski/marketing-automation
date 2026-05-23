@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@marketing-auto/content-schema": "workspace:*",
     "zod": "^3.23.8",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0"
