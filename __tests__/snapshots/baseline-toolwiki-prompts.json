@@ -1,0 +1,119 @@
+{
+  "_meta": {
+    "spec": "docs/specs/multi-domain-evolution/spec.md",
+    "branch": "feature/multi-domain-datamodel",
+    "createdAt": "2026-05-23",
+    "purpose": "Pre-Sprint-1 baseline. Diffed after every sprint to guard against regressions in Toolwiki LLM-prompt outputs. The 'mustContainSubstrings' arrays capture the Toolwiki-biased phrases that must STILL be produced when the resolved prompt is run with the Toolwiki project context — even after S4.4 ('LLM-Prompt-Tenant-Var-Swap') moves them from hardcoded strings into tenant-config-driven templates.",
+    "diffPolicy": "Sprint 1-3: source-file SHA must match. Sprint 4+: source-file SHA may change (refactor) but Toolwiki-resolved prompts must still contain every substring in mustContainSubstrings (compare via integration test that runs builders with toolwiki project fixture).",
+    "toolwikiProjectSlug": "toolwiki"
+  },
+  "promptSources": [
+    {
+      "id": "draft-step-default",
+      "file": "packages/pipelines/src/article/steps/draft.ts",
+      "sha1": "8e5f3e772ccdf4fee433f230c290c52a3ffcf2f7",
+      "bytes": 22627,
+      "anchorLines": [84, 88],
+      "mustContainSubstrings": [
+        "You are writing the FULL DRAFT of an article for toolwiki.ai",
+        "Every article must be primarily about AI/ML tools, AI features, AI concepts"
+      ]
+    },
+    {
+      "id": "outline-step-default",
+      "file": "packages/pipelines/src/article/steps/outline.ts",
+      "sha1": "c2e5dffcd35c3cee99d767f45cf83a825e6fabe7",
+      "bytes": 12698,
+      "anchorLines": [58, 73],
+      "mustContainSubstrings": [
+        "You are producing the OUTLINE for an article on toolwiki.ai",
+        "toolwiki.ai publishes ONLY content that is primarily about AI/ML",
+        "ChatGPT, Claude, Midjourney, Cursor"
+      ]
+    },
+    {
+      "id": "comparison-draft-prompt",
+      "file": "packages/pipelines/src/article/prompts/comparison.ts",
+      "sha1": "1ea8c7183f1790202bd775b00da04b4ecb7bd69c",
+      "bytes": 8468,
+      "anchorLines": [68, 75],
+      "mustContainSubstrings": [
+        "You are writing the FULL DRAFT of a COMPARISON article for toolwiki.ai",
+        "A comparison article evaluates 2-4 named AI tools head-to-head"
+      ]
+    },
+    {
+      "id": "ki-wissen-draft-prompt",
+      "file": "packages/pipelines/src/article/prompts/ki-wissen.ts",
+      "sha1": "45ce0e01725dc0283b08b947ca1e0d7a486d08b8",
+      "bytes": 9522,
+      "anchorLines": [95, 102],
+      "mustContainSubstrings": [
+        "ki-wissen` collection on toolwiki.ai — the trust layer of the site"
+      ]
+    },
+    {
+      "id": "social-image-comparison-grid-4-editor",
+      "file": "packages/pipelines/src/article/social-image/steps.ts",
+      "sha1": "d0c54db9b10956a93094f5035155853bc0e629ec",
+      "bytes": 52409,
+      "anchorLines": [737, 780],
+      "mustContainSubstrings": [
+        "You are an editor for toolwiki.ai. Create content for a comparison-grid-4 Instagram slide.",
+        "toolwiki.ai/${slug}",
+        "Stand ${month}/${year} · toolwiki.ai/${slug}",
+        "As of ${month}/${year} · toolwiki.ai/${slug}"
+      ]
+    },
+    {
+      "id": "social-image-hook-templates",
+      "file": "packages/pipelines/src/article/social-image/hookPrompt.ts",
+      "sha1": "1bc299d14257d59e9a69d3a57ec711642a0ee471",
+      "bytes": 4695,
+      "anchorLines": [10, 92],
+      "mustContainSubstrings": [
+        "You are an Instagram hook specialist for the German AI tools niche.",
+        "5 KI-Tools die deinen Stack ersetzen",
+        "bei KI-Tools"
+      ],
+      "templateCount": 6,
+      "templateNames": ["superlative_question", "number_promise", "negative_frame", "identity_frame", "curiosity_gap"]
+    },
+    {
+      "id": "social-image-hook-engine-fallbacks",
+      "file": "packages/pipelines/src/article/social-image/hookEngine.ts",
+      "sha1": "dd3ceb6275577662ef9f7a58eaafa03a3ca3dbd0",
+      "bytes": 5192,
+      "anchorLines": [122, 143],
+      "mustContainSubstrings": [
+        "KI-Tools",
+        "KI-Tools im Vergleich — ehrlich getestet"
+      ]
+    },
+    {
+      "id": "trend-discovery-knowledge-classification",
+      "file": "packages/pipelines/src/topic-sources/trend-discovery/prompts.ts",
+      "sha1": "8016a3136681610d88e5bf5aeb82ffbd7fbfa1f0",
+      "bytes": 7806,
+      "anchorLines": [62, 81],
+      "mustContainSubstrings": [
+        "OpenAI o3 benchmarks",
+        "DeepMind paper on test-time compute",
+        "I've joined Anthropic",
+        "Claude vs ChatGPT: which is better?",
+        "Was ist Retrieval-Augmented Generation?",
+        "Wie funktionieren Transformer-Modelle?",
+        "Prompt Engineering Grundlagen",
+        "Vector Databases erklärt"
+      ],
+      "notes": "Spec 64.14 Phase B counter/positive examples + Spec 64.16 few-shot block (all live in this file). Toolwiki-biased: AI/ML vocabulary, German concept-questions about AI fundamentals. S4.4 must move these into projects.classifier_examples JSONB and load per-tenant."
+    }
+  ],
+  "migrationVerification": {
+    "spec": "64.14",
+    "migration": "0092_planner_config_signal_content_type_map.sql",
+    "verifiedAppliedAt": "2026-05-23",
+    "verifySql": "SELECT column_name FROM information_schema.columns WHERE table_name='project_planner_config' AND column_name='signal_source_content_type_map'",
+    "expectedResult": "1 row: signal_source_content_type_map"
+  }
+}
