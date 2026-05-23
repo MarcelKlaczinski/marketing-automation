@@ -172,6 +172,16 @@ describe("SyncClustersFromFrontmatterStep", () => {
   });
 
   test("counts uncategorized articles (no clusterKey)", async () => {
+    // `uncategorizedCount` is the count of `source='imported'` articles with
+    // `clusterKey IS NULL` EXCLUDING the collections in
+    // `EXCLUDED_FROM_CLUSTERING` (usecases / authors / tool-categories /
+    // special-landings — entity-style collections that are by-design
+    // unclustered per audit/USECASES_DECISION.md).
+    //
+    // Insert one article in an included collection (`tools`) + one in an
+    // excluded collection (`authors`) — the count must reflect 1, NOT 2.
+    // This guard also catches accidental additions to / removals from
+    // EXCLUDED_FROM_CLUSTERING by making the exclusion path explicit.
     await db.insert(articles).values([
       {
         projectId,
@@ -202,7 +212,7 @@ describe("SyncClustersFromFrontmatterStep", () => {
     const step = new SyncClustersFromFrontmatterStep();
     const result = await step.execute({ projectId }, stubCtx);
 
-    expect(result.uncategorizedCount).toBe(2);
+    expect(result.uncategorizedCount).toBe(1);
     expect(result.clustersCreated).toBe(0);
     expect(result.articlesLinked).toBe(0);
   });
