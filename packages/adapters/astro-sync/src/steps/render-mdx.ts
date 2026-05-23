@@ -2,6 +2,8 @@ import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 import yaml from "yaml";
 import { z } from "zod";
+import { AstroSyncValidationError } from "../errors.ts";
+import { validateFrontmatterAgainstSchema } from "../lib/validate-frontmatter.ts";
 import type { FrontmatterField } from "../types.ts";
 
 // Spec 61.1 Pattern 107: single source of truth for collection type → Astro folder mapping.
@@ -18,6 +20,9 @@ const log = createLogger("astro-sync:render");
 
 const InputSchema = z.object({
   article: z.object({
+    // Spec multi-domain-evolution S1.2: id surfaced so AstroSyncValidationError
+    // can carry the articleId in its payload for the S1.3 notification fan-out.
+    id: z.string().uuid(),
     title: z.string(),
     slug: z.string(),
     metaDescription: z.string(),
@@ -92,24 +97,35 @@ export class RenderMdxStep extends BaseStep<
     const mdxPath = `${input.astroRepoRoot}/${astroFolder}/${input.article.slug}.mdx`;
     const fm = buildFrontmatter(input);
 
-    const unpopulatedRequired = input.collectionInfo.fields
-      .filter((f) => f.required && !(f.name in fm))
-      .map((f) => f.name);
-
-    if (unpopulatedRequired.length > 0) {
-      log.warn(
-        { unpopulatedRequired },
-        "Could not populate some required schema fields. " +
-          "Astro build may fail. Add values via projects.astroFrontmatterDefaults."
-      );
-    }
-
     const fmWithImagePaths = transformImageFields(
       fm,
       input.collectionInfo.fields as FrontmatterField[],
       mdxPath,
       input.heroPublicPath
     );
+
+    // Spec multi-domain-evolution S1.2: hard boundary validator. Replaces the
+    // prior warn-only check on `unpopulatedRequired` and the silent-drop in
+    // buildFrontmatter(). Closes L5 from the discovery doc: Tool writing a
+    // field Astro Zod rejects → silent build drop → 404. Now throws
+    // AstroSyncValidationError which S1.3 routes into a critical notification.
+    const validation = validateFrontmatterAgainstSchema(
+      fmWithImagePaths,
+      input.collectionInfo.fields as FrontmatterField[],
+    );
+    if (!validation.success) {
+      log.error(
+        { articleId: input.article.id, collection: astroFolder, failures: validation.failures },
+        "[render-mdx] boundary validation failed — refusing to write MDX",
+      );
+      throw new AstroSyncValidationError({
+        articleId: input.article.id,
+        collection: astroFolder,
+        failures: validation.failures,
+      });
+    }
+    // After a successful validation, no required field is missing by construction.
+    const unpopulatedRequired: string[] = [];
 
     const yamlBody = yaml
       .stringify(fmWithImagePaths, {

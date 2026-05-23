@@ -4,6 +4,15 @@ export {
   type AstroRepoConfig,
   type SyncResult,
 } from "./types.ts";
+export {
+  AstroSyncValidationError,
+  type ValidationFailureDetail,
+  type ValidationFailureReason,
+} from "./errors.ts";
+export {
+  validateFrontmatterAgainstSchema,
+  type FrontmatterValidationResult,
+} from "./lib/validate-frontmatter.ts";
 export { getGitHubApp, getInstallationOctokit } from "./github-auth.ts";
 export { LoadArticleStep } from "./steps/load-article.ts";
 export { ResolveSchemaStep, parseBlogSchema, parseAllCollectionSchemas } from "./steps/resolve-schema.ts";
