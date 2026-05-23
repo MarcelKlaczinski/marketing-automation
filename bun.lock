@@ -276,6 +276,13 @@
         "zod": "^3.23.0",
       },
     },
+    "packages/content-schema": {
+      "name": "@marketing-auto/content-schema",
+      "version": "0.1.0",
+      "dependencies": {
+        "zod": "^3.23.8",
+      },
+    },
     "packages/core": {
       "name": "@marketing-auto/core",
       "version": "0.1.0",
@@ -721,6 +728,8 @@
     "@marketing-auto/adapter-voyage": ["@marketing-auto/adapter-voyage@workspace:packages/adapters/voyage"],
 
     "@marketing-auto/api": ["@marketing-auto/api@workspace:apps/api"],
+
+    "@marketing-auto/content-schema": ["@marketing-auto/content-schema@workspace:packages/content-schema"],
 
     "@marketing-auto/core": ["@marketing-auto/core@workspace:packages/core"],
 

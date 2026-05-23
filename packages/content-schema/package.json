@@ -1,0 +1,20 @@
+{
+  "name": "@marketing-auto/content-schema",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./enums": "./src/enums/index.ts",
+    "./domains/toolwiki": "./src/domains/toolwiki/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./validators": "./src/validators/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}
