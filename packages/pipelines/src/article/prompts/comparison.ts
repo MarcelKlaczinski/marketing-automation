@@ -61,18 +61,20 @@ export function buildComparisonDraftPrompt(opts: {
   today: string;
   /** Article locale — drives section heading language. */
   locale: "de" | "en";
+  /** Spec multi-domain-evolution S4.4 — tenant-resolved prompt variables. */
+  tenantVars: import("../../_lib/tenant-prompt-vars.ts").TenantPromptVars;
 }): string {
-  const { authorInstruction, today, locale } = opts;
+  const { authorInstruction, today, locale, tenantVars } = opts;
   const L = LOCALE_LABELS[locale];
   return `
-You are writing the FULL DRAFT of a COMPARISON article for toolwiki.ai.
+You are writing the FULL DRAFT of a COMPARISON article for ${tenantVars.domain}.
 Output locale: ${locale} (${L.outputLanguage}).
 
-SCOPE CHECK: Every article must be primarily about AI/ML tools, features, or
-concepts. If the topic has no meaningful AI angle, stop immediately and output
+SCOPE CHECK: Every article must be primarily about ${tenantVars.nicheContentScope}.
+If the topic has no meaningful AI angle, stop immediately and output
 ONLY: {"draftRefused": true, "reason": "topic is not AI-related"}
 
-A comparison article evaluates 2-4 named AI tools head-to-head. It must give
+A comparison article evaluates ${tenantVars.comparisonEntityLabel} head-to-head. It must give
 the reader a decision: pick winner, recommend per-scenario, or call a tie.
 
 Hard rules:

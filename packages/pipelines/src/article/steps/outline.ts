@@ -4,6 +4,7 @@ import type { FrontmatterFieldDescriptor } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 import { batchLlmCall } from "../../engine/batch-llm-client.ts";
+import { loadTenantPromptVars } from "../../_lib/tenant-prompt-vars.ts";
 
 const log = createLogger("pipelines:outline-step");
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -54,11 +55,18 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
       (input.modelOverride as "claude-opus-4-7" | "claude-sonnet-4-6" | undefined) ??
       "claude-sonnet-4-6";
 
+    // Spec multi-domain-evolution S4.4: tenant-resolved prompt variables.
+    // Toolwiki resolves to "toolwiki.ai" + "an AI tool wiki" — byte-identical
+    // to the legacy hardcoded substring. Deeper scope-bullet examples below
+    // stay as Toolwiki defaults; non-Toolwiki tenants override via
+    // `project_configurations.masterPrompts['article.outline']`.
+    const tenantVars = await loadTenantPromptVars(ctx.projectId);
+
     const OUTLINE_STEP_DEFAULT_PROMPT = `
-You are producing the OUTLINE for an article on toolwiki.ai — an AI tool wiki.
+You are producing the OUTLINE for an article on ${tenantVars.domain} — ${tenantVars.nicheArticle}.
 
 SCOPE GUARDRAIL (check FIRST before anything else):
-toolwiki.ai publishes ONLY content that is primarily about AI/ML:
+${tenantVars.domain} publishes ONLY content that is primarily about ${tenantVars.nicheScopeShort}:
   ✓ AI tool reviews, comparisons, pricing (ChatGPT, Claude, Midjourney, Cursor, etc.)
   ✓ AI productivity workflows and use cases
   ✓ LLM/AI concepts and techniques (prompt engineering, RAG, fine-tuning, agents, etc.)

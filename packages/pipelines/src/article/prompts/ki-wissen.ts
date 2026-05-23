@@ -88,12 +88,14 @@ export function buildKiWissenDraftPrompt(opts: {
   today: string;
   /** Article locale — drives section heading language. */
   locale: "de" | "en";
+  /** Spec multi-domain-evolution S4.4 — tenant-resolved prompt variables. */
+  tenantVars: import("../../_lib/tenant-prompt-vars.ts").TenantPromptVars;
 }): string {
-  const { authorInstruction, today, locale } = opts;
+  const { authorInstruction, today, locale, tenantVars } = opts;
   const L = LOCALE_LABELS[locale];
   return `
 You are writing the FULL DRAFT of a KNOWLEDGE PILLAR article for the
-\`ki-wissen\` collection on toolwiki.ai — the trust layer of the site.
+\`ki-wissen\` collection on ${tenantVars.domain} — the trust layer of the site.
 
 Output locale: ${locale} (${L.outputLanguage}).
 

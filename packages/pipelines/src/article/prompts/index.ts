@@ -1,4 +1,5 @@
 import type { ArticleCollectionType } from "@marketing-auto/shared";
+import type { TenantPromptVars } from "../../_lib/tenant-prompt-vars.ts";
 import { buildComparisonDraftPrompt } from "./comparison.ts";
 import { buildKiWissenDraftPrompt } from "./ki-wissen.ts";
 
@@ -10,6 +11,8 @@ export type DraftPromptFn = (opts: {
   authorInstruction: string;
   today: string;
   locale: "de" | "en";
+  /** Spec multi-domain-evolution S4.4 — tenant-resolved domain + niche labels. */
+  tenantVars: TenantPromptVars;
 }) => string;
 
 /**

@@ -1,6 +1,7 @@
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
 import { TOOLWIKI_BLOG_INTENT_TYPES } from "@marketing-auto/content-schema/domains/toolwiki";
+import { loadTenantPromptVars } from "../../_lib/tenant-prompt-vars.ts";
 import { eq, type FrontmatterFieldDescriptor, articles, db, projects } from "@marketing-auto/db";
 import { ARTICLE_COLLECTION_TYPES, type ArticleCollectionType } from "@marketing-auto/shared";
 import { z } from "zod";
@@ -82,11 +83,17 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
         }\nPick the author whose expertise best matches the article topic. If truly ambiguous, pick the first one.`
       : "";
 
-    const DRAFT_STEP_DEFAULT_PROMPT = `
-You are writing the FULL DRAFT of an article for toolwiki.ai — an AI tool wiki.
+    // Spec multi-domain-evolution S4.4: tenant-resolved prompt variables.
+    // Toolwiki resolves to "toolwiki.ai" + "an AI tool wiki" + the AI/ML
+    // scope strings — byte-identical to the legacy hardcoded values
+    // captured in __tests__/snapshots/baseline-toolwiki-prompts.json.
+    const tenantVars = await loadTenantPromptVars(input.projectId);
 
-SCOPE CHECK: Every article must be primarily about AI/ML tools, AI features, AI concepts,
-or AI use cases. If the outline topic has no meaningful AI connection, stop immediately
+    const DRAFT_STEP_DEFAULT_PROMPT = `
+You are writing the FULL DRAFT of an article for ${tenantVars.domain} — ${tenantVars.nicheArticle}.
+
+SCOPE CHECK: Every article must be primarily about ${tenantVars.nicheContentScope}.
+If the outline topic has no meaningful AI connection, stop immediately
 and output ONLY: {"draftRefused": true, "reason": "topic is not AI-related"}
 
 Hard rules:
@@ -214,7 +221,7 @@ Output format:
     const today = new Date().toISOString().split("T")[0] ?? "";
     const collectionPromptFn = selectDraftPrompt(collectionType);
     const baseInstructions = collectionPromptFn
-      ? collectionPromptFn({ authorInstruction, today, locale: input.locale ?? "de" })
+      ? collectionPromptFn({ authorInstruction, today, locale: input.locale ?? "de", tenantVars })
       : DRAFT_STEP_DEFAULT_PROMPT;
 
     const draftInstructions = await resolveMasterPrompt({
