@@ -690,6 +690,56 @@ Genutzt von:
 
 **Sprint 2 — Workspace-Package extrahieren: COMPLETE. Branch B sync-point released.**
 
+### Sprint 3 — Categories-Refactor
+
+**S3.1 `content_categories` table + migration 0094** (committed 2026-05-23)
+
+- New table [`packages/db/src/schema/categories.ts`](../../../packages/db/src/schema/categories.ts) with `(id, project_id FK CASCADE, slug, scope, parent_slug, translations jsonb, icon, color, created_at, updated_at)`
+- Composite unique on `(project_id, scope, slug)` — allows same slug across scopes legitimately
+- `translations` jsonb shape `Record<locale, {label, urlSlug}>` matches Phase-1 §3.3 design + replaces in-tree URL_SLUG_MAP-style maps per tenant
+- `parent_slug` plain text (no DB self-FK per Phase-1 R8 recursive-FK complexity)
+- 5 new tests: locale-keyed translations roundtrip, same-slug-different-scope, unique constraint, parent_slug wiring, CASCADE on project delete
+
+**S3.2 Seed Toolwiki categories + sync-point B** (committed 2026-05-23)
+
+- Migration 0095 idempotent seed of 31 categories: 7 tool top-level + 13 tool subcategories + 6 blog + 5 ki-wissen
+- Authoritative source: `URL_SLUG_MAP` from `/Users/marcelklaczinski/WebstormProjects/ki-wissensraum-neu/src/lib/url-slugs.ts`
+- Tool DE/EN urlSlugs match URL_SLUG_MAP byte-for-byte
+- Blog: slug = slugifyCategory(German label) (preserves current Astro routing). DE/EN urlSlugs identical today
+- Ki-wissen: DE urlSlug = slugifyCategory(German), EN urlSlug = locale-neutral English (`fundamentals`/`technology`/etc.) — ready for Branch B's Phase-1-E3 fix
+- Idempotency verified: second SQL run produces no duplicate rows
+- **Branch B Sprint 3 released**: slug values fixed from this commit forward
+
+**S3.3 CategoryValidator helper (DI pattern)** (committed 2026-05-23)
+
+- New module [`packages/content-schema/src/validators/categories.ts`](../../../packages/content-schema/src/validators/categories.ts) — pure interface + factory, content-schema stays leaf
+- `CategoryLookup` is the single DI seam consumers wire up (Drizzle backend in apps/api S3.4 wiring; in-memory backend for tests via `createInMemoryCategoryLookup`)
+- `CategoryValidator.isValidReference(slug, scope, projectId)` returns tagged union — never throws
+- Empty/blank slug → `ok: true` (category is optional on every collection)
+- 9 new tests covering all scopes, cross-scope contamination, cross-tenant isolation, empty-slug ok, whitespace trim
+
+**S3.4 Soft category coupling articles.category ↔ content_categories** (committed 2026-05-23)
+
+- New module [`packages/pipelines/src/article/category-validation/validate-and-notify.ts`](../../../packages/pipelines/src/article/category-validation/validate-and-notify.ts)
+- `collectionTypeToScope()` mapping: tools→tool, blog→blog, ki-wissen→knowledge, usecases→usecase, comparison→null
+- `getProductionLookup()` module-level singleton wrapping Drizzle SELECT against `content_categories`
+- `validateCategoryAndNotify(args)` fire-and-forget called after DraftStep's FRONTMATTER_EXTRAS parse
+- On mismatch: severity=info notification fan-out to all owners + structured warn log
+- DraftStep wraps the call in its own try/catch (additive phase: must never fail the pipeline)
+- 13 new tests covering all mapping cases, known/unknown/empty/null/non-string categories, lookup exceptions, whitespace trim
+
+**S3.5 Consolidation CLI** (committed 2026-05-23)
+
+- New script [`apps/api/src/scripts/consolidate-article-categories.ts`](../../../apps/api/src/scripts/consolidate-article-categories.ts)
+- CLI flags: `--project=<slug>` (required), `--apply` (default dry-run), `--no-backup`
+- Pure `slugifyCategory(value)` mirrors the canonical Toolwiki Astro helper byte-for-byte (& → und, NFKD-fold, ß → ss, lowercase, hyphen-collapse)
+- Defense-in-depth: dry-run default + verify-gate after apply re-runs the unmapped audit query
+- Live Toolwiki dry-run: 10/11 unmapped pairs mappable, 82 article rows would update, 1 expected skip (`comparisons/Vergleiche` — no taxonomy for comparison collection by design)
+- 9 new tests for `slugifyCategory` parity with Astro
+- `--apply` run on Toolwiki is a Marcel-decision (verify-gate convention) — awaiting his go-ahead
+
+**Sprint 3 — Categories-Refactor: COMPLETE. Branch B sync-point B released.**
+
 ### Pre-Sprint-1 verification
 
 - ✅ Migration 0092 (`signal_source_content_type_map` on `project_planner_config`) verified applied via `information_schema` lookup
@@ -733,6 +783,18 @@ Genutzt von:
 **S2.4 extras schemas not yet wired into RenderMdxStep boundary validator**: the validator from S1.2 currently uses the Spec-50 JSONB snapshot. Sprint 5 (Domain-Registry) is the natural integration point — schemas exist now but the integration is one sprint away to avoid double-touching the boundary validator.
 
 **S2.5 Core modules are leaf-only today**: the schemas under `./core/` and `./domains/` exist + are tested, but no pipeline step or RenderMdxStep call site imports them yet. Wiring them in (replacing the Spec-50 JSONB path) is Sprint 5 S5.2 Domain-Registry work. The factory shape was validated by the acceptance-criterion test composing `baseFrontmatter(['de','en']).merge(BlogExtrasSchema)`.
+
+### S3.x — Sprint 3 deviations
+
+**S3.2 blog slugs deviate from spec example**: spec §3.3 wrote "'Guides & Tutorials' → guides-tutorials" but the canonical Toolwiki Astro `slugifyCategory()` rule is `& → und`, producing `guides-und-tutorials`. The seed migration follows the Astro helper byte-for-byte to preserve SEO-stable URL routing (spec §5 acceptance #4: identical to Branch B Sprint 3.1).
+
+**S3.2 ki-wissen EN urlSlugs are forward-compat-only**: today's Toolwiki Astro stores German labels in EN frontmatter (Phase-1 E3 wart). The seed introduces EN urlSlugs (`fundamentals`/`technology`/`ethics-law`/`practice`/`future`) that Branch B Sprint 3 can adopt to fix the wart. Until Branch B does the URL renderer migration, the EN urlSlugs are unused.
+
+**S3.4 fire-and-forget vs blocking validator** (intentional): spec §3.3 said "Soft-Warning (Notification, severity=info), kein Throw". Implementation goes further: DraftStep wraps `validateCategoryAndNotify` in its OWN try/catch so even an exception inside the helper (e.g. DB connection lost) can't fail the pipeline. The helper itself does NOT swallow its lookup errors — the test "lookup throws → notification still skipped, no escalation (catch-all)" asserts the helper's contract: it propagates unexpected failures upward, the call site owns escalation.
+
+**S3.5 `category_legacy` column is a one-time migration artifact**: NOT added to the Drizzle schema. The script ALTER-adds it idempotently on `--apply`. Future tenants don't get the column unless they run the script. Document only — no follow-up cleanup planned because the column is null-safe.
+
+**S3.5 1 mappable skip in dry-run**: the 2 comparison articles with `category="Vergleiche"` are intentionally out-of-scope (comparison collection has no category taxonomy by design — Phase-1 §1 finding). The script logs them as `skip_no_scope` and leaves the value untouched. A future cleanup could NULL the field, but that's a separate decision outside this spec.
 
 ### S1.3 — notification fan-out reuses the existing surface
 
