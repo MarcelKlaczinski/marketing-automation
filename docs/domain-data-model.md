@@ -47,7 +47,7 @@ Marketing-Tool von Toolwiki-spezifisch → Multi-Domain-Astro-Orchestrierung evo
 - Spec-50 deprecaten (Post-BK-Aufräum-Aktion)
 - `astro-sync` Adapter vollständig Multi-Domain (Pattern-107-Konsolidierung reicht)
 - `pagespeed` Adapter Multi-Domain (BK nutzt erstmal Astro-Variant)
-- `frontmatter_extras` → `domain_extras` Rename (optional, nicht kritisch)
+- `domain_extras` → `domain_extras` Rename (optional, nicht kritisch)
 - Signal-Adapter-Defaults pro Industry-Profile (BK-Onboarding-Scope, später)
 - Theme 65 (Recurring Content System) Koordination
 
@@ -453,7 +453,7 @@ Toolwiki-Test-Fixture nutzt weiterhin die 12 64.14-Examples (Regression-Guard f�
 
 ### 3.5 Sprint 5 — Polish (Woche 4)
 
-**S5.1 `frontmatter_extras` → `domain_extras` Rename** (optional, 4-6h)
+**S5.1 `domain_extras` → `domain_extras` Rename** (optional, 4-6h)
 
 Skippbar wenn Sprint 1-4 schon viel berührt hat. Rein semantischer Win, signalisiert Layer-2-Status.
 
@@ -560,7 +560,7 @@ Genutzt von:
 | D6 | Domain-Plugin-Pattern | Repo (BK-spezifische Logik), Tool wissensfrei | Tool bleibt rein Content-Generator |
 | D7 | Boundary-Validator | Sprint 1, nicht Sprint 5 | Heute Live-Bug-Risiko |
 | D8 | Field-Authority-Marker | Phase-2 später, nicht in diesem Refactor | Whitelist reicht für jetzt |
-| D9 | `frontmatter_extras` Rename | Optional in Sprint 5 | Skippbar wenn Sprint 1-4 schon viel berührt |
+| D9 | `domain_extras` Rename | Optional in Sprint 5 | Skippbar wenn Sprint 1-4 schon viel berührt |
 | D10 | Onboarding-Workflow | `docs/onboarding/new-domain-checklist.md` als Output | 3., 4. Domain trivialisieren |
 
 ## 8. Sync-Punkte mit Branch B (Toolwiki-Astro)
@@ -600,7 +600,7 @@ Genutzt von:
 1. **Wann ist BK-Launch geplant?** Konservativ 6 Wochen ab Branch-Start angenommen. Wenn früher: Sprint 5 (Polish) komprimieren.
 2. **Spec-50 (`ExtractCollectionSchemasStep`) deprecaten?** Default: nein, bleibt als Fallback. Deprecation ist Post-BK-Aufräum-Aktion.
 3. **Werden bestehende Toolwiki-Pipelines während des Refactors live laufen?** Default: ja, Tool ist Production. Daher additive Migrationen, keine Drop-Spalten ohne Übergangsphase.
-4. **`frontmatter_extras` → `domain_extras` Rename: Sprint 5 oder Post-BK?** Default: Sprint 5 wenn Zeit, sonst Post-BK.
+4. **`domain_extras` → `domain_extras` Rename: Sprint 5 oder Post-BK?** Default: Sprint 5 wenn Zeit, sonst Post-BK.
 
 ## 11. Implemented
 

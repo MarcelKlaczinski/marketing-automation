@@ -740,7 +740,7 @@ Genutzt von:
 
 **Sprint 3 — Categories-Refactor: COMPLETE. Branch B sync-point B released.**
 
-### Sprint 4 — Toolwiki-Bias rauslösen (3 of 5 done)
+### Sprint 4 — Toolwiki-Bias rauslösen
 
 **S4.1 `tool_*` column semantic tagging** (committed 2026-05-23)
 
@@ -791,11 +791,13 @@ All 9 hardcoded sites swapped, runtime byte-equivalence verified for Toolwiki:
 
 ### Sprint 5 — Polish
 
-**S5.1 `frontmatter_extras → domain_extras` Rename** (DEFERRED with rationale)
+**S5.1 `frontmatter_extras → domain_extras` Rename** (committed 2026-05-24 — was deferred, then Marcel re-greenlit during the Branch-B-sync-update turn)
 
-- Pre-implementation grep found **163 references across 56 files** — far above the spec's "~15 sites" estimate, putting this purely-cosmetic refactor in the 1-2 day range with high blast radius.
-- Marcel's earlier sign-off ("include in Sprint 5") was made before the actual ref count was known. Re-evaluated mid-sprint: the rename is semantically nice-to-have but functionally inert. The risk-vs-value math (1-2 days of mechanical edits + retest of all 56 files vs. zero behaviour change) tipped toward defer.
-- The column stays `frontmatter_extras` in DB + `frontmatterExtras` in TS. Future spec can do the rename when it's bundled with another structural change.
+- Actual scope: **218 references across 68 files** (above the original 163/56 estimate).
+- Migration [`0100_articles_rename_frontmatter_extras.sql`](../../../packages/db/drizzle/0100_articles_rename_frontmatter_extras.sql) — atomic PostgreSQL `ALTER TABLE articles RENAME COLUMN frontmatter_extras TO domain_extras`. No data copy, no rewrites. Drizzle schema in lock-step.
+- LLM-emitted marker ALSO renamed: `<!-- FRONTMATTER_EXTRAS: ... -->` → `<!-- DOMAIN_EXTRAS: ... -->` in DraftStep prompt + parser regex + RenderMdxStep strip regex. Workers must be restarted on deploy; no in-flight state carries the OLD marker because DraftStep produces + parses in the same `execute()` call.
+- Bulk text rename: sed-driven across 66 source files (3 identifier forms simultaneously — `frontmatterExtras` / `frontmatter_extras` / `FRONTMATTER_EXTRAS`) + 10 documentation files. Applied SQL migrations 0014 and 0017 stayed untouched (root CLAUDE.md DO-NOT-modify-applied-migrations rule); future readers see those legacy names in the history but the live schema is `domain_extras`.
+- Verified: 8/8 packages typecheck clean (db, content-schema, pipelines, adapter-astro-sync, api, web, planner, social); 392/0 affected test cases pass.
 
 **S5.2 Domain-Registry mechanism** (committed 2026-05-23)
 
@@ -812,7 +814,40 @@ All 9 hardcoded sites swapped, runtime byte-equivalence verified for Toolwiki:
 - Updated root [`CLAUDE.md`](../../../CLAUDE.md) — concise Architecture-section pointer to the onboarding checklist + the three key surfaces (extras module, tenant-prompt-vars helper, classifier_examples JSONB, Domain-Registry)
 - No code change, no test change
 
-**Sprint 5 — Polish: 2 of 3 sub-tasks done. S5.1 (frontmatter_extras rename) deferred with rationale documented above.**
+**Sprint 5 — Polish: COMPLETE. 3 of 3 sub-tasks done (S5.1 rename landed 2026-05-24 after Marcel re-greenlit during the Branch-B-sync turn).**
+
+### Domain-Registry consumer wiring (follow-up — committed 2026-05-24)
+
+Per Marcel's "Alle 3 Konsumenten + Schema-Lücke schließen" + Facade-strategy choice (registry orchestrates per-tenant policy; Spec-50 JSONB stays as field-shape source of truth):
+
+- **Singleton wiring** — new [`packages/pipelines/src/_lib/domain-registry-singleton.ts`](../../../packages/pipelines/src/_lib/domain-registry-singleton.ts) with lazy `getDomainRegistry()` + Drizzle-backed `productionProjectLookup` (reads `projects.targetNiche` + `domain` + `targetLocales`). Two test seams: `resetDomainRegistryForTesting()` (clears) and `setDomainRegistryForTesting(registry)` (injects). `DOMAIN_SPECS = [toolwikiDomain]`; new tenants extend in one place. Subpath export `@marketing-auto/pipelines/domain-registry` wired in `packages/pipelines/package.json` + `paths` entries in `packages/adapters/astro-sync/tsconfig.json` + `apps/api/tsconfig.json`.
+- **Phase 2 — RenderMdxStep** — added `projectId: z.string().uuid()` to the step's `InputSchema` (threaded through the pipeline bridge). Before the existing Spec-50 field-shape validator, the step now calls `getDomainRegistry().forProject(projectId)` — when non-null, it verifies the article's `collectionType` is in `domainCtx.getAllowedCollections()`. Mismatch throws `AstroSyncValidationError` with a new failure reason `collection_not_in_registry` (typed in `errors.ts`). Null-registry path falls through to the existing Spec-50 validator — preserves byte-equivalence for any project without a registered `targetNiche`. Test coverage: 4 new cases in [`packages/adapters/astro-sync/test/render-mdx-boundary.test.ts`](../../../packages/adapters/astro-sync/test/render-mdx-boundary.test.ts) (Toolwiki passes / synthetic BK rejects unknown collection / null-registry passes / null-registry still surfaces Spec-50 enum violations).
+- **Phase 3 — DraftStep extras-validator routing** — extended `CollectionContext` with `validateExtras(raw)` and `DomainCollectionSpec` with optional `validateExtras?` callback. `toolwikiDomain.spec.ts` registers the existing `validateComparisonExtras` (winner=depends ⇒ useCaseVerdicts non-empty) + `validateKiWissenExtras` (Pattern 116 monetization rejection) as those callbacks — so the registry-routed path runs the exact cross-field rules the legacy direct-import path ran. Byte-equivalence preserved. DraftStep now calls `await getDomainRegistry().forProject(input.projectId)`; if context resolves AND has the collection, uses `collectionCtx.validateExtras()`; else falls back to the legacy `validateComparisonExtras` / `validateKiWissenExtras` direct call. Test coverage: 6 new byte-equivalence cases in [`packages/pipelines/test/_lib/domain-registry-validateExtras.test.ts`](../../../packages/pipelines/test/_lib/domain-registry-validateExtras.test.ts).
+- **Phase 4 — briefs.ts taxonomy** — new endpoint `GET /api/projects/:slug/brief-options` returns the project's dynamic taxonomy (collection allow-list + intent taxonomy from `DomainContext`). Response shape: `{ source: "registry"|"fallback", niche, collectionHints, intentTypes }`. `"cluster"` (planner pseudo-collection per Spec 62.4) is always appended to `collectionHints` since no DomainSpec registers it. `POST /api/projects/:slug/briefs` keeps its hardcoded Zod schema for back-compat (the historical Toolwiki 4-value shape), but now gates `collectionHint` + explicit `intentType` against the resolved DomainContext after Zod validation passes — 422 with structured error (`collection_not_in_registry` / `intent_not_in_registry`) when the value isn't in the project's DomainSpec allow-list. `"cluster"` always passes the gate. Test coverage: 7 new cases in [`apps/api/test/routes/brief-options.test.ts`](../../../apps/api/test/routes/brief-options.test.ts).
+- **Facade decision recap** — the registry does NOT replace the Spec-50 JSONB field-shape validator. Hand-modeling all 116 live Astro fields per tenant would be brittle and high-touch. Instead the registry adds a thin per-tenant policy layer (which collections / which intents / which extras-rules are allowed) in front of the existing JSONB-driven field-shape check. Best of both worlds: tenant-specific collection / intent gating + zero hand-modeling of base frontmatter fields.
+
+**Domain-Registry consumer wiring: COMPLETE. 3/3 consumers wired + Facade gap closed.**
+
+### Phase C — `deriveIntentFromCollection` per-tenant config (committed 2026-05-24)
+
+Originally a deferred S4.3 deviation ("scope-reduced — `deriveIntentFromCollection` uses a SEPARATE 10-value INTENT_TYPES, distinct concept, not touched"). Re-greenlit during the Branch-B-sync turn since BK onboarding will need its own mapping shortly:
+
+- New optional field `collectionToIntentMap?: Readonly<Record<string, string>>` on `DomainSpec` (in [`packages/content-schema/src/registry/domain-registry.ts`](../../../packages/content-schema/src/registry/domain-registry.ts)) + matching `getCollectionToIntentMap()` accessor on `DomainContext`.
+- Toolwiki's spec.ts registers the canonical 4-value mapping (`comparison → comparison`, `ki-wissen → knowledge`, `blog → use_case`, `cluster → use_case`) byte-equivalent to the legacy switch statement.
+- `apps/api/src/routes/projects/briefs.ts` `deriveIntentFromCollection()` now accepts an optional `registryMap` param — registry wins when populated, falls back to the inline 4-value switch otherwise (preserves zero-regression for null-registry projects + tenants that don't register a map).
+- `GET /brief-options` response widened to surface `collectionToIntentMap` (registry-supplied OR fallback) so the frontend stays a single source of truth with the backend.
+- `BriefCreatePage.vue` now consumes `taxonomy.collectionToIntentMap` in both `mounted()` (initial collection reset) and `onCollectionChange()`; `COLLECTION_TO_INTENT_FALLBACK` is the last-resort offline fallback.
+- 2 new test cases in `brief-options.test.ts` verify both `source: "registry"` and `source: "fallback"` surface the map correctly.
+
+### Post-Sprint polish (committed 2026-05-24)
+
+Two small follow-ups landed after the Domain-Registry wiring to close the last UX + regression-guard gaps:
+
+- **A — Frontend BriefCreatePage consumes `GET /brief-options`** — [`apps/web/src/pages/briefs/BriefCreatePage.vue`](../../../apps/web/src/pages/briefs/BriefCreatePage.vue) refactored: the hardcoded `COLLECTION_OPTIONS` + `INTENT_OPTIONS` arrays became `_FALLBACK` constants used only as initial state, the page now fires `apiGet<BriefOptionsResponse>('/projects/:slug/brief-options')` in `mounted()`, and computed properties prefer the registry-supplied lists when present. New `humaniseSlug()` helper renders novel BK-specific slugs ("solar-news" → "Solar news") when the i18n key is missing, and a "Taxonomie aus DomainSpec ({niche})" hint badge surfaces below the collection dropdown when the response is `source: "registry"`. New i18n keys `briefs.create.taxonomyFromRegistry` (DE+EN) + `briefs.collections.tools` + `briefs.collections.usecases` (the two Toolwiki collections that surface from the registry but weren't in the legacy 4-value list). Per the apps/web CLAUDE.md "DO NOT use TanStack Query for ephemeral search/filter" rule, the fetch uses direct `apiGet()` + `data()` storage instead of `useQuery` (one-shot fetch on mount, no cache benefit).
+- **B — Automated snapshot regression test** — new [`packages/pipelines/test/_lib/toolwiki-prompt-snapshot.test.ts`](../../../packages/pipelines/test/_lib/toolwiki-prompt-snapshot.test.ts) reads each entry in `__tests__/snapshots/baseline-toolwiki-prompts.json`, substitutes every `${tenantVars.<field>}` token with the Toolwiki value (`tenantPromptVarsForNiche("ai-tool-wiki", "toolwiki.ai")`), and asserts every `mustContainSubstrings` entry appears in the resolved source text. Generates one `it` per source so a single drift surfaces as a single failure with a per-source breadcrumb. The test surfaced two intentional drift cases that were captured pre-S4.4 and never reconciled in the baseline:
+    - `social-image-hook-templates`: source file moved from the deleted `packages/pipelines/src/article/social-image/hookPrompt.ts` (S4.4 commit `f75c31c`) to the live `packages/core/src/social-hooks/hookPrompt.ts`. Anchor substrings updated to the current `${nicheLabel}` template form. Baseline `_meta.post2026-05-24-baseline-edits` documents the move.
+    - `ki-wissen-draft-prompt`: substring updated to include the source-text-level backslash-escape for the inline backticks (`` \`ki-wissen\` ``) because S4.4 moved the prompt inside a template literal where backticks must be escaped at the source-text level.
+  10 tests pass (8 per-source + 1 metadata + 1 tenant-vars sanity check).
 
 ### Pre-Sprint-1 verification
 
@@ -882,6 +917,38 @@ All 9 hardcoded sites swapped, runtime byte-equivalence verified for Toolwiki:
 No new helper, no new module — the spec's `channel: 'sse_push'` field is implicit (severity=`critical` already fans out to BOTH SSE and Web Push via `createNotification`'s built-in dispatch).
 
 **Test-side gotcha discovered**: the existing pipeline uses `void createNotification(...)` (fire-and-forget) which races the test's SELECT. The new test polls with a 1500ms timeout. Documented inline so future test authors copy the pattern.
+
+### Domain-Registry consumer wiring — deviations
+
+**Spec sketch said**: replace `validateComparisonExtras` / `validateKiWissenExtras` direct imports in DraftStep with `registry.forProject(...).forCollection(...).validate(...)`.
+
+**Reality**: `CollectionContext.validate(frontmatter)` runs the *composed* schema (`baseFrontmatter + extras`) which is the WRONG granularity for DraftStep — the LLM emits only the extras block; the base frontmatter fields (title, description, date, heroImage, etc.) are assembled later by `PersistArticleStep`. A direct swap would have produced a base-schema rejection on every Toolwiki comparison draft. Resolution: extended `CollectionContext` with a new `validateExtras(raw)` method + `DomainCollectionSpec` with optional `validateExtras?` callback. Toolwiki registers its existing cross-field-rule validators as the callbacks; the call site is byte-equivalent to the legacy direct path.
+
+**Spec sketch said**: replace hardcoded `INTENT_TYPES` + `COLLECTION_HINTS` arrays in `apps/api/src/routes/projects/briefs.ts` manual-brief route with `registry.forProject(projectId).getIntentTaxonomy()` + `getAllowedCollections()`.
+
+**Reality**: a direct schema-rewrite would have broken Toolwiki's existing UX in two ways: (a) `"cluster"` is a planner pseudo-collection (Spec 62.4) that no DomainSpec registers — removing it from the accepted set would break the cluster-creation flow; (b) `toolwikiDomain.collections` includes `"tools"` and `"usecases"` which the historical Zod schema doesn't accept — adding them would silently change the API contract. Resolution: the POST keeps its hardcoded Zod schema for back-compat; added a new `GET /api/projects/:slug/brief-options` endpoint that returns the dynamic taxonomy for the frontend to consume; the POST handler now runs a registry-gate AFTER schema validation that 422s when the value isn't in the resolved DomainSpec's allow-list (with `"cluster"` always allowed). Two surfaces: stable POST contract + dynamic GET for tenant-aware dropdowns.
+
+**Singleton test-seam discovery**: the original `resetDomainRegistryForTesting()` helper only cleared the singleton — tests that wanted to inject a stub registry had to either tolerate a real DB lookup (fragile) or work around the singleton with `import` mocking (heavy). Added a companion `setDomainRegistryForTesting(registry)` injector. Three new test files use it to avoid DB I/O during gate tests.
+
+**Toolwiki niche string discovery**: my stub `ProjectLookup` initially returned `niche: "ai-tools"` to point at the toolwikiDomain spec — but the spec's actual niche string is `"ai-tool-wiki"`. The mismatch made `byNiche.get(...)` return undefined → registry returns null → tests asserted-throw failed silently. Caught on first run; documented inline in the stub so the next test author doesn't repeat the slip.
+
+**Drizzle import path**: `astro-sync` already imports from `@marketing-auto/pipelines/engine`; adding `@marketing-auto/pipelines/domain-registry` required (a) a new subpath export in `packages/pipelines/package.json`, (b) a `paths` entry in `packages/adapters/astro-sync/tsconfig.json` AND `apps/api/tsconfig.json` (root CLAUDE.md DO-NOT rule). Both wired in the same commit.
+
+### Branch-B sync 2026-05-24 — drift discovered + fixed
+
+After Branch B (`feature/schema-consolidation`) was merged on the Toolwiki-Astro side, Marcel forwarded a sync-update flagging 5 points of divergence between my Sprint-3/Sprint-2.4 output and Branch B's locked canonicals. Audit results:
+
+**Point 1 — Categories-Slug divergence (CRITICAL, fixed via Migration 0099)**: My S3.2 seed (migration `0095_seed_toolwiki_categories.sql`) used German-slugified blog + knowledge slug values (`guides-und-tutorials`, `vergleiche`, `grundlagen`, `technik`, etc. — preserves DE URL routing via Astro's `slugifyCategory(label)`). Branch B locked locale-neutral English slugs (`guides-tutorials`, `comparisons`, `fundamentals`, `technology`, etc.). Tool slugs (7 top + 13 sub) matched. Resolution: new migration [`0099_realign_toolwiki_slugs_branch_b.sql`](../../../packages/db/drizzle/0099_realign_toolwiki_slugs_branch_b.sql) UPDATEs the 10 affected `content_categories` rows in place (rename `slug` + update `translations.en.urlSlug` to match; `translations.de.*` stays so DE URLs continue resolving via the German urlSlug). Same TX remaps `articles.category` for any Toolwiki article still pointing at the old German slug — 82 rows updated, verified post-migration. The 2 `Vergleiche` (capitalized label-form) rows are out-of-scope per S3.5 deviation (comparison collection has no category taxonomy by design). Migration 0095 stays as-is (root CLAUDE.md DO-NOT-modify-applied-migrations); fresh DB bootstrap runs 0095 → 0099 to reach the EN end-state.
+
+**Point 2 — Tools extras missing 4 live fields (fixed inline)**: My `extras-tools.ts` (S2.4) was missing `lastReviewed`, `lastReviewedBy`, `pricingVerifiedAt`, `imagePrompt`. Phase-1 audit marked these as "0/10 schema leichen" but Branch B's pre-removal grep found active Astro renderer reads (`ToolDetail.astro`, `ToolCard.astro`, `SpecialLandingLayout.astro`, `audit-image-prompts.mjs`). Resolution: added all 4 as optional fields to `ToolsExtrasSchema`. Today's runtime is unaffected (DraftStep doesn't validate tools via the registry path yet — Phase 3 only wired comparison + ki-wissen) but the schema now matches Branch B's authoritative shape. Also widened `relatedPillars` max from 12 → 20 to accommodate the 6 new pillars Branch B added in S4.2b (`neuronale-netze`, `backpropagation`, `eu-ai-act`, `entscheidungsbaeume`, `datenschutz-bei-ki`, `chatgpt-guide`).
+
+**Point 3 — `(data as any).<field>` cast methodology**: Branch B's S1.3 re-open found that the Phase-1-audit had marked Comparison-Felder as "0-4/10 belegt, fast tot" but a `(data as any).toolSlugs` cast in `BlogPost.astro:235-314` was bypassing the frontmatter-grep. 6 comparison-posts were live in `blog/`, not `comparisons/`. For future field-extraction work I'll run an extended-grep checklist (`as any\)\.<field>`, `frontmatter\[.<field>.\]`, `extras\[.<field>.\]`) across `packages/adapters/astro-sync/src/` + `packages/pipelines/src/article/` before dropping anything. No code change today.
+
+**Point 4 — 6 new ki-wissen pillars** (`neuronale-netze`, `backpropagation`, `eu-ai-act`, `entscheidungsbaeume`, `datenschutz-bei-ki`, `chatgpt-guide`): Tool-side no migration needed because `articles.relatedPillars` is jsonb without an enum constraint (Phase-2-audit MD9 + D5). My `relatedPillars` widening from `.max(12)` → `.max(20)` in extras-tools.ts is the only schema accommodation. The pillars are forward-compat for the synthesizer prompt — when Marcel wants to bias trend-discovery toward these new pillars, the existing `loadTenantPromptVars` resolution already lets per-tenant prompt-vars reference them without code change.
+
+**Point 5 — Package API naming divergence (documented for Branch B Sync-PR)**: Branch B's planned stub `src/schema/core.ts` will re-export from `@marketing-auto/content-schema/core` expecting these names: `seoBase`, `i18nBase`, `clusterBase`, `monetizationFieldsWith`, `isoDate`, `imagePath`, `adsenseSlotsSchema`. My current exports are: `seoCore`, `i18nCore` (factory: `i18nCore<T>(locales)`), `clusterCore`, `monetizationCore` (factory: `monetizationCore(adsenseSlotsValue)`), `isoDate`, `imagePath`, `AdsenseSlotSchema` + `AdsenseSlotsValue` type. Plus my `baseFrontmatter(locales)` factory composes them; Branch B has no equivalent factory. Branch B's planned `src/schema/slug-refs.ts` will re-export `pillarSlugs`, `comparisonSlugs`, `toolSlugs`, `categorySlugs`, `checkSlug`, `checkSlugs` — I have NO equivalent (slug enforcement happens via `content_categories` lookups, not exported tuples). Resolution per Marcel's instruction: this divergence is documented HERE; Marcel adjusts the Branch B Sync-PR (either rename my exports + add `slug-refs.ts`, or rename Branch B's stub to my naming). No tool-side code change today.
+
+**Point 6 — Sprints + decisions unchanged**: Sprint 1 (Safety-Layer), Sprints 2.1-2.3, Sprint 4 (LLM-prompt-tenant-var-swap incl. 64.14 counter-examples), Mock-BK-project test fixtures, Decisions D1–D10 — all confirmed unchanged.
 
 ### Pre-Sprint-1 — branch + spec creation
 

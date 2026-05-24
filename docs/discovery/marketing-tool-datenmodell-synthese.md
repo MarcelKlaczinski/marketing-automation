@@ -11,7 +11,7 @@
 
 ## Executive Summary
 
-1. **Persistenz-Modell heute:** Promoted-Columns für Hot-Fields (Spec 54.8) + `frontmatterExtras` JSONB für Rest. Funktioniert schon halbwegs als „Layer-1-Core + Layer-2-Extras", aber die Bucket-A/B/C-Grenze ist nirgendwo strukturell gezogen — `tool_pricing`, `tool_rating`, `tool_votes`, `tool_affiliate_slug`, `tool_website` sind **Toolwiki-spezifische Promotions auf der zentralen `articles`-Tabelle** (Bucket C), nicht in einer Extension-Schicht isoliert.
+1. **Persistenz-Modell heute:** Promoted-Columns für Hot-Fields (Spec 54.8) + `domainExtras` JSONB für Rest. Funktioniert schon halbwegs als „Layer-1-Core + Layer-2-Extras", aber die Bucket-A/B/C-Grenze ist nirgendwo strukturell gezogen — `tool_pricing`, `tool_rating`, `tool_votes`, `tool_affiliate_slug`, `tool_website` sind **Toolwiki-spezifische Promotions auf der zentralen `articles`-Tabelle** (Bucket C), nicht in einer Extension-Schicht isoliert.
 2. **Top-Lock-In im Schema:** Sechs CHECK-Constraints und ein pgEnum kodieren Toolwiki-Wissen: `industryEnum`, `pipelineTemplateEnum`, `articleCollectionTypeEnum` (`blog|comparison|ki-wissen|tools|usecases`), `external_signals.source` (`producthunt|hackernews|...`), `topic_briefs.source`, `topic_briefs.cluster_action`, `topic_briefs.generation_mode`. Plus die `tool_*`-Spalten auf `articles`. Phase-1-Befund **bestätigt**: der härteste Lock-In sitzt im Schema, nicht im Body.
 3. **Top-Lock-In in den Pipelines:** Acht inline-Strings binden harten Produktnamen + Domain-Scope: `draft.ts:84` (`"You are writing the FULL DRAFT of an article for toolwiki.ai — an AI tool wiki."`), `outline.ts:58-73`, `prompts/comparison.ts:68-73`, `prompts/ki-wissen.ts:95-102`, `social-image/steps.ts:737,758-780`, `social-image/hookPrompt.ts` (alle 6 Hook-Templates). Per-Tenant-Variable-Swap fix machbar, aber heute nicht implementiert.
 4. **Schreibpfad ist last-write-wins ohne Feld-Level-Locks.** `articles.source='imported'` vs. `='generated'` discriminiert nur die _Herkunft_, nicht die _Authority pro Feld_. `RefreshPipeline` auf einen imported-Article überschreibt `bodyMd` ohne Konfliktcheck; menschliche Repo-Edits können verloren gehen, wenn der Tool-Refresh-Run nach dem Edit läuft.
@@ -22,7 +22,7 @@
 
 **Empfehlung dieser Synthese (siehe Phase 5 + 7 für Begründung + Trade-offs):**
 
-- **Persistenz:** Persist-2-Sharpened — bestehendes Promoted-Columns-Modell beibehalten, aber `tool_*`-Spalten als „Bucket-C-Toolwiki-Extension" semantisch markieren (in Astro-sync-export gefiltert auf `collection IN ('tools','comparisons')`); `frontmatterExtras` zu `domain_extras` umbenennen (rein semantisch, optional); Bucket-A/B-Felder explizit dokumentieren.
+- **Persistenz:** Persist-2-Sharpened — bestehendes Promoted-Columns-Modell beibehalten, aber `tool_*`-Spalten als „Bucket-C-Toolwiki-Extension" semantisch markieren (in Astro-sync-export gefiltert auf `collection IN ('tools','comparisons')`); `domainExtras` zu `domain_extras` umbenennen (rein semantisch, optional); Bucket-A/B-Felder explizit dokumentieren.
 - **Zod-Package:** Jetzt extrahieren als Workspace-Package `@marketing-auto/content-schema` (Phase 1 sagt „ja"; ich sage ebenso „jetzt, bevor BK live geht — sonst driftet das Schema zwischen Tool und neuem BK-Astro-Repo unkontrolliert"). Per-Domain-Registry-Pattern: Tool registriert `domainSchemaRegistry[projectId].extras = z.object({...})` beim Boot, sodass beide Pfade (LLM-Output + Astro-Import) die selbe Validierung nutzen.
 - **Categories-Refactor:** Pre-Requisite für BK. Drei Modelle ist heute Toolwiki-Realität; eine eigene `content_categories`-Tabelle mit `{slug, project_id, translations JSONB, parent_slug?, scope}` ist das missing piece für Multi-Domain. **D3-aus-Phase-1-direkt-übertragbar.**
 - **Top-Priorität-Decision-für-Marcel:** Vor BK-Aufschlag braucht es einen `validation_layer` an der Astro-Write-Grenze (heute fehlt der völlig). Bei der erstmaligen Generation eines BK-Artikels würde sonst stilles Schema-Drift-Risiko entstehen — Tool schreibt freie Felder, Astro-Build droppt sie, kein Error-Signal.
@@ -160,7 +160,7 @@ Quelle: `packages/db/src/schema/content.ts:74-291` (vollständig gelesen).
 
 #### Promoted-Columns vs. JSONB-Verteilung
 
-Spec 54.8 (und Folge-Specs) haben „heiße" Frontmatter-Felder aus `frontmatterExtras` zu typed Columns promotet:
+Spec 54.8 (und Folge-Specs) haben „heiße" Frontmatter-Felder aus `domainExtras` zu typed Columns promotet:
 
 **Universal-promoted (Bucket A+B in Phase-1-Sprache):**
 - `title`, `meta_description`, `slug` (Identity)
@@ -181,7 +181,7 @@ Spec 54.8 (und Folge-Specs) haben „heiße" Frontmatter-Felder aus `frontmatter
 - `astro_frontmatter` (`Record<string,unknown>`)
 - `astro_asset_paths` (`{heroImage?: string}`)
 - `pagespeed_*` JSONB-Spalten (scores, coreWebVitals, failedThresholds)
-- `frontmatter_extras` (`Record<string,unknown>`) — **catch-all für alle nicht-promoted Felder**
+- `domain_extras` (`Record<string,unknown>`) — **catch-all für alle nicht-promoted Felder**
 
 #### Source-Discriminator (Spec 44)
 
@@ -189,7 +189,7 @@ Spec 54.8 (und Folge-Specs) haben „heiße" Frontmatter-Felder aus `frontmatter
 
 **Heißer Befund:** `articles.source` ist heute kein „Field-Authority-Marker", nur ein Herkunfts-Tag. `RefreshPipeline` darf `source='imported'`-Rows überschreiben; es gibt **keinen Locked-Field-Marker auf Spalten-Ebene**. Phase-3 unten beschreibt die konkreten Lost-Update-Pfade.
 
-#### `frontmatter_extras` JSONB-Schema (heutige Realität)
+#### `domain_extras` JSONB-Schema (heutige Realität)
 
 Kein explizites Zod-Schema im Code für die Gesamt-Shape — typed als `Record<string,unknown>`. Pro Collection erwartete Felder (aus Astro-sync-importer `buildToolColumns` + Pipeline-Output-Code rekonstruiert):
 
@@ -249,11 +249,11 @@ Alle 4 enthalten identische Wert-Sets. Pattern-107-Regel in CLAUDE.md sagt _„e
 | Step | Datei | Erzeugte Felder | Shape-Authority |
 |---|---|---|---|
 | `OutlineStep` | `steps/outline.ts` | `outline.primaryKeyword`, `outline.cornerstoneKeyword`, `outline.heroImagePrompt`, `outline.sections[]`, `outline.wordCountEstimate` | LLM-flexibel innerhalb `ArticleOutlineSchema` |
-| `DraftStep` | `steps/draft.ts` | `bodyMd` + `FRONTMATTER_EXTRAS`-HTML-Kommentar mit: `author, category, intentType, tags, excerpt, faq, bottomLinksVariant, [collection-specific fields]` | Hard-coded Enum-Werte im Prompt, parsed/validated via collection-spezifischen Validator |
+| `DraftStep` | `steps/draft.ts` | `bodyMd` + `DOMAIN_EXTRAS`-HTML-Kommentar mit: `author, category, intentType, tags, excerpt, faq, bottomLinksVariant, [collection-specific fields]` | Hard-coded Enum-Werte im Prompt, parsed/validated via collection-spezifischen Validator |
 | `HeroImageStep` | `steps/hero-image.ts` | `hero_image_r2_key, hero_image_public_url, hero_image_alt_text` (+ optional `hero_image_original_r2_key` per Spec 64.6c) | Image-Generation-Adapter (Nano-Banana / Replicate) |
 | `AssemblyStep` | `steps/assembly.ts` | `schema_json_ld` (Article + locale-spezifische Felder) | Hard-coded JSON-LD-Struktur, locale-aware via `buildCanonicalUrl()` + `bcp47Tag()` |
 | `SelfReviewStep` | `steps/self-review.ts` | `self_review_issues[]`, `self_review_score` | LLM-Output gegen `SelfReviewIssueSchema` |
-| `PersistArticleStep` | `steps/persist-article.ts` | Final UPDATE auf `articles`-Row | `Pattern 107` + Promoted-Columns aus FRONTMATTER_EXTRAS |
+| `PersistArticleStep` | `steps/persist-article.ts` | Final UPDATE auf `articles`-Row | `Pattern 107` + Promoted-Columns aus DOMAIN_EXTRAS |
 | `schema-extension` Pipeline | `schema-extension/` | Erweitert `schema_json_ld` mit FAQPage/HowTo/Review JSON-LD post-publish | Pattern 116-Verwandtschaft — Schema-Owner |
 
 #### LLM-Prompts mit Toolwiki-Bias
@@ -406,7 +406,7 @@ Aus Zod-Agent-Report kondensiert.
 | **DB-Read → MDX-Write zu Astro-Repo** | **❌ NEIN** | **größte Lücke** — `RenderMdxStep` schreibt YAML ohne Zod-Validation |
 | Astro-Build → Repository | nein (silent drop) | Astro Zod validiert beim Build, aber Tool sieht den Fehler nicht |
 
-**Single largest gap:** Der DB-Read → MDX-Write Boundary hat keinen Validator. Heute toleriert es das System, weil die meisten Felder via Promoted-Columns Drizzle-typed sind und `frontmatterExtras` toleriert was im Repo schon stand. Bei BK-Domain mit neuen Feldern fehlt diese Sicherheit.
+**Single largest gap:** Der DB-Read → MDX-Write Boundary hat keinen Validator. Heute toleriert es das System, weil die meisten Felder via Promoted-Columns Drizzle-typed sind und `domainExtras` toleriert was im Repo schon stand. Bei BK-Domain mit neuen Feldern fehlt diese Sicherheit.
 
 ---
 
@@ -447,7 +447,7 @@ Pro Frontmatter-Feld (Toolwiki-Sicht aus Phase-1-Report + Tool-Sicht aus Phase-1
 |---|---|---|---|---|
 | `category` / `subcategory` (Promoted-Columns) | LLM (DraftStep) | manueller Edit möglich | Tool überschreibt | 🔴 **Spannungspunkt** — Phase-1 sagt 3 Modelle (Enum-blog, Enum-ki-wissen-deutsch, freier-String-tools). Tool hat heute nur `articles.category text` ohne Constraint. Refactor zur `content_categories`-Tabelle ist Pre-Req für BK. |
 | `clusterKey` / `clusterRole` / `parent_slug` / `cluster_order` | Tool (Promoted-Columns + ClusterSync) | manueller Edit möglich | Repo gewinnt nach Import (`SyncClustersFromFrontmatterStep`) | 🟡 BK braucht Cluster-Topology nicht zwingend, aber Konzept übertragbar |
-| `faq[{question,answer}]` | LLM (DraftStep) im `frontmatterExtras` | manueller Edit möglich | Tool überschreibt; Spec-64.4 retry-on-faq-loss-Pattern bei Translation | ✅ |
+| `faq[{question,answer}]` | LLM (DraftStep) im `domainExtras` | manueller Edit möglich | Tool überschreibt; Spec-64.4 retry-on-faq-loss-Pattern bei Translation | ✅ |
 | `readingTime` / `wordCount` | Tool-Computation (Promoted-Column) | nicht direkt | Tool exklusiv | ✅ |
 | `featured` (Promoted/Extras) | manueller Edit | manueller Edit | **Lost-Update-Risiko** — wenn human `featured:true` setzt, Tool-Refresh setzt es nicht zurück (weil Refresh `bodyMd`-fokussiert ist), aber Re-Generate-from-Brief würde es resetten | 🔴 typisches Lost-Update-Feld |
 | `imagePrompt` | LLM (OutlineStep) | nicht direkt | Tool exklusiv | ✅ |
@@ -461,16 +461,16 @@ Pro Frontmatter-Feld (Toolwiki-Sicht aus Phase-1-Report + Tool-Sicht aus Phase-1
 | Feld | Tool-erzeugt? | Repo-erzeugt? | Re-Generate-Authority | BK-Multi-Domain |
 |---|---|---|---|---|
 | `tool_pricing`, `tool_price_from`, `tool_rating`, `tool_votes`, `tool_affiliate_slug`, `tool_website` (Promoted-Columns) | Tool (Astro-Import + LLM-Output) | manueller Edit möglich | Repo gewinnt nach Import; Tool-Refresh überschreibt | 🔴 **Schema-Lock-In** — BK braucht eigene `product_*`-Columns (e.g. `product_einspeisung_w, product_garantie_jahre, product_zertifizierung, product_amazon_asin`). Heute auf zentraler `articles`-Tabelle = pro-Domain-Friktion. |
-| `pricing` (in `frontmatterExtras`) | LLM | im Repo | Tool überschreibt | 🟡 |
+| `pricing` (in `domainExtras`) | LLM | im Repo | Tool überschreibt | 🟡 |
 | `intentType` | Promoted-Column + LLM-Output | im Repo | Tool überschreibt | 🔴 **9 Werte-Enum hartcodiert im DraftStep-Prompt** (`overview\|pricing\|features\|use-cases\|comparison\|tutorial\|review\|ethics\|general`). BK braucht andere (`installation\|wirtschaftlichkeit\|vergleich\|troubleshooting\|garantie`). Heute keine per-Project-Konfiguration. |
-| `bottomLinksVariant` | LLM (`frontmatterExtras`) | im Repo | Tool überschreibt | 🟡 Astro-Schema-driven, also per Repo updateable; aber Werteset Tool-bias |
-| `primaryTool` | LLM (`frontmatterExtras`) | im Repo | Tool überschreibt | 🔴 — Konzept (1 primärer Bezugs-Entity) übertragbar; Wert-Namensraum Toolwiki |
+| `bottomLinksVariant` | LLM (`domainExtras`) | im Repo | Tool überschreibt | 🟡 Astro-Schema-driven, also per Repo updateable; aber Werteset Tool-bias |
+| `primaryTool` | LLM (`domainExtras`) | im Repo | Tool überschreibt | 🔴 — Konzept (1 primärer Bezugs-Entity) übertragbar; Wert-Namensraum Toolwiki |
 | `featuredToolSlugs[]` (in Tools/Usecases-Collection) | LLM + Tool-Logic | im Repo | Tool überschreibt | 🔴 — Slug-Namensraum Toolwiki; gleiche Logik in BK als `featuredProductSlugs` möglich |
 | `logoStrategy` / `logoSvg` | manueller Edit (Phase-1: 0/10 belegt) | im Repo | nicht im Tool-Owned | 🟡 — Phase-1 markiert als Schema-Leiche |
 | `applicationCategory, offerPrice, offerCurrency` (Special-Landings) | manueller Edit | im Repo per Schema.org `SoftwareApplication`-Subset | nicht im Tool-Owned | 🔴 BK braucht stattdessen Schema.org `Product` mit `brand/sku/gtin` |
 | `toolSlugs[2-4], winner, verdict, useCaseVerdicts, comparedAt, testMethodology` (Comparison) | LLM (DraftStep via `ComparisonExtrasSchema`) | im Repo | Tool überschreibt | 🟡 — Konzept Comparison generisch; Werte-Slug-Raum domain-spezifisch |
-| `next[]` (ki-wissen Learning-Graph) | LLM (`frontmatterExtras`) | im Repo | Tool überschreibt | 🟡 — Pattern als typed Slug-Reference (Phase-1-E9) noch nicht umgesetzt |
-| `relatedPillars[12-Toolwiki-Slugs]` (tools-Collection) | LLM (`frontmatterExtras` oder Astro-Schema-Enum?) | im Repo | Tool überschreibt | 🔴 **härtester Lock-In aus Phase-1** — Tool persistiert das heute nur in JSONB ohne Enum-Constraint, aber Astro-Schema im Repo validiert gegen hartcodiertes 12-Werte-Enum |
+| `next[]` (ki-wissen Learning-Graph) | LLM (`domainExtras`) | im Repo | Tool überschreibt | 🟡 — Pattern als typed Slug-Reference (Phase-1-E9) noch nicht umgesetzt |
+| `relatedPillars[12-Toolwiki-Slugs]` (tools-Collection) | LLM (`domainExtras` oder Astro-Schema-Enum?) | im Repo | Tool überschreibt | 🔴 **härtester Lock-In aus Phase-1** — Tool persistiert das heute nur in JSONB ohne Enum-Constraint, aber Astro-Schema im Repo validiert gegen hartcodiertes 12-Werte-Enum |
 | `source: 'manual\|producthunt\|futurepedia\|csv\|auto'` (Tools-Collection per Frontmatter; nicht zu verwechseln mit `articles.source`!) | LLM oder Astro-Importer | im Repo | Tool überschreibt | 🟡 — anderes Domain hat andere Source-Sets |
 
 ### Bucket-D (Hartcodiert im MDX, Pattern 116/Layout)
@@ -490,7 +490,7 @@ Aus der Matrix herauskondensiert — **die 5 wichtigsten Lost-Update-Risiken bei
 
 1. **`featured`** — manueller Repo-Edit, Tool-Re-Generate-from-Brief resettet. (Phase-1 markiert Bucket B)
 2. **`tool_pricing` / `tool_price_from` / `tool_rating` / `tool_votes`** — manueller Repo-Edit (wenn Editor Preis verifiziert), Tool-Refresh überschreibt via Astro-Import-Roundtrip oder Tool-LLM-Output. (Phase-1 Bucket C)
-3. **Custom-Fields in `frontmatterExtras`** — wenn human ein nicht-Tool-bekanntes Feld setzt (z.B. `{"meinNotiz": "verify pricing nochmal"}`), Tool-Re-Generate ersetzt den gesamten `FRONTMATTER_EXTRAS` HTML-Kommentar im Body. **Verlust.**
+3. **Custom-Fields in `domainExtras`** — wenn human ein nicht-Tool-bekanntes Feld setzt (z.B. `{"meinNotiz": "verify pricing nochmal"}`), Tool-Re-Generate ersetzt den gesamten `DOMAIN_EXTRAS` HTML-Kommentar im Body. **Verlust.**
 4. **`schemaJsonLd`** — wenn human Repo-seitig manuell Schema-Markup ergänzt, Tool-Refresh + `schema-extension` Pipeline überschreibt.
 5. **`category` / `tags`** — manueller Repo-Edit, Tool-Refresh kann via DraftStep-Output neue Tags setzen.
 
@@ -520,7 +520,7 @@ End-to-End-Trace eines typischen Pipeline-Runs „Brief approved → MDX im Astr
 5. Step 2: ResearchStep — DataForSEO SERP + Voyage embeddings
 6. Step 3: OutlineStep — LLM Claude → JSON-Outline
 7. Step 4: PersistOutlineStep — UPDATE articles.outline + outline_pipeline_run_id
-8. Step 5: DraftStep — LLM Claude (Sonnet) → bodyMd + FRONTMATTER_EXTRAS HTML-Kommentar
+8. Step 5: DraftStep — LLM Claude (Sonnet) → bodyMd + DOMAIN_EXTRAS HTML-Kommentar
 9. Step 6: ToolLinkerStep — linkifyMarkdown injects internal links to tool articles
 10. Step 7: SelfReviewStep — LLM Claude (Haiku) → JSON-Issues
 11. Step 8: AnalyzeLinksStep — LLM Haiku → link-quality assessment
@@ -541,7 +541,7 @@ End-to-End-Trace eines typischen Pipeline-Runs „Brief approved → MDX im Astr
     → Step 1: LoadArticleStep — gates status='final_review' (or 'ready_to_publish')
     → Step 2: ResolveSchemaStep — fetches src/content/config.ts from GitHub, regex-extracts field descriptors
     → Step 3: DownloadHeroStep — pulls hero from R2, generates 23 srcset variants
-    → Step 4: RenderMdxStep — buildFrontmatter() merges (extras < columns < known), yaml.stringify(), strips FRONTMATTER_EXTRAS comment from body
+    → Step 4: RenderMdxStep — buildFrontmatter() merges (extras < columns < known), yaml.stringify(), strips DOMAIN_EXTRAS comment from body
     → Step 5: CommitToGithubStep — blobs → tree → commit → ref update (GitHub Apps API)
     → Step 6: UpdateDbStatusStep — UPDATE articles.astro_synced_at, astro_commit_sha, astro_frontmatter, status='ready_to_publish'
 
@@ -562,7 +562,7 @@ End-to-End-Trace eines typischen Pipeline-Runs „Brief approved → MDX im Astr
 3. **Output geht zu `PersistBodyStep` (nicht `PersistArticleStep`)** — bodyMd + wordCount + outline werden in-place aktualisiert
 4. `articles.source` bleibt `'imported'` unverändert
 5. `last_refreshed_at` wird gesetzt
-6. `frontmatter_extras` wird **neu berechnet** aus dem neuen Draft
+6. `domain_extras` wird **neu berechnet** aus dem neuen Draft
 
 **Was passiert bei nächstem Astro-Import?**
 - Composite-Unique-Index matched `(project_id, 'imported', collection, locale, slug)` → UPDATE (kein neuer Row)
@@ -619,7 +619,7 @@ End-to-End-Trace eines typischen Pipeline-Runs „Brief approved → MDX im Astr
 | # | Risiko | Datei:Zeile | Mitigation heute |
 |---|---|---|---|
 | L1 | Human edits YAML, Tool-Sync exportiert frische YAML — **Human-YAML verloren** | `astro-sync/src/steps/render-mdx.ts:114-142` | keine außer „Marcel ist disziplinär" |
-| L2 | Refresh überschreibt `frontmatterExtras` Custom-Fields | `pipelines/src/article/steps/draft.ts:FRONTMATTER_EXTRAS-Output-Block` | keine — alles-oder-nichts UPSERT |
+| L2 | Refresh überschreibt `domainExtras` Custom-Fields | `pipelines/src/article/steps/draft.ts:DOMAIN_EXTRAS-Output-Block` | keine — alles-oder-nichts UPSERT |
 | L3 | Race-Condition Import↔Export bei kurzen Run-Windows | `astro-sync/src/import/steps/filter-changed-files.ts` | BullMQ Concurrency=1 auf Import-Queue |
 | L4 | Required Astro-Field fehlt → silent build skip | `astro-sync/src/steps/render-mdx.ts:95-105` | nur warn(); kein Throw |
 | L5 | Tool schreibt Feld, das Astro-Zod rejected → **silent drop bei Build**, kein Astro-Run-Error | `astro-sync/src/steps/render-mdx.ts:226-232` (Field-Filter) | keine; Field-Filter ist heuristisch |
@@ -704,20 +704,20 @@ Für jede Tool-Komponente, die heute implizit Toolwiki-Wissen trägt: was muss p
 
 **Beschreibung:** Wie heute, aber explizit:
 - **Bucket-A+B-Felder als Promoted-Columns** auf `articles` (universal, indizierbar)
-- **Bucket-C-Felder pro Domain in `frontmatter_extras` JSONB** (heute schon)
+- **Bucket-C-Felder pro Domain in `domain_extras` JSONB** (heute schon)
 - **Aber:** Bucket-C-Toolwiki-Promoted-Columns (`tool_pricing` etc.) entweder
   - (a) als „Toolwiki-Domain-Promotion" markieren (semantischer Tag, NULL für andere Domains) — Aufwand niedrig, dafür DB-Schema-Pollution
   - (b) zurück ins JSONB (Bucket C) — Aufwand mittel, dafür sauber
 
 **Mapping zu Phase-1-Zwei-Layer:**
 - Layer 1 = Promoted-Columns (vielleicht +5 Felder, die heute noch nicht promoted sind aber Bucket-A sind: `draft`, `excerpt`, `readingTime` …)
-- Layer 2 = `frontmatter_extras` (rename optional zu `domain_extras` für Klarheit)
+- Layer 2 = `domain_extras` (rename optional zu `domain_extras` für Klarheit)
 - Sauberer Schnitt: kein „Domain-Spalten-Lecken" auf Layer 1 nach Sharpening (b)
 
 **Migrations-Aufwand für 268 imported Articles:**
 - **Bei Variant (a) — Tag-only:** keine Migration nötig.
 - **Bei Variant (b) — Tool-Columns zurück in JSONB:** mittel — 6 Spalten zu collabsen, `articles_read.ts`-Helpers anpassen, Importer/Pipeline anpassen. ~1-2 Tage.
-- Plus: `frontmatter_extras` → `domain_extras` Spalten-Rename (rein semantisch, optional).
+- Plus: `domain_extras` → `domain_extras` Spalten-Rename (rein semantisch, optional).
 
 **Query-Performance:**
 - ✅ Hot-Path-Queries auf Promoted-Columns bleiben billig
@@ -735,7 +735,7 @@ Für jede Tool-Komponente, die heute implizit Toolwiki-Wissen trägt: was muss p
 
 **Verdikt:** **EMPFOHLEN** — Status quo + 2 Sharpening-Schritte:
 1. `tool_*`-Promoted-Columns als Bucket-C-Toolwiki-Promotion semantisch markieren (Variant a) oder zurück ins JSONB schieben (Variant b — sauberer, aber 1-2 Tage Migration). Variant (a) ist der pragmatische Quick-Win.
-2. `frontmatter_extras` → `domain_extras` umbenennen (rein semantisch, optional; signalisiert in der Codebase, dass das die domain-spezifische Schicht ist).
+2. `domain_extras` → `domain_extras` umbenennen (rein semantisch, optional; signalisiert in der Codebase, dass das die domain-spezifische Schicht ist).
 
 ### Option Persist-3: Tabelle pro Domain
 
@@ -883,7 +883,7 @@ Heute extrahiert Spec 50 das Astro-Schema per Regex und persistiert es als JSONB
 | **D6** | **Domain-Plugin-Pattern: BK-spezifische Logik (z.B. Tarif-Calculator-Embed) — Tool oder Repo?** | **Repo** (analog zu Toolwiki HubCarousel). Tool wissensfrei. | Wenn Tool: jede neue Domain-Feature braucht Tool-Code-Change. Wenn Repo: Tool bleibt rein Content-Generator. |
 | **D7** | **Boundary-Validator beim Astro-Write (L5-Lost-Update)** | **Implementieren** in Phase 2.1 des Zod-Package-Rollouts. | Heute silent fail bei Schema-Drift. Implementieren bevor BK live geht. |
 | **D8** | **Field-Level-Ownership-Marker (Lost-Update L1+L8)** | **Phase-2 (später) — nicht jetzt.** | Pattern wäre `articles.field_authority JSONB` (`{"tool_pricing": "tool", "featured": "human"}`). Komplexes Feature; heute Marcel disziplinär ausreichend. |
-| **D9** | **Migrations-Reihenfolge** | (1) Zod-Package + Pattern-107-Konsolidierung; (2) `tool_*`-Tag; (3) `frontmatter_extras` → `domain_extras` Rename; (4) Categories-Tabelle; (5) Boundary-Validator. | Reihenfolge minimiert Dependencies. Categories-Tabelle ist die heißeste, kann aber erst nach Zod-Package starten. |
+| **D9** | **Migrations-Reihenfolge** | (1) Zod-Package + Pattern-107-Konsolidierung; (2) `tool_*`-Tag; (3) `domain_extras` → `domain_extras` Rename; (4) Categories-Tabelle; (5) Boundary-Validator. | Reihenfolge minimiert Dependencies. Categories-Tabelle ist die heißeste, kann aber erst nach Zod-Package starten. |
 | **D10** | **Onboarding-Pfad für 3., 4. Domain — wie aussehen?** | Wenn das Datenmodell richtig sitzt: (a) Project-Create in Tool; (b) Astro-Repo cloning + `config.ts` mit Zod-Package-Imports; (c) Domain-Extras-Schema in `packages/content-schema/domains/<name>/` anlegen; (d) Project-Configuration JSONB konfigurieren (signal-sources, intent-taxonomy, etc.). | Idealer Workflow: ~1-2 Stunden „from project-create to first generated article". |
 
 ### Risiken (zusammengefasst)

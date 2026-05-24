@@ -18,7 +18,7 @@ Shared Zod schemas for Astro content collections — the single source of truth 
 | `@marketing-auto/content-schema/core` | `baseFrontmatter`, `seoCore`, `i18nCore`, `clusterCore`, `monetizationCore`, `isoDate`, `imagePath`, `FaqItemSchema`, types |
 | `@marketing-auto/content-schema/enums` | Re-export of routing + collection enums (same as root) |
 | `@marketing-auto/content-schema/domains/toolwiki` | `BlogExtrasSchema`, `ComparisonExtrasSchema`, `KiWissenExtrasSchema`, `ToolsExtrasSchema`, `UsecasesExtrasSchema`, all their `validate*Extras` helpers, the `toolwikiDomain` DomainSpec, `TOOLWIKI_BLOG_INTENT_TYPES` |
-| `@marketing-auto/content-schema/registry` | `DomainSchemaRegistry`, `DomainContext`, `CollectionContext`, `DomainSpec`, `createDbBackedRegistry`, `forNicheStatic` |
+| `@marketing-auto/content-schema/registry` | `DomainSchemaRegistry`, `DomainContext` (`getAllowedCollections`, `getIntentTaxonomy`, `getCollectionToIntentMap`), `CollectionContext` (with `validate` for full base+extras OR `validateExtras` for extras-only LLM output), `DomainSpec` (with optional `validateExtras?` callback for cross-field rules like Toolwiki's `winner=depends`, AND optional `collectionToIntentMap?` for per-tenant manual-brief auto-derive), `createDbBackedRegistry`, `forNicheStatic` |
 | `@marketing-auto/content-schema/validators` | `CategoryLookup`, `CategoryValidator`, `createCategoryValidator`, `createInMemoryCategoryLookup` |
 
 ## Consumers (as of Sprint 5 ship)
@@ -48,7 +48,7 @@ For internal consumers migrating from the legacy in-tree shapes:
 
 ## Status
 
-Sprint multi-domain-evolution complete (S2 + S5.2 + S5.3). Production wiring of the Domain-Registry into RenderMdxStep / DraftStep / manual-brief route is **deferred** — the registry contract is shipped; rewiring consumers is incremental polish that can happen without a spec.
+Sprint multi-domain-evolution complete (S2 + S5.2 + S5.3 + Domain-Registry consumer wiring follow-up). The production registry singleton lives at [`packages/pipelines/src/_lib/domain-registry-singleton.ts`](../pipelines/src/_lib/domain-registry-singleton.ts) and all 3 consumers route through it: RenderMdxStep (allowed-collections gate), DraftStep (`validateExtras` for comparison + ki-wissen), and `apps/api/src/routes/projects/briefs.ts` (gate + `GET /brief-options` dynamic taxonomy endpoint). New tenants extend `DOMAIN_SPECS` in the singleton; null-registry paths fall through to legacy validators for back-compat.
 
 ## Testing
 

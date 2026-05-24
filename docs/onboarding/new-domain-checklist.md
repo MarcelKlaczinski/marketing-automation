@@ -16,6 +16,7 @@ SQL or test command so you know it actually landed.
 - [ ] Working on a fresh feature branch (`feature/onboard-<domain-slug>`).
 - [ ] `bun install` clean. `bun --filter '*' typecheck` returns **0 errors** across all packages.
 - [ ] `bun --filter @marketing-auto/content-schema test` is **green** — this is the package the new domain registers into.
+- [ ] **External SoT check** — if the tenant has an existing Astro repo with its own `src/content/categories/` definitions, READ those files first and use the locked values verbatim in Step 4. Inventing slug values from a local URL_SLUG_MAP snapshot will produce SEO-incompatible URLs and require a re-align migration later (Spec multi-domain-evolution Branch-B-sync 2026-05-24 documents the cost). Same applies to per-collection extras schemas — pre-removal grep `(data as any).<field>` / `frontmatter["<field>"]` / `extras["<field>"]` patterns in the tenant's Astro renderer before omitting a field from `extras-<collection>.ts` (4 Toolwiki tools-extras fields were nearly dropped because they only surfaced via `(data as any).field` casts).
 
 ---
 
@@ -53,9 +54,20 @@ export const bkDomain: DomainSpec = {
   locales: ["de"] as const,        // or ["de","en"] for bilingual
   collections: [
     { name: "blog", extrasSchema: BkBlogExtrasSchema },
-    // ...
+    // Register `validateExtras` ONLY when the collection has cross-field
+    // rules that aren't expressible in pure Zod (e.g. Toolwiki's comparison
+    // "winner=depends ⇒ useCaseVerdicts non-empty" or the ki-wissen
+    // monetization rejection). Without the callback, CollectionContext
+    // falls back to a plain extrasSchema.safeParse — that's correct for
+    // collections whose extras are pure Zod-validated shapes.
+    // { name: "products", extrasSchema: BkProductsExtrasSchema, validateExtras: validateBkProductsExtras },
   ],
   intentTaxonomy: BK_BLOG_INTENT_TYPES,
+  // OPTIONAL — per-tenant `collection_hint → default intent_type` map for the
+  // manual-brief route's auto-derive UX. When absent, the route falls back to
+  // its own hardcoded 4-value switch. Include planner pseudo-collections like
+  // "cluster" alongside real collection names; values must be in intentTaxonomy.
+  // collectionToIntentMap: { blog: "use_case", products: "review", news: "news", cluster: "use_case" },
 };
 ```
 
@@ -69,11 +81,11 @@ bun --filter @marketing-auto/content-schema typecheck
 
 ## Step 2 — Register the DomainSpec with the runtime
 
-Two paths depending on where the boot-time registry construction lives in your environment. Today the production wiring is **deferred** (Sprint 5 ship); the registry contract is in place but not yet routed by RenderMdxStep / DraftStep / brief-route consumers.
+The production registry singleton lives at [`packages/pipelines/src/_lib/domain-registry-singleton.ts`](../../packages/pipelines/src/_lib/domain-registry-singleton.ts). Consumers (RenderMdxStep boundary, DraftStep validators, manual-brief route) all import `getDomainRegistry()` from `@marketing-auto/pipelines/domain-registry` — wired since the Domain-Registry consumer wiring follow-up.
 
-When wiring is live:
-- [ ] Add `<niche>Domain` to the array passed to `createDbBackedRegistry(...)` in the worker bootstrap.
-- [ ] Or for an isolated test: `forNicheStatic([myDomain], "<niche>", "<domain>")` returns a `DomainContext` you can validate against directly.
+- [ ] Add `<niche>Domain` to the `DOMAIN_SPECS` array in [`domain-registry-singleton.ts`](../../packages/pipelines/src/_lib/domain-registry-singleton.ts).
+- [ ] For an isolated test: `forNicheStatic([myDomain], "<niche>", "<domain>")` returns a `DomainContext` you can validate against directly without DB / singleton.
+- [ ] For an integration test that needs the singleton: import `setDomainRegistryForTesting(registry)` + `resetDomainRegistryForTesting()` from `@marketing-auto/pipelines/domain-registry` — `setDomainRegistryForTesting` injects a fake, `resetDomainRegistryForTesting` clears it in `afterEach`.
 
 **Verify:**
 ```typescript
@@ -258,7 +270,7 @@ bun --filter @marketing-auto/api trends:synthesize <slug>
 ## Known limitations (post-Sprint-5)
 
 - **Production wiring of the Domain-Registry into RenderMdxStep / DraftStep / brief-route is deferred.** The registry contract is in place (Sprint 5 S5.2 ships the types + builders + Toolwiki spec), but the boundary validator at the Astro-write seam still reads from the Spec-50 JSONB (`projects.astroCollectionSchemas`). For new tenants this means: the Spec-50 path must be configured even though the Domain-Registry could replace it. Follow-up specs will route through the registry primarily and keep Spec-50 only for boot-time bootstrap.
-- **`frontmatter_extras` column was NOT renamed to `domain_extras` in Sprint 5** (originally planned; 163 ref sites + cosmetic-only made it not worth the risk). The column keeps its name.
+- **`domain_extras` column was NOT renamed to `domain_extras` in Sprint 5** (originally planned; 163 ref sites + cosmetic-only made it not worth the risk). The column keeps its name.
 - **Cold-start prompts still have hardcoded "AI" wording in places** that aren't keyed by `projects.targetNiche`. A new tenant with a non-AI niche may see "AI tools" leak into a generated outline if it predates the cold-start prompt rewrite (post-Sprint-5 follow-up).
 
 ## See also

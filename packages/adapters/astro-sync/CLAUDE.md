@@ -58,11 +58,11 @@ On every Astro import run, `ExtractCollectionSchemasStep` (first step in `AstroI
 - `enumValues?: string[]` — extracted from `z.enum([...])`
 - `objectShape?: string` — inner field names for `object_array` (e.g. `"{ question, answer }"`)
 
-**FRONTMATTER_EXTRAS protocol**: `DraftStep` instructs the LLM to output a structured HTML comment at the very end of the draft body:
+**DOMAIN_EXTRAS protocol**: `DraftStep` instructs the LLM to output a structured HTML comment at the very end of the draft body:
 ```
-<!-- FRONTMATTER_EXTRAS: {"category":"Guides & Tutorials","tags":["ki","chatbot"]} -->
+<!-- DOMAIN_EXTRAS: {"category":"Guides & Tutorials","tags":["ki","chatbot"]} -->
 ```
-The step parses this with a regex, strips it from `bodyMd`, and saves to `articles.frontmatterExtras`. `buildFrontmatter()` in `apps/api/src/routes/articles.ts` merges these extras (highest priority) with schema defaults and static columns.
+The step parses this with a regex, strips it from `bodyMd`, and saves to `articles.domainExtras`. `buildFrontmatter()` in `apps/api/src/routes/articles.ts` merges these extras (highest priority) with schema defaults and static columns.
 
 **Type-cast pattern for adapter vs DB types**: `ExtractCollectionSchemasStep` returns a value typed as `FrontmatterField[]` (adapter-local) but must persist as `AstroCollectionSchemas` (DB type). Use `as unknown as import("@marketing-auto/db").AstroCollectionSchemas` with a justification comment explaining the structural identity.
 

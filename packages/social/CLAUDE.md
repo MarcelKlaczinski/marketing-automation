@@ -61,11 +61,11 @@ The `resolveBrandTokens(unknown) → BrandTokens` helper is at `src/lib/brand-to
 
 | Key | Slides | Cover Signature | Eligible content |
 |-----|--------|-----------------|-----------------|
-| `comparison-grid-4` | **1 (single still)** | 4-up tool grid, top-right glow, 84px score | comparison articles, **exactly 4 tools**, `frontmatterExtras.tools[].score` required |
-| `comparison-grid-3` | **1 (single still)** | 3-up auto-height card stack, bottom-left glow, 56px score, 2×2 pro/con bullets | comparison articles, **exactly 3 tools** (sliced in `buildInput`), `frontmatterExtras.tools` required |
-| `verdict-per-use-case` | **1 (single still)** | 5–7 flat use-case rows, **top-left glow, accent-500** (only template), winner pill | comparison articles, ≥3 tools + ≥5 `frontmatterExtras.useCaseVerdicts` |
+| `comparison-grid-4` | **1 (single still)** | 4-up tool grid, top-right glow, 84px score | comparison articles, **exactly 4 tools**, `domainExtras.tools[].score` required |
+| `comparison-grid-3` | **1 (single still)** | 3-up auto-height card stack, bottom-left glow, 56px score, 2×2 pro/con bullets | comparison articles, **exactly 3 tools** (sliced in `buildInput`), `domainExtras.tools` required |
+| `verdict-per-use-case` | **1 (single still)** | 5–7 flat use-case rows, **top-left glow, accent-500** (only template), winner pill | comparison articles, ≥3 tools + ≥5 `domainExtras.useCaseVerdicts` |
 | `single-tool-spotlight` | 3 (cover/body/end) | hero cover + tool deep-dive body | tools collection, has pros/features |
-| `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `frontmatterExtras.pros ≥ 3 AND cons ≥ 3` |
+| `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `domainExtras.pros ≥ 3 AND cons ≥ 3` |
 
 **`pro-con-verdict` cover:** Two halves divided by a diagonal SVG clipPath — left half tinted with `prosColor` (default oklch green), right half with `consColor` (default oklch red). Tool name overlays the split at the bottom. This is the only template with a split-screen cover and is visually distinct from all others in the Instagram grid.
 
@@ -208,7 +208,7 @@ Templates live in `src/templates/`. Each template is a plain TypeScript object (
 
 Render output path: `/renders/<articleId>/<templateKey>/<locale>-<theme>/slide-NN.png` (written by `writeSlides` helper in `src/templates/lib/writeSlides.ts`).
 
-**`buildToolLookup` auto-resolves missing icons (Spec 63.X)** — when a slug exists as a `collection='tools'` article but has neither inline `frontmatterExtras.iconSvg/iconInitials` nor a cached `project_brand_assets` row, `buildToolLookup` now calls `resolveToolIcon(projectId, slug)` from `@marketing-auto/pipelines/icon-resolver` (subpath export) to walk the simple-icons → iconify → lobe-icons → deterministic-avatar chain. The resolved icon is written back to `project_brand_assets` so the next render hits the cache. Before this fix, missing icons fell straight through to `KNOWN_TOOL_ICONS` (initials+hue only, no brand logo) — `gemini` for instance had a perfectly good simple-icons entry but never got resolved because no upstream pipeline triggered the chain for that slug. The lazy dynamic import (`await import("@marketing-auto/pipelines/icon-resolver")`) keeps the heavy pipelines bundle off the test-time path and matches the existing `@marketing-auto/db` import pattern in the same file. Failures inside the Promise.all are swallowed per-slug; the slide falls through to `KNOWN_TOOL_ICONS` as before. Note the dep direction: `social → pipelines` (peerDep) is acyclic because pipelines does NOT import from social.
+**`buildToolLookup` auto-resolves missing icons (Spec 63.X)** — when a slug exists as a `collection='tools'` article but has neither inline `domainExtras.iconSvg/iconInitials` nor a cached `project_brand_assets` row, `buildToolLookup` now calls `resolveToolIcon(projectId, slug)` from `@marketing-auto/pipelines/icon-resolver` (subpath export) to walk the simple-icons → iconify → lobe-icons → deterministic-avatar chain. The resolved icon is written back to `project_brand_assets` so the next render hits the cache. Before this fix, missing icons fell straight through to `KNOWN_TOOL_ICONS` (initials+hue only, no brand logo) — `gemini` for instance had a perfectly good simple-icons entry but never got resolved because no upstream pipeline triggered the chain for that slug. The lazy dynamic import (`await import("@marketing-auto/pipelines/icon-resolver")`) keeps the heavy pipelines bundle off the test-time path and matches the existing `@marketing-auto/db` import pattern in the same file. Failures inside the Promise.all are swallowed per-slug; the slide falls through to `KNOWN_TOOL_ICONS` as before. Note the dep direction: `social → pipelines` (peerDep) is acyclic because pipelines does NOT import from social.
 
 ## ToolIconImage (Spec 52a)
 

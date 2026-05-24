@@ -32,8 +32,8 @@ How to build a new Remotion carousel template in this package. Written after bui
 ## 2. Tool logo & icon handling
 
 Resolution chain (highest priority first):
-1. `articles.frontmatterExtras.iconSvg/iconInitials/iconHue` — set during Astro import or DraftStep
-2. `project_brand_assets` DB table — populated by `resolveToolIcon()` pipeline (lobe-icons / simple-icons cached here); queried by `buildToolLookup()` for tools that had no icon in frontmatterExtras
+1. `articles.domainExtras.iconSvg/iconInitials/iconHue` — set during Astro import or DraftStep
+2. `project_brand_assets` DB table — populated by `resolveToolIcon()` pipeline (lobe-icons / simple-icons cached here); queried by `buildToolLookup()` for tools that had no icon in domainExtras
 3. `KNOWN_TOOL_ICONS` dictionary in `src/templates/adapters/toolLookup.ts` — hardcoded geometric SVG fallbacks for common tools (Cursor, Windsurf, Codeium, Gamma, etc.)
 4. Deterministic colored initials avatar — `ToolIconImage` always renders something
 

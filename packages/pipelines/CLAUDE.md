@@ -270,9 +270,9 @@ fields with their types, allowed values, and format hints. This block is project
    `InputSchema` as `z.array(z.unknown()).nullable().optional()`, cast to
    `FrontmatterFieldDescriptor[]` when passing to `buildSystemPrompt()`.
 3. `DraftStep` additionally instructs the LLM to output a
-   `<!-- FRONTMATTER_EXTRAS: {...JSON...} -->` block at end of body; it parses
-   this, strips it from `bodyMd`, and saves to `articles.frontmatterExtras`.
-4. **Tool spotlight fields (Spec 54l):** When `intentType` is `overview`, `features`, `review`, `pricing`, or `use-cases` AND `primaryTool` is set, `DraftStep` also emits `pros`, `cons`, `features`, `useCases`, `pricingTier`, `priceFrom`, `rating` in `FRONTMATTER_EXTRAS`. These fields are required for `single-tool-spotlight` eligibility. Articles with `intentType: "general"` or `"tutorial"` do not get these fields — by design.
+   `<!-- DOMAIN_EXTRAS: {...JSON...} -->` block at end of body; it parses
+   this, strips it from `bodyMd`, and saves to `articles.domainExtras`.
+4. **Tool spotlight fields (Spec 54l):** When `intentType` is `overview`, `features`, `review`, `pricing`, or `use-cases` AND `primaryTool` is set, `DraftStep` also emits `pros`, `cons`, `features`, `useCases`, `pricingTier`, `priceFrom`, `rating` in `DOMAIN_EXTRAS`. These fields are required for `single-tool-spotlight` eligibility. Articles with `intentType: "general"` or `"tutorial"` do not get these fields — by design.
 
 ### Tagged-block output pattern (multi-field LLM responses)
 
@@ -314,9 +314,9 @@ const promptFn = selectDraftPrompt(collectionType);
 // null = use the blog default literal inside DraftStep
 ```
 
-Builder files (`comparison.ts`, `ki-wissen.ts`) export `buildXxxDraftPrompt({authorInstruction, today, locale})` and nothing selector-related. Each builder owns its `LOCALE_LABELS` typed map (DE/EN section names) and emits a single-shot prompt that REPLACES the default — body structure + FRONTMATTER_EXTRAS block in one LLM call (Pattern 110).
+Builder files (`comparison.ts`, `ki-wissen.ts`) export `buildXxxDraftPrompt({authorInstruction, today, locale})` and nothing selector-related. Each builder owns its `LOCALE_LABELS` typed map (DE/EN section names) and emits a single-shot prompt that REPLACES the default — body structure + DOMAIN_EXTRAS block in one LLM call (Pattern 110).
 
-Collection-specific validation lives in `src/article/frontmatter/<collection>.ts` as `validateXxxExtras(raw): {ok,data}|{ok,error}`. Called inside `DraftStep` after the FRONTMATTER_EXTRAS JSON parse; throws `ArticlePipelineError(stage="draft")` on failure (Pattern 111). Cross-collection fields like `faq` are NOT inside the collection schema — validate them separately in `DraftStep` (e.g. ki-wissen requires `faq.length ≥ 7`, blog/comparison ≥ 5).
+Collection-specific validation lives in `src/article/frontmatter/<collection>.ts` as `validateXxxExtras(raw): {ok,data}|{ok,error}`. Called inside `DraftStep` after the DOMAIN_EXTRAS JSON parse; throws `ArticlePipelineError(stage="draft")` on failure (Pattern 111). Cross-collection fields like `faq` are NOT inside the collection schema — validate them separately in `DraftStep` (e.g. ki-wissen requires `faq.length ≥ 7`, blog/comparison ≥ 5).
 
 Adding a new collection variant:
 1. Add the enum value to `ARTICLE_COLLECTION_TYPES` in `packages/shared/src/types/article-collection.ts`
@@ -327,6 +327,25 @@ Adding a new collection variant:
 6. Add a `if (collectionType === "<name>") { validate + faq check + word-count warn }` block in `DraftStep`
 
 No changes to pipeline shape, bridge, or step list are needed — the same `BlogPipeline` handles all variants.
+
+### Domain-Registry routing (Spec multi-domain-evolution)
+
+`DraftStep` resolves a `DomainContext` for the current project via `getDomainRegistry().forProject(input.projectId)` BEFORE the comparison + ki-wissen validators run. The flow:
+
+```typescript
+const domainCtx = await getDomainRegistry().forProject(input.projectId);
+// per-collection branch:
+const collectionCtx = domainCtx?.forCollection("comparison") ?? null;
+const validation = collectionCtx
+  ? collectionCtx.validateExtras(domainExtras)  // registry path
+  : validateComparisonExtras(domainExtras);     // legacy fallback
+```
+
+**Use `validateExtras()`, not `validate()`** — `CollectionContext.validate(frontmatter)` runs the COMPOSED schema (`baseFrontmatter + extras`), which would reject every LLM-emitted DOMAIN_EXTRAS block because the LLM doesn't produce `title`/`date`/`heroImage`/etc. (those are assembled later by `PersistArticleStep`). `validateExtras(raw)` runs ONLY the Bucket-C extras schema, plus any cross-field rule registered via `DomainCollectionSpec.validateExtras?` callback. Toolwiki's `spec.ts` registers the existing `validateComparisonExtras` + `validateKiWissenExtras` as those callbacks, so the registry path is byte-equivalent to the legacy direct import.
+
+Null-registry path falls through to the legacy direct-import validators. Preserves zero-regression for any project whose `targetNiche` is missing OR whose DomainSpec isn't shipped yet.
+
+The same singleton (`@marketing-auto/pipelines/domain-registry`) is consumed by `RenderMdxStep` (allowed-collections gate) in `astro-sync` and `briefs.ts` (gate + `GET /brief-options` dynamic taxonomy) in `apps/api`. The optional `DomainSpec.collectionToIntentMap` (Phase-C) feeds the brief route's `deriveIntentFromCollection` auto-derive — Toolwiki registers `{comparison→comparison, ki-wissen→knowledge, blog→use_case, cluster→use_case}` matching the legacy hardcoded switch byte-for-byte; new tenants override or omit (in which case the inline switch fallback fires). Adding a new tenant = one entry in `DOMAIN_SPECS` at `packages/pipelines/src/_lib/domain-registry-singleton.ts`; everything else flows automatically.
 
 ## Refresh + Translation Pipelines (Spec 54.10 + 59.2)
 
@@ -357,7 +376,7 @@ Auto-triggered from `BlogPipeline.afterComplete` when `project.targetLocales` in
 
 **`TranslationSetupStep` must carry all source fields the target article reuses:** hero image R2 key/URL/alt + `schemaJsonLd`. These are not re-generated; the bridge copies them into `persist-article` input. If omitted, target articles get empty hero and `schemaJsonLd: [{}]`.
 
-**`TranslationBodyStep` outputs `targetTitle`, `targetMetaDescription`, `targetTags`** in addition to the body. Both literal and adaptive paths request `<TITLE>`, `<META_DESCRIPTION>`, and `<TAGS>` blocks at the end of the LLM response. The bridge derives `targetSlug = slugify(targetTitle)` and writes it to both the DB `articles.slug` column and `frontmatterExtras.slug`.
+**`TranslationBodyStep` outputs `targetTitle`, `targetMetaDescription`, `targetTags`** in addition to the body. Both literal and adaptive paths request `<TITLE>`, `<META_DESCRIPTION>`, and `<TAGS>` blocks at the end of the LLM response. The bridge derives `targetSlug = slugify(targetTitle)` and writes it to both the DB `articles.slug` column and `domainExtras.slug`.
 
 **`LANG_INDEPENDENT_EXTRAS` must NOT include `"category"` or `"subcategory"`** — those are human-readable strings that may be locale-specific (e.g. "Praxis & Use Cases" in DE). Target locale categories should be generated by the LLM or left blank. Only copy truly locale-neutral values: enum-style fields (`intentType`, `bottomLinksVariant`, etc.) and numeric/boolean fields (`pricingTier`, `rating`, `priceFrom`, `pros`, `cons`, `features`, `useCases`, `toolSlugs`, etc.).
 
@@ -427,7 +446,7 @@ Never gate with an `if` at the top of `execute()` — use `shouldRun()` so the e
 
 ## Editorial-field preservation in PersistArticleStep (Spec multi-domain-evolution S1.1)
 
-`PersistArticleStep` SELECTs the current `frontmatter_extras` alongside `bodyMd` inside its transaction, then applies `mergePreservedExtras()` from [`src/article/refresh/preserved-fields.ts`](src/article/refresh/preserved-fields.ts) before the UPDATE. Whitelisted keys (`featured`, `pricingVerifiedAt`) survive from the current row even when the bridge supplies a fresh extras blob from the LLM. Non-whitelist keys still flow from incoming (LLM/bridge wins).
+`PersistArticleStep` SELECTs the current `domain_extras` alongside `bodyMd` inside its transaction, then applies `mergePreservedExtras()` from [`src/article/refresh/preserved-fields.ts`](src/article/refresh/preserved-fields.ts) before the UPDATE. Whitelisted keys (`featured`, `pricingVerifiedAt`) survive from the current row even when the bridge supplies a fresh extras blob from the LLM. Non-whitelist keys still flow from incoming (LLM/bridge wins).
 
 **Rule for future "preserve editorial fields" needs**: extend `REFRESH_PRESERVED_EXTRAS_KEYS` (JSONB-resident) or `REFRESH_PRESERVED_COLUMNS` (defensive — promoted-column guard) in the same module. The merge is pure + unit-tested; no changes needed in `PersistArticleStep` for additions. Sprint 3+ will generalize this to a per-domain config; until then keep the whitelist surface narrow and well-documented in the module JSDoc.
 
@@ -702,9 +721,9 @@ If `registerQueuePauser` is never called (e.g., a process that imports `assertCo
 - DO NOT cap `social_post` items via the Spec 64.2 Overage `remainingCapByCT` map alone — `SelectSocialPostItemsStep` runs AFTER `SelectOverageItemsStep` and builds its own `target` from the social goal, mixing 3 sources (refresh / pool / today-plans). The 64.2 Overage cap will cap overage-derived social_posts (ProductHunt / Reddit → `inferContentTypeFromSignal` → `"social_post"`) against the Floor count, but `SelectSocialPostItemsStep`'s own pool isn't constrained by the same map. If Marcel sets `social_post: max=N` and expects a total cap across both selectors, a follow-up spec is needed to thread `weeklyMaxFromGoal(socialGoal)` through `SelectSocialPostItemsStep` too. Documented limitation in Spec 64.2 §12.
 - DO NOT hardcode language-specific section names ("Auf einen Blick", "Pricing-Stand:", "Mythos vs. Realität", etc.) inside a collection-specific draft prompt — every prompt that emits a locale-dependent body must accept `locale: "de" | "en"` and look up section labels from a typed `LOCALE_LABELS` map local to that builder file. The instruction text stays in English; only output examples and section headings switch by locale (per root CLAUDE.md's English-prompt rule, "few-shot examples that demonstrate target-language output format may stay in target language"). See `packages/pipelines/src/article/prompts/comparison.ts` and `prompts/ki-wissen.ts` `LOCALE_LABELS` for the canonical pattern.
 - DO NOT branch on `collectionType` inside `DraftStep.execute()` to choose a prompt — Pattern 109 lives in `src/article/prompts/index.ts` as `selectDraftPrompt(collectionType)`. Builder files (`comparison.ts`, `ki-wissen.ts`) must NOT import `ArticleCollectionType` or define their own selector — they export `buildXxxDraftPrompt()` only. The selector returns `null` for the blog default, and DraftStep falls back to its module-local literal. New collection = one builder file + one case in the switch.
-- DO NOT pull the FAQ-count constraint into a collection-specific `<X>ExtrasSchema` — `faq` is a shared FRONTMATTER_EXTRAS field (blog/comparison/ki-wissen all emit it). Validate the minimum count inside `DraftStep` immediately after the schema parse, using `Array.isArray(faqRaw) ? faqRaw.length : 0` and throwing `ArticlePipelineError(stage="draft")` on shortfall. ki-wissen requires ≥ 7; blog/comparison ≥ 5. See `DraftStep` ki-wissen branch for the canonical placement.
+- DO NOT pull the FAQ-count constraint into a collection-specific `<X>ExtrasSchema` — `faq` is a shared DOMAIN_EXTRAS field (blog/comparison/ki-wissen all emit it). Validate the minimum count inside `DraftStep` immediately after the schema parse, using `Array.isArray(faqRaw) ? faqRaw.length : 0` and throwing `ArticlePipelineError(stage="draft")` on shortfall. ki-wissen requires ≥ 7; blog/comparison ≥ 5. See `DraftStep` ki-wissen branch for the canonical placement.
 - DO NOT assume `mockImplementationOnce` exhaustion is safe when a step makes multiple `anthropic.messages()` calls — once `mockImplementationOnce` runs out, subsequent calls fall through to the base `mockReturnValue`. If the base mock returns a different JSON shape than the call site expects, the downstream validator crashes at runtime (`TypeError: undefined is not an object evaluating 'hook.highlightWord.trim'`). Fix: add field-presence guards before passing parsed JSON to any validator. Pattern: `if (typeof candidate.leadPhrase === "string" && typeof candidate.highlightWord === "string") { hookPartial = candidate; }`. Caught in Spec 57.1: `ExtractToolsStep` makes 3 LLM calls (extraction + hook + enrich); tests that only mocked the first two caused the hook parser to receive tools-extraction JSON from the base mock.
-- DO NOT assume author expertise embeddings are pre-populated — they are lazily computed on first `AuthorPickStep` run and cached in `articles.frontmatterExtras.expertiseEmbedding`. The first article generated for a new cluster/author combination pays the Voyage embedding cost (~€0.0001); subsequent calls hit the JSONB cache. If you wipe `frontmatterExtras`, re-importing the authors resets the cache.
+- DO NOT assume author expertise embeddings are pre-populated — they are lazily computed on first `AuthorPickStep` run and cached in `articles.domainExtras.expertiseEmbedding`. The first article generated for a new cluster/author combination pays the Voyage embedding cost (~€0.0001); subsequent calls hit the JSONB cache. If you wipe `domainExtras`, re-importing the authors resets the cache.
 - DO NOT hardcode a fallback author slug in `author-picker` — any hardcoded slug may not exist in the project's authors collection and will silently produce phantom author references in generated articles. Always query the DB for the actual top author by post count and validate they exist in `articles WHERE collection='authors'`. See `defaultFallbackAuthor()` in `src/article/author-picker/index.ts`. Throw `AuthorPickerError` rather than returning a phantom slug.
 - DO NOT call `updateArticleAuthor()` with an author slug that hasn't been validated against the authors collection — `updateArticleAuthor()` in `blog/persist.ts` enforces this at the DB layer (throws `BlogPipelineError` if the slug is absent), but rely on the author-picker returning a valid slug in the first place. Defense-in-depth: two validation points, neither silently corrupts.
 - DO NOT call `linkifyMarkdown` on body text that may already contain `[ToolName](url)` links without pre-populating `linkedInSection` — the section processor now handles this automatically (Spec 54.9.1 fix), but any future refactor of `processSection` must preserve the pre-populate loop that marks already-linked tools as done before scanning for new link positions.
@@ -1038,7 +1057,7 @@ buzz=15, growth=15, official=25, serp=20, diversity=25, coverage_penalty=40
 Three-strategy cascade, no LLM call:
 
 1. **`historic_score`** — SQL `GROUP BY author` on imported blog articles, weighted score `(cluster_hits × 3) + (intent_hits × 2) + (total × 0.1)`. Wins if top result has `cluster_hits + intent_hits ≥ 1`.
-2. **`embedding_fallback`** — Voyage embedding of brief topic+keywords vs. author expertise strings. Wins if cosine similarity > 0.55. Expertise embeddings cached in `articles.frontmatterExtras.expertiseEmbedding` after first compute.
+2. **`embedding_fallback`** — Voyage embedding of brief topic+keywords vs. author expertise strings. Wins if cosine similarity > 0.55. Expertise embeddings cached in `articles.domainExtras.expertiseEmbedding` after first compute.
 3. **`default_fallback`** — returns `anna-weidner`. Logs a `warn` so Marcel can see when the author-picker had no signal.
 
 `matchStrategy`, `matchScore`, `briefSource`, and `briefIntentType` are all logged at INFO level by `AuthorPickStep`, enabling easy observability of which strategy fired and why.
