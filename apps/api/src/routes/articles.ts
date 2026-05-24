@@ -1729,11 +1729,29 @@ articleRoutes.post("/:id/validate-pagespeed", async (c) => {
 articleRoutes.post("/:id/extend-schema", async (c) => {
   const id = c.req.param("id");
   const [article] = await db
-    .select({ id: articles.id, projectId: articles.projectId })
+    .select({ id: articles.id, projectId: articles.projectId, source: articles.source })
     .from(articles)
     .where(eq(articles.id, id))
     .limit(1);
   if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  // Spec 004 / F3: imported articles do not go through SchemaExtensionPipeline.
+  // The HTTP route uses `enqueueSchemaExtensionPipeline` (a thin preRunId
+  // wrapper that bypasses the source check inside `enqueueSchemaExtension`),
+  // so we re-implement the gate here. Rich-type schemas for imported rows
+  // come from the Astro source MDX itself (Branch-B design). See
+  // packages/db/src/schema/content.ts schemaJsonLd doc-comment for context.
+  if (article.source === "imported") {
+    return c.json(
+      {
+        ok: false,
+        error:
+          "Schema extension is not available for imported articles. Rich types are sourced from Astro MDX frontmatter.",
+        skipped: "imported-article",
+      },
+      422
+    );
+  }
 
   const result = await triggerWithPreRunId({
     pipelineName: "article:schema-extension",

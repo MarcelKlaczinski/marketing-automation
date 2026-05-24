@@ -143,13 +143,26 @@ export const articles = pgTable(
      * - `RenderMdxStep` field-filter logic changes to emit all merged keys
      *   (not just schema-declared ones)
      *
-     * **Defense delegated** to documentation today, not to a Trigger-Filter.
-     * If a Marcel-use-case ever needs `extend-schema` on imported articles
-     * (e.g. retrofit JSON-LD on old imports), the Soft-Guard stays valid
-     * as long as no collection declares those fields. If activation
-     * conditions trigger, add the Trigger-Filter as a follow-up spec
-     * (option A from Spec Bucket-D / BD2 was deferred — see
-     * `docs/specs/bucket-d-fixes/spec.md` §10 Q2).
+     * **Defense — Spec 004 / F3 (2026-05-24)**: Trigger-Filter now applied at
+     * two layers:
+     * 1. `enqueueSchemaExtension` in `packages/pipelines/src/schema-extension/trigger.ts`
+     *    short-circuits with `{ skipped: 'imported-article' }` for imported
+     *    rows. Covers internal `afterComplete` callers (BlogPipeline,
+     *    RefreshPipeline, TranslationPipeline) plus the admin CLI
+     *    `bun --filter @marketing-auto/api article:extend-schema`.
+     * 2. `POST /api/articles/:id/extend-schema` in `apps/api/src/routes/articles.ts`
+     *    pre-checks `source` and returns 422 with `skipped: 'imported-article'`
+     *    before the pipeline trigger. Closes the original BD2 exploit path
+     *    (the HTTP route uses `enqueueSchemaExtensionPipeline`, NOT
+     *    `enqueueSchemaExtension`, so the trigger-layer gate alone wouldn't
+     *    reach it).
+     *
+     * `POST /api/articles/:id/sync` (the read-side of the footgun) is still
+     * source-agnostic — kept that way intentionally so an imported article
+     * with a manually-populated `schema_json_ld` (e.g. from a future retrofit
+     * spec) can still be synced. The MDX side stays Branch-B-clean as long
+     * as no Astro collection declares `schema:` / `schemaJsonLd:` fields,
+     * which the BD2 audit confirmed for Toolwiki.
      */
     schemaJsonLd: jsonb("schema_json_ld").$type<Array<Record<string, unknown>>>(),
 

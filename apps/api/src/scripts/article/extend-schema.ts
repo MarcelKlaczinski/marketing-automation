@@ -30,6 +30,18 @@ const result = await enqueueSchemaExtension({
   projectId: article.projectId,
 });
 
+// Spec 004 / F3: imported articles are skipped at the trigger boundary.
+if ("skipped" in result) {
+  // biome-ignore lint/suspicious/noConsoleLog: script output
+  console.log(`Schema extension SKIPPED for article ${article.id}
+   Reason: ${result.skipped}
+
+Imported articles get their rich-type schemas from the Astro source MDX
+itself (Branch-B design). See packages/db/src/schema/content.ts
+schemaJsonLd doc-comment for the rationale.`);
+  process.exit(0);
+}
+
 console.log(`Schema extension enqueued
    Article ID: ${article.id}
    Job ID:     ${result.jobId}

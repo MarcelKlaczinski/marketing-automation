@@ -20,6 +20,27 @@ on top of this.
 - Steps MUST use `@marketing-auto/cost-tracker` for any external API call
 - Pipelines MUST be registered before workers start
 
+## `pipeline_runs` row shape (Spec 004 F2)
+
+Every pipeline run produces `1 + N` `pipeline_runs` rows where `N` = step count:
+
+- 1 **parent row** (`parent_run_id IS NULL`, `step_name IS NULL`) for the whole run
+- N **child rows** (`parent_run_id = parent.id`, `step_name = '<step>'`), one per step
+
+INSERTed in [runner.ts:202](src/engine/runner.ts:202) (parent) and
+[runner.ts:438-449](src/engine/runner.ts:438) (per-step children). This is **not** a bug
+and **not** BullMQ-dedup artifacts — the child rows back step-pause FK
+(Spec 62.0a), rerun supersession via `supersedeOldSubstep` (Spec 62.6),
+SSE events (`step.paused`, `step.resolved`), and idempotency-cache attribution.
+
+Verified counts across pipelines: `astro:repo-import` (10 steps) → 11 rows;
+`article:blog` (13 steps) → 14 rows; `planning:weekly` (11 steps) → 12 rows.
+
+When investigating "why does X pipeline log so many rows", confirm against the
+pipeline's step list before assuming a leak. See
+[`docs/discovery/f2-pipeline-observability-codeRead.md`](../../docs/discovery/f2-pipeline-observability-codeRead.md)
+for the full code-read.
+
 ## Standalone BullMQ Workers (Spec 58.1)
 
 Not every async job runs through the pipeline engine. For jobs that are NOT multi-step pipelines (e.g. a single LLM call per article), use a **standalone BullMQ worker** pattern:

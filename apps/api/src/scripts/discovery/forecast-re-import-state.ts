@@ -38,14 +38,14 @@ import { createLogger } from "@marketing-auto/shared";
 
 const log = createLogger("forecast-re-import-state");
 
-interface RepoCollectionInventory {
+export interface RepoCollectionInventory {
   collection: string;
   totalFiles: number;
   byLocale?: Record<string, { count: number; slugs: string[] }>;
   noLocaleSplit?: { count: number; slugs: string[] };
 }
 
-interface DbInventoryRow {
+export interface DbInventoryRow {
   collection: string;
   locale: string | null;
   source: string;
@@ -53,7 +53,7 @@ interface DbInventoryRow {
   slugs: string[];
 }
 
-interface PerLocaleDiff {
+export interface PerLocaleDiff {
   collection: string;
   locale: string | null;
   repoSlugCount: number;
@@ -63,7 +63,7 @@ interface PerLocaleDiff {
   dbOnly: string[]; // in DB-active, not in repo (potential orphans)
 }
 
-interface ForecastReport {
+export interface ForecastReport {
   generatedAt: string;
   projectSlug: string;
   projectId: string;
@@ -134,35 +134,46 @@ function diffOne({
   };
 }
 
-export async function forecastReImportState(projectSlug: string): Promise<ForecastReport> {
-  const [project] = await db
-    .select({ id: projects.id })
-    .from(projects)
-    .where(eq(projects.slug, projectSlug))
-    .limit(1);
-  if (!project) {
-    throw new Error(`Project not found: ${projectSlug}`);
-  }
-  const projectId = project.id;
-
-  const repoInventoryRaw = await readFile(REPO_INVENTORY_PATH, "utf-8");
-  const repoInventory: RepoCollectionInventory[] = JSON.parse(repoInventoryRaw);
-  const dbInventory = await loadActiveDbInventory(projectId);
-
+/**
+ * Pure diff/aggregation. Given the repo inventory and live DB rows, returns
+ * the per-locale diffs + summary. Extracted from `forecastReImportState` so
+ * smoke tests can exercise the matching rules (Spec 004 F1 in particular)
+ * without spinning up a real Postgres connection.
+ */
+export function computeForecastDiff(
+  repoInventory: RepoCollectionInventory[],
+  dbInventory: DbInventoryRow[],
+): { perLocaleDiffs: PerLocaleDiff[]; summary: ForecastReport["summary"] } {
   // Group DB rows by (collection, locale) regardless of `source` so the diff
   // sees both imported and generated rows. (Re-Import only writes to imported,
   // but generated rows can shadow a repo slug.)
+  //
+  // Spec 004 / F1 fix: each row also contributes to a `<coll>|_any_locale`
+  // bucket so `noLocaleSplit` collections (e.g. `categories`) — which the
+  // importer writes with `locale='de'` despite not having a locale split in
+  // the Astro repo — get matched against the full set of DB rows for that
+  // collection, ignoring the `locale` column.
   const dbByCollLocale = new Map<string, string[]>();
   for (const r of dbInventory) {
-    const key = `${r.collection}|${r.locale ?? "_no_locale"}`;
-    const existing = dbByCollLocale.get(key) ?? [];
-    dbByCollLocale.set(key, existing.concat(r.slugs));
+    const localeKey = `${r.collection}|${r.locale ?? "_no_locale"}`;
+    const anyKey = `${r.collection}|_any_locale`;
+    const existingLocale = dbByCollLocale.get(localeKey) ?? [];
+    dbByCollLocale.set(localeKey, existingLocale.concat(r.slugs));
+    const existingAny = dbByCollLocale.get(anyKey) ?? [];
+    dbByCollLocale.set(anyKey, existingAny.concat(r.slugs));
   }
 
   const perLocaleDiffs: PerLocaleDiff[] = [];
 
   for (const repoColl of repoInventory) {
-    if (repoColl.byLocale) {
+    // Spec 004 / F1: prefer `noLocaleSplit` when `byLocale` is absent OR an
+    // empty object — `repo-inventory.json` serialises noLocaleSplit entries
+    // with `"byLocale": {}` alongside the populated `noLocaleSplit` block,
+    // and an empty-object truthy check would otherwise short-circuit this
+    // entry into the per-locale branch with zero iterations.
+    const hasByLocale =
+      repoColl.byLocale && Object.keys(repoColl.byLocale).length > 0;
+    if (hasByLocale && repoColl.byLocale) {
       for (const [locale, bucket] of Object.entries(repoColl.byLocale)) {
         const dbSlugs = dbByCollLocale.get(`${repoColl.collection}|${locale}`) ?? [];
         perLocaleDiffs.push(
@@ -175,8 +186,10 @@ export async function forecastReImportState(projectSlug: string): Promise<Foreca
         );
       }
     } else if (repoColl.noLocaleSplit) {
-      // E.g. `categories` collection has no locale split.
-      const dbSlugs = dbByCollLocale.get(`${repoColl.collection}|_no_locale`) ?? [];
+      // Spec 004 / F1: match noLocaleSplit collections against ALL locale
+      // values in DB — the importer writes them with `locale='de'` despite
+      // the Astro repo having no locale split.
+      const dbSlugs = dbByCollLocale.get(`${repoColl.collection}|_any_locale`) ?? [];
       perLocaleDiffs.push(
         diffOne({
           collection: repoColl.collection,
@@ -205,11 +218,34 @@ export async function forecastReImportState(projectSlug: string): Promise<Foreca
   }
 
   return {
+    perLocaleDiffs,
+    summary: { totalInserts, totalUpdates, totalDbOnly, perCollection },
+  };
+}
+
+export async function forecastReImportState(projectSlug: string): Promise<ForecastReport> {
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, projectSlug))
+    .limit(1);
+  if (!project) {
+    throw new Error(`Project not found: ${projectSlug}`);
+  }
+  const projectId = project.id;
+
+  const repoInventoryRaw = await readFile(REPO_INVENTORY_PATH, "utf-8");
+  const repoInventory: RepoCollectionInventory[] = JSON.parse(repoInventoryRaw);
+  const dbInventory = await loadActiveDbInventory(projectId);
+
+  const { perLocaleDiffs, summary } = computeForecastDiff(repoInventory, dbInventory);
+
+  return {
     generatedAt: new Date().toISOString(),
     projectSlug,
     projectId,
     perLocaleDiffs,
-    summary: { totalInserts, totalUpdates, totalDbOnly, perCollection },
+    summary,
   };
 }
 
