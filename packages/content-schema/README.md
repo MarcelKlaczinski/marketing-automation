@@ -58,3 +58,33 @@ bun --filter @marketing-auto/content-schema typecheck
 ```
 
 The package has no production runtime side-effects — only Zod schemas + pure helpers. Tests use in-memory builders (no DB) so the suite is fast (< 100ms total).
+
+## Distribution to consumer repos
+
+This package is consumed by Astro tenant repos (e.g. `toolwiki.ai`) as **vendored source code**, not as a published npm package. No registry auth, no `npm install` network dependency on this repo — the consumer ships a copy of the source.
+
+### Sync mechanism
+
+Workflow [`.github/workflows/sync-content-schema-to-toolwiki.yml`](../../.github/workflows/sync-content-schema-to-toolwiki.yml) auto-creates a PR in `ki-wissensraum-v2` on every `master`-push that touches `packages/content-schema/`. The workflow can also be triggered manually from the Actions tab for smoke tests.
+
+The PR lands files under `src/vendored/content-schema/` in the consumer repo. The consumer's local wrapper module re-exports from there, so application code keeps a stable import path.
+
+PRs reuse the `sync/content-schema` branch (`delete-branch: false`): consecutive master-pushes update the existing PR rather than creating new ones. No PR spam.
+
+### Adding a new consumer repo
+
+1. Install the `marketing-tool-sync` GitHub App on the new repo
+2. Add the new repo to the `repositories:` list in `create-github-app-token` inside the workflow
+3. Duplicate the checkout + sync + create-pull-request steps for the new repo
+4. In the new repo, set up `src/vendored/content-schema/` consumer pattern (see `ki-wissensraum-v2` for reference)
+
+### Token setup
+
+The workflow authenticates via a GitHub App token (`actions/create-github-app-token@v1`). Required repo secrets in `marketing-automation`:
+
+- `SYNC_APP_ID` — the GitHub App's numeric ID (App-ID `3618750`)
+- `SYNC_APP_PRIVATE_KEY` — the GitHub App's PEM-formatted private key
+
+The App must be installed on `marketing-automation` AND every consumer repo, with `Contents: Read & write` + `Pull requests: Read & write` permissions.
+
+Full setup walk-through: [`docs/operations/content-schema-sync-setup.md`](../../docs/operations/content-schema-sync-setup.md).
