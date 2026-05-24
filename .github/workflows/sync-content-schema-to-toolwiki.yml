@@ -1,0 +1,117 @@
+name: Sync content-schema to Toolwiki
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'packages/content-schema/**'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.SYNC_APP_ID }}
+          private-key: ${{ secrets.SYNC_APP_PRIVATE_KEY }}
+          owner: MarcelKlaczinski
+          repositories: |
+            marketing-automation
+            ki-wissensraum-v2
+
+      - name: Checkout marketing-automation
+        uses: actions/checkout@v4
+
+      - name: Get source SHA
+        id: source
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout toolwiki repo
+        uses: actions/checkout@v4
+        with:
+          repository: MarcelKlaczinski/ki-wissensraum-v2
+          token: ${{ steps.app-token.outputs.token }}
+          path: toolwiki
+          ref: master
+
+      - name: Sync schema files
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          DEST="toolwiki/src/vendored/content-schema"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          cp -R packages/content-schema/src/* "$DEST/"
+
+          SYNC_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          cat > "$DEST/.SOURCE" <<EOF
+          SOURCE_REPO: MarcelKlaczinski/marketing-automation
+          SOURCE_PATH: packages/content-schema/src
+          SOURCE_SHA: ${SOURCE_SHA}
+          SYNC_DATE: ${SYNC_DATE}
+          SYNC_WORKFLOW: .github/workflows/sync-content-schema-to-toolwiki.yml
+          DO NOT EDIT files in this directory. Run the sync workflow in
+          the marketing-automation repo instead.
+          EOF
+
+          cat > "$DEST/README.md" <<'EOF'
+          # Vendored: @marketing-auto/content-schema
+
+          Auto-synchronized from the marketing-automation repo. Source lives at
+          marketing-automation's `packages/content-schema/src/`.
+
+          **DO NOT EDIT** files in this directory. Changes here will be
+          overwritten on next sync.
+
+          ## How to update
+
+          1. Make changes in marketing-automation's `packages/content-schema/`
+          2. Merge to master
+          3. GitHub Actions opens a PR in this repo with the synced files
+          4. Review + merge the PR
+
+          ## Sync manifest
+
+          See `.SOURCE` file for the SHA + timestamp of last sync.
+          EOF
+
+      - name: Create or update PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          path: toolwiki
+          token: ${{ steps.app-token.outputs.token }}
+          branch: sync/content-schema
+          delete-branch: false
+          base: master
+          title: 'sync: content-schema@${{ steps.source.outputs.short_sha }}'
+          commit-message: |
+            sync: content-schema@${{ steps.source.outputs.short_sha }}
+
+            Auto-synced from marketing-automation repo.
+            See src/vendored/content-schema/.SOURCE for manifest.
+          body: |
+            Automated sync of `@marketing-auto/content-schema` from the
+            marketing-automation repo at commit
+            [`${{ steps.source.outputs.short_sha }}`](https://github.com/MarcelKlaczinski/marketing-automation/commit/${{ steps.source.outputs.sha }}).
+
+            ## Before merging
+
+            - [ ] Astro build passes (`npm run build`)
+            - [ ] SEO-Snapshot-Diff is 0 (`scripts/snapshot-seo-diff.sh`)
+            - [ ] TypeScript check clean (`npm run astro -- check` or `tsc --noEmit`)
+            - [ ] No breaking changes to schema consumers
+
+            See `src/vendored/content-schema/.SOURCE` for sync manifest.
+
+            ## What changed in marketing-automation
+
+            Diff against previous sync state is visible in the
+            "Files changed" tab below.
+          author: 'marketing-tool-sync[bot] <marketing-tool-sync[bot]@users.noreply.github.com>'
+          committer: 'marketing-tool-sync[bot] <marketing-tool-sync[bot]@users.noreply.github.com>'
