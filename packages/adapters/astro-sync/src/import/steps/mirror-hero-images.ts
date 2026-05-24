@@ -24,12 +24,12 @@ export const COLLECTIONS_WITHOUT_HERO: ReadonlySet<string> = new Set([
 
 /**
  * Fallback path used when an article has no `heroImage` / `image` frontmatter.
- * The Astro repo MUST commit a file at `public/heroes/default.webp` —
+ * The Astro repo MUST commit a file at `public/heroes/auto/default.webp` —
  * documented in root CLAUDE.md (External Repo Reserved Assets) and the
  * Astro-Repo CLAUDE.md. If the file is missing, the mirror entry is recorded
  * as failed with a one-line warn (no spam).
  */
-export const DEFAULT_HERO_PATH = "/heroes/default.webp";
+export const DEFAULT_HERO_PATH = "/heroes/auto/default.webp";
 
 const R2_PATH_PREFIX = "articles/hero";
 
@@ -319,7 +319,7 @@ function pickHeroRef(typed: Record<string, unknown>): string | null {
  * Convert an Astro frontmatter hero ref into a repo-local path.
  * Supported shapes:
  *   - `/heroes/foo.webp` → `public/heroes/foo.webp`
- *   - `/heroes/default.webp` → `public/heroes/default.webp` (the default fallback)
+ *   - `/heroes/auto/default.webp` → `public/heroes/auto/default.webp` (the default fallback)
  * Rejected (returns null — caller logs as `failed`):
  *   - `../assets/foo.webp` (relative to MDX file — Astro src/assets route)
  *   - `https://example.com/foo.webp` (remote)

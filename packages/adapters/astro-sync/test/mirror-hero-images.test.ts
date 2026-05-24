@@ -110,7 +110,7 @@ function sha256(content: string): string {
 describe("repoPathForHeroRef", () => {
   test("prefixes `public/` for refs with leading slash", () => {
     expect(repoPathForHeroRef("/heroes/foo.webp")).toBe("public/heroes/foo.webp");
-    expect(repoPathForHeroRef("/heroes/default.webp")).toBe("public/heroes/default.webp");
+    expect(repoPathForHeroRef("/heroes/auto/default.webp")).toBe("public/heroes/auto/default.webp");
   });
 
   test("returns null for relative refs", () => {
@@ -254,9 +254,9 @@ describe("mirrorOneArticle (pure helper)", () => {
     expect(COLLECTIONS_WITHOUT_HERO.has("tool-categories")).toBe(true);
   });
 
-  test("case 7 — default-hero fallback: no heroImage/image frontmatter → /heroes/default.webp", async () => {
+  test("case 7 — default-hero fallback: no heroImage/image frontmatter → /heroes/auto/default.webp", async () => {
     const fixture = makeDeps({
-      files: { "public/heroes/default.webp": { bytes: bytes("DEFAULT"), contentType: "image/webp" } },
+      files: { "public/heroes/auto/default.webp": { bytes: bytes("DEFAULT"), contentType: "image/webp" } },
     });
     const seen = new Map<string, HeroFields>();
     const out = await mirrorOneArticle(fixture.deps, {
@@ -271,7 +271,7 @@ describe("mirrorOneArticle (pure helper)", () => {
     if (out.kind !== "mirrored") throw new Error("");
     expect(out.fields.heroImageSourceSha256).toBe(sha256("DEFAULT"));
     // Sanity: spec D5 path
-    expect(DEFAULT_HERO_PATH).toBe("/heroes/default.webp");
+    expect(DEFAULT_HERO_PATH).toBe("/heroes/auto/default.webp");
   });
 
   test("case 8 — default-hero missing file: failed with default_hero_missing reason", async () => {

@@ -242,7 +242,7 @@ describe("backfill-imported-heroes (Spec 000)", () => {
     const db = makeDb({ candidates: [noHero] });
     const upload = makeUpload();
     const github = makeGithub({
-      "public/heroes/default.webp": {
+      "public/heroes/auto/default.webp": {
         bytes: new TextEncoder().encode("DEFAULT"),
         contentType: "image/webp",
       },

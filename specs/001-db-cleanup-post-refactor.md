@@ -676,3 +676,20 @@ Spec C1.3 listed 8 test cases. Implementation includes a 9th (`only accepts 'orp
 ### D8: Migration 0102 not in the spec text
 
 Migration was a Phase 0 discovery, see D1. The spec text doesn't mention any migration; this is an additive change that is part of the cleanup deliverable but wasn't anticipated when the spec was written.
+
+### D9: Slug-Rename ↔ Cleanup-Supersede Konflikt (post-spec discovery, 2026-05-24)
+
+After applying Cleanup-C2 (Orphan-Supersede) and triggering the Re-Import (C4), a slug-rename pattern emerged that conflicted with the just-superseded rows:
+
+- Branch-B refactor renamed `system-prompts-role-prompting-2026-leitfaden.mdx` → `system-prompts-role-prompting-best-practices-2026.mdx` (DE) and analogously for EN
+- C2 marked the old slugs as `status='superseded'` (treating them as orphans, correct under C2's slug-list-driven logic)
+- C4's Re-Import matched the new files against the old superseded rows (heuristic: `cornerstoneKeyword` + filePath-proximity in `UpsertArticlesStep`) and **updated `filePath` in-place** rather than inserting new rows with the new slug
+- Result: 2 superseded rows with new `filePath`, 0 active rows for the new slug; Astro published-site served the article correctly but the tool DB saw it as "not imported"
+
+Post-cleanup verification ([`docs/discovery/post-cleanup-final-verification.md`](../docs/discovery/post-cleanup-final-verification.md) v15:34Z) reclassified this from "missing inserts" to a real cleanup ↔ importer interaction issue.
+
+**Fix applied 2026-05-24 ([`docs/specs/fix-slug-rename-supersede-conflict/spec.md`](../docs/specs/fix-slug-rename-supersede-conflict/spec.md)):** Manual SQL UPDATE — 2 superseded rows flipped back to `status='published'` + slug updated to `system-prompts-role-prompting-best-practices-2026`. Option (a) chosen over Option (b) INSERT because Option (b) would have left 2 rows with the same `filePath` (one superseded + one active), giving the importer's filePath-proximity heuristic another chance to match against the wrong row on the next Re-Import. Existing FK refs (article_versions, cost_logs, social_posts, refresh_suggestions) remain intact on the original article-IDs.
+
+**Snapshot-consistency side-effect:** C2's "10 superseded" output is now stale — live state is 8 superseded. The C2 result table in §11 reflects the moment-in-time measurement, not an invariant. Documented here so future readers don't treat C2's output as the source of truth against current DB state.
+
+**Follow-up (separate Folge-Spec, see backlog):** The Importer's `UpsertArticlesStep` should not match against `status='superseded'` rows — either skip them entirely or warn + insert a new row. See [`docs/backlog/post-cleanup-followups.md`](../docs/backlog/post-cleanup-followups.md) "Importer Slug-Rename-Handling" + the related Mirror-Step-Ordering item.
