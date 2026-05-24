@@ -88,9 +88,36 @@ scopedPipelineRunsRoutes.get(
     }
     const whereClause = and(...conditions);
 
+    // Spec 64.19 / Phase A: add `stepCount` (count of substep child rows, NOT
+    // an ordinal step number) via a correlated subquery so the UI can render a
+    // "(N steps)" badge on each parent row without an N+1 fetch. The runner
+    // inserts one child row per step (parent_run_id = parent.id); see
+    // [packages/pipelines/src/engine/runner.ts:445](packages/pipelines/src/engine/runner.ts:445)
+    // and Spec 004 / F2 for the row-shape contract. Returns 0 for parents that
+    // never reached step 1 (e.g. early-validation failures), which renders as
+    // "no badge" in the UI per RunsListItem.vue `v-if="run.stepCount > 0"`.
     const [rows, countRows] = await Promise.all([
       db
-        .select()
+        .select({
+          id: pipelineRuns.id,
+          projectId: pipelineRuns.projectId,
+          pipelineName: pipelineRuns.pipelineName,
+          stepName: pipelineRuns.stepName,
+          status: pipelineRuns.status,
+          jobId: pipelineRuns.jobId,
+          parentRunId: pipelineRuns.parentRunId,
+          input: pipelineRuns.input,
+          output: pipelineRuns.output,
+          errorMessage: pipelineRuns.errorMessage,
+          suspensionCheckpoint: pipelineRuns.suspensionCheckpoint,
+          startedAt: pipelineRuns.startedAt,
+          completedAt: pipelineRuns.completedAt,
+          createdAt: pipelineRuns.createdAt,
+          stepCount: sql<number>`(
+            SELECT count(*)::int FROM ${pipelineRuns} child
+            WHERE child.parent_run_id = ${pipelineRuns.id}
+          )`,
+        })
         .from(pipelineRuns)
         .where(whereClause)
         .orderBy(desc(pipelineRuns.createdAt))

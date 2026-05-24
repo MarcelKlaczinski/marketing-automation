@@ -243,6 +243,8 @@ const hackernewsConfigPatchSchema = z.object({
   queries: z.array(z.string()).optional(),
   hitsPerPage: z.number().int().min(1).max(200).optional(),
   minPoints: z.number().int().min(0).optional(),
+  // Spec 64.19 / Phase C
+  maxAgeDays: z.number().int().min(1).max(365).optional(),
 });
 
 const producthuntConfigPatchSchema = z.object({
@@ -251,6 +253,8 @@ const producthuntConfigPatchSchema = z.object({
 
 const vendorRssConfigPatchSchema = z.object({
   enabled: z.boolean().optional(),
+  // Spec 64.19 / Phase C
+  maxAgeDays: z.number().int().min(1).max(365).optional(),
 });
 
 const sourceConfigPatchSchemas: Record<SignalSource, z.ZodTypeAny> = {

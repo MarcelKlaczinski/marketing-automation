@@ -1,10 +1,11 @@
 <template>
   <GlassCard
     class="article-card"
-    :class="{ 'card-selected': selected }"
+    :class="{ 'card-selected': selected, 'card-superseded': isSuperseded }"
     hoverable
     :selected="selected"
     tag="button"
+    :title="isSuperseded ? supersededTooltip : undefined"
     @click="$emit('select', article.id)"
   >
     <div class="card-inner">
@@ -98,6 +99,8 @@ const STATUS_LABEL_MAP: Record<string, string> = {
   blocked_by_pagespeed: "Blocked",
   failed: "Failed",
   rejected: "Rejected",
+  // Spec 64.19 / Phase B — superseded audit marker
+  superseded: "Superseded",
 };
 
 function formatRelative(date: string | Date): string {
@@ -135,6 +138,16 @@ export default defineComponent({
     },
     relativeTime(): string {
       return formatRelative(this.article.updatedAt);
+    },
+    // Spec 64.19 / Phase B — visual marker + tooltip for superseded rows.
+    // articles table has no superseded_at / superseded_by columns (Spec 001
+    // migration 0102 only widened the enum), so the tooltip surfaces what we
+    // have: the last-known update timestamp as the "marked-superseded-at" hint.
+    isSuperseded(): boolean {
+      return this.article.status === "superseded";
+    },
+    supersededTooltip(): string {
+      return this.$t("articles.supersededTooltip", { at: this.relativeTime }) as string;
     },
   },
 });
@@ -188,6 +201,16 @@ export default defineComponent({
 .status-completed { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
 .status-failed  { background: rgba(239, 68, 68, 0.15); color: #f87171; }
 .status-idle    { background: rgba(255, 255, 255, 0.06); color: var(--text-tertiary); }
+
+/* Spec 64.19 / Phase B — superseded audit-trail visual: greyed-out card with
+   strike-through title so it reads as historical rather than active. */
+.card-superseded {
+  opacity: 0.55;
+}
+.card-superseded .card-title {
+  text-decoration: line-through;
+  color: var(--text-tertiary);
+}
 
 .card-title {
   font-size: 13px;

@@ -21,6 +21,9 @@ export interface PipelineRunRow {
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
+  // Spec 64.19 / Phase A: substep count (children with parent_run_id = this.id).
+  // 0 means no children persisted yet (e.g. for runs that never reached step 1).
+  stepCount: number;
 }
 
 export interface RunsListResponse {

@@ -204,6 +204,11 @@ projectGoalsRoutes.put(
       // the helper does .toFixed(3) → numeric(4,3) string coercion.
       diversityThreshold: body.diversityThreshold,
       diversityMalusWeight: body.diversityMalusWeight,
+      // Spec 64.19 / Phase D: per-project trend-score weight override. `null`
+      // clears the column (reset to defaults); `undefined` preserves existing.
+      ...(body.trendScoreWeights !== undefined
+        ? { trendScoreWeights: body.trendScoreWeights }
+        : {}),
     });
 
     log.info(

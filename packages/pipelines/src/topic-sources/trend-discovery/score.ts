@@ -1,22 +1,23 @@
-import { createLogger } from "@marketing-auto/shared";
+import {
+  createLogger,
+  resolveTrendScoreWeights,
+  type TrendScoreWeights,
+} from "@marketing-auto/shared";
 import { dataforseo } from "@marketing-auto/adapter-dataforseo";
 import type { ExternalSignal } from "@marketing-auto/db";
 import { MAJOR_VENDOR_DOMAINS, type ScoreBreakdown, type SynthesisTopic } from "./types.ts";
 
 const log = createLogger("trend-discovery:score");
 
-// ─── Weights (spec 54.5b rebalanced constants) ───────────────────────────────
+// ─── Weights (spec 54.5b rebalanced constants; Spec 64.19 / Phase D made per-project) ───
 // buzz+growth halved to reduce RSS signal bias; diversity added (cross-source validation);
 // official raised (vendor announcements are legitimate trend signals).
 // Positive weights sum to 100: 15+15+25+20+25 = 100.
-const W = {
-  buzz: 15,
-  growth: 15,
-  official: 25,
-  serp: 20,
-  diversity: 25,
-  coverage: 40, // penalty — subtracted
-} as const;
+//
+// Per-project overrides live in `project_planner_config.trend_score_weights` JSONB
+// (migration 0104). Resolved via `resolveTrendScoreWeights(override)` from
+// `@marketing-auto/shared`. The default constant `DEFAULT_TREND_SCORE_WEIGHTS` lives
+// in `shared/project-config.ts` so the API + UI + score function read the same source.
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -136,12 +137,19 @@ export type ComputeTrendScoreInput = {
   signalPool: ExternalSignal[];
   /** Max cosine similarity to any existing article; from coverage check */
   maxExistingSimilarity: number;
+  /**
+   * Spec 64.19 / Phase D — per-project weight override. Partial: unset knobs
+   * fall back to the `W` defaults. `null`/omitted = all defaults. Loaded by
+   * the caller from `project_planner_config.trend_score_weights`.
+   */
+  weightsOverride?: TrendScoreWeights | null;
 };
 
 export async function computeTrendScore(
   input: ComputeTrendScoreInput,
 ): Promise<ScoreBreakdown> {
-  const { projectId, candidate, signalPool, maxExistingSimilarity } = input;
+  const { projectId, candidate, signalPool, maxExistingSimilarity, weightsOverride } = input;
+  const weights = resolveTrendScoreWeights(weightsOverride);
 
   const candidateSignals = signalPool.filter((s) =>
     candidate.related_signal_ids.includes(s.id)
@@ -185,12 +193,12 @@ export async function computeTrendScore(
   }
 
   const raw =
-    (W.buzz * buzz) / 100 +
-    (W.growth * growth) / 100 +
-    (W.official * official) / 100 +
-    (W.serp * serpVol) / 100 +
-    (W.diversity * diversity) / 100 -
-    (W.coverage * coveragePenalty) / 100;
+    (weights.buzz * buzz) / 100 +
+    (weights.growth * growth) / 100 +
+    (weights.official * official) / 100 +
+    (weights.serp * serpVol) / 100 +
+    (weights.diversity * diversity) / 100 -
+    (weights.coverage * coveragePenalty) / 100;
 
   const total = Math.round(clamp(raw, 0, 100));
 
@@ -205,6 +213,8 @@ export async function computeTrendScore(
       diversity,
       coveragePenalty,
       total,
+      weights,
+      hasOverride: !!weightsOverride,
     },
     "trend score computed"
   );

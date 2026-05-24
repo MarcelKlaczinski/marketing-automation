@@ -417,6 +417,100 @@
       </p>
     </section>
 
+    <!-- Spec 64.19 / Phase D: per-project trend-score weights -->
+    <section class="form-card">
+      <header class="section-header">
+        <h2 class="section-title">{{ $t("settings.planner.trendScoreSection.title") as string }}</h2>
+        <button
+          v-if="trendScoreWeightsDirty"
+          type="button"
+          class="btn-reset"
+          @click="resetTrendScoreWeights"
+        >
+          {{ $t("settings.planner.trendScoreSection.reset") as string }}
+        </button>
+      </header>
+      <p class="section-description">
+        {{ $t("settings.planner.trendScoreSection.description") as string }}
+      </p>
+
+      <div class="trend-score-grid">
+        <label class="field">
+          <span class="field-label">{{ $t("settings.planner.trendScoreSection.buzz") as string }}</span>
+          <input
+            v-model.number="config.trendScoreWeights.buzz"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            class="input input-narrow"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">{{ $t("settings.planner.trendScoreSection.growth") as string }}</span>
+          <input
+            v-model.number="config.trendScoreWeights.growth"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            class="input input-narrow"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">{{ $t("settings.planner.trendScoreSection.official") as string }}</span>
+          <input
+            v-model.number="config.trendScoreWeights.official"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            class="input input-narrow"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">{{ $t("settings.planner.trendScoreSection.serp") as string }}</span>
+          <input
+            v-model.number="config.trendScoreWeights.serp"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            class="input input-narrow"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">{{ $t("settings.planner.trendScoreSection.diversity") as string }}</span>
+          <input
+            v-model.number="config.trendScoreWeights.diversity"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            class="input input-narrow"
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.trendScoreSection.coverage") as string }}
+            <span class="field-tag">{{ $t("settings.planner.trendScoreSection.penaltyTag") as string }}</span>
+          </span>
+          <input
+            v-model.number="config.trendScoreWeights.coverage"
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            class="input input-narrow"
+          />
+        </label>
+      </div>
+
+      <p class="field-hint">
+        {{ $t("settings.planner.trendScoreSection.positiveSumHint", { sum: trendScorePositiveSum }) as string }}
+      </p>
+    </section>
+
     <div class="actions">
       <button
         type="button"
@@ -454,6 +548,28 @@ interface GoalRow {
   noteInput: string;
 }
 
+// Spec 64.19 / Phase D — mirror of `TrendScoreWeights` from
+// `@marketing-auto/shared`. Web app can't import workspace types directly
+// (apps/web tsconfig has no @marketing-auto/* path alias). Keep in sync with
+// `packages/shared/src/types/project-config.ts`.
+interface TrendScoreWeights {
+  buzz: number;
+  growth: number;
+  official: number;
+  serp: number;
+  diversity: number;
+  coverage: number;
+}
+
+const DEFAULT_TREND_SCORE_WEIGHTS: TrendScoreWeights = {
+  buzz: 15,
+  growth: 15,
+  official: 25,
+  serp: 20,
+  diversity: 25,
+  coverage: 40,
+};
+
 interface ConfigState {
   weeklyBudgetEur: number;
   topNSignalsAllowedOverage: number;
@@ -474,6 +590,11 @@ interface ConfigState {
   // Spec 63.5: planner topic-diversity modifier.
   diversityThreshold: number;
   diversityMalusWeight: number;
+  // Spec 64.19 / Phase D: per-project trend-score weights. All six knobs are
+  // local-edit numbers. Save only sends a non-null object when at least one
+  // knob diverges from `DEFAULT_TREND_SCORE_WEIGHTS`; otherwise we send `null`
+  // to clear the DB column (avoid persisting copies of the defaults).
+  trendScoreWeights: TrendScoreWeights;
 }
 
 interface FetchedGoal {
@@ -506,6 +627,8 @@ interface FetchedConfig {
   // the DB, coerced back to number at the boundary). Both default to 0.5.
   diversityThreshold?: string | number;
   diversityMalusWeight?: string | number;
+  // Spec 64.19 / Phase D: per-project trend-score weights (Partial<...> | null).
+  trendScoreWeights?: Partial<TrendScoreWeights> | null;
 }
 
 interface ValidationIssue {
@@ -553,6 +676,9 @@ export default defineComponent({
       // turns the diversity modifier off entirely (back to FIFO + raw score).
       diversityThreshold: 0.5,
       diversityMalusWeight: 0.5,
+      // Spec 64.19 / Phase D: start with hardcoded defaults; reload() overlays
+      // the per-project partial override from the DB if any.
+      trendScoreWeights: { ...DEFAULT_TREND_SCORE_WEIGHTS },
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
@@ -644,6 +770,25 @@ export default defineComponent({
     diversityOff(): boolean {
       return !this.config.diversityMalusWeight || this.config.diversityMalusWeight <= 0;
     },
+    // Spec 64.19 / Phase D: sum of the five positive weights (coverage is a
+    // penalty subtracted from the sum, so it's shown separately, not summed).
+    // The 54.5b rebalance kept the positives at 100 — drift away from 100 is
+    // a soft warning, not a hard error (the score is clamped to [0,100] anyway).
+    trendScorePositiveSum(): number {
+      const w = this.config.trendScoreWeights;
+      return Math.round(w.buzz + w.growth + w.official + w.serp + w.diversity);
+    },
+    trendScoreWeightsDirty(): boolean {
+      const w = this.config.trendScoreWeights;
+      return (
+        w.buzz !== DEFAULT_TREND_SCORE_WEIGHTS.buzz ||
+        w.growth !== DEFAULT_TREND_SCORE_WEIGHTS.growth ||
+        w.official !== DEFAULT_TREND_SCORE_WEIGHTS.official ||
+        w.serp !== DEFAULT_TREND_SCORE_WEIGHTS.serp ||
+        w.diversity !== DEFAULT_TREND_SCORE_WEIGHTS.diversity ||
+        w.coverage !== DEFAULT_TREND_SCORE_WEIGHTS.coverage
+      );
+    },
     trendSynthCronHintText(): string {
       const hourUtc = this.formatHourUtc(this.config.trendSynthCronHourUtc);
       const { label: hourLocal, tz } = this.formatHourLocal(this.config.trendSynthCronHourUtc);
@@ -731,6 +876,12 @@ export default defineComponent({
               : typeof config.diversityMalusWeight === "string"
                 ? Number.parseFloat(config.diversityMalusWeight)
                 : config.diversityMalusWeight;
+          // Spec 64.19 / Phase D: overlay the stored partial override on top
+          // of the hardcoded defaults. NULL/missing column = all defaults.
+          this.config.trendScoreWeights = {
+            ...DEFAULT_TREND_SCORE_WEIGHTS,
+            ...(config.trendScoreWeights ?? {}),
+          };
         }
         await this.runValidation();
       } catch (err) {
@@ -770,6 +921,25 @@ export default defineComponent({
     removeGoal(idx: number) {
       if (!globalThis.confirm(this.$t("settings.planner.confirmDelete") as string)) return;
       this.goals.splice(idx, 1);
+    },
+    // Spec 64.19 / Phase D — build the JSONB payload for the PUT. Returns the
+    // partial override (knobs that diverge from defaults) OR `null` when every
+    // knob matches the default. Keeps the DB column NULL when defaults are in
+    // effect, so a future default-change in score.ts auto-applies to projects
+    // that hadn't customised.
+    buildTrendScoreWeightsPayload(): Partial<TrendScoreWeights> | null {
+      const w = this.config.trendScoreWeights;
+      const partial: Partial<TrendScoreWeights> = {};
+      const keys = ["buzz", "growth", "official", "serp", "diversity", "coverage"] as const;
+      for (const k of keys) {
+        if (w[k] !== DEFAULT_TREND_SCORE_WEIGHTS[k]) {
+          partial[k] = w[k];
+        }
+      }
+      return Object.keys(partial).length === 0 ? null : partial;
+    },
+    resetTrendScoreWeights() {
+      this.config.trendScoreWeights = { ...DEFAULT_TREND_SCORE_WEIGHTS };
     },
     async saveAll() {
       this.saving = true;
@@ -826,6 +996,11 @@ export default defineComponent({
             // coerces with .toFixed(3) → numeric(4,3) string at the DB boundary.
             diversityThreshold: this.config.diversityThreshold,
             diversityMalusWeight: this.config.diversityMalusWeight,
+            // Spec 64.19 / Phase D: trend-score-weights override. Only send a
+            // partial object containing knobs that diverge from defaults; if
+            // all six match the hardcoded defaults send `null` to clear the
+            // column. Reduces DB bloat from copies of the defaults.
+            trendScoreWeights: this.buildTrendScoreWeightsPayload(),
           }),
         ]);
 
@@ -1111,6 +1286,46 @@ export default defineComponent({
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
   margin-bottom: 12px;
+}
+
+/* Spec 64.19 / Phase D — six trend-score weight knobs as a compact grid. */
+.trend-score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.btn-reset {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+.btn-reset:hover { background: var(--bg-glass-strong); }
+
+.field-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: var(--bg-glass-strong);
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .cron-enabled-field {

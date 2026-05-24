@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { trendScoreWeightsSchema } from "./project-config.ts";
 
 /**
  * Spec 62.2: content-type discriminator for project_goals rows.
@@ -104,5 +105,9 @@ export const projectPlannerConfigSchema = z.object({
   // at the boundary. Both default to 0.5 (moderate diversity, half-weight).
   diversityThreshold: z.number().min(0).max(1).default(0.5),
   diversityMalusWeight: z.number().min(0).max(2).default(0.5),
+  // Spec 64.19 / Phase D: per-project override for trend-score weights.
+  // Stored as JSONB on project_planner_config (migration 0104). Partial —
+  // unset knobs fall back to score.ts W constant. `null` clears the column.
+  trendScoreWeights: trendScoreWeightsSchema.nullable().optional(),
 });
 export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

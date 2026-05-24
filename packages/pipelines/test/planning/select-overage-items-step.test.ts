@@ -43,6 +43,8 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     diversityMalusWeight: "0.5",
     // Spec 64.14: per-project signal-source override; null = use defaults.
     signalSourceContentTypeMap: null,
+    // Spec 64.19 / Phase D: per-project trend-score weights; null = use defaults.
+    trendScoreWeights: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

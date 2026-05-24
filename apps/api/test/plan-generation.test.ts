@@ -60,7 +60,7 @@ async function seedConfig(projectId: string, weeklyBudgetEur = 50): Promise<void
     automationRules: [],
     signalSources: {
       producthunt: false,
-      hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5 },
+      hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5, maxAgeDays: 30 },
       reddit: {
         enabled: false,
         subreddits: [],
@@ -80,7 +80,7 @@ async function seedConfig(projectId: string, weeklyBudgetEur = 50): Promise<void
         maxAgeDays: 14,
         cronPattern: "0 3 * * *",
       },
-      vendor_rss: { enabled: false, feeds: [] },
+      vendor_rss: { enabled: false, feeds: [], maxAgeDays: 14 },
       dataforseo_trends: false,
     },
   });

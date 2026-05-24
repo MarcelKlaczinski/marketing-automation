@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import type { TrendScoreWeights } from "@marketing-auto/shared";
 import { db } from "../client.ts";
 import { cronState } from "../schema/cron.ts";
 import { projectPlannerConfig, type ProjectPlannerConfig } from "../schema/operations.ts";
@@ -44,6 +45,13 @@ export interface UpsertProjectPlannerConfigInput {
    * `0` disables diversity (existing FIFO / score-only behaviour).
    */
   diversityMalusWeight?: number;
+  /**
+   * Spec 64.19 / Phase D: per-project override for trend-score weights.
+   * Partial — unset knobs fall back to score.ts W constant defaults.
+   * Pass `null` to clear the column (reset to all-defaults); `undefined`
+   * preserves the existing value.
+   */
+  trendScoreWeights?: TrendScoreWeights | null;
 }
 
 /**
@@ -128,6 +136,7 @@ export async function upsertProjectPlannerConfig(
       : {}),
     ...(diversityThreshold !== undefined ? { diversityThreshold } : {}),
     ...(diversityMalusWeight !== undefined ? { diversityMalusWeight } : {}),
+    ...(input.trendScoreWeights !== undefined ? { trendScoreWeights: input.trendScoreWeights } : {}),
   };
   const updateSet = {
     weeklyBudgetEur,
@@ -159,6 +168,7 @@ export async function upsertProjectPlannerConfig(
       : {}),
     ...(diversityThreshold !== undefined ? { diversityThreshold } : {}),
     ...(diversityMalusWeight !== undefined ? { diversityMalusWeight } : {}),
+    ...(input.trendScoreWeights !== undefined ? { trendScoreWeights: input.trendScoreWeights } : {}),
   };
   const rows = await db
     .insert(projectPlannerConfig)

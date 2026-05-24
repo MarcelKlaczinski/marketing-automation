@@ -14,7 +14,11 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import { isNull, sql } from "drizzle-orm";
-import type { SignalSourceContentTypeMap, WeeklyPlanInputSnapshot } from "@marketing-auto/shared";
+import type {
+  SignalSourceContentTypeMap,
+  TrendScoreWeights,
+  WeeklyPlanInputSnapshot,
+} from "@marketing-auto/shared";
 import { approvalActionEnum, costServiceEnum, pipelineRunStatusEnum } from "./_enums.ts";
 import { users } from "./auth.ts";
 import { articles, externalSignals, socialPosts, topicBriefs } from "./content.ts";
@@ -649,6 +653,11 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   // value on a known source means "skip overage emission for this source".
   signalSourceContentTypeMap: jsonb("signal_source_content_type_map")
     .$type<SignalSourceContentTypeMap | null>(),
+  // Spec 64.19 / Phase D: per-project override for trend-score weights. Partial
+  // overrides — unset knobs fall back to score.ts W constant defaults. NULL
+  // column = all defaults. See resolveTrendScoreWeights() helper.
+  trendScoreWeights: jsonb("trend_score_weights")
+    .$type<TrendScoreWeights | null>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -275,6 +275,9 @@ export default {
         queriesPlaceholder: "z.B. LLM",
         hitsPerPage: "Treffer pro Seite",
         minPoints: "Min. Punkte",
+        // Spec 64.19 / Phase C
+        maxAgeDays: "Max. Alter (Tage)",
+        maxAgeDaysHint: "Items älter als dies werden ignoriert. Standard: 30.",
       },
       producthunt: {
         name: "Product Hunt",
@@ -304,6 +307,10 @@ export default {
           title: "Feed entfernen?",
           message: "Dieser Feed wird aus der Liste entfernt und nicht mehr abgerufen.",
         },
+        // Spec 64.19 / Phase C
+        maxAgeDays: "Max. Alter (Tage)",
+        maxAgeDaysHint: "Items älter als dies werden ignoriert. Standard: 14.",
+        maxAgeDaysInvalid: "Wert muss zwischen 1 und 365 liegen.",
       },
     },
   },
@@ -479,6 +486,21 @@ export default {
       malusWeightHint:
         "Stärke der Score-Reduktion oberhalb des Schwellwerts (0–2). 0 = Diversität aus (zurück zum FIFO-Verhalten). Default 0,5.",
       offHint: "Diversität ist aktuell aus (Malus-Gewicht = 0).",
+    },
+    // Spec 64.19 / Phase D
+    trendScoreSection: {
+      title: "Trend-Score-Gewichte",
+      description:
+        "Stellschrauben der Trend-Score-Formel (score.ts). Positive Gewichte summieren sich; Coverage ist eine Strafe und wird abgezogen. Leer lassen = harter Default. Multi-Domain: Balkon-Kraftwerk kann andere Werte als Toolwiki setzen.",
+      buzz: "Buzz",
+      growth: "Growth",
+      official: "Official",
+      serp: "SERP",
+      diversity: "Diversität",
+      coverage: "Coverage",
+      penaltyTag: "Strafe",
+      positiveSumHint: "Positive Gewichte Summe: {sum} (Standard: 100).",
+      reset: "Zurücksetzen",
     },
     daysOfWeek: {
       "0": "Sonntag",

@@ -11,6 +11,7 @@ import {
   ilike,
   inArray,
   lt,
+  ne,
   or,
   projects,
   sql,
@@ -23,10 +24,13 @@ import { requireAuth } from "../../middleware/auth.ts";
 export const scopedArticleRoutes = new Hono();
 scopedArticleRoutes.use(requireAuth);
 
+// Spec 64.19 / Phase B: `superseded` widened in the allow-list so the UI can
+// filter on it. The article_status enum gained the value via migration 0102
+// (Spec 001 cleanup) but the routes layer kept the legacy narrow list.
 const VALID_ARTICLE_STATUSES = [
   "proposed", "approved", "generating", "outline_review", "drafting",
   "final_review", "schema_extending", "ready_to_publish", "validating",
-  "published", "blocked_by_pagespeed", "failed", "rejected",
+  "published", "blocked_by_pagespeed", "failed", "rejected", "superseded",
 ] as const;
 
 // ─── GET /api/projects/:slug/articles ─────────────────────────────────────────
@@ -42,6 +46,10 @@ const articlesListQuerySchema = paginationQuerySchema.extend({
   // 56.2: cursor-based pagination (preferred over offset for Load More UX)
   cursor: z.string().datetime().optional(),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  // Spec 64.19 / Phase B: opt-in flag to include `superseded` rows in the
+  // unfiltered list view. When `status` is set explicitly the flag is ignored —
+  // the user already asked for a specific status. Default false (hide them).
+  includeSuperseded: z.coerce.boolean().default(false),
 });
 
 scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuerySchema), async (c) => {
@@ -59,6 +67,14 @@ scopedArticleRoutes.get("/:slug/articles", zValidator("query", articlesListQuery
   // status or lane (lane kept for dashboard backward compat)
   const statusFilter = q.status ?? q.lane;
   if (statusFilter) conditions.push(eq(articles.status, statusFilter));
+  // Spec 64.19 / Phase B: hide `superseded` rows unless the user opted in via
+  // the toggle (includeSuperseded=true) or explicitly filtered by that status.
+  // The else-branch covers the "no statusFilter" case — when statusFilter IS
+  // set the eq() above already narrows the result, and a user passing
+  // `?status=superseded` is unambiguously asking for that audit view.
+  else if (!q.includeSuperseded) {
+    conditions.push(ne(articles.status, "superseded"));
+  }
   if (q.collection) conditions.push(eq(articles.collection, q.collection));
   if (q.locale) conditions.push(eq(articles.locale, q.locale));
   if (q.search) {

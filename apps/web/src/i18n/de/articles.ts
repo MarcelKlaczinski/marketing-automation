@@ -79,6 +79,8 @@ export default {
       de: "DE",
       en: "EN",
     },
+    // Spec 64.19 / Phase B — opt-in audit-trail toggle for superseded articles.
+    showSuperseded: "Ersetzte anzeigen",
   },
 
   detailTabs: {
@@ -327,7 +329,10 @@ export default {
     blocked_by_pagespeed: "PageSpeed blockiert",
     failed: "Fehlgeschlagen",
     rejected: "Abgelehnt",
+    superseded: "Ersetzt",
   },
+  // Spec 64.19 / Phase B
+  supersededTooltip: "Dieser Artikel wurde ersetzt (letzte Änderung: {at}).",
 
   automation: {
     title: "Vollautomatik-Status",

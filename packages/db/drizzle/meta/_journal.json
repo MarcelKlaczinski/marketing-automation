@@ -729,6 +729,13 @@
       "when": 1788100000000,
       "tag": "0103_articles_slug_unique_active_only",
       "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1788200000000,
+      "tag": "0104_planner_config_trend_score_weights",
+      "breakpoints": true
     }
   ]
 }

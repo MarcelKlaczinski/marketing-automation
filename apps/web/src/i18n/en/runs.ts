@@ -28,6 +28,9 @@ export default {
     triggeredBy: "Triggered by {by}",
     triggeredAt: "Triggered {at}",
     durationLabel: "Duration",
+    // Spec 64.19 / Phase A — inline "N steps" hint on parent rows.
+    stepCount: "{n} step | {n} steps",
+    runsTotal: "{n} run | {n} runs",
   },
   detail: {
     backToList: "← Back to Pipeline Runs",

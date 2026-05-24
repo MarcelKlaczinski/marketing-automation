@@ -2,6 +2,31 @@
   <div class="vendor-rss-editor">
     <h4 class="section-title">{{ $t("settings.signalSources.sources.vendor_rss.title") as string }}</h4>
 
+    <!-- Spec 64.19 / Phase C: per-project staleness override. Empty defaults to 14. -->
+    <div class="max-age-row">
+      <FormField
+        :label="$t('settings.signalSources.sources.vendor_rss.maxAgeDays') as string"
+        :hint="$t('settings.signalSources.sources.vendor_rss.maxAgeDaysHint') as string"
+      >
+        <FormInput
+          :model-value="localMaxAgeDays"
+          type="number"
+          inputmode="numeric"
+          :disabled="savingMaxAge"
+          @update:model-value="(v: string) => { localMaxAgeDays = v; }"
+        />
+      </FormField>
+      <GlassButton
+        variant="ghost"
+        size="sm"
+        :disabled="!maxAgeDirty || savingMaxAge"
+        :loading="savingMaxAge"
+        @click="onSaveMaxAge"
+      >
+        {{ $t("common.save") as string }}
+      </GlassButton>
+    </div>
+
     <div class="add-feed-form">
       <FormField :label="$t('settings.signalSources.sources.vendor_rss.urlField') as string">
         <FormInput
@@ -62,6 +87,8 @@ import { apiPost, apiPatch, apiDelete } from "src/lib/api";
 interface VendorRssConfigRaw {
   enabled?: boolean;
   feeds?: VendorFeed[];
+  // Spec 64.19 / Phase C
+  maxAgeDays?: number;
 }
 
 export default defineComponent({
@@ -76,11 +103,16 @@ export default defineComponent({
     projectSlug: { type: String, required: true },
   },
 
-  data: () => ({
-    newFeedUrl: "",
-    newFeedLabel: "",
-    adding: false,
-  }),
+  data() {
+    return {
+      newFeedUrl: "",
+      newFeedLabel: "",
+      adding: false,
+      // Spec 64.19 / Phase C — local-edit state for the staleness override.
+      localMaxAgeDays: String(this.config?.maxAgeDays ?? 14),
+      savingMaxAge: false,
+    };
+  },
 
   computed: {
     feeds(): VendorFeed[] {
@@ -96,9 +128,57 @@ export default defineComponent({
         return false;
       }
     },
+
+    // Spec 64.19 / Phase C — dirty-state for the staleness override.
+    maxAgeDirty(): boolean {
+      const upstream = String(this.config?.maxAgeDays ?? 14);
+      return this.localMaxAgeDays !== upstream;
+    },
+  },
+
+  watch: {
+    // Reset local edit when upstream config refreshes (after save / external change).
+    config: {
+      handler(next: VendorRssConfigRaw | null): void {
+        if (!this.savingMaxAge) {
+          this.localMaxAgeDays = String(next?.maxAgeDays ?? 14);
+        }
+      },
+      deep: true,
+    },
   },
 
   methods: {
+    // Spec 64.19 / Phase C — PATCH the source-level config (vendor_rss.maxAgeDays).
+    async onSaveMaxAge() {
+      const parsed = parseInt(this.localMaxAgeDays, 10);
+      if (!Number.isFinite(parsed) || parsed < 1 || parsed > 365) {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("settings.signalSources.sources.vendor_rss.maxAgeDaysInvalid") as string,
+        });
+        return;
+      }
+      this.savingMaxAge = true;
+      try {
+        await apiPatch(`/projects/${this.projectSlug}/signal-sources/vendor_rss`, {
+          maxAgeDays: parsed,
+        });
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("common.saved") as string,
+        });
+        this.$emit("saved");
+      } catch {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("settings.signalSources.sources.vendor_rss.addError") as string,
+        });
+      } finally {
+        this.savingMaxAge = false;
+      }
+    },
+
     async onAdd() {
       if (!this.canAdd) return;
       this.adding = true;
@@ -185,6 +265,13 @@ export default defineComponent({
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.max-age-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
 }
 
 .add-feed-form {

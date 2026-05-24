@@ -59,6 +59,8 @@ async function seedConfig(projectId: string, enabledSources: Partial<Record<Sign
         queries: ["test"],
         hitsPerPage: 50,
         minPoints: 5,
+        // Spec 64.19 / Phase C — required since schema widened
+        maxAgeDays: 30,
       },
       reddit: {
         enabled: enabledSources.reddit ?? false,
@@ -82,6 +84,8 @@ async function seedConfig(projectId: string, enabledSources: Partial<Record<Sign
       vendor_rss: {
         enabled: enabledSources.vendor_rss ?? false,
         feeds: [],
+        // Spec 64.19 / Phase C
+        maxAgeDays: 14,
       },
       dataforseo_trends: false,
     },

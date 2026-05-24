@@ -3,6 +3,7 @@ import { createLogger } from "@marketing-auto/shared";
 import {
   db,
   externalSignals,
+  getProjectPlannerConfig,
   projects,
   rejectedTopicCandidates,
   and,
@@ -73,6 +74,12 @@ export class TrendDiscoveryTopicSource implements TopicSource<Input> {
     // 2. LLM synthesis: cluster signals into topic candidates
     const synthesis = await synthesizeTopics(projectId, signals, pipelineRunId);
 
+    // Spec 64.19 / Phase D: load per-project trend-score weight override ONCE
+    // (not per candidate). `null` planner-config row OR `null` column = use
+    // the score.ts defaults — `resolveTrendScoreWeights(null)` handles it.
+    const plannerConfig = await getProjectPlannerConfig(projectId);
+    const trendScoreWeightsOverride = plannerConfig?.trendScoreWeights ?? null;
+
     const briefsToEmit: TopicBriefInsert[] = [];
 
     // 3. Per-candidate evaluation pipeline
@@ -110,12 +117,13 @@ export class TrendDiscoveryTopicSource implements TopicSource<Input> {
         continue;
       }
 
-      // 3c. Compute trend score
+      // 3c. Compute trend score (Spec 64.19 / Phase D: per-project weight override)
       const score = await computeTrendScore({
         projectId,
         candidate,
         signalPool: signals,
         maxExistingSimilarity: coverage.similarity,
+        weightsOverride: trendScoreWeightsOverride,
       });
 
       const config = await loadActiveConfig(projectId);

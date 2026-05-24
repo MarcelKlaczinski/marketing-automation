@@ -259,10 +259,11 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
       topicScope: TopicScopeSchema.parse({ languages: ["de", "en"] }),
       signalSources: {
         producthunt: false,
-        hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5 },
+        // Spec 64.19 / Phase C — maxAgeDays added to HN + vendor_rss schemas.
+        hackernews: { enabled: false, queries: [], hitsPerPage: 50, minPoints: 5, maxAgeDays: 30 },
         reddit: { enabled: false, subreddits: ["LocalLLaMA", "MachineLearning", "ChatGPT", "ClaudeAI", "SaaS", "InternetIsBeautiful", "SideProject", "PromptEngineering", "StableDiffusion"], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" },
         github: { enabled: false, topics: ["ai-tools", "llm", "ai-agents", "chatbot", "ai-assistant", "langchain", "llamaindex", "rag", "prompt-engineering", "vector-database"], timeWindowDays: 7, minStarsNew: 20, minStarsEstablished: 500, maxAgeDays: 14, cronPattern: "0 3 * * *" },
-        vendor_rss: { enabled: false, feeds: [] },
+        vendor_rss: { enabled: false, feeds: [], maxAgeDays: 14 },
         dataforseo_trends: false,
       },
       automationRules: [],

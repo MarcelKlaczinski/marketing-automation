@@ -347,6 +347,66 @@ describe("computeTrendScore (with mocked DataForSEO)", () => {
     expect(result.total).toBeLessThanOrEqual(60);
   });
 
+  // Spec 64.19 / Phase D — per-project weight overrides
+  it("weightsOverride: partial override merges with hardcoded defaults", async () => {
+    const dfs = await import("@marketing-auto/adapter-dataforseo");
+    dfs.dataforseo.trendsExplore = mock(async () => [{ keyword: "x", growth_ratio: 2.0, current_volume: 5000, prev_year_volume: 1000 }]);
+    dfs.dataforseo.serp = mock(async () => ({ keyword: "x", totalResults: 0, serpFeatures: [], organicResults: [], peopleAlsoAsk: [], relatedSearches: [], checkUrl: "" }));
+
+    const signalId = crypto.randomUUID();
+    const signals = [
+      makeSignal({ id: signalId, source: "vendor_rss", url: "https://anthropic.com/blog/release", metrics: { points: 1000 } }),
+    ];
+
+    // Boost official 25 → 60, zero out everything else (incl. coverage so penalty doesn't bite)
+    // Only growth (100 × 60) / 100 = 60 should contribute since growth_ratio=2.0 → growth=100,
+    // and growth is the only positive knob set ≠ 0 (we kept buzz/serp/diversity at their
+    // defaults but they're 0 in the inputs here). Official=100 × 60 = 60 also contributes.
+    const result = await computeTrendScore({
+      projectId: PROJECT_ID,
+      candidate: makeTopic({ related_signal_ids: [signalId] }),
+      signalPool: signals,
+      maxExistingSimilarity: 0,
+      weightsOverride: { official: 60, growth: 0, buzz: 0, serp: 0, diversity: 0, coverage: 0 },
+    });
+
+    // official * 100/100 = 60; growth=0 because weight=0
+    expect(result.official_announcement).toBe(100);
+    expect(result.search_volume_growth).toBe(100); // raw computation, not weighted yet
+    expect(result.total).toBe(60); // 60×100/100 = 60; growth zeroed by weight; others 0
+  });
+
+  it("weightsOverride: null/undefined falls back to hardcoded defaults", async () => {
+    const dfs = await import("@marketing-auto/adapter-dataforseo");
+    dfs.dataforseo.trendsExplore = mock(async () => [{ keyword: "x", growth_ratio: null, current_volume: null, prev_year_volume: null }]);
+    dfs.dataforseo.serp = mock(async () => ({ keyword: "x", totalResults: 0, serpFeatures: [], organicResults: [], peopleAlsoAsk: [], relatedSearches: [], checkUrl: "" }));
+
+    const signalId = crypto.randomUUID();
+    const signals = [
+      makeSignal({ id: signalId, source: "vendor_rss", url: "https://anthropic.com/blog/release", metrics: { points: 100 } }),
+    ];
+
+    const baseline = await computeTrendScore({
+      projectId: PROJECT_ID,
+      candidate: makeTopic({ related_signal_ids: [signalId] }),
+      signalPool: signals,
+      maxExistingSimilarity: 0,
+    });
+
+    const explicitNull = await computeTrendScore({
+      projectId: PROJECT_ID,
+      candidate: makeTopic({ related_signal_ids: [signalId] }),
+      signalPool: signals,
+      maxExistingSimilarity: 0,
+      weightsOverride: null,
+    });
+
+    expect(explicitNull.total).toBe(baseline.total);
+    // Default weight for official is 25 → 25×100/100 = 25 contribution from single
+    // official announcement at default weights.
+    expect(baseline.official_announcement).toBe(100);
+  });
+
   it("DataForSEO failure → growth = 0, no crash", async () => {
     const dfs = await import("@marketing-auto/adapter-dataforseo");
     dfs.dataforseo.trendsExplore = mock(async () => { throw new Error("API down"); });

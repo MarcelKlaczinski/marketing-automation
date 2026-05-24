@@ -262,7 +262,10 @@ export default {
     blocked_by_pagespeed: "PageSpeed Blocked",
     failed: "Failed",
     rejected: "Rejected",
+    superseded: "Superseded",
   },
+  // Spec 64.19 / Phase B
+  supersededTooltip: "This article has been superseded (last updated: {at}).",
 
   automation: {
     title: "Full-Automation Status",
@@ -378,6 +381,8 @@ export default {
       de: "DE",
       en: "EN",
     },
+    // Spec 64.19 / Phase B — opt-in audit-trail toggle for superseded articles.
+    showSuperseded: "Show superseded",
   },
 
   detailTabs: {

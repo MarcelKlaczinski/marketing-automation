@@ -275,6 +275,9 @@ export default {
         queriesPlaceholder: "e.g. LLM",
         hitsPerPage: "Hits per page",
         minPoints: "Min. points",
+        // Spec 64.19 / Phase C
+        maxAgeDays: "Max age (days)",
+        maxAgeDaysHint: "Items older than this are ignored. Default: 30.",
       },
       producthunt: {
         name: "Product Hunt",
@@ -304,6 +307,10 @@ export default {
           title: "Remove feed?",
           message: "This feed will be removed from the list and will no longer be fetched.",
         },
+        // Spec 64.19 / Phase C
+        maxAgeDays: "Max age (days)",
+        maxAgeDaysHint: "Items older than this are ignored. Default: 14.",
+        maxAgeDaysInvalid: "Value must be between 1 and 365.",
       },
     },
   },
@@ -478,6 +485,21 @@ export default {
       malusWeightHint:
         "Strength of the score deduction above the threshold (0-2). 0 = diversity off (back to FIFO behaviour). Default 0.5.",
       offHint: "Diversity is currently off (malus weight = 0).",
+    },
+    // Spec 64.19 / Phase D
+    trendScoreSection: {
+      title: "Trend Score Weights",
+      description:
+        "Tunable knobs for the trend-score formula (score.ts). Positive weights are summed; coverage is a penalty and subtracted. Leave the row clear to use the code defaults. Multi-domain: Balkon-Kraftwerk can hold different values than Toolwiki.",
+      buzz: "Buzz",
+      growth: "Growth",
+      official: "Official",
+      serp: "SERP",
+      diversity: "Diversity",
+      coverage: "Coverage",
+      penaltyTag: "Penalty",
+      positiveSumHint: "Positive weights sum: {sum} (default: 100).",
+      reset: "Reset",
     },
     daysOfWeek: {
       "0": "Sunday",

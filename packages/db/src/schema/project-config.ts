@@ -71,6 +71,11 @@ export const SignalSourcesSchema = z
         ]),
         hitsPerPage: z.number().int().min(1).max(100).default(50),
         minPoints:   z.number().int().min(0).default(5),
+        // Spec 64.19 / Phase C: per-project override. Default 30 mirrors the
+        // adapter-side schema default in packages/adapters/hackernews/src/signal-source.ts.
+        // Setting this per-project lets Multi-Domain tenants (e.g. Balkon-Kraftwerk)
+        // tighten or loosen the staleness window without an adapter deploy.
+        maxAgeDays:  z.number().int().positive().max(365).default(30),
       })
       .default({
         enabled: false,
@@ -82,6 +87,7 @@ export const SignalSourcesSchema = z
         ],
         hitsPerPage: 50,
         minPoints: 5,
+        maxAgeDays: 30,
       }),
     reddit: z
       .object({
@@ -161,8 +167,11 @@ export const SignalSourcesSchema = z
             }),
           )
           .default([]),
+        // Spec 64.19 / Phase C: per-project override. Default 14 mirrors the
+        // adapter-side schema default in packages/adapters/vendor-rss/src/signal-source.ts.
+        maxAgeDays: z.number().int().positive().max(365).default(14),
       })
-      .default({ enabled: false, feeds: [] }),
+      .default({ enabled: false, feeds: [], maxAgeDays: 14 }),
     dataforseo_trends: z.boolean().default(false),
   })
   .default({
@@ -177,6 +186,7 @@ export const SignalSourcesSchema = z
       ],
       hitsPerPage: 50,
       minPoints: 5,
+      maxAgeDays: 30,
     },
     reddit: { enabled: false, subreddits: [], sortMode: "top", timeWindow: "week", minUpvotes: 50, minComments: 10, maxAgeDays: 7, cronPattern: "30 2 * * *" },
     github: {
@@ -199,7 +209,7 @@ export const SignalSourcesSchema = z
       maxAgeDays: 14,
       cronPattern: "0 3 * * *",
     },
-    vendor_rss: { enabled: false, feeds: [] },
+    vendor_rss: { enabled: false, feeds: [], maxAgeDays: 14 },
     dataforseo_trends: false,
   });
 export type SignalSources = z.infer<typeof SignalSourcesSchema>;

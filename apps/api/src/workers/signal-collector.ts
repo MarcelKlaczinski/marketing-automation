@@ -192,11 +192,15 @@ async function handleCollectAdapter(
         log.warn({ projectId }, "hackernews: no active config, skipping");
         return;
       }
+      // Spec 64.19 / Phase C: read maxAgeDays from per-project config with
+      // adapter-default fallback. Zod's `.default(30)` populates the field for
+      // rows written before the schema widening (covered by loadActiveConfig
+      // which parses through SignalSourcesSchema).
       signals = await new HackerNewsSignalSource().fetch({
         queries:     hnConfig.queries,
         hitsPerPage: hnConfig.hitsPerPage,
         minPoints:   hnConfig.minPoints,
-        maxAgeDays:  30,
+        maxAgeDays:  hnConfig.maxAgeDays,
       }, ctx);
       break;
     }
@@ -214,7 +218,12 @@ async function handleCollectAdapter(
         log.warn({ projectId }, "vendor_rss: enabled but no active feeds configured");
         return;
       }
-      signals = await new VendorRssSignalSource().fetch({ feeds: activeFeeds, maxAgeDays: 14 }, ctx);
+      // Spec 64.19 / Phase C: read maxAgeDays from per-project config with
+      // adapter-default fallback (14 days via Zod `.default(14)`).
+      signals = await new VendorRssSignalSource().fetch({
+        feeds: activeFeeds,
+        maxAgeDays: config.signalSources.vendor_rss.maxAgeDays,
+      }, ctx);
       break;
     }
     case "reddit": {

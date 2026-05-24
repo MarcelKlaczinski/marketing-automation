@@ -32,6 +32,19 @@
           @update:model-value="(v: string) => { form.formData.value.minPoints = v; }"
         />
       </FormField>
+
+      <!-- Spec 64.19 / Phase C: per-project staleness override -->
+      <FormField
+        :label="$t('settings.signalSources.sources.hackernews.maxAgeDays') as string"
+        :hint="$t('settings.signalSources.sources.hackernews.maxAgeDaysHint') as string"
+      >
+        <FormInput
+          :model-value="form.formData.value.maxAgeDays"
+          type="number"
+          inputmode="numeric"
+          @update:model-value="(v: string) => { form.formData.value.maxAgeDays = v; }"
+        />
+      </FormField>
     </div>
   </FormSection>
 </template>
@@ -49,12 +62,15 @@ interface HNFormData {
   queries: string[];
   hitsPerPage: string;
   minPoints: string;
+  // Spec 64.19 / Phase C — per-project staleness override
+  maxAgeDays: string;
 }
 
 interface HNConfigRaw {
   queries?: string[];
   hitsPerPage?: number;
   minPoints?: number;
+  maxAgeDays?: number;
 }
 
 export default defineComponent({
@@ -75,12 +91,15 @@ export default defineComponent({
         queries: props.config?.queries ?? [],
         hitsPerPage: String(props.config?.hitsPerPage ?? 50),
         minPoints: String(props.config?.minPoints ?? 5),
+        maxAgeDays: String(props.config?.maxAgeDays ?? 30),
       }),
       onSave: async (data) => {
+        const parsedAge = parseInt(data.maxAgeDays, 10);
         await apiPatch(`/projects/${props.projectSlug}/signal-sources/hackernews`, {
           queries: data.queries,
           hitsPerPage: parseInt(data.hitsPerPage, 10) || 1,
           minPoints: parseInt(data.minPoints, 10) || 0,
+          maxAgeDays: Number.isFinite(parsedAge) && parsedAge > 0 ? parsedAge : 30,
         });
         emit("saved");
       },

@@ -3,6 +3,9 @@
     <div class="row-top">
       <span class="timestamp mono">{{ formattedTimestamp }}</span>
       <span class="pipeline-name mono">{{ run.pipelineName }}</span>
+      <span v-if="run.stepCount > 0" class="step-count-badge mono">
+        {{ stepCountLabel }}
+      </span>
       <span class="status-badge" :class="statusClass">{{ statusLabel }}</span>
     </div>
 
@@ -52,6 +55,11 @@ export default defineComponent({
     statusLabel(): string {
       const key = STATUS_LABEL_KEYS[this.run.status] ?? "runs.list.statusFailed";
       return this.$t(key) as string;
+    },
+    stepCountLabel(): string {
+      // Spec 64.19 / Phase A: inline "N steps" hint so the parent-children
+      // relationship is discoverable without navigating to detail.
+      return this.$t("runs.list.stepCount", { n: this.run.stepCount }, this.run.stepCount) as string;
     },
     statusClass(): string {
       return `status-badge--${this.run.status.replace(/_/g, "-")}`;
@@ -149,6 +157,19 @@ export default defineComponent({
 .error-snippet {
   color: var(--status-failed, #ff4d6d);
   margin-top: 2px;
+}
+
+.step-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--bg-glass-strong);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
 
 .status-badge {

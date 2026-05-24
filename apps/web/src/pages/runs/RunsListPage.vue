@@ -3,6 +3,7 @@
     <header class="page-header">
       <h1 class="page-title">{{ $t("runs.list.pageTitle") as string }}</h1>
       <p class="page-desc text-secondary">{{ $t("runs.list.pageDescription") as string }}</p>
+      <p v-if="total > 0" class="page-count text-tertiary text-sm">{{ totalLabel }}</p>
     </header>
 
     <div class="filter-row">
@@ -138,6 +139,12 @@ export default defineComponent({
     sseTitle(): string {
       return `SSE: ${this.eventsStore.connectionStatus}`;
     },
+    totalLabel(): string {
+      // Spec 64.19 / Phase A — "N runs" counter so the parent-children
+      // relationship (1 import = 1 parent row + N step children, see Spec 004 F2)
+      // is communicated explicitly even when the list is filtered.
+      return this.$t("runs.list.runsTotal", { n: this.total }, this.total) as string;
+    },
   },
 
   mounted() {
@@ -204,6 +211,7 @@ export default defineComponent({
 
 .page-title { margin: 0; font-size: 22px; font-weight: 600; }
 .page-desc { margin: 0; font-size: 14px; }
+.page-count { margin: 2px 0 0; }
 
 .filter-row {
   display: flex;

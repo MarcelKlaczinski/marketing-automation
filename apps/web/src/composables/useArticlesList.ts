@@ -9,6 +9,9 @@ export interface ArticlesListFilters {
   collection?: string;
   locale?: string;
   search?: string;
+  // Spec 64.19 / Phase B: opt-in flag to include `superseded` rows.
+  // Ignored by the backend when an explicit `status` is set.
+  includeSuperseded?: boolean;
 }
 
 /**
@@ -43,6 +46,7 @@ export function useArticlesList(initialFilters: MaybeRef<ArticlesListFilters> = 
       if (f.collection) params.set("collection", f.collection);
       if (f.locale) params.set("locale", f.locale);
       if (f.search) params.set("search", f.search);
+      if (f.includeSuperseded) params.set("includeSuperseded", "true");
       return apiGet<ArticlesListResponse>(
         `/projects/${slug}/articles?${params.toString()}`,
       );

@@ -34,18 +34,23 @@ describe("deriveContentType", () => {
 // ─── buildHashtagInstructions ─────────────────────────────────────────────────
 
 describe("buildHashtagInstructions — anchor tags", () => {
-  // 6 combinations: 2 locales × 3 contentTypes
-  const cases: Array<[string, ContentType, string[], string[]]> = [
+  // DE-locale output is bilingual (DE+EN anchor tags for dual-search-intent on Instagram).
+  // EN-locale output is English-only: the `#KI…` anchors must NOT appear as positive
+  // examples. They appear only in the "NO German hashtags" negative-example string,
+  // which the test must not conflate with intended output.
+  const deCases: Array<[string, ContentType, string[], string[]]> = [
     ["de-DE", "comparison", ["#KITools", "#KIVergleich"],  ["#AITools", "#AIComparison"]],
     ["de-DE", "review",     ["#KITools", "#KIFürBusiness"], ["#AITools", "#AIForBusiness"]],
     ["de-DE", "general",    ["#KITools", "#KIFürBusiness"], ["#AITools", "#AIForBusiness"]],
-    ["en-US", "comparison", ["#KITools", "#KIVergleich"],  ["#AITools", "#AIComparison"]],
-    ["en-US", "review",     ["#KITools", "#KIFürBusiness"], ["#AITools", "#AIForBusiness"]],
-    ["en-US", "general",    ["#KITools", "#KIFürBusiness"], ["#AITools", "#AIForBusiness"]],
+  ];
+  const enCases: Array<[string, ContentType, string[]]> = [
+    ["en-US", "comparison", ["#AITools", "#AIComparison"]],
+    ["en-US", "review",     ["#AITools", "#AIForBusiness"]],
+    ["en-US", "general",    ["#AITools", "#AIForBusiness"]],
   ];
 
-  it.each(cases)(
-    "locale=%s contentType=%s → DE anchors=%j EN anchors=%j",
+  it.each(deCases)(
+    "DE locale=%s contentType=%s → DE anchors=%j EN anchors=%j (bilingual)",
     (locale, contentType, deAnchors, enAnchors) => {
       const output = buildHashtagInstructions({ locale, contentType, toolNames: ["ToolA"] });
       for (const tag of deAnchors) {
@@ -54,6 +59,18 @@ describe("buildHashtagInstructions — anchor tags", () => {
       for (const tag of enAnchors) {
         expect(output).toContain(tag);
       }
+    },
+  );
+
+  it.each(enCases)(
+    "EN locale=%s contentType=%s → EN anchors=%j (English-only)",
+    (locale, contentType, enAnchors) => {
+      const output = buildHashtagInstructions({ locale, contentType, toolNames: ["ToolA"] });
+      for (const tag of enAnchors) {
+        expect(output).toContain(tag);
+      }
+      // English-only block: confirm the explicit "no German hashtags" rule is present.
+      expect(output).toContain("English only");
     },
   );
 });

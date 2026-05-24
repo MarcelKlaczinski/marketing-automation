@@ -7,7 +7,19 @@
         :search="searchQuery"
         @update:filters="onFiltersChange"
         @update:search="onSearchChange"
-      />
+      >
+        <template #actions>
+          <!-- Spec 64.19 / Phase B: opt-in superseded audit-trail toggle. -->
+          <label class="superseded-toggle">
+            <input
+              type="checkbox"
+              :checked="showSuperseded"
+              @change="onShowSupersededChange(($event.target as HTMLInputElement).checked)"
+            />
+            <span>{{ $t("articles.filters.showSuperseded") as string }}</span>
+          </label>
+        </template>
+      </FilterBar>
 
       <div class="list-content">
         <LoadingShimmer v-if="isLoading && !articles.length" variant="card" :count="5" />
@@ -89,6 +101,9 @@ export default defineComponent({
   data: () => ({
     activeFilters: {} as Record<string, string>,
     searchQuery: "",
+    // Spec 64.19 / Phase B: opt-in audit-trail view for superseded articles.
+    // Default off so the active-only list stays the standard.
+    showSuperseded: false,
     // Non-reactive — underscore prefix convention; IntersectionObserver must not be
     // wrapped in Vue's reactive proxy (per apps/web/CLAUDE.md).
     _observer: null as IntersectionObserver | null,
@@ -148,6 +163,9 @@ export default defineComponent({
             { value: "final_review", label: this.$t("articles.status.final_review") as string },
             { value: "published", label: this.$t("articles.status.published") as string },
             { value: "failed", label: this.$t("articles.status.failed") as string },
+            // Spec 64.19 / Phase B: surface superseded in the status dropdown too
+            // so power users can filter directly without toggling the audit-trail flag.
+            { value: "superseded", label: this.$t("articles.status.superseded") as string },
           ],
         },
         {
@@ -235,7 +253,12 @@ export default defineComponent({
       if (this.activeFilters.collection) f.collection = this.activeFilters.collection;
       if (this.activeFilters.locale) f.locale = this.activeFilters.locale;
       if (this.searchQuery.length >= 2) f.search = this.searchQuery;
+      if (this.showSuperseded) f.includeSuperseded = true;
       this.setFilters(f);
+    },
+    onShowSupersededChange(value: boolean): void {
+      this.showSuperseded = value;
+      this.applyFilters();
     },
     onSelectArticle(id: string): void {
       const slug = this.$route.params.slug as string;
@@ -287,6 +310,21 @@ export default defineComponent({
   flex: 1;
   overflow-y: auto;
   min-width: 0;
+}
+
+.superseded-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.superseded-toggle input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--accent-primary);
 }
 
 @media (max-width: 767px) {
