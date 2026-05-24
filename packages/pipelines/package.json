@@ -19,7 +19,8 @@
     "./config": "./src/config/index.ts",
     "./plan-execution-queue": "./src/execution/plan-execution-queue.ts",
     "./execute-plan": "./src/execution/execute-plan.ts",
-    "./icon-resolver": "./src/_lib/resolve-tool-icon.ts"
+    "./icon-resolver": "./src/_lib/resolve-tool-icon.ts",
+    "./domain-registry": "./src/_lib/domain-registry-singleton.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

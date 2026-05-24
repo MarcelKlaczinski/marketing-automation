@@ -12,6 +12,7 @@ import { resolveMasterPrompt } from "../../config/index.ts";
 import { validateCategoryAndNotify } from "../category-validation/validate-and-notify.ts";
 import { validateComparisonExtras } from "../frontmatter/comparison.ts";
 import { validateKiWissenExtras } from "../frontmatter/ki-wissen.ts";
+import { getDomainRegistry } from "../../_lib/domain-registry-singleton.ts";
 import { buildComparisonContextFragment, selectDraftPrompt } from "../prompts/index.ts";
 import { ArticleOutlineSchema, ArticlePipelineError } from "../types.ts";
 
@@ -21,7 +22,7 @@ const InputSchema = z.object({
   projectSlug: z.string(),
   modelOverride: z.string().optional(),
   locale: z.enum(["de", "en"]).optional(),
-  // Spec 50: frontmatter schema — injected into prompt so LLM outputs FRONTMATTER_EXTRAS block
+  // Spec 50: frontmatter schema — injected into prompt so LLM outputs DOMAIN_EXTRAS block
   frontmatterSchema: z.array(z.unknown()).nullable().optional(),
   // Spec 54.9: source-aware context injected into user message (not system prompt — preserves cache)
   sourceContext: z.string().optional(),
@@ -76,7 +77,7 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
     ) as AuthorEntry[];
 
     const authorInstruction = availableAuthors.length > 0
-      ? `\nAuthor assignment (include "author" field in FRONTMATTER_EXTRAS):\n${
+      ? `\nAuthor assignment (include "author" field in DOMAIN_EXTRAS):\n${
           availableAuthors
             .map((a) => `- "${a.slug}": ${a.name} — ${a.expertise.join(", ")}`)
             .join("\n")
@@ -129,10 +130,10 @@ Hard rules:
 11. Do NOT write "Stand: <Datum> · Getestet von <Name>" or any similar metadata header.
     Do NOT write "[Author-Name]", "[Datum]", "[Name]" or any placeholder text anywhere.
     Author attribution and publish date are handled by the system — never in the article body.
-12. After the conclusion, output a FRONTMATTER_EXTRAS block. This block is stripped before
+12. After the conclusion, output a DOMAIN_EXTRAS block. This block is stripped before
     publishing — it is metadata only. Fill ALL applicable fields based on the article's topic and intent.${authorInstruction}
 
-FRONTMATTER_EXTRAS fields — output every field that applies:
+DOMAIN_EXTRAS fields — output every field that applies:
 
   IMPORTANT: Use ONLY the exact string values listed below for enum fields.
   Never invent variants (no underscores, no capitalization, no abbreviations).
@@ -211,7 +212,7 @@ Output format:
 
 [conclusion with clear takeaway]
 
-<!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","intentType":"...","excerpt":"...","bottomLinksVariant":"...","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
+<!-- DOMAIN_EXTRAS: {"author":"<slug>","category":"...","intentType":"...","excerpt":"...","bottomLinksVariant":"...","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
     `.trim();
 
     // Spec 61.2: collection-specific prompt selector — null = use blog default
@@ -305,23 +306,23 @@ Output format:
       estimatedCostEur: this.estimatedCostEur(),
     });
 
-    // Spec 50: Extract and strip the FRONTMATTER_EXTRAS block from the draft body.
-    // Pattern: <!-- FRONTMATTER_EXTRAS: {...JSON...} -->
+    // Spec 50: Extract and strip the DOMAIN_EXTRAS block from the draft body.
+    // Pattern: <!-- DOMAIN_EXTRAS: {...JSON...} -->
     // NOTE: the LLM sometimes omits the closing "-->", so we strip from the marker
     // to end-of-string unconditionally (it is always the last thing in the body).
-    const extrasStartIdx = result.raw.indexOf("<!-- FRONTMATTER_EXTRAS:");
+    const extrasStartIdx = result.raw.indexOf("<!-- DOMAIN_EXTRAS:");
     let bodyMd = result.raw;
-    let frontmatterExtras: Record<string, unknown> | null = null;
+    let domainExtras: Record<string, unknown> | null = null;
 
     if (extrasStartIdx !== -1) {
       // Try to parse the JSON between the opening tag and an optional closing -->
       const extrasRaw = result.raw.slice(extrasStartIdx);
-      const jsonMatch = extrasRaw.match(/<!--\s*FRONTMATTER_EXTRAS:\s*(\{[\s\S]*)/);
+      const jsonMatch = extrasRaw.match(/<!--\s*DOMAIN_EXTRAS:\s*(\{[\s\S]*)/);
       if (jsonMatch?.[1]) {
         // Remove optional trailing --> and whitespace before parsing
         const jsonStr = jsonMatch[1].replace(/\s*-->\s*$/, "").trimEnd();
         try {
-          frontmatterExtras = JSON.parse(jsonStr) as Record<string, unknown>;
+          domainExtras = JSON.parse(jsonStr) as Record<string, unknown>;
         } catch {
           // best-effort — invalid JSON means we just skip extras
         }
@@ -330,39 +331,58 @@ Output format:
       bodyMd = result.raw.slice(0, extrasStartIdx).trimEnd();
     }
 
+    // Spec multi-domain-evolution Domain-Registry follow-up — resolve the
+    // tenant's DomainContext once for both comparison + ki-wissen gates
+    // below. When the registry returns null (project's targetNiche missing
+    // OR its DomainSpec is not shipped yet), we fall back to the legacy
+    // direct-import validators so Toolwiki keeps the exact byte-equivalent
+    // path it had before this wiring. Toolwiki's DomainSpec registers the
+    // existing `validateComparisonExtras` / `validateKiWissenExtras` as
+    // `validateExtras` callbacks, so the registry path runs the same
+    // cross-field rules. The only deviation between the two paths is the
+    // error-message preamble: registry-routed paths label the message
+    // "[registry:<niche>:<collection>]" so logs make the routing visible.
+    const domainCtx = await getDomainRegistry().forProject(input.projectId);
+
     // Spec 61.2 Pattern 111: validate comparison-specific frontmatter before persist.
     // Throws ArticlePipelineError(stage="draft") so the pipeline run is marked failed
     // and Marcel sees the validation issue in the UI (not a silent malformed article).
     if (collectionType === "comparison") {
-      if (!frontmatterExtras) {
+      if (!domainExtras) {
         throw new ArticlePipelineError(
-          "comparison: draft did not emit a FRONTMATTER_EXTRAS block — cannot validate toolSlugs/winner/verdict",
+          "comparison: draft did not emit a DOMAIN_EXTRAS block — cannot validate toolSlugs/winner/verdict",
           "draft",
         );
       }
-      const validation = validateComparisonExtras(frontmatterExtras);
+      const collectionCtx = domainCtx?.forCollection("comparison") ?? null;
+      const validation = collectionCtx
+        ? collectionCtx.validateExtras(domainExtras)
+        : validateComparisonExtras(domainExtras);
       if (!validation.ok) {
         throw new ArticlePipelineError(validation.error, "draft");
       }
     }
 
-    // Spec 61.3 Pattern 111: validate ki-wissen FRONTMATTER_EXTRAS (category enum,
+    // Spec 61.3 Pattern 111: validate ki-wissen DOMAIN_EXTRAS (category enum,
     // level enum, icon, facts[3..5], next[2..4]) + Pattern 116 (no monetization fields).
     if (collectionType === "ki-wissen") {
-      if (!frontmatterExtras) {
+      if (!domainExtras) {
         throw new ArticlePipelineError(
-          "ki-wissen: draft did not emit a FRONTMATTER_EXTRAS block — cannot validate category/level/icon/facts/next",
+          "ki-wissen: draft did not emit a DOMAIN_EXTRAS block — cannot validate category/level/icon/facts/next",
           "draft",
         );
       }
-      const validation = validateKiWissenExtras(frontmatterExtras);
+      const collectionCtx = domainCtx?.forCollection("ki-wissen") ?? null;
+      const validation = collectionCtx
+        ? collectionCtx.validateExtras(domainExtras)
+        : validateKiWissenExtras(domainExtras);
       if (!validation.ok) {
         throw new ArticlePipelineError(validation.error, "draft");
       }
       // Pattern 116: minimum FAQ count for ki-wissen is 7 (vs. 5 for blog/comparison).
-      // FAQ is a top-level field on frontmatterExtras (not in KiWissenExtrasSchema —
+      // FAQ is a top-level field on domainExtras (not in KiWissenExtrasSchema —
       // that schema only covers ki-wissen-specific fields). Validate count here.
-      const faqRaw = frontmatterExtras.faq;
+      const faqRaw = domainExtras.faq;
       const faqCount = Array.isArray(faqRaw) ? faqRaw.length : 0;
       if (faqCount < 7) {
         throw new ArticlePipelineError(
@@ -381,7 +401,7 @@ Output format:
       await validateCategoryAndNotify({
         projectId: input.projectId,
         collectionType,
-        category: frontmatterExtras?.category,
+        category: domainExtras?.category,
         articleId: input.articleId,
       });
     } catch (e) {
@@ -449,7 +469,7 @@ Output format:
       .trim();
 
     // Validate author slug against the available list — null if unknown or list is empty
-    const rawAuthorSlug = frontmatterExtras?.author;
+    const rawAuthorSlug = domainExtras?.author;
     const chosenAuthor: string | null =
       typeof rawAuthorSlug === "string" && rawAuthorSlug.trim().length > 0
         ? availableAuthors.length === 0 ||
@@ -459,8 +479,8 @@ Output format:
         : null;
 
     // Merge LLM extras with existing DB value — preserves authorPickStrategy set by AuthorPickStep
-    const mergedExtras = frontmatterExtras
-      ? { ...(article.frontmatterExtras as Record<string, unknown> ?? {}), ...frontmatterExtras }
+    const mergedExtras = domainExtras
+      ? { ...(article.domainExtras as Record<string, unknown> ?? {}), ...domainExtras }
       : null;
 
     if (mergedExtras) {
@@ -473,7 +493,7 @@ Output format:
       await db
         .update(articles)
         .set({
-          frontmatterExtras: mergedExtras,
+          domainExtras: mergedExtras,
           ...(extCategory !== undefined ? { category: extCategory } : {}),
           ...(extSubcategory !== undefined ? { subcategory: extSubcategory } : {}),
           ...(extTags !== undefined ? { tags: extTags } : {}),
