@@ -17,3 +17,10 @@ export {
   type ParsedEntry,
   type ParsedEntryWithMirror,
 } from "./steps/mirror-hero-images.ts";
+// Spec 005 IR2 — Mirror-Backfill self-healing step + shared refresh-whitelist
+// helper used by UpsertArticlesStep on the inline UPDATE path.
+export {
+  MirrorBackfillHeroesStep,
+  heroRefreshWhitelistUpdateSet,
+  type BackfillStepDeps,
+} from "./steps/mirror-backfill-heroes.ts";

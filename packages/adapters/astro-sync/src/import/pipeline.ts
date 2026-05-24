@@ -9,6 +9,7 @@ import { ExtractCollectionSchemasStep } from "./steps/extract-collection-schemas
 import { FilterChangedFilesStep } from "./steps/filter-changed-files.ts";
 import { LinkTranslationPairsStep } from "./steps/link-translation-pairs.ts";
 import { ListContentFilesStep } from "./steps/list-content-files.ts";
+import { MirrorBackfillHeroesStep } from "./steps/mirror-backfill-heroes.ts";
 import { MirrorHeroImagesStep } from "./steps/mirror-hero-images.ts";
 import { ParseFrontmatterBatchStep } from "./steps/parse-frontmatter-batch.ts";
 import { SyncClustersFromFrontmatterStep } from "./steps/sync-clusters-from-frontmatter.ts";
@@ -41,6 +42,7 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
     new ParseFrontmatterBatchStep(),
     new MirrorHeroImagesStep(),           // Spec 000: hero-image-mirror (R2 upload + hash dedup)
     new UpsertArticlesStep(),
+    new MirrorBackfillHeroesStep(),       // Spec 005 IR2: self-heal heroless rows from prior failed mirrors
     new LinkTranslationPairsStep(),
     new SyncClustersFromFrontmatterStep(), // Spec 49a: auto-populate clusters from clusterKey frontmatter
     new DetectContentGapsStep(),           // Spec 49b: zero-cost gap detection after each import
@@ -104,7 +106,26 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
       };
     }
 
-    if (fromStep.name === "upsert-articles" && toStep.name === "link-translation-pairs") {
+    if (fromStep.name === "upsert-articles" && toStep.name === "mirror-backfill-heroes") {
+      // Spec 005 IR2: backfill step re-mirrors any rows that exited Upsert
+      // without hero columns (e.g. first-pass Mirror failure). It needs the
+      // repo config + the head commit SHA pinned earlier in the pipeline so
+      // GitHub-App blob fetches go against the same commit as the main
+      // Mirror step.
+      const list = getStepOutput<{ headCommitSha: string; files: unknown[] }>(
+        "list-content-files",
+      );
+      if (!list) {
+        throw new Error("mirror-backfill-heroes: list-content-files output unavailable");
+      }
+      return {
+        projectId: pipelineInput.projectId,
+        astroRepo: pipelineInput.astroRepo,
+        headCommitSha: list.headCommitSha,
+      };
+    }
+
+    if (fromStep.name === "mirror-backfill-heroes" && toStep.name === "link-translation-pairs") {
       return { projectId: pipelineInput.projectId };
     }
 

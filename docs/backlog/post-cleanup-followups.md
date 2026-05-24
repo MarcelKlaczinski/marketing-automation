@@ -199,53 +199,50 @@ touch `source='imported'`.
 
 ### Slug-Rename-Detection im Importer
 
-Today: file rename = new row created + old row keeps stale filePath. The
-importer doesn't realize the two are linked.
+✅ **CLOSED 2026-05-24 via Spec 005 IR1** (Option D — partial unique index).
+Migration 0103 replaces the hard unique `(project, source, collection, locale, slug)`
+with a partial unique `WHERE status != 'superseded'`. `UpsertArticlesStep.onConflictDoUpdate`
+mirrors the predicate via `targetWhere: sql\`status != 'superseded'\``.
+`FilterChangedFilesStep` also filters superseded rows from its `existingByPath`
+index so a stale superseded row's filePath doesn't short-circuit gitSha-equality
+and skip the new file. Superseded rows are tombstones; the importer is free to
+INSERT new active rows at the same slug. See
+[`docs/discovery/ir1-upsert-articles-code-read.md`](../discovery/ir1-upsert-articles-code-read.md)
+for the full Code-Read incl. defense-in-depth check + option analysis.
 
-Pattern: when an import diff sees a new file AND an existing row with the
-same `cornerstoneKeyword` + `locale` + `collection` but different `slug`,
-flag as a rename candidate. Either auto-supersede the old row (write
-`supersededBy` link), or surface to Marcel for manual confirm. Affects
-canonical-URL stability + redirect generation in the Astro build.
-
-**Related Anomaly A footgun (2026-05-24, see
-[`docs/specs/fix-slug-rename-supersede-conflict/spec.md`](../specs/fix-slug-rename-supersede-conflict/spec.md)):**
-`UpsertArticlesStep` matches new/renamed files against existing rows by
-`cornerstoneKeyword` + filePath-proximity, but the match does NOT filter by
-status. So superseded rows get re-purposed as match targets — the
-`filePath` gets updated in-place on the superseded row, leaving 0 active
-rows for the new slug. Recommended fix as part of this same Folge-Spec:
-add `AND status != 'superseded'` to the match-query WHERE clause. If no
-match: insert as new row. The Slug-Rename-Detection pattern above subsumes
-this fix when the matcher learns to recognize the rename and either
-auto-supersedes the OLD row (keeping it superseded) + inserts a NEW one,
-or links them via `supersededBy`.
+Pattern findings (kept for reference): the originally-feared "cornerstoneKeyword
+heuristic" doesn't exist in the code — matching is purely on the unique constraint.
+The actual mechanism that hit Anomaly-A was the hard unique constraint matching
+superseded rows during `onConflictDoUpdate`, not a separate rename-detection
+pipeline. A future "Slug-Rename-Detection + auto-supersede-link" feature could
+still be valuable for canonical-URL stability + redirect generation, but it's
+no longer blocking — superseded rows now co-exist cleanly with active rows.
 
 ### Mirror-Step-Ordering im Importer
 
-Today's flow: `MirrorHeroImagesStep` iterates over DB-Rows BEFORE
-`UpsertArticlesStep` inserts new rows. Newly-inserted rows therefore don't
-get heroes in the SAME run — they need either a second Re-Import or a
-separate `backfill-imported-heroes --apply` run to pick up the heroes.
+✅ **CLOSED 2026-05-24 via Spec 005 IR2** (Option B — additive backfill step).
+New `MirrorBackfillHeroesStep` runs AFTER `UpsertArticlesStep` in the
+RepoImportPipeline. It picks up `source='imported'` rows where
+`hero_image_r2_key IS NULL` (excluding `COLLECTIONS_WITHOUT_HERO`) and re-mirrors
+through the same `mirrorOneArticle` helper used by `MirrorHeroImagesStep` and
+the `backfill-imported-heroes` CLI. Heroless rows from prior failed mirrors
+self-heal on every Re-Import, regardless of MDX gitSha state.
 
-Discovered during the C4 Re-Import for Anomaly A (see
-[`docs/discovery/post-cleanup-final-verification.md`](../discovery/post-cleanup-final-verification.md)
-"Anomaly B" 15:34Z update): Marcel triggered two Re-Imports in succession,
-the second one fired the Mirror-Step against the rows the first Re-Import
-had inserted. Functional but operationally awkward (two clicks instead of
-one).
+The original "Mirror reads DB" framing was wrong (see
+[`docs/discovery/ir2-mirror-step-ordering-code-read.md`](../discovery/ir2-mirror-step-ordering-code-read.md)
+§1-2 for the Code-Read): `MirrorHeroImagesStep` always operated on in-memory
+parsed entries, not DB rows. The actual Anomaly-B was caused by a
+default-hero-path bug (fixed separately on 2026-05-24 15:57Z). The new step
+closes the underlying durability gap: any Mirror failure (404, R2 outage,
+GitHub transient) on a NEW INSERT no longer requires manual recovery.
 
-**Empfohlene Lösung:** Either (a) move `MirrorHeroImagesStep` AFTER
-`UpsertArticlesStep` in `RepoImportPipeline`, OR (b) change the step to
-read parsed-file state from pipeline-input rather than DB rows (so newly-
-parsed-but-not-yet-upserted files are also covered in-run). Option (b) is
-the cleaner long-term design — couples the mirror to the canonical source
-(the parsed files) instead of the derivative DB state.
+Shared `heroRefreshWhitelistUpdateSet()` helper extracted to keep both
+`UpsertArticlesStep` (inline UPDATE) and `MirrorBackfillHeroesStep` (standalone
+UPDATE) using identical hash-equality preservation semantics — UI-edited
+`heroImageAltText` still survives unchanged-content Re-Imports.
 
-### Aufwand-Schätzung
-
-~1-2 Tage für Slug-Rename-Handling + Mirror-Step-Ordering kombiniert in
-einer Folge-Spec. Nicht blocking für Bucket-D / Bucket-C / Theme 65.
+`backfill-imported-heroes --dry-run` CLI is kept for ad-hoc audits (same posture
+as Spec 64.10's `cleanup-orphan-heroes`).
 
 ## Priorität 3 (smaller items)
 

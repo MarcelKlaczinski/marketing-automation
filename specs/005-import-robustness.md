@@ -1,21 +1,26 @@
-# Spec: Importer-Robustness Fixes (v2)
+# Spec: Importer-Robustness Fixes (v3)
 
 _Branch: `feature/importer-robustness`_
 _Codebase: Marketing-Tool-Monorepo_
-_Status: Draft v2 (2026-05-24, patched mit Lessons aus Spec 004 Discovered §1 + §4)._
+_Status: Draft v3 (2026-05-24, patched mit Lessons aus Spec 004 + Spec 006 / F1.5)._
 _Aufwand: ~1-2 Tage, 2 Sprints._
 _Voraussetzung: Mini-Cleanup-Followups (F1-F3) + F1.5 (Categories Slug-Format) durchgelaufen._
 _Parallel-Branches: keine._
 
-## v2 Changes (Lessons aus Spec 004)
+## v3 Changes (Lessons aus Spec 004 + 006)
 
-Während der Mini-Cleanup-Followups-Implementation kamen zwei wichtige Erkenntnisse die diese Spec präzisieren:
+Während der Mini-Cleanup-Followups + F1.5 Implementation kamen drei wichtige Erkenntnisse:
 
 1. **Defense-in-Depth statt Single-Point-of-Decision** (aus F3 Discovered §1):
    F3 spec sagte „Single-Point-of-Decision in trigger.ts reicht". Tatsächlich gibt's parallele Pfade (`enqueueSchemaExtensionPipeline` vs `enqueueSchemaExtension`) — Filter musste an beiden Stellen angewendet werden. IR1 muss analog defense-in-depth denken: nach Code-Read prüfen ob es weitere Match-Pfade gibt (z.B. parallel pipeline-trigger).
 
 2. **`pipeline_runs` ist 1 Parent + N Step-Children** (aus F2 Discovered §4):
    Spec 004 F2 fehlinterpretierte 11 Rows als 11 Duplicate-Triggers — tatsächlich ist es 1 parent + 10 step children, by design. IR2.4 Smoke-Tests müssen das Pattern berücksichtigen: ein Re-Import-Trigger produziert N+1 Rows (1 parent + N steps), nicht 1 Row.
+
+3. **IR3 Scope-Collision ist OUT-OF-SCOPE für v3** (aus F1.5 IMPLEMENTED §2):
+   F1.5 entdeckte einen dritten Pattern-Konflikt: `categories/blog/ethics-law.md` + `categories/knowledge/ethics-law.md` haben gleiche slug aber verschiedene `scope` → silent UPSERT-overwrite via `(project_id, source, collection, locale, slug)`. **Marcel-Decision 2026-05-24: NICHT in dieser Spec fixen.** Heute-Impact ist Null (Labels matchen), Refactor wäre 3-5 Tage (touched Unique-Constraint + Platform-weite Cardinality-Assumption auf `articles.slug`). Backlog-Eintrag mit Future-Trigger-Conditions besteht in `docs/backlog/post-cleanup-followups.md`.
+
+   **Agent: nicht in v3 Scope ausweiten.** Wenn während IR1-Code-Read der Scope-Collision-Pfad auftaucht: dokumentieren als „relevant für IR3-Future-Spec", nicht fixen.
 
 ---
 
@@ -76,6 +81,7 @@ Beide Pattern-Konflikte mit Code-Änderungen im Importer schließen, sodass:
 - Cleanup-Data-Fixes — schon erledigt
 - Cluster-Toolification — deferred
 - BK-Onboarding-Vorbereitung
+- **IR3 Scope-Collision** (Pattern aus F1.5): nicht in dieser Spec. Marcel-Decision 2026-05-24 — Backlog-Eintrag mit Future-Trigger-Conditions. Heute-Impact: Null. Re-Evaluation wenn (a) neue noLocaleSplit-Collection mit Scope-Collision-Pattern, (b) Marcel differenziert zwei Collision-Pairs inhaltlich, (c) neuer Tenant mit deeper nested directory structures.
 
 ## 3. Architektur
 
@@ -414,8 +420,108 @@ Vergleich), kann safe nochmal laufen wenn Pipeline retried.
 
 ## 9. Implemented
 
-_(wird beim Spec-Abschluss gefüllt)_
+_Date: 2026-05-24_
+
+**IR1 — Option D (partial unique index).** Migration `0103_articles_slug_unique_active_only.sql`
+swaps the hard unique `(project, source, collection, locale, slug)` for a partial
+unique `WHERE status != 'superseded'`. Drizzle schema updated to match.
+`UpsertArticlesStep.onConflictDoUpdate` adds `targetWhere: sql\`status != 'superseded'\``
+mirroring the predicate (Memory D108). `FilterChangedFilesStep` also adds
+`ne(articles.status, 'superseded')` to its existing-rows SELECT so a stale
+superseded row's filePath can't short-circuit gitSha-equality and skip the file.
+
+**IR2 — Option B (additive backfill step).** New `MirrorBackfillHeroesStep` in
+`packages/adapters/astro-sync/src/import/steps/mirror-backfill-heroes.ts` runs
+after `UpsertArticlesStep`. Loads `source='imported' AND heroImageR2Key IS NULL`
+rows (excluding `COLLECTIONS_WITHOUT_HERO`), reconstructs synthetic `ParsedEntry`
+from DB columns, calls `mirrorOneArticle` via shared helper, and UPDATEs hero
+columns using shared `heroRefreshWhitelistUpdateSet()` (hash-equality SQL
+extracted into `mirror-backfill-heroes.ts`, consumed by `UpsertArticlesStep` too).
+DI seam via `BackfillStepDeps.mirrorOneArticleFn` + `stubMode` flag so offline
+tests don't need live GitHub-App credentials.
+
+**Test counts:** 4 + 1 (IR1) + 4 + 1 (IR2) = 10 tests; 105/105 pass across
+`@marketing-auto/adapter-astro-sync`; 0 typecheck errors on db + astro-sync + api.
+
+**Backlog entries closed:** "Slug-Rename-Detection im Importer" + "Mirror-Step-
+Ordering im Importer" in `docs/backlog/post-cleanup-followups.md`.
+
+**Docs:** [`docs/specs/importer-robustness/IMPLEMENTED.md`](../docs/specs/importer-robustness/IMPLEMENTED.md)
+captures the full files-touched + pipeline diagram + patterns. CLAUDE.md in
+`packages/adapters/astro-sync/` extended with two new pattern sections.
 
 ## 10. Discovered & Deviations
 
-_(wird beim Spec-Abschluss gefüllt)_
+1. **Spec IR1's "cornerstoneKeyword/filePath-Heuristik" narrative was wrong.**
+   Matching is purely on the unique constraint `(project, source, collection, locale, slug)`
+   via Postgres native `onConflictDoUpdate`. No application-layer heuristic exists.
+   The bug class is real (Anomaly-A reproduced in regression test) but the root
+   cause is the hard unique index, not a heuristic match.
+
+2. **Spec IR1's Option A is structurally broken.** Even with a status-aware
+   manual SELECT-then-INSERT/UPDATE, the hard unique constraint still trips on
+   INSERT because the constraint is status-agnostic. The spec acknowledged this
+   in §IR1.3 but didn't resolve. Option D (partial unique index) was added as
+   the structural fix at the DB level rather than working around it at the
+   application layer.
+
+3. **Spec IR2's "MirrorHeroImagesStep iteriert über DB-Rows" narrative was wrong.**
+   Mirror always operated on in-memory parsed entries via the `parse → mirror →
+   upsert` bridge chain — it sees new entries fine. The actual Anomaly-B was
+   caused by a default-hero-path bug (`/heroes/default.webp` vs
+   `/heroes/auto/default.webp`), already fixed on 2026-05-24 15:57Z.
+
+4. **The real Anomaly-B durability gap was different from the spec's framing.**
+   Any Mirror failure (404, R2 outage, GitHub transient) on a new INSERT leaves
+   a heroless row, and `FilterChangedFilesStep`'s gitSha-equality skip blocks
+   self-healing on subsequent Re-Imports. The fix is to add a post-Upsert
+   self-healing step (Option B), not to reorder Mirror.
+
+5. **Spec IR2's Option A (step-reorder + Mirror reads DB) is a bigger refactor
+   than acknowledged.** Would have broken 3+ existing test files and split atomic
+   Parse→Mirror→Upsert into Parse→Upsert→Mirror with separate UPDATE atomicity.
+   Option B (additive backfill step) keeps the existing flow intact and only
+   adds the self-healing pass. Marcel confirmed Option B.
+
+6. **R3 (unique constraint widening) came true in the simpler partial-WHERE
+   form** instead of widening the key tuple. Migration 0103 keeps the same
+   column list, just adds the WHERE clause.
+
+7. **R4 (refresh-whitelist) check came true** — the hash-equality CASE-WHEN
+   logic was implemented in Upsert. To avoid duplication in the new backfill
+   step, it was extracted into a shared `heroRefreshWhitelistUpdateSet()` helper.
+
+8. **Defense-in-Depth check (v3 Lesson 1) cleared both IR1 + IR2.** No parallel
+   write paths to `articles.slug` or `articles.heroImage*` columns bypass the
+   patched code paths. The single-point-of-decision is genuine here (unlike
+   Spec 004 / F3 where parallel preRunId wrappers existed).
+
+9. **TDD red-bar achieved before fixes for both sprints.** IR1: 2 smokes + 1
+   regression failed against pre-fix code with `duplicate key value violates
+   unique constraint` (exactly the predicted symptom). IR2: 4 tests failed with
+   `Module not found` (new step didn't exist yet). Both went green post-fix.
+
+10. **DI seam patten with `stubMode` flag** was needed because the new step's
+    production wiring (GitHub-App Octokit + R2 client) is heavyweight. Tests
+    that inject `mirrorOneArticleFn` shouldn't need credentials. The
+    constructor sets `stubMode = mirrorOneArticleFn !== undefined` and the
+    step skips production dep construction when true. Cleaner than nullable-
+    everywhere or two separate classes.
+
+11. **Spec v3 Lesson 3 (IR3 Scope-Collision out-of-scope) respected.** F1.5
+    noLocaleSplit slug-collision pattern was not touched — Marcel-Decision
+    2026-05-24 keeps it backlogged. The existing `packages/adapters/astro-sync/CLAUDE.md`
+    section "Bare-Slug Collision in noLocaleSplit Collections" documents the
+    future-trigger-conditions.
+
+12. **The originally-feared Slug-Rename-Detection feature is no longer needed
+    to close the immediate Anomaly-A vector.** Superseded rows now naturally
+    coexist with active rows at the same slug, so the importer just INSERTs
+    cleanly. A future Slug-Rename-Detection + auto-supersede-link could still
+    be valuable for canonical-URL stability + redirect generation, but it's
+    non-blocking. Backlog entry updated to reflect the new posture.
+
+13. **Pre-migration safety check** verified zero existing duplicates against
+    Toolwiki prod before applying 0103. Pattern logged in the migration SQL
+    body as a comment for future reference.
+

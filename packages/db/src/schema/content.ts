@@ -360,10 +360,15 @@ export const articles = pgTable(
       "hnsw",
       t.embedding.op("vector_cosine_ops")
     ),
-    // Spec 44: replaces old (projectId, slug) unique — now scoped to source+collection+locale
-    sourceCollectionLocaleSlugUnique: uniqueIndex(
-      "articles_project_source_coll_locale_slug_unique"
-    ).on(t.projectId, t.source, t.collection, t.locale, t.slug),
+    // Spec 005 IR1: partial unique — superseded rows are tombstones and may
+    // coexist with active rows at the same key. The importer's
+    // onConflictDoUpdate mirrors this predicate via `targetWhere`.
+    // Replaces the pre-005 hard unique `articles_project_source_coll_locale_slug_unique`.
+    sourceCollectionLocaleSlugActiveUnique: uniqueIndex(
+      "articles_project_source_coll_locale_slug_active_unique"
+    )
+      .on(t.projectId, t.source, t.collection, t.locale, t.slug)
+      .where(sql`${t.status} != 'superseded'`),
     // Spec 44: translation-pair lookups
     translationKeyIdx: index("articles_project_translation_key_idx").on(
       t.projectId,

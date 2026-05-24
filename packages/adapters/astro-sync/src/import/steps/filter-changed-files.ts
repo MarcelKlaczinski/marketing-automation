@@ -1,7 +1,7 @@
 import { articles, db } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 
 const log = createLogger("astro-import:filter-changed");
@@ -33,10 +33,22 @@ export class FilterChangedFilesStep extends BaseStep<
   }
 
   async execute(input: z.infer<typeof InputSchema>, _ctx: StepContext) {
+    // Spec 005 IR1: exclude superseded rows from the file-path index.
+    // Without this filter, a stale superseded row whose filePath happens
+    // to match an incoming file would short-circuit the gitSha-compare
+    // and skip the file on every Re-Import, blocking the partial-unique
+    // index from healing Anomaly-A-style state. Superseded rows are
+    // tombstones — they don't participate in incremental-import decisions.
     const existing = await db
       .select({ filePath: articles.filePath, gitSha: articles.gitSha, id: articles.id })
       .from(articles)
-      .where(and(eq(articles.projectId, input.projectId), eq(articles.source, "imported")));
+      .where(
+        and(
+          eq(articles.projectId, input.projectId),
+          eq(articles.source, "imported"),
+          ne(articles.status, "superseded"),
+        ),
+      );
 
     const existingByPath = new Map(existing.map((a) => [a.filePath ?? "", a]));
     const incomingPaths = new Set(input.files.map((f) => f.path));

@@ -2,6 +2,7 @@ import { articles, db, eq, projects, sql } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
+import { heroRefreshWhitelistUpdateSet } from "./mirror-backfill-heroes.ts";
 import type { HeroFields } from "./mirror-hero-images.ts";
 
 // Spec multi-domain-evolution S4.1: tool_* promoted columns on `articles`
@@ -106,15 +107,10 @@ export class UpsertArticlesStep extends BaseStep<
             heroImageAltText: hero.heroImageAltText,
           }
         : {};
-      const heroUpdateCols = hero
-        ? {
-            heroImageR2Key: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImageR2Key}::text ELSE ${articles.heroImageR2Key} END`,
-            heroImagePublicUrl: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImagePublicUrl}::text ELSE ${articles.heroImagePublicUrl} END`,
-            heroImageOriginalR2Key: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImageOriginalR2Key}::text ELSE ${articles.heroImageOriginalR2Key} END`,
-            heroImageSourceSha256: hero.heroImageSourceSha256,
-            heroImageAltText: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImageAltText}::text ELSE ${articles.heroImageAltText} END`,
-          }
-        : {};
+      // Spec 005 IR2: hash-equality refresh whitelist shared with the new
+      // MirrorBackfillHeroesStep. Both sites use the same SQL fragments to
+      // preserve UI-edited heroImageAltText on unchanged-content Re-Imports.
+      const heroUpdateCols = hero ? heroRefreshWhitelistUpdateSet(hero) : {};
 
       try {
         const result = await db
@@ -159,6 +155,11 @@ export class UpsertArticlesStep extends BaseStep<
               articles.locale,
               articles.slug,
             ],
+            // Spec 005 IR1: targetWhere must mirror the partial unique index
+            // predicate from `articles_project_source_coll_locale_slug_active_unique`
+            // (migration 0103). Without this, Postgres reports "no unique or
+            // exclusion constraint matching the ON CONFLICT specification".
+            targetWhere: sql`status != 'superseded'`,
             set: {
               title,
               metaDescription: (typed.description as string | null) ?? null,

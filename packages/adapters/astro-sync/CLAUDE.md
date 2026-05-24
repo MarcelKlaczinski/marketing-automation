@@ -282,6 +282,65 @@ rows with the legacy name still need the dedicated cleanup script
 ([cleanup-bucket-c-drift.ts](../../../apps/api/src/scripts/cleanup-bucket-c-drift.ts))
 to flip + delete them on a per-tenant basis.
 
+## Importer-Pattern: Status-aware match via partial unique index (Spec 005 IR1)
+
+`UpsertArticlesStep`'s `onConflictDoUpdate` target is the partial unique index
+`articles_project_source_coll_locale_slug_active_unique` (migration 0103) with
+predicate `WHERE status != 'superseded'`. Superseded rows are tombstones — they
+can coexist with active rows at the same `(project, source, collection, locale, slug)`
+without tripping the constraint. When a new MDX file's parsed slug coincides with
+an existing superseded row's slug, the importer INSERTs a fresh active row instead
+of resurrecting the tombstone. The cleanup decision stays as audit-trail.
+
+The `targetWhere: sql\`status != 'superseded'\`` clause on `onConflictDoUpdate`
+mirrors the index predicate EXACTLY (Memory D108 — partial-index gotcha; PostgreSQL
+rejects partial-index conflict resolution if `targetWhere` doesn't reproduce the
+predicate).
+
+`FilterChangedFilesStep` also filters out superseded rows from its `existingByPath`
+index. Without this, a stale superseded row whose `filePath` happens to match an
+incoming file would short-circuit the gitSha-equality check and skip the file on
+every Re-Import, blocking self-healing.
+
+Reasoning: cleanup specs can mark rows superseded to remove them from the active
+set (e.g. orphan-detection after a Branch refactor). The importer must not
+resurrect such rows. The file-in-repo wins over historical-cleanup decisions; the
+superseded row stays as a tombstone for audit/forensic purposes. See
+[`docs/discovery/ir1-upsert-articles-code-read.md`](../../../docs/discovery/ir1-upsert-articles-code-read.md)
+for the full Code-Read + option analysis + Anomaly-A reconstruction.
+
+## Importer-Pattern: Mirror-Backfill self-healing step (Spec 005 IR2)
+
+`MirrorBackfillHeroesStep` runs immediately after `UpsertArticlesStep` in
+`RepoImportPipeline`. On every Re-Import it loads `source='imported'` rows where
+`hero_image_r2_key IS NULL` (excluding `COLLECTIONS_WITHOUT_HERO`) and re-mirrors
+them through the same `mirrorOneArticle` helper used by `MirrorHeroImagesStep` +
+the `backfill-imported-heroes` CLI.
+
+Architecture: additive, NOT a refactor. `MirrorHeroImagesStep` keeps its existing
+in-memory `parsed → mirror → upsert` flow (the fast path). The backfill step is
+the durability safety net that catches:
+
+- New INSERTs where the first-pass Mirror failed (404, R2 outage, GitHub transient)
+- Historical heroless rows from any prior import that failed silently
+
+Idempotent: if all rows have heroes, the SELECT returns 0 candidates and the step
+is a no-op. Re-running the pipeline against the same DB state produces no R2
+uploads + no DB writes.
+
+The shared `heroRefreshWhitelistUpdateSet(hero: HeroFields)` helper (exported
+from `mirror-backfill-heroes.ts`) is used by BOTH steps for the hash-equality
+refresh whitelist (only flip hero columns if `heroImageSourceSha256` actually
+changed). Centralised so the two write sites can't drift on preservation
+semantics — UI-edited `heroImageAltText` survives unchanged-content Re-Imports.
+
+The ad-hoc `backfill-imported-heroes` CLI is kept for dry-run audits and
+project-scoped one-off backfills outside a full Re-Import. Same posture as Spec
+64.10's `cleanup-orphan-heroes`.
+
+See [`docs/discovery/ir2-mirror-step-ordering-code-read.md`](../../../docs/discovery/ir2-mirror-step-ordering-code-read.md)
+for the Code-Read + option analysis + Anomaly-B reconstruction.
+
 ## Gap Detection (Spec 54.3)
 
 `DetectContentGapsStep` counts ALL project articles regardless of `source` (imported, generated,

@@ -722,6 +722,13 @@
       "when": 1788000000000,
       "tag": "0102_article_status_superseded",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1788100000000,
+      "tag": "0103_articles_slug_unique_active_only",
+      "breakpoints": true
     }
   ]
 }
