@@ -42,7 +42,14 @@ export interface RepoCollectionInventory {
   collection: string;
   totalFiles: number;
   byLocale?: Record<string, { count: number; slugs: string[] }>;
-  noLocaleSplit?: { count: number; slugs: string[] };
+  /**
+   * Spec 006 / F1.5: `scopes?` is an optional per-slug subdirectory map for
+   * collections nested one directory deeper than the collection root (e.g.
+   * `categories/blog/<slug>.md` → `scopes[slug] = "blog"`). Pure metadata —
+   * not consumed by `computeForecastDiff()` today; documented for future
+   * disambiguation surfaces.
+   */
+  noLocaleSplit?: { count: number; slugs: string[]; scopes?: Record<string, string> };
 }
 
 export interface DbInventoryRow {

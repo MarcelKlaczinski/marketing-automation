@@ -245,8 +245,60 @@ Falls Inventory-Format-Change: ergänze relevant Schema-Doc oder README im Inven
 
 ## 9. Implemented
 
-_(wird beim Spec-Abschluss gefüllt)_
+Closed 2026-05-24. Full implementation log at
+[`docs/specs/f15-categories-slug-format/IMPLEMENTED.md`](../docs/specs/f15-categories-slug-format/IMPLEMENTED.md).
+
+Headlines:
+
+- ✅ F15.1.1 — Code-read note at
+  [`docs/discovery/f15-categories-slug-format-codeRead.md`](../docs/discovery/f15-categories-slug-format-codeRead.md).
+- ✅ F15.1.2 — Decision: **Option A (DB canonical / bare slugs)** + slug+scope
+  separat field-shape + `--astro-repo` CLI flag.
+- ✅ F15.2.1 — New
+  [`apps/api/src/scripts/discovery/generate-repo-inventory.ts`](../apps/api/src/scripts/discovery/generate-repo-inventory.ts)
+  + [`forecast-re-import-state.ts`](../apps/api/src/scripts/discovery/forecast-re-import-state.ts)
+  type widening with optional `scopes?` map.
+- ✅ F15.2.2 — 5 smoke tests at
+  [`apps/api/test/scripts/forecast-categories-slug-format.smoke.test.ts`](../apps/api/test/scripts/forecast-categories-slug-format.smoke.test.ts).
+- ✅ F15.2.3 — `forecast-re-import-state toolwiki` reports
+  `categories: 0 inserts / 30 updates / 0 dbOnly` (was `31 inserts / 30 dbOnly`).
+- ✅ F15.3 — Backlog entry + IMPLEMENTED.md + root CLAUDE.md index entry.
 
 ## 10. Discovered & Deviations
 
-_(wird beim Spec-Abschluss gefüllt)_
+1. **The inventory generator was missing entirely.** Spec §3.1 assumed
+   `apps/api/src/scripts/discovery/generate-repo-inventory.ts` already
+   existed. The original (`audit-repo-inventory.ts`) was deleted in commit
+   `32b0c54` as "obsolete" while the produced `repo-inventory.json` stayed
+   committed. Re-created at the spec-assumed path so `regenerate-repo-inventory`
+   actually works.
+
+2. **Scope collision is real, not hypothetical** (Risk §R2 partial expansion).
+   Toolwiki's `categories/` directory has 31 physical files but only 30
+   unique bare slugs because both `blog/ethics-law.md` and
+   `knowledge/ethics-law.md` declare `slug: "ethics-law"` in frontmatter.
+   The importer's unique key doesn't include `scope`, so the second file
+   silently UPSERT-overwrites the first. Practical impact today: zero
+   (identical labels). Out of scope per §2; tracked in the Importer-Robustness
+   backlog item for follow-up.
+
+3. **Generator emits the colliding slug twice intentionally.** Rather than
+   dedup at generator time (which would hide the collision from downstream
+   tooling), the JSON faithfully lists all physical files in `slugs[]` and
+   lets `computeForecastDiff()`'s `new Set(repoSlugs)` dedup at diff time.
+   The `scopes` map captures only the last-write-winning scope per slug.
+
+4. **Astro-repo path: `--astro-repo=<path>` flag, not `--project=<slug>`.**
+   Spec §F15.2.3 listed `--project=toolwiki` but the generator doesn't
+   otherwise touch the DB; adding a DB hop just for path resolution was
+   premature complexity. The flag uses the original hardcoded path as
+   default for back-compat with Marcel's local machine.
+
+5. **`categories` is the only `noLocaleSplit` collection in Toolwiki today.**
+   Filesystem walk of `src/content/*/` confirmed all 8 other collections
+   (blog, comparisons, tools, ki-wissen, usecases, authors, tool-categories,
+   special-landings) have a `de/` subdirectory. Risk §R2 closes empty.
+
+6. **New `parentSlug` field appeared in the `frontmatterFieldSetExample`**
+   for `categories` — pure schema drift inside the Astro repo since the
+   pre-fix snapshot was generated, not introduced by this spec.

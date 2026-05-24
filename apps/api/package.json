@@ -40,6 +40,7 @@
     "capture-cleanup-baseline": "bun --env-file ../../.env src/scripts/discovery/capture-cleanup-baseline.ts",
     "cleanup-post-refactor-drift": "bun --env-file ../../.env src/scripts/cleanup-post-refactor-drift.ts",
     "forecast-re-import-state": "bun --env-file ../../.env src/scripts/discovery/forecast-re-import-state.ts",
+    "regenerate-repo-inventory": "bun --env-file ../../.env src/scripts/discovery/generate-repo-inventory.ts",
     "capture-bucket-c-baseline": "bun --env-file ../../.env src/scripts/discovery/capture-bucket-c-baseline.ts",
     "cleanup-bucket-c-drift": "bun --env-file ../../.env src/scripts/cleanup-bucket-c-drift.ts",
     "reassign-uncategorized-clusters": "bun --env-file ../../.env src/scripts/reassign-uncategorized-clusters.ts",

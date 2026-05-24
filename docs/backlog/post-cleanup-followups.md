@@ -17,10 +17,24 @@ Resolved by [`specs/004-mini-cleanup.md`](../../specs/004-mini-cleanup.md) +
   plus a second latent bug (empty `byLocale: {}` truthy-check short-circuiting
   into the per-locale branch with zero iterations) discovered and fixed in
   the same change. 4 smoke tests grün. Pure helper `computeForecastDiff`
-  extracted from the script for testability. **Discovered & not-fixed-in-F1:**
-  separate slug-format mismatch (repo-inventory generator emits
-  `blog/comparisons` path-prefixed slugs while DB has bare `comparisons`).
-  See IMPLEMENTED.md §Discovered for follow-up scope.
+  extracted from the script for testability. **F1.5 follow-up resolved
+  separately — see below.**
+
+- **F1.5 — `categories` Slug-Format Reconciliation.** ✅ COMPLETED 2026-05-24
+  via [`specs/006-follow-up-robustness.md`](../../specs/006-follow-up-robustness.md)
+  + [`docs/specs/f15-categories-slug-format/IMPLEMENTED.md`](../specs/f15-categories-slug-format/IMPLEMENTED.md).
+  Three-way analysis (Astro frontmatter / Importer / Inventory generator)
+  confirmed Option A: DB canonical (bare slugs). Re-created the missing
+  `generate-repo-inventory.ts` script — deleted in commit `32b0c54` as
+  "obsolete" but still the only producer of the committed `repo-inventory.json`
+  — with bare-slug derivation (`basename(filePath, '.md')`) plus optional
+  per-slug `scopes` map for future disambiguation surfaces. Forecast against
+  Toolwiki now reports `categories: 0 inserts / 30 updates / 0 dbOnly` (was
+  `31 inserts / 30 dbOnly`). 5 smoke tests grün. **Discovered & not fixed:**
+  Toolwiki's `categories` collection has a real bare-slug collision
+  (`blog/ethics-law` + `knowledge/ethics-law` → single DB row, silent UPSERT
+  overwrite). Practical impact zero today (identical labels), tracked
+  separately in §Slug-Rename-Detection / Importer-Robustness below.
 
 - **F2 — Pipeline-Observability bei `astro:repo-import`.** ✅ CLOSED as
   Decision **D** (Status-Quo + Doku). Code-read showed the 11 rows per
