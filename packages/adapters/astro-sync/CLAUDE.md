@@ -212,6 +212,76 @@ the step module so the backfill CLI (`apps/api/src/scripts/backfill-imported-her
 can drive it offline with the same dependency-injection seam used in the
 unit tests.
 
+## Bare-Slug Collision in noLocaleSplit Collections (Spec 006 / F1.5)
+
+`UpsertArticlesStep` writes rows with unique key `(project_id, source,
+collection, locale, slug)` — `slug` is the bare frontmatter `slug:` field
+(or the file basename if absent). For collections that nest subdirectories
+under the collection root (today only `categories/{blog,knowledge,tool}/`),
+two files in different subdirectories that declare the same bare slug
+silently merge into a single DB row via UPSERT — the later-processed file
+wins, the earlier one is overwritten. **`scope` is NOT in the unique key.**
+
+Live example in Toolwiki: `categories/blog/ethics-law.md` and
+`categories/knowledge/ethics-law.md` both declare `slug: "ethics-law"`;
+post-import DB has 30 rows for 31 physical files. Practical impact today is
+zero (identical labels), but it's a latent footgun.
+
+The `scope` field IS preserved in `domain_extras->>'scope'` (jsonb), so the
+data isn't entirely lost — but any consumer that queries by `articles.slug`
+sees a single deterministic-but-arbitrary row.
+
+**To fix when it bites**: either widen the unique key to include
+`domain_extras->>'scope'` (partial functional index), or have the importer
+normalize `slug` to `<scope>/<slug>` for nested files. Either change touches
+the `articles.slug` cardinality assumption used throughout the platform —
+not a small refactor.
+
+**Symptom for diagnosis**: Re-Import-Forecast (`bun --filter @marketing-auto/api
+forecast-re-import-state <slug>`) reports `repo files: N · DB active: N-K`
+for a `noLocaleSplit` collection where K = the number of bare-slug collisions.
+[`apps/api/src/scripts/discovery/generate-repo-inventory.ts`](../../../apps/api/src/scripts/discovery/generate-repo-inventory.ts)
+emits both the bare slug AND a per-slug `scopes` map to surface the collision
+in raw inventory inspection — the diff dedupes via `new Set` so the forecast
+matches cleanly despite the row-count gap.
+
+## Pillar-Name Canonicalization (Spec 002 Follow-up)
+
+`SyncClustersFromFrontmatterStep` derives `content_pillars` rows from distinct
+`articles.category` values. Without normalization, any MDX with
+`categorySlug: "Vergleiche"` would create a `Vergleiche` pillar next to the
+canonical `comparisons` — exactly the drift Spec 002 Bucket-C cleaned up.
+
+The module-level `PILLAR_NAME_CANONICALIZATION` map at the top of
+[src/import/steps/sync-clusters-from-frontmatter.ts](src/import/steps/sync-clusters-from-frontmatter.ts)
+rewrites known DE display-label forms to EN-canonical slugs BEFORE pillar
+INSERT and BEFORE cluster pillarId assignment. The pure helper
+`canonicalizePillarName(name)` is exported so unit tests can pin the
+mapping table without spinning up the full step.
+
+**Current mappings (DE display-label → EN canonical slug):**
+- `Vergleiche` → `comparisons`
+- `Ethik & Recht` → `ethics-law`
+- `Grundlagen` → `fundamentals`
+- `Zukunft` → `future`
+- `Guides & Tutorials` → `guides-tutorials`
+- `Technik` → `technology`
+- `Tool-Reviews` → `tool-reviews` (case-only)
+- `Praxis` → `practice`
+- `Praxis & Use Cases` → `practice-use-cases`
+
+The denormalized `clusters.pillar` text field also stores the canonical
+form so the FK pillarId AND the text mirror stay in sync.
+
+**Extending the map** when new MDX drift surfaces: append entries to
+`PILLAR_NAME_CANONICALIZATION`, add a unit-test case in
+[test/sync-clusters.test.ts](test/sync-clusters.test.ts)
+`canonicalizePillarName` describe block, restart the worker. No DB
+migration needed — the map is checked at every import run, so historical
+rows with the legacy name still need the dedicated cleanup script
+([cleanup-bucket-c-drift.ts](../../../apps/api/src/scripts/cleanup-bucket-c-drift.ts))
+to flip + delete them on a per-tenant basis.
+
 ## Gap Detection (Spec 54.3)
 
 `DetectContentGapsStep` counts ALL project articles regardless of `source` (imported, generated,
