@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ───── Toolwiki tools extras (Spec multi-domain-evolution S2.4) ───────────────
 //
-// Models the FRONTMATTER_EXTRAS fields for the `tools` collection — the
+// Models the DOMAIN_EXTRAS fields for the `tools` collection — the
 // largest Toolwiki collection by row count (108 of 268 articles per the
 // Phase-1 audit). Several of these fields ALSO live as Drizzle-promoted
 // columns on `articles` (Spec 54.8): `pricing`, `priceFrom`, `rating`,
@@ -46,13 +46,45 @@ export const ToolsExtrasSchema = z.object({
    * Pre-S2.4 this was a hardcoded `z.enum([...])` of 12 Toolwiki pillar
    * slugs. Loosened to plain string so other tenants can use their own
    * pillar set; the Domain-Registry will add a per-tenant superRefine.
+   * Note: Branch B S4.2b added 6 new pillars (neuronale-netze, backpropagation,
+   * eu-ai-act, entscheidungsbaeume, datenschutz-bei-ki, chatgpt-guide) for a
+   * total of 18; the per-tenant superRefine will gate against the live list.
    */
-  relatedPillars: z.array(z.string().min(1).max(80)).max(12).optional(),
+  relatedPillars: z.array(z.string().min(1).max(80)).max(20).optional(),
+  /**
+   * ISO date (YYYY-MM-DD) — last editorial review of the tool entry. Read by
+   * `src/layouts/ToolDetail.astro` to render the "Last reviewed" timestamp.
+   * Phase-1-audit flagged this as "0/10 schema-leiche" but Branch B's
+   * pre-removal grep found active renderer reads — it's a live Bucket-C
+   * field. Added 2026-05-24 per Branch B sync-update Point 2.
+   */
+  lastReviewed: z.string().min(1).max(40).optional(),
+  /**
+   * Author-slug of the last editorial reviewer. Paired with `lastReviewed`
+   * to render "Reviewed by <author>" on ToolDetail. Live in Astro renderer
+   * (same Branch B finding as above).
+   */
+  lastReviewedBy: z.string().min(1).max(80).optional(),
+  /**
+   * ISO date (YYYY-MM-DD) — last time the `pricing` / `priceFrom` fields
+   * were verified against the vendor's website. Drives a "Pricing as of
+   * <date>" caption on tool cards + freshness signals in the refresh-
+   * detector. Also surfaces in `REFRESH_PRESERVED_EXTRAS_KEYS` (S1.1) as
+   * a whitelisted field that survives refresh runs.
+   */
+  pricingVerifiedAt: z.string().min(1).max(40).optional(),
+  /**
+   * DALL-E / Flux / Gemini hero-image-generation prompt override. When set,
+   * the hero-image pipeline uses this verbatim instead of the LLM-derived
+   * prompt from the outline. Consumed by `scripts/audit-image-prompts.mjs`
+   * in the Astro repo for prompt-history reporting.
+   */
+  imagePrompt: z.string().min(1).max(1200).optional(),
 });
 export type ToolsExtras = z.infer<typeof ToolsExtrasSchema>;
 
 /**
- * Validate parsed FRONTMATTER_EXTRAS against tools business rules.
+ * Validate parsed DOMAIN_EXTRAS against tools business rules.
  * Tools today has no cross-field invariants — the function is a thin
  * wrapper but stays in place for forward-compat with future rules
  * (e.g. "if pricing === 'freemium' then priceFrom must be 0").
