@@ -9,20 +9,66 @@ blocking; each is a discrete follow-up that can be picked up independently.
 
 ### Bucket-D Bug-Fixes (from `docs/discovery/post-refactor-state-audit.md` §6.1)
 
-- **D1 — `articles.astro_frontmatter` column status.** Phase-1 audit flagged
-  it as a candidate dead column, but no Phase-0 grep was run to confirm. Run
-  the EXTENDED-grep checklist (root CLAUDE.md "schema leiche" rule:
-  `(data as any).astroFrontmatter`, `frontmatter["astro_frontmatter"]`,
-  `extras["astroFrontmatter"]`, plus the bare identifier) across
-  `packages/adapters/astro-sync/src/`, `packages/pipelines/src/article/`, and
-  the external Astro repo. Either confirm dead → migration `DROP COLUMN`, or
-  document the live consumer.
+Resolved by Spec Bucket-D (`docs/specs/bucket-d-fixes/spec.md`) on 2026-05-24:
 
-- **D4 — `content_pillars` Frontmatter-Sync gap.** Audit noted that pillars
-  may not be seeded from frontmatter today. Verify
-  `SyncClustersFromFrontmatterStep` reads the pillar field and writes
-  `content_pillars` rows; if it doesn't, spec the sync (similar shape to the
-  existing cluster sync).
+- **D1 — `articles.astro_frontmatter` column status.** Investigated, classified
+  as **by-design dormant** (forensic copy written by
+  `ArticleSyncPipeline.UpdateDbStatusStep` for generation-sync paths;
+  intentionally NULL for `source='imported'` rows; 0/318 populated in Toolwiki
+  because Toolwiki is import-only). Kept the column, added doc-comment in
+  [`packages/db/src/schema/content.ts`](../../packages/db/src/schema/content.ts)
+  + CLAUDE.md section in
+  [`packages/adapters/astro-sync/CLAUDE.md`](../../packages/adapters/astro-sync/CLAUDE.md).
+  Discovery script:
+  [`audit-astro-frontmatter-usage.ts`](../../apps/api/src/scripts/discovery/audit-astro-frontmatter-usage.ts).
+  Re-evaluate only if a generated-workflow tenant ships and the column is still
+  unused in production (today: writer exists, no production reader).
+
+- **D2 — `articles.schema_json_ld` footgun on imported articles.** Investigated.
+  Trigger paths reachable, but the footgun is **dormant** because no Toolwiki
+  Astro collection currently declares `schema:` or `schemaJsonLd:` as a
+  frontmatter field, so `RenderMdxStep`'s field-filter silently drops the
+  payload from emitted MDX. Documented as a soft-guard in
+  [`packages/db/src/schema/content.ts`](../../packages/db/src/schema/content.ts)
+  + [`packages/adapters/astro-sync/CLAUDE.md`](../../packages/adapters/astro-sync/CLAUDE.md).
+  Trigger-Filter (Option A from spec) deferred. Re-open if a future Astro
+  schema adds `schema:` / `schemaJsonLd:` to a collection that contains
+  imported articles, or if `RenderMdxStep` field-filter logic changes.
+
+## D4 — content_pillars-Sync (obsoleted by Cluster-Toolification)
+
+Status: **NOT FIXED, intentionally.**
+
+D4 originally proposed extending `SyncClustersFromFrontmatterStep` to seed
+`content_pillars` from frontmatter. Investigation in BD3 confirmed:
+- The importer DOES seed `content_pillars` from `articles.category` (the
+  audit hypothesis was wrong about "no writer").
+- The 12 "missing ki-wissen pillars" the audit flagged are actually
+  cluster_keys, not categories — they live in `clusters`, not pillars.
+- The drift in `content_pillars` is Schwesterkonzept-Drift (DE/EN sister
+  rows) + 3 wrong-table cluster slugs.
+
+Decision 2026-05-24: do NOT fix because Cluster-Toolification (Toolwiki spec,
+approved Option A) replaces the entire table at implementation.
+
+Captured for the future refactor:
+- [`docs/discovery/bd3-content-pillars-baseline.md`](../discovery/bd3-content-pillars-baseline.md)
+  — code-read + drift inventory
+- [`apps/api/src/scripts/discovery/audit-content-pillars-sources.ts`](../../apps/api/src/scripts/discovery/audit-content-pillars-sources.ts)
+  — read-only audit script, re-runnable
+- Schema doc-comment on
+  [`contentPillars`](../../packages/db/src/schema/identity.ts) flagging
+  scheduled-for-refactor status
+
+Triggers for re-evaluating D4 in isolation (if Cluster-Toolification stays
+deferred indefinitely):
+- New feature critically depends on accurate `content_pillars` (Plan-Generation
+  or UI). Today: rare.
+- `content_pillars` drift becomes blocker for cold-start or import pipelines.
+  Today: not observed.
+
+In both cases: re-open D4 as small spec, but be aware that any extension will
+need to be unwound when Cluster-Toolification triggers.
 
 ### Bucket-C Cleanup (pre-existing drift, NOT caused by Branch-A or Branch-B)
 
@@ -72,6 +118,45 @@ same `cornerstoneKeyword` + `locale` + `collection` but different `slug`,
 flag as a rename candidate. Either auto-supersede the old row (write
 `supersededBy` link), or surface to Marcel for manual confirm. Affects
 canonical-URL stability + redirect generation in the Astro build.
+
+**Related Anomaly A footgun (2026-05-24, see
+[`docs/specs/fix-slug-rename-supersede-conflict/spec.md`](../specs/fix-slug-rename-supersede-conflict/spec.md)):**
+`UpsertArticlesStep` matches new/renamed files against existing rows by
+`cornerstoneKeyword` + filePath-proximity, but the match does NOT filter by
+status. So superseded rows get re-purposed as match targets — the
+`filePath` gets updated in-place on the superseded row, leaving 0 active
+rows for the new slug. Recommended fix as part of this same Folge-Spec:
+add `AND status != 'superseded'` to the match-query WHERE clause. If no
+match: insert as new row. The Slug-Rename-Detection pattern above subsumes
+this fix when the matcher learns to recognize the rename and either
+auto-supersedes the OLD row (keeping it superseded) + inserts a NEW one,
+or links them via `supersededBy`.
+
+### Mirror-Step-Ordering im Importer
+
+Today's flow: `MirrorHeroImagesStep` iterates over DB-Rows BEFORE
+`UpsertArticlesStep` inserts new rows. Newly-inserted rows therefore don't
+get heroes in the SAME run — they need either a second Re-Import or a
+separate `backfill-imported-heroes --apply` run to pick up the heroes.
+
+Discovered during the C4 Re-Import for Anomaly A (see
+[`docs/discovery/post-cleanup-final-verification.md`](../discovery/post-cleanup-final-verification.md)
+"Anomaly B" 15:34Z update): Marcel triggered two Re-Imports in succession,
+the second one fired the Mirror-Step against the rows the first Re-Import
+had inserted. Functional but operationally awkward (two clicks instead of
+one).
+
+**Empfohlene Lösung:** Either (a) move `MirrorHeroImagesStep` AFTER
+`UpsertArticlesStep` in `RepoImportPipeline`, OR (b) change the step to
+read parsed-file state from pipeline-input rather than DB rows (so newly-
+parsed-but-not-yet-upserted files are also covered in-run). Option (b) is
+the cleaner long-term design — couples the mirror to the canonical source
+(the parsed files) instead of the derivative DB state.
+
+### Aufwand-Schätzung
+
+~1-2 Tage für Slug-Rename-Handling + Mirror-Step-Ordering kombiniert in
+einer Folge-Spec. Nicht blocking für Bucket-D / Bucket-C / Theme 65.
 
 ## Priorität 3 (smaller items)
 

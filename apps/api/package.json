@@ -39,7 +39,9 @@
     "consolidate-article-categories": "bun --env-file ../../.env src/scripts/consolidate-article-categories.ts",
     "capture-cleanup-baseline": "bun --env-file ../../.env src/scripts/discovery/capture-cleanup-baseline.ts",
     "cleanup-post-refactor-drift": "bun --env-file ../../.env src/scripts/cleanup-post-refactor-drift.ts",
-    "forecast-re-import-state": "bun --env-file ../../.env src/scripts/discovery/forecast-re-import-state.ts"
+    "forecast-re-import-state": "bun --env-file ../../.env src/scripts/discovery/forecast-re-import-state.ts",
+    "audit-astro-frontmatter-usage": "bun --env-file ../../.env src/scripts/discovery/audit-astro-frontmatter-usage.ts",
+    "audit-content-pillars-sources": "bun --env-file ../../.env src/scripts/discovery/audit-content-pillars-sources.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",

@@ -31,6 +31,41 @@ export const brandVoices = pgTable(
   })
 );
 
+/**
+ * content_pillars: legacy table, scheduled for refactor.
+ *
+ * Today this table is populated by two writers:
+ * - `SyncClustersFromFrontmatterStep` (the Astro importer) — INSERTs one
+ *   row per distinct `articles.category` value (NOT a dedicated `pillar:`
+ *   frontmatter field). Auto-creates an "Uncategorized" fallback.
+ * - `cluster:full-plan` (the Cluster-Creator UI path) — INSERTs a row
+ *   when the user names a new pillar that doesn't yet exist.
+ *
+ * The table accumulates drift over time and is NOT authoritatively kept
+ * in sync with the Astro repo's frontmatter category-set. As of 2026-05-24,
+ * Toolwiki has 29 rows with a mix of:
+ *   - 14 active rows (have ≥1 article referencing them by category)
+ *   - 7 sister-concept pairs (German + English variants, e.g. "Grundlagen"
+ *     orphan + "fundamentals" active, "Vergleiche" orphan, etc.)
+ *   - 3 wrong-table cluster slugs that landed here via `cluster:full-plan`
+ *     ("ki-regulierte-branchen-2026" etc.)
+ *   - 1 boilerplate "Uncategorized" fallback row
+ *
+ * APPROVED REFACTOR PATH: Cluster-Toolification (Toolwiki repo
+ * `docs/specs/cluster-toolification.md`, approved 2026-05-24, implementation
+ * deferred). At implementation, this table is obsoleted in favor of unified
+ * `clusters` + `cluster_memberships` (tenant-aware, Postgres source-of-truth).
+ *
+ * Until then: read-only consumer code can use this table, but writes
+ * should be rare and trackable. New pillar-related features should NOT
+ * extend this table — they should wait for the refactor.
+ *
+ * See also:
+ * - docs/discovery/post-refactor-state-audit.md §6.1 D4
+ * - docs/discovery/bd3-content-pillars-baseline.md
+ * - docs/specs/bucket-d-fixes/spec.md §3.3 (BD3 patch)
+ * - Toolwiki repo: docs/backlog/cluster-toolification.md
+ */
 export const contentPillars = pgTable(
   "content_pillars",
   {

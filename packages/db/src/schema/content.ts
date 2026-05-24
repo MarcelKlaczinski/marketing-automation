@@ -108,7 +108,49 @@ export const articles = pgTable(
     // migration 0101).
     heroImageSourceSha256: text("hero_image_source_sha256"),
 
-    // Schema.org JSON-LD — array of objects (Spec 23 extended from single object in Spec 20)
+    /**
+     * Schema.org JSON-LD — array of objects (Spec 23 extended from single
+     * object in Spec 20).
+     *
+     * SOFT-GUARDED footgun (Spec Bucket-D / BD2, 2026-05-24).
+     *
+     * Written by `SchemaExtensionPipeline.PersistSchemaStep` — adds rich-type
+     * JSON-LD (FAQPage, HowTo, Review) detected from the article body. Read
+     * by `ArticleSyncPipeline.RenderMdxStep` and injected into the rendered
+     * MDX frontmatter as `schema:` / `schemaJsonLd:` keys.
+     *
+     * **The footgun:**
+     * 1. `POST /api/articles/:id/extend-schema` (HTTP route) is source-agnostic
+     *    and can fire `SchemaExtensionPipeline` against an imported article,
+     *    populating this column.
+     * 2. `POST /api/articles/:id/sync` is also source-agnostic — running
+     *    `ArticleSyncPipeline` against an imported article reads this column
+     *    and writes it to MDX frontmatter IFF the project's Astro Zod schema
+     *    declares a `schema:` or `schemaJsonLd:` field.
+     * 3. Conflicts with Branch-B's design (rich types are rendered from
+     *    individual frontmatter fields like `howTo:` / `faqs:`, not from
+     *    pre-baked JSON-LD).
+     *
+     * **Why dormant today** (verified 2026-05-24 against Toolwiki):
+     * No Toolwiki Astro collection declares `schema:` or `schemaJsonLd:`
+     * fields, so `RenderMdxStep`'s `collectionInfo.fields` filter silently
+     * drops them from the rendered MDX. The DB column may be populated, but
+     * the MDX stays Branch-B-clean.
+     *
+     * **Activation conditions** (any one of these flips dormant → live):
+     * - A future Astro schema adds `schema:` or `schemaJsonLd:` to a
+     *   collection that contains imported articles
+     * - `RenderMdxStep` field-filter logic changes to emit all merged keys
+     *   (not just schema-declared ones)
+     *
+     * **Defense delegated** to documentation today, not to a Trigger-Filter.
+     * If a Marcel-use-case ever needs `extend-schema` on imported articles
+     * (e.g. retrofit JSON-LD on old imports), the Soft-Guard stays valid
+     * as long as no collection declares those fields. If activation
+     * conditions trigger, add the Trigger-Filter as a follow-up spec
+     * (option A from Spec Bucket-D / BD2 was deferred — see
+     * `docs/specs/bucket-d-fixes/spec.md` §10 Q2).
+     */
     schemaJsonLd: jsonb("schema_json_ld").$type<Array<Record<string, unknown>>>(),
 
     // Pipeline state
@@ -146,6 +188,20 @@ export const articles = pgTable(
     astroCommitSha: text("astro_commit_sha"),
     astroPullRequestUrl: text("astro_pull_request_url"),
     astroAssetPaths: jsonb("astro_asset_paths").$type<{ heroImage?: string }>(),
+    /**
+     * Forensic copy of the rendered Astro frontmatter, written by
+     * `ArticleSyncPipeline.UpdateDbStatusStep` (generation → Astro-repo sync,
+     * Spec 21) when an article is committed to the Astro repo. By-design
+     * dormant on `source='imported'` rows — the import path
+     * (`UpsertArticlesStep`) intentionally does NOT populate this column.
+     *
+     * No production code reads it; only `apps/api/src/scripts/discovery/`
+     * audit scripts do. Investigated under Spec Bucket-D / BD1 (2026-05-24,
+     * 0/318 populated rows in Toolwiki) and kept intentionally:
+     * - generated-workflow tenants (Bellemann, Balkonkraftwerk) will populate
+     *   it once they ship
+     * - useful as a forensic "what frontmatter did we commit?" debug column
+     */
     astroFrontmatter: jsonb("astro_frontmatter").$type<Record<string, unknown>>(),
 
     // PageSpeed validation results (Spec 22)

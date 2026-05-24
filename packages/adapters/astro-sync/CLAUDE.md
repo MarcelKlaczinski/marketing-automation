@@ -119,7 +119,61 @@ The step parses this with a regex, strips it from `bodyMd`, and saves to `articl
   `approval_status IN (...)` part, Postgres throws "there is no unique or exclusion constraint
   matching the ON CONFLICT specification" at runtime. Always reproduce the full index WHERE clause.
 
-## Hero-Image Mirroring (Spec 000)
+## `articles.astro_frontmatter` is a forensic copy (Spec Bucket-D / BD1)
+
+`UpdateDbStatusStep` in `src/steps/update-db-status.ts` (part of the
+generation-side `ArticleSyncPipeline`) writes the rendered Astro frontmatter
+back into `articles.astro_frontmatter` after a successful commit. This is a
+**forensic / debug** column — no production code reads it (only audit scripts
+under `apps/api/src/scripts/discovery/`).
+
+The import-side pipeline (`RepoImportPipeline.UpsertArticlesStep`) deliberately
+does NOT populate this column, so every `source='imported'` row stays NULL
+forever. That's by design. Toolwiki (100% imported) has 0/318 populated rows
+as of 2026-05-24; generated-workflow tenants will populate it once they ship.
+
+DO NOT extend `UpsertArticlesStep` to write `astro_frontmatter` — that's the
+generation-pipeline's role, and conflating the two would muddy the forensic
+signal. If you need to inspect what an imported article's source frontmatter
+looked like, read it from the Astro repo (the importer is upsert-only and
+non-destructive against the repo's MDX).
+
+## `articles.schema_json_ld` is a Soft-Guarded Footgun (Spec Bucket-D / BD2)
+
+`RenderMdxStep` reads `articles.schema_json_ld` (lines 266-267) and merges it
+into the rendered MDX frontmatter under `schema:` / `schemaJsonLd:` keys.
+Whether those keys actually land in the committed MDX depends on the project's
+Astro Zod schema:
+
+- If the collection's `astroCollectionSchemas` JSON has NO `schema` or
+  `schemaJsonLd` field declaration → `collectionInfo.fields` filter at
+  [render-mdx.ts:286](src/steps/render-mdx.ts:286) silently drops both keys
+  from the output. Dormant. ✅
+- If the schema DOES declare either field → the column value (potentially
+  written by `SchemaExtensionPipeline` for any article including imported
+  ones) is written into the committed MDX. Live footgun. ❌
+
+**Today (verified 2026-05-24)**: No Toolwiki collection declares either
+field, so the footgun is dormant. Verify before adding a `schema:` field
+to a Toolwiki collection that contains imported articles — Branch-B's
+design expects rich types to be rendered from individual frontmatter
+fields (`howTo:`, `faqs:`), NOT from pre-baked JSON-LD.
+
+**If activation conditions trigger** (a future schema declares `schema:`
+or `schemaJsonLd:`, or `RenderMdxStep` field-filter logic changes), add
+the Trigger-Filter as a follow-up spec — Option A from Spec Bucket-D
+§3.2 is the canonical mitigation but was deferred because the dormant
+state needs no immediate fix. See
+`docs/specs/bucket-d-fixes/spec.md` §10 Q2 + the column doc-comment in
+`packages/db/src/schema/content.ts` for the full discussion.
+
+**Reachability** (for context — both routes are source-agnostic):
+- `POST /api/articles/:id/extend-schema` → fires `SchemaExtensionPipeline`,
+  populates `schema_json_ld` in DB
+- `POST /api/articles/:id/sync` → fires `ArticleSyncPipeline.RenderMdxStep`,
+  reads the column
+
+## `articles.astro_frontmatter` is a forensic copy (Spec Bucket-D / BD1)
 
 `MirrorHeroImagesStep` sits between `ParseFrontmatterBatchStep` and
 `UpsertArticlesStep` in `RepoImportPipeline`. It mirrors hero source files
@@ -140,7 +194,7 @@ from the Astro repo to R2, deduped by source-byte SHA-256.
   lookup against the existing `articles_hero_image_source_sha256_idx` partial
   index reuses prior R2 keys.
 - **Default-hero fallback**: when an article has no `heroImage`/`image`
-  frontmatter, the step falls back to `public/heroes/default.webp` — a
+  frontmatter, the step falls back to `public/heroes/auto/default.webp` — a
   cross-repo contract documented in root CLAUDE.md and the Astro repo's
   CLAUDE.md. Missing default-hero produces a one-line `warn` per affected
   article and the entry lands in `failed`.

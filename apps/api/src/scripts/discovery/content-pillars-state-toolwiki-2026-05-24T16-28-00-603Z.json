@@ -1,0 +1,423 @@
+{
+  "timestamp": "2026-05-24T16:28:00.603Z",
+  "projectSlug": "toolwiki",
+  "projectId": "3fad7929-b06d-47ce-b6a1-8ac134362c42",
+  "totalPillars": 29,
+  "pillarsWithArticles": 16,
+  "pillarsWithoutArticles": 13,
+  "pillars": [
+    {
+      "id": "1ce2a60d-5b63-457f-b933-47752861c49b",
+      "name": "audio-music",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 0,
+      "createdAt": "2026-05-11T10:50:08.840Z",
+      "articlesByCategory": 12,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "e6d9686b-7c89-4a83-b205-4ed363439be3",
+      "name": "business-productivity",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 9,
+      "createdAt": "2026-05-11T10:50:08.847Z",
+      "articlesByCategory": 22,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "7aaa48e7-f5df-49b9-be1c-4ba80be13f22",
+      "name": "coding-development",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 7,
+      "createdAt": "2026-05-11T10:50:08.846Z",
+      "articlesByCategory": 8,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "7a131778-60eb-4112-9bda-02f781451573",
+      "name": "comparisons",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 22,
+      "createdAt": "2026-05-24T14:59:17.514Z",
+      "articlesByCategory": 5,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "21d1e0d3-5661-44cd-a664-26376b23b5fc",
+      "name": "ethics-law",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 23,
+      "createdAt": "2026-05-24T14:59:17.518Z",
+      "articlesByCategory": 12,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "89ec0297-2122-4f54-83e2-06f348665837",
+      "name": "Ethik & Recht",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 12,
+      "createdAt": "2026-05-11T10:50:08.851Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "971d0bfd-45f5-4cbe-b400-7635ac938a8b",
+      "name": "fundamentals",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 21,
+      "createdAt": "2026-05-24T14:59:17.511Z",
+      "articlesByCategory": 10,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "e0d40bf3-ab01-4387-b992-e90855cee90a",
+      "name": "future",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 28,
+      "createdAt": "2026-05-24T14:59:17.525Z",
+      "articlesByCategory": 2,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "75ea9c58-7d4c-45cf-95d3-a4d009107cd1",
+      "name": "Grundlagen",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 15,
+      "createdAt": "2026-05-11T10:50:08.853Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "d94a57d1-2132-460d-9935-830f107bacb4",
+      "name": "Guides & Tutorials",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 8,
+      "createdAt": "2026-05-11T10:50:08.847Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "919d3eeb-2ad2-4b58-b55f-f45361214b20",
+      "name": "guides-tutorials",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 25,
+      "createdAt": "2026-05-24T14:59:17.523Z",
+      "articlesByCategory": 25,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "64a4a859-7348-4c5f-908d-e86297013918",
+      "name": "images-graphics",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 6,
+      "createdAt": "2026-05-11T10:50:08.845Z",
+      "articlesByCategory": 16,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "61023d34-43d4-4c68-b50f-3cdcd41215ab",
+      "name": "ki-regulierte-branchen-2026",
+      "description": "Cluster zu KI-Anwendungen in stark regulierten Branchen wie Finance, Healthcare, Legal und Pharma — mit Fokus auf Audit-Trails, Compliance, Governance und produktiven Agent-Workflows.",
+      "position": 0,
+      "createdAt": "2026-05-16T15:06:11.848Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "be5beb3b-ff05-4e3e-8765-f2737e1a49af",
+      "name": "ki-sicherheit-datenschutz-2026",
+      "description": "Cluster rund um Sicherheit, Datenschutz, Werbung und neue Schutzfeatures bei ChatGPT und anderen KI-Assistenten. Fokus auf DACH-Nutzer, DSGVO-Konformität und Risikomanagement im KI-Alltag.",
+      "position": 0,
+      "createdAt": "2026-05-16T12:42:58.529Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "9e1c2562-08da-42dd-b83c-542f0cfaa549",
+      "name": "marketing-seo",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 1,
+      "createdAt": "2026-05-11T10:50:08.842Z",
+      "articlesByCategory": 8,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "0472ad1b-43c4-44aa-865b-a9501cbdd48b",
+      "name": "practice",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 24,
+      "createdAt": "2026-05-24T14:59:17.519Z",
+      "articlesByCategory": 4,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "4b93fab7-4bbb-4e78-9c82-59c30a541e8b",
+      "name": "practice-use-cases",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 27,
+      "createdAt": "2026-05-24T14:59:17.524Z",
+      "articlesByCategory": 16,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "742169de-b7ec-456d-ba09-a3b37dd21f08",
+      "name": "Praxis",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 4,
+      "createdAt": "2026-05-11T10:50:08.844Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "165a7577-3afc-402c-9c38-83a151cc5b27",
+      "name": "Praxis & Use Cases",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 5,
+      "createdAt": "2026-05-11T10:50:08.845Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "8482c656-2448-454b-a051-632861bb34b4",
+      "name": "rag-context-engineering-2026",
+      "description": "Cluster rund um Retrieval Augmented Generation (RAG) und Context Engineering: Methoden, Tools und Praxis, um KI-Agenten verlässlicher zu machen, Halluzinationen zu reduzieren und verifizierte Antworten zu erzeugen.",
+      "position": 0,
+      "createdAt": "2026-05-16T11:50:53.793Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "b5c96a99-2d77-4128-98e5-1cb79da67bd7",
+      "name": "Technik",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 13,
+      "createdAt": "2026-05-11T10:50:08.852Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "15fd0488-f591-461c-982e-5606d2f449ce",
+      "name": "technology",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 20,
+      "createdAt": "2026-05-24T14:59:17.499Z",
+      "articlesByCategory": 12,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "12c0670b-3196-4a76-a9b0-2521fbd1c47f",
+      "name": "text-language",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 10,
+      "createdAt": "2026-05-11T10:50:08.848Z",
+      "articlesByCategory": 24,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "f62622df-05c8-434c-9c68-3e494f8422ae",
+      "name": "tool-reviews",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 26,
+      "createdAt": "2026-05-24T14:59:17.524Z",
+      "articlesByCategory": 8,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "599ffe68-dae9-4fbc-b257-39ec7e8771a1",
+      "name": "Tool-Reviews",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 14,
+      "createdAt": "2026-05-11T10:50:08.852Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "497f1892-6584-495f-8ea8-01c55f9bbd2b",
+      "name": "Uncategorized",
+      "description": "Clusters without a frontmatter category",
+      "position": 16,
+      "createdAt": "2026-05-11T10:50:08.853Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "2e5a2c16-6d9c-4e8a-b501-50d5fd1655a6",
+      "name": "Vergleiche",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 11,
+      "createdAt": "2026-05-11T10:50:08.849Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "69fa1a9d-9867-4e8f-8b6f-6ba28643e36e",
+      "name": "video-animation",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 2,
+      "createdAt": "2026-05-11T10:50:08.843Z",
+      "articlesByCategory": 18,
+      "articlesByClusterKey": 0
+    },
+    {
+      "id": "2ebef3b1-3def-4bc7-9edb-0e26cb3c274c",
+      "name": "Zukunft",
+      "description": "Auto-imported from Astro repo frontmatter",
+      "position": 3,
+      "createdAt": "2026-05-11T10:50:08.843Z",
+      "articlesByCategory": 0,
+      "articlesByClusterKey": 0
+    }
+  ],
+  "importedArticleCategories": [
+    {
+      "category": null,
+      "count": 116
+    },
+    {
+      "category": "guides-tutorials",
+      "count": 25
+    },
+    {
+      "category": "text-language",
+      "count": 24
+    },
+    {
+      "category": "business-productivity",
+      "count": 22
+    },
+    {
+      "category": "video-animation",
+      "count": 18
+    },
+    {
+      "category": "practice-use-cases",
+      "count": 16
+    },
+    {
+      "category": "images-graphics",
+      "count": 16
+    },
+    {
+      "category": "audio-music",
+      "count": 12
+    },
+    {
+      "category": "ethics-law",
+      "count": 12
+    },
+    {
+      "category": "technology",
+      "count": 12
+    },
+    {
+      "category": "fundamentals",
+      "count": 10
+    },
+    {
+      "category": "tool-reviews",
+      "count": 8
+    },
+    {
+      "category": "coding-development",
+      "count": 8
+    },
+    {
+      "category": "marketing-seo",
+      "count": 8
+    },
+    {
+      "category": "comparisons",
+      "count": 5
+    },
+    {
+      "category": "practice",
+      "count": 4
+    },
+    {
+      "category": "future",
+      "count": 2
+    }
+  ],
+  "importedArticleClusterKeys": [
+    {
+      "clusterKey": null,
+      "count": 64
+    },
+    {
+      "clusterKey": "ai-image-tools-2026",
+      "count": 30
+    },
+    {
+      "clusterKey": "chatbots-2026",
+      "count": 20
+    },
+    {
+      "clusterKey": "audio-2026",
+      "count": 16
+    },
+    {
+      "clusterKey": "ki-wissen",
+      "count": 14
+    },
+    {
+      "clusterKey": "grundlagen-ki",
+      "count": 14
+    },
+    {
+      "clusterKey": "prompt-engineering-2026",
+      "count": 12
+    },
+    {
+      "clusterKey": "ki-business-2026",
+      "count": 12
+    },
+    {
+      "clusterKey": "recherche-2026",
+      "count": 8
+    },
+    {
+      "clusterKey": "code-assistenten-2026",
+      "count": 8
+    },
+    {
+      "clusterKey": "knowledge-management-2026",
+      "count": 8
+    },
+    {
+      "clusterKey": "video-ki-2026",
+      "count": 8
+    },
+    {
+      "clusterKey": "avatar-voice-2026",
+      "count": 6
+    },
+    {
+      "clusterKey": "content-2026",
+      "count": 6
+    },
+    {
+      "clusterKey": "ai-agents-2026",
+      "count": 6
+    },
+    {
+      "clusterKey": "music-generation-2026",
+      "count": 6
+    },
+    {
+      "clusterKey": "uebersetzung-2026",
+      "count": 6
+    },
+    {
+      "clusterKey": "image-comparisons-2026",
+      "count": 4
+    },
+    {
+      "clusterKey": "chatbot-comparisons-2026",
+      "count": 4
+    },
+    {
+      "clusterKey": "produktivitaet-2026",
+      "count": 4
+    }
+  ]
+}
