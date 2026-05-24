@@ -99,6 +99,14 @@ export default defineComponent({
         ],
       },
       {
+        id: "github_app",
+        name: "GitHub App (Astro-Sync)",
+        keys: [
+          { key: "app_id", labelKey: "settings.credentials.keys.appId" },
+          { key: "private_key_content", labelKey: "settings.credentials.keys.privateKeyContent" },
+        ],
+      },
+      {
         id: "github",
         name: "GitHub Trending",
         keys: [

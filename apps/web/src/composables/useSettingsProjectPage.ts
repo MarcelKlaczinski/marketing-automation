@@ -108,17 +108,39 @@ export function useSettingsProjectPage(slug: string) {
 
   const astroForm = useSectionForm({
     initialData: () => ({
-      localPath: project.value?.astroRepo?.localPath ?? "",
+      owner: project.value?.astroRepo?.owner ?? "",
+      name: project.value?.astroRepo?.name ?? "",
+      installationId: String(project.value?.astroRepo?.installationId ?? ""),
       defaultBranch: project.value?.astroRepo?.defaultBranch ?? "main",
+      contentRoot: project.value?.astroRepo?.contentRoot ?? "src/content",
+      assetsRoot: project.value?.astroRepo?.assetsRoot ?? "src/assets",
+      localPath: project.value?.astroRepo?.localPath ?? "",
     }),
     onSave: (data) => {
+      const owner = data.owner.trim();
+      const name = data.name.trim();
+      const installationId = parseInt(data.installationId, 10);
+
+      // Empty triple = disconnect (null) — server-side schema is .nullable()
+      if (!owner && !name && !data.installationId) {
+        return apiPatch(`/projects/${slug}`, { astroRepo: null });
+      }
+
+      // Required-field validation lives in the Vue component (SettingsProjectPage `onAstroSave`)
+      // where `$t()` and `$q.notify` are accessible. Trust upstream gate here.
       const existing = project.value?.astroRepo;
-      if (!existing) return apiPatch(`/projects/${slug}`, {});
       const astroRepo: AstroRepoConfig = {
-        ...existing,
-        defaultBranch: data.defaultBranch,
+        // Preserve unmodeled fields (collectionPaths, previewPath) when present
+        ...(existing ?? {}),
+        owner,
+        name,
+        installationId,
+        defaultBranch: data.defaultBranch || "main",
+        contentRoot: data.contentRoot || "src/content",
+        assetsRoot: data.assetsRoot || "src/assets",
       };
       if (data.localPath) astroRepo.localPath = data.localPath;
+      else delete astroRepo.localPath;
       return apiPatch(`/projects/${slug}`, { astroRepo });
     },
     invalidateKeys: [["project-settings", slug]],
