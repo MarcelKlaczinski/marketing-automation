@@ -12,6 +12,7 @@ import {
 } from "@marketing-auto/db";
 import { Hono } from "hono";
 import { z } from "zod";
+import { getDomainRegistry } from "@marketing-auto/pipelines/domain-registry";
 import { requireAuth } from "../../middleware/auth.ts";
 import { approveBrief } from "../../lib/brief-service.ts";
 import {
@@ -340,13 +341,15 @@ scopedBriefRoutes.post(
   },
 );
 
-// ─── POST /:slug/briefs (Spec 64.14 Phase C — manual brief creation) ────────
+// ─── Manual brief creation — shared types + endpoints (Spec 64.14 Phase C) ──
 //
-// Marcel curates ki-wissen / blog topics that the LLM synthesizer doesn't find
-// (e.g. "Was ist RAG?"). Brief lands as approval_status='pending' + source='manual'
-// and shows up in the regular /briefs/pending list for approve via the existing
-// plan-or-immediate dispatch flow. No pipeline is enqueued here — the brief
-// goes through the same routing path as gap_analysis/trend_discovery briefs.
+// `COLLECTION_HINTS` + `INTENT_TYPES` are the historical hardcoded taxonomy
+// the POST schema accepts. Both endpoints below read from them:
+//   - GET /brief-options uses them as the FALLBACK list when the project
+//     has no registered DomainSpec (registry returns null)
+//   - POST /briefs uses them via z.enum(...) for backward-compatible
+//     validation. Per-tenant variation is enforced AFTER schema parse by
+//     the registry-gate inside the handler.
 
 const COLLECTION_HINTS = ["blog", "comparison", "ki-wissen", "cluster"] as const;
 type CollectionHint = (typeof COLLECTION_HINTS)[number];
@@ -364,6 +367,86 @@ const INTENT_TYPES = [
   "risks",
 ] as const;
 
+// ─── GET /:slug/brief-options (Domain-Registry follow-up) ───────────────────
+//
+// Spec multi-domain-evolution Domain-Registry follow-up — exposes the dynamic
+// taxonomy from the project's DomainSpec so the BriefCreatePage dropdowns can
+// be populated per-tenant instead of hardcoded against the Toolwiki shape.
+// When the registry returns null (project's targetNiche missing OR DomainSpec
+// not shipped), the response falls back to the same hardcoded taxonomy the
+// POST endpoint accepts — preserves zero-regression for any legacy project.
+//
+// Note: `"cluster"` is a planner pseudo-collection (Spec 62.4) and not in any
+// DomainSpec's `collections` allow-list. It's always appended to the
+// `collectionHints` response so the planner-routed `create_new` cluster brief
+// path stays available regardless of which DomainSpec is registered. Same for
+// the legacy fallback list.
+
+scopedBriefRoutes.get("/:slug/brief-options", async (c) => {
+  const slug = c.req.param("slug");
+  const project = await resolveProject(slug);
+  if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const domainCtx = await getDomainRegistry().forProject(project.id);
+  if (domainCtx) {
+    const registryCollections = domainCtx.getAllowedCollections();
+    // De-dupe in case a future DomainSpec ever registers "cluster" explicitly.
+    const collectionHints = registryCollections.includes("cluster")
+      ? [...registryCollections]
+      : [...registryCollections, "cluster"];
+    return c.json({
+      ok: true,
+      data: {
+        source: "registry" as const,
+        niche: domainCtx.niche,
+        collectionHints,
+        intentTypes: [...domainCtx.getIntentTaxonomy()],
+        // Spec multi-domain-evolution Phase-C — surface the registered
+        // collection→intent map so the frontend's auto-derive logic stays
+        // a single source of truth with the backend. Empty map signals
+        // "no per-tenant default, frontend should use its own fallback".
+        collectionToIntentMap: { ...domainCtx.getCollectionToIntentMap() },
+      },
+    });
+  }
+
+  return c.json({
+    ok: true,
+    data: {
+      source: "fallback" as const,
+      niche: null,
+      collectionHints: [...COLLECTION_HINTS],
+      intentTypes: [...INTENT_TYPES],
+      // Mirrors the legacy hardcoded `deriveIntentFromCollection` switch in
+      // this same file. Frontend consumes this to auto-derive the intent
+      // when the user changes collection. Kept in sync with the switch
+      // statement by code review (no auto-import — the switch lives in a
+      // separate function and TS can't widen from one to the other).
+      collectionToIntentMap: {
+        comparison: "comparison",
+        "ki-wissen": "knowledge",
+        blog: "use_case",
+        cluster: "use_case",
+      },
+    },
+  });
+});
+
+// ─── POST /:slug/briefs (Spec 64.14 Phase C — manual brief creation) ────────
+//
+// Marcel curates ki-wissen / blog topics that the LLM synthesizer doesn't find
+// (e.g. "Was ist RAG?"). Brief lands as approval_status='pending' + source='manual'
+// and shows up in the regular /briefs/pending list for approve via the existing
+// plan-or-immediate dispatch flow. No pipeline is enqueued here — the brief
+// goes through the same routing path as gap_analysis/trend_discovery briefs.
+//
+// Spec multi-domain-evolution Domain-Registry follow-up — the POST schema
+// stays hardcoded to the historical Toolwiki shape so the contract is stable.
+// The registry-gate below runs AFTER schema validation and rejects values that
+// aren't in the project's DomainSpec allow-list (e.g. a BK frontend submitting
+// `"ki-wissen"` against a project whose DomainSpec doesn't register that
+// collection). `"cluster"` always passes the gate (planner pseudo-collection).
+
 const manualBriefCreateSchema = z.object({
   topicTitle: z.string().min(10).max(200),
   primaryKeyword: z.string().min(2).max(80),
@@ -377,8 +460,27 @@ const manualBriefCreateSchema = z.object({
  * Derive intent_type from collection_hint when the user didn't pick one
  * explicitly. ki-wissen → knowledge is the load-bearing default (the spec's
  * primary use-case is curating knowledge briefs the synthesizer missed).
+ *
+ * Spec multi-domain-evolution Phase-C — accepts an optional registry-supplied
+ * map (from `DomainContext.getCollectionToIntentMap()`). When a value exists
+ * for the given collection, the registry wins. Otherwise we fall back to the
+ * hardcoded 4-value Toolwiki switch — preserves zero-regression for legacy
+ * projects (null registry) AND for tenants whose DomainSpec doesn't register
+ * a map (the inline switch matches Toolwiki's registered map verbatim).
  */
-function deriveIntentFromCollection(collection: CollectionHint): (typeof INTENT_TYPES)[number] {
+function deriveIntentFromCollection(
+  collection: CollectionHint,
+  registryMap?: Readonly<Record<string, string>>,
+): (typeof INTENT_TYPES)[number] {
+  if (registryMap) {
+    const mapped = registryMap[collection];
+    // Cast is justified: the map's values are constrained to the tenant's
+    // intentTaxonomy at registry-validation time (intent_not_in_registry
+    // gate). Toolwiki's registered map uses only values from INTENT_TYPES,
+    // so the cast is sound for it; other tenants take responsibility for
+    // their own taxonomy alignment.
+    if (mapped) return mapped as (typeof INTENT_TYPES)[number];
+  }
   switch (collection) {
     case "comparison":
       return "comparison";
@@ -415,7 +517,57 @@ scopedBriefRoutes.post(
     const project = await resolveProject(slug);
     if (!project) return c.json({ ok: false, error: "project_not_found" }, 404);
 
-    const intentType = input.intentType ?? deriveIntentFromCollection(input.collectionHint);
+    // Spec multi-domain-evolution Domain-Registry follow-up — when the
+    // project resolves to a registered DomainSpec, gate the submitted
+    // collectionHint against its allow-list. "cluster" is the planner
+    // pseudo-collection (Spec 62.4) and is always allowed. Legacy projects
+    // (null registry) skip the gate entirely — back-compat.
+    const domainCtx = await getDomainRegistry().forProject(project.id);
+    if (domainCtx && input.collectionHint !== "cluster") {
+      const allowed = domainCtx.getAllowedCollections();
+      if (!allowed.includes(input.collectionHint)) {
+        return c.json(
+          {
+            ok: false,
+            error: "collection_not_in_registry",
+            niche: domainCtx.niche,
+            allowedCollections: [...allowed, "cluster"],
+          },
+          422,
+        );
+      }
+      // Intent gate — only when caller supplied one explicitly. The derived
+      // intent path uses `deriveIntentFromCollection` which is structurally
+      // fine because all four derived values are in TOOLWIKI_BLOG_INTENT_TYPES.
+      // A future DomainSpec that wants a different default for, say,
+      // collectionHint="news" would extend `deriveIntentFromCollection` in
+      // tandem with adding the value to its intentTaxonomy.
+      if (input.intentType !== undefined) {
+        const intents = domainCtx.getIntentTaxonomy();
+        if (!intents.includes(input.intentType)) {
+          return c.json(
+            {
+              ok: false,
+              error: "intent_not_in_registry",
+              niche: domainCtx.niche,
+              allowedIntentTypes: [...intents],
+            },
+            422,
+          );
+        }
+      }
+    }
+
+    // Spec multi-domain-evolution Phase-C — pass the registry-supplied map
+    // (or undefined when the registry returned null). The helper falls back
+    // to its own hardcoded switch when the map is undefined OR doesn't have
+    // a key for the given collection.
+    const intentType =
+      input.intentType ??
+      deriveIntentFromCollection(
+        input.collectionHint,
+        domainCtx?.getCollectionToIntentMap(),
+      );
     const clusterAction = deriveClusterAction(input.collectionHint);
 
     const [brief] = await db

@@ -67,6 +67,7 @@
       "@marketing-auto/pipelines/article-quality": ["../../packages/pipelines/src/article-quality/index.ts"],
       "@marketing-auto/pipelines/plan-execution-queue": ["../../packages/pipelines/src/execution/plan-execution-queue.ts"],
       "@marketing-auto/pipelines/execute-plan": ["../../packages/pipelines/src/execution/execute-plan.ts"],
+      "@marketing-auto/pipelines/domain-registry": ["../../packages/pipelines/src/_lib/domain-registry-singleton.ts"],
       "@marketing-auto/social/render-server": ["../../packages/social/render-server.ts"],
       "@marketing-auto/social/templates": ["../../packages/social/src/templates/index.ts"],
       "@marketing-auto/social/templates/overrides": ["../../packages/social/src/templates/overrides/index.ts"],
