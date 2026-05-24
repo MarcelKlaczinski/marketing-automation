@@ -38,5 +38,6 @@ export default {
   remove: "Remove",
   addKeyword: "Add keyword",
   loading: "Loading …",
+  loadingMore: "Loading more articles …",
   notFound: "Not found",
 };

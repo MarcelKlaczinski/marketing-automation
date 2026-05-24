@@ -63,6 +63,13 @@ Response envelope: `{ items, total, limit, offset }`.
 
 **Pair-level pagination** (e.g. `/articles/imported` DE/EN pairs): paginate over `DISTINCT translationKey` ordered by `MAX(updatedAt)`, count distinct keys separately, then load article rows for those keys and group in memory. Never apply row-level `LIMIT/OFFSET` on grouped data.
 
+**Cursor pagination needs a unique tiebreaker.** If you add a `cursor` mode that filters with `lt(sortCol, cursor)` (strict less-than) and the sort column is not unique, entire groups of rows that share the same value will be silently skipped at the page boundary. Caught on `/api/projects/:slug/articles`: 239/272 toolwiki articles shared `updatedAt = 2026-05-16T09:37:00.362Z` (PostgreSQL `now()` returns transaction-start time, so a single import batch stamps identical timestamps on every row). Page 1 returned 20 rows whose `nextCursor` landed inside the bulk-import group; page 2's `lt(updatedAt, cursor)` then dropped all 239 silently and scrolling stalled at exactly 40. Two safe options when designing a new cursor endpoint:
+
+1. **Composite cursor** — sort and filter on `(updatedAt, id)` together. Use PostgreSQL row-tuple comparison: `WHERE (updated_at, id) < ($1::timestamptz, $2::uuid) ORDER BY updated_at DESC, id DESC`. The cursor string encodes both values (e.g. `<isoTimestamp>_<uuid>`).
+2. **Offset mode for the consumer** — if the consumer just needs "show all rows", route it through the offset branch (the cursor branch is fine for stable timeline scrolls). The existing `/articles` endpoint already supports both modes; the infinite-scroll UI uses offset because cursor isn't safe yet.
+
+Same gotcha applies to any other sort column that bulk imports stamp uniformly (`publishedAt`, `frontmatterUpdatedAt`, `createdAt` during seeds, etc.). Adding a cursor mode without a tiebreaker is a latent bug that only surfaces after a bulk operation.
+
 ## Bulk-Action Endpoint Pattern (Spec 64.17)
 
 Bulk endpoints that mutate a list of rows (Approve / Dismiss / Reject / Cancel etc.) use a **discriminated-union body** so the same endpoint accepts both an explicit ID list AND a filter-shape that the server re-queries at action time:

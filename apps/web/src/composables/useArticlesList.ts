@@ -20,29 +20,39 @@ export function useArticlesList(initialFilters: MaybeRef<ArticlesListFilters> = 
   const projectStore = useProjectStore();
   const filters = ref<ArticlesListFilters>(unref(initialFilters));
 
+  const PAGE_SIZE = 20;
+
   const query = useInfiniteQuery({
     queryKey: computed(() => [
       "articles",
       projectStore.currentSlug,
       filters.value,
     ]),
-    queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
+    // Offset-based pagination — cursor mode is unsafe here because the backend
+    // filters with strict lt(updatedAt, cursor) and many articles share the same
+    // updatedAt after bulk imports (PostgreSQL now() is transaction-time, so
+    // imports stamp identical timestamps). The cursor would silently skip every
+    // article in a same-timestamp group beyond the page boundary.
+    queryFn: async ({ pageParam }: { pageParam: number }) => {
       const slug = projectStore.currentSlug;
       const f = filters.value;
       const params = new URLSearchParams();
-      params.set("limit", "20");
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(pageParam));
       if (f.status) params.set("status", f.status);
       if (f.collection) params.set("collection", f.collection);
       if (f.locale) params.set("locale", f.locale);
       if (f.search) params.set("search", f.search);
-      if (pageParam) params.set("cursor", pageParam);
       return apiGet<ArticlesListResponse>(
         `/projects/${slug}/articles?${params.toString()}`,
       );
     },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage: ArticlesListResponse) =>
-      lastPage.nextCursor ?? undefined,
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: ArticlesListResponse, _allPages, lastOffset: number) => {
+      const total = lastPage.total ?? 0;
+      const nextOffset = lastOffset + lastPage.items.length;
+      return nextOffset < total ? nextOffset : undefined;
+    },
   });
 
   const articles = computed<ArticleListItem[]>(() =>
@@ -52,7 +62,10 @@ export function useArticlesList(initialFilters: MaybeRef<ArticlesListFilters> = 
   const hasMore = computed<boolean>(() => {
     const pages = query.data.value?.pages;
     if (!pages?.length) return false;
-    return pages[pages.length - 1]?.hasMore ?? false;
+    const last = pages[pages.length - 1];
+    if (!last) return false;
+    const loaded = pages.reduce((sum, p) => sum + p.items.length, 0);
+    return loaded < (last.total ?? 0);
   });
 
   function setFilters(next: ArticlesListFilters): void {
