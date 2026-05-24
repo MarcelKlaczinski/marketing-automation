@@ -7,6 +7,42 @@ blocking; each is a discrete follow-up that can be picked up independently.
 
 ## Priorität 1
 
+### Spec 004 Mini-Cleanup-Followups — ✅ COMPLETED 2026-05-24
+
+Resolved by [`specs/004-mini-cleanup.md`](../../specs/004-mini-cleanup.md) +
+[`docs/specs/mini-cleanup-followups/IMPLEMENTED.md`](../specs/mini-cleanup-followups/IMPLEMENTED.md):
+
+- **F1 — `forecast-re-import-state.ts` `noLocaleSplit`-Bug.** ✅ COMPLETED.
+  Locale-column matching fixed for noLocaleSplit collections (`categories`),
+  plus a second latent bug (empty `byLocale: {}` truthy-check short-circuiting
+  into the per-locale branch with zero iterations) discovered and fixed in
+  the same change. 4 smoke tests grün. Pure helper `computeForecastDiff`
+  extracted from the script for testability. **Discovered & not-fixed-in-F1:**
+  separate slug-format mismatch (repo-inventory generator emits
+  `blog/comparisons` path-prefixed slugs while DB has bare `comparisons`).
+  See IMPLEMENTED.md §Discovered for follow-up scope.
+
+- **F2 — Pipeline-Observability bei `astro:repo-import`.** ✅ CLOSED as
+  Decision **D** (Status-Quo + Doku). Code-read showed the 11 rows per
+  trigger are NOT BullMQ-dedup artefacts; they're the runner's standard
+  per-step substep audit pattern (1 parent + N children for any
+  N-step pipeline — verified `article:blog` produces 14 rows for its 13
+  steps). Substeps back step-pause FK, rerun supersession, SSE events,
+  and idempotency-cache attribution — all by-design. See
+  [`docs/discovery/f2-pipeline-observability-codeRead.md`](../discovery/f2-pipeline-observability-codeRead.md)
+  for full code-read + decision matrix.
+
+- **F3 — `schema_json_ld` Soft-Guard.** ✅ COMPLETED with defense-in-depth
+  at both layers (spec asked for trigger-only, but the HTTP route uses a
+  parallel wrapper `enqueueSchemaExtensionPipeline` that the trigger-layer
+  gate wouldn't reach). (1) `enqueueSchemaExtension` widens return type to
+  `{ jobId } | { skipped: 'imported-article' }`; (2) `POST /api/articles/:id/extend-schema`
+  returns 422 with skip reason for imported rows. 4 smoke tests grün.
+  `schemaJsonLd` doc-comment in `packages/db/src/schema/content.ts` updated
+  to reflect the new active defense. `POST /api/articles/:id/sync` stays
+  source-agnostic intentionally (future retrofit use-case + Branch-B-clean
+  MDX as long as no collection declares `schema:` field).
+
 ### Bucket-D Bug-Fixes (from `docs/discovery/post-refactor-state-audit.md` §6.1)
 
 Resolved by Spec Bucket-D (`docs/specs/bucket-d-fixes/spec.md`) on 2026-05-24:
@@ -103,22 +139,29 @@ need to be unwound when Cluster-Toolification triggers.
   Today's schema is flat; multi-domain-evolution noted a need for parent-child
   relationships. Migration + Drizzle schema + a small backfill script.
 
-#### Bucket-C Follow-up: Uncategorized cluster reassignment
+#### Bucket-C Follow-up: Uncategorized cluster reassignment ✅ COMPLETED 2026-05-24
 
-Out of scope for Spec 002 by Marcel-decision 2026-05-24, but documented here
-because the data is already surfaced in
-[`bucket-c-baseline-toolwiki-*.json`](../../apps/api/src/scripts/discovery/):
+20 Toolwiki clusters reassigned from `Uncategorized` fallback onto semantic
+pillars via [reassign-uncategorized-clusters.ts](../../apps/api/src/scripts/reassign-uncategorized-clusters.ts):
 
-- 20 of Toolwiki's 46 clusters (44%) currently sit under the `Uncategorized`
-  fallback pillar. Mostly `*-comparisons-2026`, `usecase-*`, and one-off topic
-  clusters. The Cluster-Creator + Importer never assigned them a semantic
-  pillar (`coding-development`, `business-productivity`, etc.).
-- Future spec: bulk-reassign these 20 clusters onto appropriate pillars
-  (manual review or rule-based slug→pillar mapping), then `Uncategorized`
-  becomes a true exception bucket instead of the de-facto default.
-- No public-site impact (clusters aren't user-facing in the Astro frontend
-  via pillar — same Spec 002 reasoning). Pure admin-UI improvement: Cluster-
-  Detail-View becomes properly grouped.
+- 8 `*-comparisons-2026` + tool-aggregator clusters → existing `comparisons` pillar
+- 12 `usecase-*` clusters → new `usecases` pillar (created for the flat
+  `usecases` Astro collection that has no `usecase` category scope)
+
+Toolwiki state: 20 → 21 pillars, `Uncategorized` now empty (true exception
+bucket). Script pattern: DI ports + dry-run-default + `--project` required +
+idempotent (`!= targetPillarId` predicate). 7/7 smoke tests.
+
+#### Bucket-C Follow-up: Importer pillar-normalization ✅ COMPLETED 2026-05-24
+
+`SyncClustersFromFrontmatterStep` extended with `PILLAR_NAME_CANONICALIZATION`
+map (DE-display-label → EN-canonical-slug) applied before pillar INSERT +
+cluster pillarId assignment. Pure-helper export `canonicalizePillarName()` for
+unit-test coverage. Future MDX that drifts back to legacy display-label forms
+(`categorySlug: "Vergleiche"`, etc.) will no longer recreate the removed
+pillars — the importer rewrites to canonical before lookup. The denormalized
+`clusters.pillar` text field also stays canonical. 8/8 tests including 2
+DB-integration scenarios. **Worker-restart required** on deploy.
 
 ## Priorität 2 (architectural improvements to the importer)
 

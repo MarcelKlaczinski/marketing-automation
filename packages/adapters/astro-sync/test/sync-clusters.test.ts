@@ -11,7 +11,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { articles, clusters, contentPillars, db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
-import { SyncClustersFromFrontmatterStep } from "../src/import/steps/sync-clusters-from-frontmatter.ts";
+import {
+  SyncClustersFromFrontmatterStep,
+  canonicalizePillarName,
+} from "../src/import/steps/sync-clusters-from-frontmatter.ts";
 
 // Minimal StepContext stub (no LLM calls, no cost tracking)
 const stubCtx = {
@@ -215,5 +218,173 @@ describe("SyncClustersFromFrontmatterStep", () => {
     expect(result.uncategorizedCount).toBe(1);
     expect(result.clustersCreated).toBe(0);
     expect(result.articlesLinked).toBe(0);
+  });
+});
+
+// ─── Spec 002 follow-up — pillar-name canonicalization ──────────────────────
+
+describe("canonicalizePillarName (Spec 002 follow-up)", () => {
+  test("maps known DE display-labels to EN-canonical slugs", () => {
+    expect(canonicalizePillarName("Vergleiche")).toBe("comparisons");
+    expect(canonicalizePillarName("Ethik & Recht")).toBe("ethics-law");
+    expect(canonicalizePillarName("Grundlagen")).toBe("fundamentals");
+    expect(canonicalizePillarName("Zukunft")).toBe("future");
+    expect(canonicalizePillarName("Guides & Tutorials")).toBe("guides-tutorials");
+    expect(canonicalizePillarName("Technik")).toBe("technology");
+    expect(canonicalizePillarName("Tool-Reviews")).toBe("tool-reviews");
+    expect(canonicalizePillarName("Praxis")).toBe("practice");
+    expect(canonicalizePillarName("Praxis & Use Cases")).toBe("practice-use-cases");
+  });
+
+  test("passes canonical EN slugs through unchanged", () => {
+    expect(canonicalizePillarName("comparisons")).toBe("comparisons");
+    expect(canonicalizePillarName("ethics-law")).toBe("ethics-law");
+    expect(canonicalizePillarName("fundamentals")).toBe("fundamentals");
+    expect(canonicalizePillarName("practice")).toBe("practice");
+    expect(canonicalizePillarName("practice-use-cases")).toBe("practice-use-cases");
+  });
+
+  test("passes unknown values through unchanged (no over-eager normalization)", () => {
+    expect(canonicalizePillarName("audio-music")).toBe("audio-music"); // tool-scope canonical
+    expect(canonicalizePillarName("business-productivity")).toBe("business-productivity");
+    expect(canonicalizePillarName("usecases")).toBe("usecases"); // our new internal pillar
+    expect(canonicalizePillarName("Uncategorized")).toBe("Uncategorized"); // fallback
+    expect(canonicalizePillarName("rag-context-engineering-2026")).toBe("rag-context-engineering-2026"); // ki-wissen custom
+  });
+});
+
+describe("SyncClustersFromFrontmatterStep — canonicalization integration (Spec 002 follow-up)", () => {
+  let projectId: string;
+
+  beforeEach(async () => {
+    const slug = `canon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const inserted = await db
+      .insert(projects)
+      .values({
+        slug,
+        name: "Canonicalization Test Project",
+        industry: "ai_education",
+        pipelineTemplate: "educational",
+      })
+      .returning({ id: projects.id });
+    projectId = inserted[0]!.id;
+  });
+
+  afterEach(async () => {
+    await db.delete(articles).where(eq(articles.projectId, projectId));
+    await db.delete(clusters).where(eq(clusters.projectId, projectId));
+    await db.delete(contentPillars).where(eq(contentPillars.projectId, projectId));
+    await db.delete(projects).where(eq(projects.id, projectId));
+  });
+
+  test("MDX with categorySlug='Vergleiche' creates 'comparisons' pillar, not 'Vergleiche'", async () => {
+    await db.insert(articles).values([
+      {
+        projectId,
+        source: "imported",
+        collection: "blog",
+        locale: "de",
+        slug: "test-vergleiche-article",
+        cornerstoneKeyword: "test-vergleiche-article",
+        title: "Test DE Vergleichs-Artikel",
+        clusterKey: "test-cluster-2026",
+        category: "Vergleiche", // ← DE display-label form (legacy MDX drift)
+        status: "published",
+      },
+      {
+        projectId,
+        source: "imported",
+        collection: "blog",
+        locale: "en",
+        slug: "test-comparisons-article",
+        cornerstoneKeyword: "test-comparisons-article",
+        title: "Test EN Comparison Article",
+        clusterKey: "test-cluster-2026",
+        category: "comparisons", // ← canonical form (correct)
+        status: "published",
+      },
+    ]);
+
+    const step = new SyncClustersFromFrontmatterStep();
+    const result = await step.execute({ projectId }, stubCtx);
+
+    const pillars = await db
+      .select({ name: contentPillars.name })
+      .from(contentPillars)
+      .where(eq(contentPillars.projectId, projectId));
+    const pillarNames = pillars.map((p) => p.name).sort();
+
+    // Only ONE pillar `comparisons` (NOT both `Vergleiche` AND `comparisons`),
+    // plus the auto-created `Uncategorized` fallback.
+    expect(pillarNames).toContain("comparisons");
+    expect(pillarNames).not.toContain("Vergleiche");
+    expect(pillarNames).toContain("Uncategorized");
+    expect(pillarNames.length).toBe(2); // exactly comparisons + Uncategorized
+
+    // The single cluster row should reference the canonical pillar AND have
+    // canonical `pillar` text field (denormalized).
+    const [cluster] = await db
+      .select({ pillar: clusters.pillar })
+      .from(clusters)
+      .where(eq(clusters.projectId, projectId));
+    expect(cluster?.pillar).toBe("comparisons"); // NOT "Vergleiche"
+
+    expect(result.pillarsCreated).toBeGreaterThanOrEqual(1);
+    expect(result.clustersCreated).toBe(1);
+  });
+
+  test("MDX with multiple DE display-labels collapses to single canonical pillars", async () => {
+    await db.insert(articles).values([
+      {
+        projectId,
+        source: "imported",
+        collection: "blog",
+        locale: "de",
+        slug: "art-grundlagen-de",
+        cornerstoneKeyword: "art-grundlagen-de",
+        title: "Grundlagen-Artikel",
+        clusterKey: "grundlagen-cluster-2026",
+        category: "Grundlagen",
+        status: "published",
+      },
+      {
+        projectId,
+        source: "imported",
+        collection: "blog",
+        locale: "en",
+        slug: "art-fundamentals-en",
+        cornerstoneKeyword: "art-fundamentals-en",
+        title: "Fundamentals article",
+        clusterKey: "fundamentals-cluster-2026",
+        category: "fundamentals",
+        status: "published",
+      },
+      {
+        projectId,
+        source: "imported",
+        collection: "blog",
+        locale: "de",
+        slug: "art-praxis-de",
+        cornerstoneKeyword: "art-praxis-de",
+        title: "Praxis-Artikel",
+        clusterKey: "praxis-cluster-2026",
+        category: "Praxis & Use Cases", // multi-word DE label
+        status: "published",
+      },
+    ]);
+
+    const step = new SyncClustersFromFrontmatterStep();
+    await step.execute({ projectId }, stubCtx);
+
+    const pillars = await db
+      .select({ name: contentPillars.name })
+      .from(contentPillars)
+      .where(eq(contentPillars.projectId, projectId));
+    const pillarNames = pillars.map((p) => p.name).sort();
+
+    expect(pillarNames).toContain("fundamentals");
+    expect(pillarNames).toContain("practice-use-cases");
+    expect(pillarNames).not.toContain("Grundlagen");
+    expect(pillarNames).not.toContain("Praxis & Use Cases");
   });
 });

@@ -146,20 +146,71 @@ are NOT duplicates — they are two-scope taxonomy with shared vocabulary.
 Consolidation will be undone by `SyncClustersFromFrontmatterStep` on the
 next Re-Import.
 
-## Follow-up
+## Post-Re-Import follow-up apply (2026-05-24, same day)
+
+Two of the three follow-ups from the original Spec 002 backlog entry were
+addressed in the same session:
+
+### Uncategorized cluster reassignment ✅
+
+[apps/api/src/scripts/reassign-uncategorized-clusters.ts](../../../apps/api/src/scripts/reassign-uncategorized-clusters.ts)
+reassigned 20 Toolwiki clusters from `Uncategorized` onto two semantic
+pillars:
+
+| Group | Count | Target pillar | Status |
+|---|---|---|---|
+| `*-comparisons-2026` + `ai-coding-tools-2026` + `ai-presentation-tools-2026` | 8 | `comparisons` (existed) | ✅ reassigned |
+| `usecase-*` | 12 | `usecases` (created) | ✅ pillar created + reassigned |
+
+Toolwiki state after apply: 20 → 21 pillars (new `usecases`), `Uncategorized`
+now 0 clusters (true exception bucket).
+
+Script mirrors Spec 002 Bucket-C pattern: DI ports, dry-run default,
+`--project=<slug>` required, idempotent (`!= targetPillarId` predicate).
+7/7 smoke tests in
+[apps/api/test/scripts/reassign-uncategorized-clusters.smoke.test.ts](../../../apps/api/test/scripts/reassign-uncategorized-clusters.smoke.test.ts).
+
+### Importer pillar-normalization ✅
+
+`SyncClustersFromFrontmatterStep` extended with a `PILLAR_NAME_CANONICALIZATION`
+map ([packages/adapters/astro-sync/src/import/steps/sync-clusters-from-frontmatter.ts](../../../packages/adapters/astro-sync/src/import/steps/sync-clusters-from-frontmatter.ts)
+lines 27-65). DE display-label forms are normalized to EN-canonical-slug
+before pillar INSERT + cluster pillarId assignment:
+
+```
+Vergleiche → comparisons
+Ethik & Recht → ethics-law
+Grundlagen → fundamentals
+Zukunft → future
+Guides & Tutorials → guides-tutorials
+Technik → technology
+Tool-Reviews → tool-reviews
+Praxis → practice
+Praxis & Use Cases → practice-use-cases
+```
+
+Future MDX that accidentally introduces `categorySlug: "Vergleiche"` will
+NOT recreate the legacy pillar — the importer rewrites to `"comparisons"`
+before the lookup, the existing canonical pillar is reused, and the
+denormalized `clusters.pillar` text field stays canonical too.
+
+8 tests total in
+[packages/adapters/astro-sync/test/sync-clusters.test.ts](../../../packages/adapters/astro-sync/test/sync-clusters.test.ts)
+(5 existing + 3 new: pure-helper coverage + 2 DB-integration tests for
+the normalization end-to-end).
+
+**Worker-restart required** for the new normalization logic to take effect
+— see [apps/api/CLAUDE.md](../../../apps/api/CLAUDE.md) "Worker-Restart bei
+Pipeline-Code-Änderungen".
+
+## Follow-up (remaining)
 
 Documented in
 [`docs/backlog/post-cleanup-followups.md`](../../../docs/backlog/post-cleanup-followups.md)
 Bucket-C section:
 
-- **C4 (`content_categories.parent_slug` hierarchy)** — still open, separate spec
-  needed if cross-tenant hierarchy queries become a use case.
-- **`Uncategorized`-cluster reassignment** — 20 of 46 Toolwiki clusters sit
-  under the `Uncategorized` pillar fallback. Future bulk-reassign spec.
-- **Importer pillar-normalization (Bucket-D candidate)** — Spec 002 §9 R6 risk
-  realized: `SyncClustersFromFrontmatterStep` auto-creates pillars from any
-  `articles.category` value. Future fix: normalize pillar names against a
-  project-level whitelist before INSERT, or replace pillar-from-category
-  auto-creation with explicit pillar definitions.
-- **Marcel-action: Toolwiki Re-Import** — ✅ DONE 2026-05-24. State verified
-  in the snapshot diff above.
+- **C4 (`content_categories.parent_slug` hierarchy)** — still open, separate
+  spec needed if cross-tenant hierarchy queries become a use case.
+
+That's the only Bucket-C-adjacent item left open; both other follow-ups
+(Uncategorized reassignment + importer normalization) are addressed above.

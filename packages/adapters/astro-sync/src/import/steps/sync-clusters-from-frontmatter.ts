@@ -17,6 +17,53 @@ const EXCLUDED_FROM_CLUSTERING = [
   "special-landings",
 ] as const;
 
+/**
+ * Spec 002 follow-up — pillar-name canonicalization map.
+ *
+ * `articles.category` from MDX frontmatter can occasionally contain
+ * German display-label forms instead of canonical slug-form. Without
+ * this normalization, the step auto-creates pillars with the
+ * display-label name (e.g. `Vergleiche` next to canonical `comparisons`),
+ * which is exactly the drift Spec 002 Bucket-C cleaned up.
+ *
+ * The map ensures that if MDX ever uses `categorySlug: "Vergleiche"`,
+ * the pillar created here is `comparisons` — convention enforced at the
+ * importer boundary so the DB stays canonical regardless of MDX writers.
+ *
+ * Mapping rationale (DE display-label → EN-canonical-slug):
+ *   - Vergleiche → comparisons     (Astro blog-scope canonical)
+ *   - Ethik & Recht → ethics-law    (Astro blog/knowledge-scope canonical)
+ *   - Grundlagen → fundamentals     (Astro knowledge-scope canonical)
+ *   - Zukunft → future              (Astro knowledge-scope canonical)
+ *   - Guides & Tutorials → guides-tutorials (Astro blog-scope canonical)
+ *   - Technik → technology          (Astro knowledge-scope canonical)
+ *   - Tool-Reviews → tool-reviews   (case-only normalization)
+ *   - Praxis → practice             (Astro knowledge-scope canonical)
+ *   - Praxis & Use Cases → practice-use-cases (Astro blog-scope canonical)
+ *
+ * Extend here if new DE display-label drift is discovered in MDX.
+ */
+const PILLAR_NAME_CANONICALIZATION: Record<string, string> = {
+  Vergleiche: "comparisons",
+  "Ethik & Recht": "ethics-law",
+  Grundlagen: "fundamentals",
+  Zukunft: "future",
+  "Guides & Tutorials": "guides-tutorials",
+  Technik: "technology",
+  "Tool-Reviews": "tool-reviews",
+  Praxis: "practice",
+  "Praxis & Use Cases": "practice-use-cases",
+};
+
+/**
+ * Normalize a raw pillar name (typically `articles.category` from MDX) to
+ * its canonical EN-slug form. Returns the input unchanged if no mapping
+ * exists — known-good slugs and unfamiliar values both pass through.
+ */
+export function canonicalizePillarName(name: string): string {
+  return PILLAR_NAME_CANONICALIZATION[name] ?? name;
+}
+
 const InputSchema = z.object({
   projectId: z.string().uuid(),
 });
@@ -67,9 +114,17 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
 
     log.info({ groups: groupRows.length }, "Distinct cluster groups found in frontmatter");
 
-    // Step 2: materialize contentPillars from distinct categories
+    // Step 2: materialize contentPillars from distinct categories.
+    // Apply canonicalization map BEFORE dedupe so MDX-side display-label drift
+    // (e.g. "Vergleiche" → "comparisons") doesn't recreate the legacy pillar
+    // names that Spec 002 Bucket-C cleanup removed.
     const distinctCategories = [
-      ...new Set(groupRows.map((g) => g.category).filter((c): c is string => !!c)),
+      ...new Set(
+        groupRows
+          .map((g) => g.category)
+          .filter((c): c is string => !!c)
+          .map((c) => canonicalizePillarName(c)),
+      ),
     ];
 
     let pillarsCreated = 0;
@@ -161,8 +216,13 @@ export class SyncClustersFromFrontmatterStep extends BaseStep<
 
       if (members.length === 0) continue;
 
-      // Pick category from first member that has one
-      const memberCategory = members.find((m) => m.category)?.category ?? null;
+      // Pick category from first member that has one. Canonicalize so the
+      // pillar lookup matches Step 2's canonicalized pillar names AND the
+      // denormalized `clusters.pillar` text field stays canonical too.
+      const rawMemberCategory = members.find((m) => m.category)?.category ?? null;
+      const memberCategory = rawMemberCategory
+        ? canonicalizePillarName(rawMemberCategory)
+        : null;
       const pillarId = memberCategory
         ? (pillarByName.get(memberCategory) ?? uncategorizedPillarId)
         : uncategorizedPillarId;
