@@ -129,6 +129,10 @@ export default {
       "Manual topic the trend synthesizer doesn't find — e.g. \"What is RAG?\".",
     collectionHint: "Collection",
     collectionHintHelp: "Determines default intent and cluster action.",
+    // Spec multi-domain-evolution Domain-Registry follow-up — surfaces the
+    // tenant niche under the collection dropdown when the /brief-options
+    // endpoint returns source="registry" (vs. source="fallback").
+    taxonomyFromRegistry: "Taxonomy from DomainSpec ({niche})",
     intentType: "Intent type",
     intentHint: "Optional. Otherwise derived from collection.",
     topicTitle: "Topic",
@@ -150,11 +154,17 @@ export default {
   },
 
   // Spec 64.14: collection-hint values for the create form.
+  // Spec multi-domain-evolution Domain-Registry follow-up: `tools` + `usecases`
+  // added because they live in toolwikiDomain.collections (registered in
+  // @marketing-auto/content-schema/domains/toolwiki/spec.ts) and the
+  // /brief-options endpoint will return them under source="registry".
   collections: {
     "ki-wissen": "ki-wissen (knowledge explainer)",
     blog: "Blog (standalone)",
     comparison: "Comparison",
     cluster: "Cluster (new)",
+    tools: "Tool page",
+    usecases: "Use case",
   },
 
   // Spec 64.14: intent-type values for the create form. Names are read-only

@@ -35,11 +35,17 @@
               :key="col"
               :value="col"
             >
-              {{ $t(`briefs.collections.${col}`) as string }}
+              {{ collectionLabel(col) }}
             </option>
           </FormSelect>
           <p class="form-hint">
             {{ $t("briefs.create.collectionHintHelp") as string }}
+            <span
+              v-if="taxonomy?.source === 'registry' && taxonomy.niche"
+              class="taxonomy-badge"
+            >
+              · {{ $t("briefs.create.taxonomyFromRegistry", { niche: taxonomy.niche }) as string }}
+            </span>
           </p>
         </div>
 
@@ -53,7 +59,7 @@
               :key="intent"
               :value="intent"
             >
-              {{ $t(`briefs.intents.${intent}`) as string }}
+              {{ intentLabel(intent) }}
             </option>
           </FormSelect>
           <p class="form-hint">
@@ -143,33 +149,28 @@
 <script lang="ts">
 import { defineComponent } from "vue";
 import { useQueryClient } from "@tanstack/vue-query";
-import { apiPost } from "src/lib/api";
+import { apiGet, apiPost } from "src/lib/api";
 import FormInput from "src/components/forms/FormInput.vue";
 import FormSelect from "src/components/forms/FormSelect.vue";
 import FormTextarea from "src/components/forms/FormTextarea.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 
-type CollectionHint = "blog" | "comparison" | "ki-wissen" | "cluster";
-type IntentType =
-  | "knowledge"
-  | "tutorial"
-  | "use_case"
-  | "comparison"
-  | "review"
-  | "news"
-  | "best_practices"
-  | "alternatives"
-  | "pricing"
-  | "risks";
+// Spec 64.14 historical canonical sets — kept as the FALLBACK that surfaces
+// when GET /brief-options returns `source: "fallback"` (project has no
+// `targetNiche` OR its DomainSpec isn't shipped yet). Also used as the
+// initial value before the async fetch resolves, so the dropdowns are never
+// empty during the first paint.
+type CollectionHint = string;
+type IntentType = string;
 
-const COLLECTION_OPTIONS: CollectionHint[] = [
+const COLLECTION_OPTIONS_FALLBACK: string[] = [
   "ki-wissen",
   "blog",
   "comparison",
   "cluster",
 ];
 
-const INTENT_OPTIONS: IntentType[] = [
+const INTENT_OPTIONS_FALLBACK: string[] = [
   "knowledge",
   "tutorial",
   "use_case",
@@ -182,15 +183,43 @@ const INTENT_OPTIONS: IntentType[] = [
   "risks",
 ];
 
-// Mirror of the backend deriveIntentFromCollection() helper — keeps the
-// auto-fill in sync with the server's default when the user leaves intent
-// unset.
-const COLLECTION_TO_INTENT: Record<CollectionHint, IntentType> = {
+// Spec multi-domain-evolution Phase-C — the canonical collection→intent map
+// is now served by GET /brief-options (registry-driven). This local constant
+// is the LAST-RESORT fallback when the fetch fails AND the response is gone
+// from `data.taxonomy` (initial paint, network error). Mirrors Toolwiki's
+// registered DomainSpec.collectionToIntentMap byte-for-byte.
+const COLLECTION_TO_INTENT_FALLBACK: Record<string, string> = {
   "ki-wissen": "knowledge",
   comparison: "comparison",
   blog: "use_case",
   cluster: "use_case",
 };
+
+interface BriefOptionsResponse {
+  source: "registry" | "fallback";
+  niche: string | null;
+  collectionHints: string[];
+  intentTypes: string[];
+  /**
+   * Per-tenant collection→intent map served by the registry (Phase-C).
+   * Empty object on registry-without-map; null on fetch failure. Frontend
+   * falls back to COLLECTION_TO_INTENT_FALLBACK in either case.
+   */
+  collectionToIntentMap?: Record<string, string>;
+}
+
+/**
+ * Convert a raw slug like "solar-news" to a humanised fallback label
+ * ("Solar news") for cases where the registry surfaces a collection not in
+ * the i18n bundle. Used only when `$t()` returns the key itself (vue-i18n
+ * default missingHandler behaviour). Keeps the dropdown readable while a
+ * new tenant's i18n keys catch up.
+ */
+function humaniseSlug(slug: string): string {
+  return slug
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export default defineComponent({
   name: "BriefCreatePage",
@@ -215,14 +244,27 @@ export default defineComponent({
     // Inline error display only fires after the user attempted submit once —
     // avoids angry-red on the first focus.
     submitted: false,
+    // Spec multi-domain-evolution Domain-Registry follow-up — taxonomy
+    // fetched from GET /brief-options. `null` while the request is in
+    // flight or if the fetch failed (computed falls back to the hardcoded
+    // set in either case). Source flag drives the optional "registry"
+    // badge in the UI hint.
+    taxonomy: null as BriefOptionsResponse | null,
   }),
 
   computed: {
     collectionOptions(): CollectionHint[] {
-      return COLLECTION_OPTIONS;
+      // Registry-supplied taxonomy wins; falls back to hardcoded set when
+      // null (initial paint OR null-registry projects). Empty arrays
+      // returned by the registry also fall back — defensive.
+      const fromRegistry = this.taxonomy?.collectionHints;
+      if (fromRegistry && fromRegistry.length > 0) return fromRegistry;
+      return COLLECTION_OPTIONS_FALLBACK;
     },
     intentOptions(): IntentType[] {
-      return INTENT_OPTIONS;
+      const fromRegistry = this.taxonomy?.intentTypes;
+      if (fromRegistry && fromRegistry.length > 0) return fromRegistry;
+      return INTENT_OPTIONS_FALLBACK;
     },
     localeOptions(): Array<"de" | "en"> {
       return ["de", "en"];
@@ -247,13 +289,67 @@ export default defineComponent({
     },
   },
 
+  async mounted() {
+    // Fire-and-forget — taxonomy fetch is non-blocking. If it fails (404,
+    // 500, network), `taxonomy` stays null and the computed properties
+    // serve the hardcoded fallback set. No user-facing error required
+    // because the form is still fully usable.
+    try {
+      const response = await apiGet<BriefOptionsResponse>(
+        `/projects/${this.slug}/brief-options`,
+      );
+      this.taxonomy = response;
+      // If the registry-supplied list doesn't contain the current
+      // form.collectionHint default ("ki-wissen"), reset to the first
+      // available collection. Otherwise leave it alone so the form
+      // initial state is consistent. Prefer registry-supplied
+      // collectionToIntentMap over the local fallback.
+      if (!response.collectionHints.includes(this.form.collectionHint)) {
+        const first = response.collectionHints[0];
+        if (first) {
+          this.form.collectionHint = first;
+          this.form.intentType =
+            response.collectionToIntentMap?.[first] ??
+            COLLECTION_TO_INTENT_FALLBACK[first] ??
+            response.intentTypes[0] ??
+            this.form.intentType;
+        }
+      }
+    } catch {
+      // Silent fallback — log only at debug level
+    }
+  },
+
   methods: {
+    /**
+     * Returns the localised label for a collection hint. Falls back to a
+     * humanised slug ("Solar news") when the i18n key is missing —
+     * vue-i18n's default missingHandler returns the key path as-is.
+     */
+    collectionLabel(value: string): string {
+      const key = `briefs.collections.${value}`;
+      const translated = this.$t(key) as string;
+      if (translated === key) return humaniseSlug(value);
+      return translated;
+    },
+    intentLabel(value: string): string {
+      const key = `briefs.intents.${value}`;
+      const translated = this.$t(key) as string;
+      if (translated === key) return humaniseSlug(value);
+      return translated;
+    },
     onCollectionChange(value: string) {
       // Auto-derive intent_type when the collection changes. The user can
-      // still override afterwards.
-      const collection = value as CollectionHint;
-      this.form.collectionHint = collection;
-      this.form.intentType = COLLECTION_TO_INTENT[collection];
+      // still override afterwards. Resolution chain (Spec multi-domain-
+      // evolution Phase-C): (1) registry-supplied map from /brief-options;
+      // (2) hardcoded fallback for offline / pre-fetch state; (3) first
+      // available intent so the field is never empty.
+      this.form.collectionHint = value;
+      this.form.intentType =
+        this.taxonomy?.collectionToIntentMap?.[value] ??
+        COLLECTION_TO_INTENT_FALLBACK[value] ??
+        this.intentOptions[0] ??
+        this.form.intentType;
     },
     onCancel() {
       void this.$router.push({
@@ -363,6 +459,11 @@ export default defineComponent({
   font-size: 11px;
   color: var(--text-tertiary);
   margin: 0;
+}
+
+.taxonomy-badge {
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .form-error {
