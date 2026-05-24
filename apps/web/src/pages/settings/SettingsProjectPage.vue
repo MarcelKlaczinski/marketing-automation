@@ -111,7 +111,7 @@
         :dirty="astroForm.dirty.value"
         :saving="astroForm.saving.value"
         :last-saved-at="astroForm.lastSavedAt.value ?? ''"
-        @save="astroForm.save()"
+        @save="onAstroSave"
         @cancel="astroForm.cancel()"
       >
         <template #header-actions>
@@ -130,10 +130,74 @@
         </div>
         <div v-else class="repo-unconfigured">{{ $t("settings.project.astro.notConfigured") }}</div>
 
+        <p class="astro-hint">{{ $t("settings.project.astro.credentialsHint") }}</p>
+
+        <FormField
+          :label="$t('settings.project.fields.astroOwner')"
+          :helper="$t('settings.project.fields.astroOwnerHelper')"
+          required
+        >
+          <FormInput
+            v-model="astroForm.formData.value.owner"
+            placeholder="marcel-bauer"
+            autocomplete="off"
+          />
+        </FormField>
+
+        <FormField
+          :label="$t('settings.project.fields.astroName')"
+          :helper="$t('settings.project.fields.astroNameHelper')"
+          required
+        >
+          <FormInput
+            v-model="astroForm.formData.value.name"
+            placeholder="ki-wissensraum-astro"
+            autocomplete="off"
+          />
+        </FormField>
+
+        <FormField
+          :label="$t('settings.project.fields.astroInstallationId')"
+          :helper="$t('settings.project.fields.astroInstallationIdHelper')"
+          required
+        >
+          <FormInput
+            v-model="astroForm.formData.value.installationId"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            placeholder="47582903"
+            autocomplete="off"
+          />
+          <p class="astro-hint subtle">{{ $t("settings.project.astro.installationIdHint") }}</p>
+        </FormField>
+
         <FormField :label="$t('settings.project.fields.astroDefaultBranch')">
           <FormInput
             v-model="astroForm.formData.value.defaultBranch"
-            :disabled="!project?.astroRepo"
+            placeholder="main"
+            autocomplete="off"
+          />
+        </FormField>
+
+        <FormField
+          :label="$t('settings.project.fields.astroContentRoot')"
+          :helper="$t('settings.project.fields.astroContentRootHelper')"
+        >
+          <FormInput
+            v-model="astroForm.formData.value.contentRoot"
+            placeholder="src/content"
+            autocomplete="off"
+          />
+        </FormField>
+
+        <FormField
+          :label="$t('settings.project.fields.astroAssetsRoot')"
+          :helper="$t('settings.project.fields.astroAssetsRootHelper')"
+        >
+          <FormInput
+            v-model="astroForm.formData.value.assetsRoot"
+            placeholder="src/assets"
             autocomplete="off"
           />
         </FormField>
@@ -144,7 +208,6 @@
         >
           <FormInput
             v-model="astroForm.formData.value.localPath"
-            :disabled="!project?.astroRepo"
             placeholder="/Users/you/repos/my-astro-site"
             autocomplete="off"
           />
@@ -516,6 +579,28 @@ export default defineComponent({
       }
     },
 
+    async onAstroSave(): Promise<void> {
+      const form = this.astroForm.formData.value;
+      const owner = form.owner.trim();
+      const name = form.name.trim();
+      const installationIdRaw = form.installationId.trim();
+      const installationId = parseInt(installationIdRaw, 10);
+
+      // All-empty triple = intentional disconnect; composable handles it.
+      const allEmpty = !owner && !name && !installationIdRaw;
+      const allFilled =
+        owner && name && Number.isFinite(installationId) && installationId > 0;
+
+      if (!allEmpty && !allFilled) {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("settings.project.astro.validationError") as string,
+        });
+        return;
+      }
+      await this.astroForm.save();
+    },
+
     async onTriggerImport(): Promise<void> {
       const slug = (this.$route.params.slug as string);
       this.importInFlight = true;
@@ -578,6 +663,24 @@ export default defineComponent({
   font-size: 12px;
   color: var(--text-tertiary);
   margin-bottom: 12px;
+}
+
+.astro-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  background: var(--bg-glass);
+  border-left: 2px solid var(--accent-primary);
+  border-radius: var(--radius-sm, 4px);
+}
+
+.astro-hint.subtle {
+  background: transparent;
+  border-left: none;
+  padding: 4px 0 0;
+  margin: 4px 0 0;
+  color: var(--text-tertiary);
 }
 
 .checkbox-row,

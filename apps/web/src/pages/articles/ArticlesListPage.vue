@@ -27,12 +27,19 @@
           />
         </template>
 
-        <LoadMoreButton
-          :has-more="hasMore"
-          :loading="isFetchingMore"
-          :total-loaded="articles.length"
-          @load-more="loadMore"
+        <div
+          v-if="hasMore"
+          ref="loadMoreSentinel"
+          class="load-more-sentinel"
+          aria-hidden="true"
         />
+
+        <div v-if="isFetchingMore" class="load-more-status mono">
+          {{ $t("common.loadingMore") }}
+        </div>
+        <div v-else-if="articles.length && !hasMore" class="load-more-status mono">
+          {{ articles.length }} {{ $t("common.loaded") }}
+        </div>
       </div>
     </aside>
 
@@ -52,7 +59,6 @@ import { defineComponent } from "vue";
 import { useArticlesList, type ArticlesListFilters } from "src/composables/useArticlesList";
 import type { ArticleListItem } from "src/types/ui";
 import FilterBar from "src/components/ui/FilterBar.vue";
-import LoadMoreButton from "src/components/ui/LoadMoreButton.vue";
 import LoadingShimmer from "src/components/ui/LoadingShimmer.vue";
 import EmptyState from "src/components/ui/EmptyState.vue";
 import ArticleCard from "src/components/articles/ArticleCard.vue";
@@ -62,7 +68,6 @@ export default defineComponent({
 
   components: {
     FilterBar,
-    LoadMoreButton,
     LoadingShimmer,
     EmptyState,
     ArticleCard,
@@ -84,6 +89,9 @@ export default defineComponent({
   data: () => ({
     activeFilters: {} as Record<string, string>,
     searchQuery: "",
+    // Non-reactive — underscore prefix convention; IntersectionObserver must not be
+    // wrapped in Vue's reactive proxy (per apps/web/CLAUDE.md).
+    _observer: null as IntersectionObserver | null,
   }),
 
   computed: {
@@ -166,7 +174,53 @@ export default defineComponent({
     },
   },
 
+  mounted() {
+    this.attachObserver();
+  },
+
+  beforeUnmount() {
+    this._observer?.disconnect();
+    this._observer = null;
+  },
+
+  watch: {
+    hasMore() {
+      // Sentinel mounts/unmounts when hasMore flips — reattach so v-if re-render
+      // does not leave the observer pointing at a detached node.
+      void this.$nextTick(() => this.attachObserver());
+    },
+    isLoading() {
+      void this.$nextTick(() => this.attachObserver());
+    },
+    isFetchingMore(next: boolean) {
+      // After a page finishes loading, re-attach so the observer re-checks
+      // intersection synchronously. Without this, a sentinel that was already
+      // intersecting before the fetch never re-fires (IntersectionObserver only
+      // emits on transitions), and scrolling stalls after the first load.
+      if (!next) void this.$nextTick(() => this.attachObserver());
+    },
+  },
+
   methods: {
+    attachObserver(): void {
+      this._observer?.disconnect();
+      // Vue's $refs is typed as Record<string, unknown>; narrow to the actual DOM node.
+      const sentinel = this.$refs.loadMoreSentinel as Element | undefined;
+      if (!sentinel) return;
+
+      const root = sentinel.closest(".list-content");
+      this._observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting && this.hasMore && !this.isFetchingMore) {
+              void this.loadMore();
+            }
+          }
+        },
+        { root, rootMargin: "200px" },
+      );
+      this._observer.observe(sentinel);
+    },
     onFiltersChange(newFilters: Record<string, string>): void {
       this.activeFilters = newFilters;
       this.applyFilters();
@@ -215,6 +269,18 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.load-more-sentinel {
+  height: 1px;
+  flex-shrink: 0;
+}
+
+.load-more-status {
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-tertiary);
 }
 
 .detail-pane {

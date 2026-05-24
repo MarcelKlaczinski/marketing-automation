@@ -80,6 +80,12 @@ SELECT astro_repo FROM projects WHERE slug = 'toolwiki';
 
 If the project doesn't have `astroRepo` configured, set it via Drizzle Studio first.
 
+> **Discovered during follow-up (2026-05-24):** Spec 44 explicitly punted on the setup UI ("set it via Drizzle Studio"). A follow-up task built the missing UI in the Marketing-Tool itself:
+> - **GitHub-App credentials** (global, vault-stored as `service="github_app"` with keys `app_id` + `private_key_content`): now configurable via `/projects/:slug/settings/credentials` — see [apps/web/src/pages/settings/SettingsCredentialsPage.vue](../apps/web/src/pages/settings/SettingsCredentialsPage.vue) `adapters[]` array.
+> - **Per-project `astroRepo` config** (owner / name / installationId / defaultBranch / contentRoot / assetsRoot / localPath): now editable in Section 4 of `/projects/:slug/settings/project` — see [apps/web/src/pages/settings/SettingsProjectPage.vue](../apps/web/src/pages/settings/SettingsProjectPage.vue). All-empty triple = disconnect (writes `astroRepo: null`).
+> - **Backend status-check fix:** `getAllAdapterStatuses()` previously returned the github-app row under camelCase key `githubApp`, which never matched the frontend's kebab-case `adapter.id` lookup — latent because no UI surfaced github-app status. The rename to `"github_app"` + the new `getGitHubAppStatus()` helper (encodes "app_id required AND (private_key_content OR private_key_path)") landed in the same change. See [apps/api/src/lib/system-service.ts](../apps/api/src/lib/system-service.ts).
+> - **Still not implemented:** GitHub-OAuth Installation-Picker (Marcel still copies `installationId` from github.com/settings/installations URL manually), cron-based re-import, webhook-trigger.
+
 ## Architecture Overview
 
 ```

@@ -38,5 +38,6 @@ export default {
   remove: "Entfernen",
   addKeyword: "Keyword hinzufügen",
   loading: "Lädt …",
+  loadingMore: "Weitere Artikel werden geladen …",
   notFound: "Nicht gefunden",
 };

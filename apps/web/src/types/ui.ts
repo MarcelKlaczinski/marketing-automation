@@ -258,12 +258,27 @@ export interface ArticleListItem {
   heroImagePublicUrl: string | null;
 }
 
-/** Paginated articles response */
+/**
+ * Paginated articles response.
+ *
+ * The backend has two pagination modes on /api/projects/:slug/articles depending
+ * on whether `?cursor=…` was sent:
+ *   - cursor mode: returns `nextCursor` + `hasMore`
+ *   - offset mode (legacy dashboard): returns `total` + `offset`
+ *
+ * The infinite-scroll UI uses offset mode because cursor mode silently drops
+ * groups of articles that share the same `updatedAt` (bulk imports stamp
+ * identical timestamps).
+ */
 export interface ArticlesListResponse {
   items: ArticleListItem[];
-  nextCursor: string | null;
-  hasMore: boolean;
   limit: number;
+  // cursor-mode fields
+  nextCursor?: string | null;
+  hasMore?: boolean;
+  // offset-mode fields
+  total?: number;
+  offset?: number;
 }
 
 /** Article detail from GET /api/articles/:id */

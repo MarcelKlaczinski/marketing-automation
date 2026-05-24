@@ -54,13 +54,61 @@ export async function getAllAdapterStatuses() {
     ]),
     getAdapterStatus("dataforseo", ["login", "password"]),
     getAdapterStatus("smtp", ["host", "port", "user", "password", "from_address"]),
-    getAdapterStatus("github_app", ["app_id", "private_key_path"]),
+    getGitHubAppStatus(),
     getAdapterStatus("producthunt", ["api_key", "api_secret"]),
     getAdapterStatus("voyage", ["api_key"]),
     getAdapterStatus("reddit", ["client_id", "client_secret", "user_agent"]),
     getAdapterStatus("github", ["personal_access_token"]),
   ]);
-  return { anthropic, replicate, "nano-banana": nanoBanana, r2, dataforseo, smtp, githubApp, producthunt, voyage, reddit, github };
+  return {
+    anthropic,
+    replicate,
+    "nano-banana": nanoBanana,
+    r2,
+    dataforseo,
+    smtp,
+    github_app: githubApp,
+    producthunt,
+    voyage,
+    reddit,
+    github,
+  };
+}
+
+/**
+ * GitHub App accepts the private key in two interchangeable forms: an inline PEM
+ * (`private_key_content`) stored in the vault, OR a filesystem path
+ * (`private_key_path`) read at boot. `app_id` is always required; for the key,
+ * either one counts as configured. The generic `getAdapterStatus` helper can't
+ * express "at least one of N keys", so this is the canonical place to encode it.
+ */
+async function getGitHubAppStatus(): Promise<AdapterStatusRow> {
+  const rows = await db
+    .select({ key: globalCredentials.key })
+    .from(globalCredentials)
+    .where(eq(globalCredentials.service, "github_app"));
+
+  const presentKeys = new Set(rows.map((r) => r.key));
+  const missingKeys: string[] = [];
+  if (!presentKeys.has("app_id")) missingKeys.push("app_id");
+  if (!presentKeys.has("private_key_content") && !presentKeys.has("private_key_path")) {
+    missingKeys.push("private_key_content");
+  }
+
+  const [verifyRow] = await db
+    .select()
+    .from(systemSettings)
+    .where(eq(systemSettings.key, "last_verified_github_app"))
+    .limit(1);
+  // jsonb column typed as `unknown`; shape is always written by POST /verify/:adapter in this module
+  const verifyValue = verifyRow?.value as { at: string; ok: boolean } | undefined;
+
+  return {
+    configured: missingKeys.length === 0,
+    verified: verifyValue?.ok ?? null,
+    lastVerifiedAt: verifyValue?.at ?? null,
+    missingKeys,
+  };
 }
 
 export async function checkPostgres(): Promise<{
