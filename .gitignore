@@ -70,3 +70,7 @@ apps/api/uploads/
 /apps/api/src/scripts/check-tool-columns.ts
 /apps/api/src/scripts/dump-app-categories.ts
 /apps/api/src/scripts/dump-fx.ts
+
+# Spec 001 — DB-cleanup baseline snapshots are local, project-specific, contain
+# row-level data; keep them on disk for diff but never commit.
+/apps/api/src/scripts/discovery/baseline-*.json

@@ -38,6 +38,10 @@ export const articleStatusEnum = pgEnum("article_status", [
   "blocked_by_pagespeed",
   "failed",
   "rejected",
+  // Spec 001: orphan blog rows from the multi-domain-evolution refactor whose
+  // source files were removed by Branch-A but which RepoImportPipeline left
+  // behind (no delete-step). Filter live queries with `WHERE status != 'superseded'`.
+  "superseded",
 ]);
 
 export const socialPlatformEnum = pgEnum("social_platform", [
