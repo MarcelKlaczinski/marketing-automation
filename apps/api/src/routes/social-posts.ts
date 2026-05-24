@@ -619,7 +619,7 @@ socialPostRoutes.post(
         collection: articles.collection,
         locale: articles.locale,
         translationKey: articles.translationKey,
-        frontmatterExtras: articles.frontmatterExtras,
+        domainExtras: articles.domainExtras,
       })
       .from(articles)
       .where(eq(articles.id, articleId))
@@ -639,7 +639,7 @@ socialPostRoutes.post(
           collection: articles.collection,
           locale: articles.locale,
           translationKey: articles.translationKey,
-          frontmatterExtras: articles.frontmatterExtras,
+          domainExtras: articles.domainExtras,
         })
         .from(articles)
         .where(

@@ -191,7 +191,7 @@ export class TranslationSetupStep extends BaseStep<
       sourceSchemaJsonLd:     (sourceArticle.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
       sourceCategory:         sourceArticle.category ?? null,
       sourceSubcategory:      sourceArticle.subcategory ?? null,
-      sourceFrontmatterExtras: (sourceArticle.frontmatterExtras as Record<string, unknown> | null) ?? null,
+      sourceFrontmatterExtras: (sourceArticle.domainExtras as Record<string, unknown> | null) ?? null,
       projectDomain,
       sourceCollection:        sourceArticle.collection,
     };

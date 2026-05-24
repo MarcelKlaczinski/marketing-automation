@@ -20,7 +20,7 @@ export function getKiWissenContext(article: Article): KiWissenContext {
     throw new Error(`Article "${article.slug}" is not in the blog collection`);
   }
 
-  const extras = (article.frontmatterExtras ?? {}) as KiWissenExtras;
+  const extras = (article.domainExtras ?? {}) as KiWissenExtras;
 
   return {
     title: article.title ?? article.slug,

@@ -3,12 +3,12 @@ import type { QualityFindings } from "./schema.ts";
 export function buildQualityAnalysisPrompt(input: {
   title: string;
   body: string;
-  frontmatterExtras: Record<string, unknown>;
+  domainExtras: Record<string, unknown>;
   locale: string;
   daysSinceRefresh: number | "unknown";
 }): string {
-  const cluster = typeof input.frontmatterExtras.cluster === "string"
-    ? input.frontmatterExtras.cluster
+  const cluster = typeof input.domainExtras.cluster === "string"
+    ? input.domainExtras.cluster
     : "n/a";
 
   return `You are reviewing a published article to identify if it needs refreshing. Analyze for outdated claims, missing coverage, and stale references based on your general knowledge.

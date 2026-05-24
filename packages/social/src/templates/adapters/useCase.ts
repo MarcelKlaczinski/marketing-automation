@@ -17,7 +17,7 @@ export function getUseCaseContext(article: Article): UseCaseContext {
     throw new Error(`Article "${article.slug}" is not in the use-cases collection`);
   }
 
-  const extras = (article.frontmatterExtras ?? {}) as UseCaseExtras;
+  const extras = (article.domainExtras ?? {}) as UseCaseExtras;
 
   return {
     title: article.title ?? article.slug,

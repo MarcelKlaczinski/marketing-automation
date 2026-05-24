@@ -48,7 +48,7 @@ const LOCALE_LABELS: Record<"de" | "en", ComparisonLocaleLabels> = {
  * Comparison-article draft prompt (Spec 61.2 §3.2 + §3.1).
  *
  * The blog pipeline uses a single LLM call (DraftStep) that emits body + a
- * FRONTMATTER_EXTRAS HTML comment. For comparisons we extend that pattern:
+ * DOMAIN_EXTRAS HTML comment. For comparisons we extend that pattern:
  * the same call also emits the comparison-specific fields (toolSlugs, winner,
  * verdict, testMethodology, useCaseVerdicts, comparedAt) inside the extras.
  *
@@ -102,9 +102,9 @@ Hard rules:
    <HubCarousel> — auto-injected after generation.
 7. Do NOT write any "Stand: <date> · Tested by …" / "Stand: <Datum> · Getestet von …"
    metadata header or placeholder text.
-8. After the conclusion, output a FRONTMATTER_EXTRAS block (see below).${authorInstruction}
+8. After the conclusion, output a DOMAIN_EXTRAS block (see below).${authorInstruction}
 
-FRONTMATTER_EXTRAS — fields specific to comparison articles:
+DOMAIN_EXTRAS — fields specific to comparison articles:
 
   ALWAYS include (in addition to the standard fields):
   - "toolSlugs": 2-4 kebab-case tool slugs in comparison order
@@ -168,7 +168,7 @@ Output format:
 ## ${L.sections.conclusion}
 [recommendation; decision-tree if winner=="depends"]
 
-<!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","intentType":"comparison","toolSlugs":[...],"winner":"...","verdict":"...","testMethodology":"...","comparedAt":"${today}","useCaseVerdicts":[{"useCase":"...","winner":"...","reason":"..."}],"excerpt":"...","bottomLinksVariant":"comparison","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
+<!-- DOMAIN_EXTRAS: {"author":"<slug>","category":"...","intentType":"comparison","toolSlugs":[...],"winner":"...","verdict":"...","testMethodology":"...","comparedAt":"${today}","useCaseVerdicts":[{"useCase":"...","winner":"...","reason":"..."}],"excerpt":"...","bottomLinksVariant":"comparison","tags":[...],"faq":[{"question":"...","answer":"..."}]} -->
   `.trim();
 }
 
@@ -186,7 +186,7 @@ export function buildComparisonContextFragment(opts: {
     lines.push(`- tool-${positional}: ${name} (slug: ${slug})`);
   });
   lines.push("");
-  lines.push("In FRONTMATTER_EXTRAS.winner, use the positional label (tool-a/b/c/d) — NOT the slug.");
+  lines.push("In DOMAIN_EXTRAS.winner, use the positional label (tool-a/b/c/d) — NOT the slug.");
   lines.push(`In useCaseVerdicts[].winner, use the actual slug (e.g. ${toolSlugs[0] ?? "chatgpt"}).`);
   return lines.join("\n");
 }

@@ -32,7 +32,7 @@ export async function discoverArticleStep(
       .limit(1);
     if (!article) throw new Error(`Article ${input.articleId} not found`);
 
-    const currentHash = computeContentHash(article.bodyMd, article.frontmatterExtras);
+    const currentHash = computeContentHash(article.bodyMd, article.domainExtras);
 
     const [existing] = await db
       .select()

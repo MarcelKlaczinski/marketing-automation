@@ -104,7 +104,7 @@ export type TranslationPersistInput = {
   slug?: string;
   metaDescription?: string;
   tags?: string[];
-  frontmatterExtras?: Record<string, unknown>;
+  domainExtras?: Record<string, unknown>;
 };
 
 /**
@@ -163,7 +163,7 @@ export function buildTranslationPersistInput(args: BuildPersistInputArgs): Trans
       : sourceArticleSchema.mainEntityOfPage,
   };
 
-  // Build target frontmatterExtras: copy language-independent fields, drop the rest.
+  // Build target domainExtras: copy language-independent fields, drop the rest.
   const sourceExtras = s.sourceFrontmatterExtras ?? {};
   const targetExtras: Record<string, unknown> = {};
   for (const key of LANG_INDEPENDENT_EXTRAS) {
@@ -190,7 +190,7 @@ export function buildTranslationPersistInput(args: BuildPersistInputArgs): Trans
     ...(targetSlug ? { slug: targetSlug } : {}),
     ...(targetMetaDescription ? { metaDescription: targetMetaDescription } : {}),
     ...(body.targetTags.length > 0 ? { tags: body.targetTags } : {}),
-    ...(Object.keys(targetExtras).length > 0 ? { frontmatterExtras: targetExtras } : {}),
+    ...(Object.keys(targetExtras).length > 0 ? { domainExtras: targetExtras } : {}),
   };
 }
 

@@ -310,7 +310,7 @@ scopedArticleRoutes.get("/:slug/articles/imported", zValidator("query", imported
           publishedAt: articles.publishedAt,
           frontmatterUpdatedAt: articles.frontmatterUpdatedAt,
           filePath: articles.filePath,
-          frontmatterExtras: articles.frontmatterExtras,
+          domainExtras: articles.domainExtras,
           importMetadata: articles.importMetadata,
           lastImportedAt: articles.lastImportedAt,
           clusterKey: articles.clusterKey,

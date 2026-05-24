@@ -4,7 +4,7 @@
  * severity=info notification on mismatch; never throws (additive phase,
  * preserves zero-regression contract).
  *
- * Wired into DraftStep AFTER the FRONTMATTER_EXTRAS parse, fire-and-forget:
+ * Wired into DraftStep AFTER the DOMAIN_EXTRAS parse, fire-and-forget:
  * a category-validation failure must NEVER fail the pipeline (Pattern 111
  * + additive-migration rule). The notification gives Marcel a signal to
  * audit + extend the taxonomy if the LLM hallucinated a sensible new
@@ -86,7 +86,7 @@ function getProductionLookup(): CategoryLookup {
 export interface ValidateCategoryArgs {
   projectId: string;
   collectionType: ArticleCollectionType;
-  /** Raw value from FRONTMATTER_EXTRAS — may be unknown shape. */
+  /** Raw value from DOMAIN_EXTRAS — may be unknown shape. */
   category: unknown;
   articleId?: string;
   /** Inject lookup for tests. Production omits and uses the Drizzle backed singleton. */

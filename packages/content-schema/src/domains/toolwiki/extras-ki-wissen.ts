@@ -4,7 +4,7 @@ import { z } from "zod";
 //
 // Migrated from `packages/pipelines/src/article/frontmatter/ki-wissen.ts`.
 // ki-wissen articles are knowledge pillar pages. The LLM emits a few
-// collection-specific fields inside FRONTMATTER_EXTRAS (category enum,
+// collection-specific fields inside DOMAIN_EXTRAS (category enum,
 // level enum, icon Lucide name, facts[], next[]). Monetization fields
 // (adsenseSlots, hasAffiliateLinks) are injected by the Astro schema as
 // `false` defaults — the LLM must NOT emit them (Pattern 116).
@@ -32,7 +32,7 @@ export const KiWissenLevelSchema = z.enum([
 export type KiWissenLevel = z.infer<typeof KiWissenLevelSchema>;
 
 /**
- * Subset of ki-wissen fields emitted by the LLM inside FRONTMATTER_EXTRAS.
+ * Subset of ki-wissen fields emitted by the LLM inside DOMAIN_EXTRAS.
  * Kept narrow so we can validate without coupling to the full Astro collection
  * schema (date/locale/seo/translationKey/etc. are handled by render-mdx).
  */
@@ -59,7 +59,7 @@ export const kiWissenFrontmatterBounds = {
 } as const;
 
 /**
- * Validate parsed FRONTMATTER_EXTRAS against ki-wissen business rules.
+ * Validate parsed DOMAIN_EXTRAS against ki-wissen business rules.
  * Returns a tagged union — no throws (Pattern 111: throw
  * `ArticlePipelineError` at the call site, not here, to keep this module
  * dependency-free).

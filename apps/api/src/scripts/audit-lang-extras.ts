@@ -19,9 +19,9 @@ async function main() {
     SELECT id, slug, source, locale, translation_key, title,
            hero_image_alt_text, meta_description,
            length(coalesce(body_md,'')) as body_len,
-           frontmatter_extras->>'excerpt' as fm_excerpt,
-           frontmatter_extras->>'category' as fm_category,
-           frontmatter_extras->>'seoTitle' as fm_seoTitle,
+           domain_extras->>'excerpt' as fm_excerpt,
+           domain_extras->>'category' as fm_category,
+           domain_extras->>'seoTitle' as fm_seoTitle,
            created_at
     FROM articles
     WHERE locale='en' AND project_id=${proj.id}
@@ -71,9 +71,9 @@ async function main() {
   console.log("count:", heroEn.length);
   for (const r of heroEn) console.log(JSON.stringify(r, null, 2));
 
-  console.log("\n=== All EN articles frontmatter_extras key inventory ===");
+  console.log("\n=== All EN articles domain_extras key inventory ===");
   const keys = await db.execute(sql`
-    SELECT id, slug, jsonb_object_keys(frontmatter_extras) AS fe_key
+    SELECT id, slug, jsonb_object_keys(domain_extras) AS fe_key
     FROM articles
     WHERE locale='en' AND project_id=${proj.id}
     ORDER BY id, fe_key

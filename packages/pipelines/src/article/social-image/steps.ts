@@ -708,16 +708,16 @@ export class GenerateComparisonGrid4Step extends BaseStep<
     const localePrefix = ((input.locales[0] ?? "de-DE").split("-")[0] ?? "de") as "de" | "en";
     const isDE = localePrefix !== "en";
 
-    // Query frontmatterExtras to get per-tool scores + prices (not in resolvedTools)
+    // Query domainExtras to get per-tool scores + prices (not in resolvedTools)
     const [article] = await db
-      .select({ frontmatterExtras: articles.frontmatterExtras })
+      .select({ domainExtras: articles.domainExtras })
       .from(articles)
       .where(and(eq(articles.id, input.articleId), eq(articles.projectId, input.projectId)))
       .limit(1);
 
     type RawTool = { slug?: string; score?: number; pricingTier?: string; priceFrom?: number };
     const rawToolMap: Record<string, RawTool> = {};
-    const extras = (article?.frontmatterExtras ?? {}) as { tools?: RawTool[] };
+    const extras = (article?.domainExtras ?? {}) as { tools?: RawTool[] };
     for (const t of extras.tools ?? []) {
       if (t.slug) rawToolMap[t.slug] = t;
     }

@@ -72,7 +72,7 @@ function flattenIconSuggestions(): string {
 /**
  * ki-wissen draft prompt (Spec 61.3 §2.1 + §2.2).
  *
- * Single-shot DraftStep (Pattern 110): emits body + FRONTMATTER_EXTRAS in one
+ * Single-shot DraftStep (Pattern 110): emits body + DOMAIN_EXTRAS in one
  * LLM call. Replaces the default blog draft instructions when
  * `collectionType === "ki-wissen"` (Pattern 109 — see `selectDraftPrompt`).
  *
@@ -129,7 +129,7 @@ Hard rules:
      f. ## ${L.sections.risks} — balanced view of limitations and risks.
         At least 3 distinct risks; avoid "AI is dangerous" generalities.
      g. ## ${L.sections.nextSteps} — "Next steps" how-to list.
-        Each item in the \`next\` FRONTMATTER_EXTRAS array gets a matching
+        Each item in the \`next\` DOMAIN_EXTRAS array gets a matching
         bullet/section here with a short explanation.
      h. <FaqBlock /> — last line in the body. Nothing after it.
 3. NO H1 (#) anywhere in the body. Title comes from frontmatter.
@@ -143,9 +143,9 @@ Hard rules:
 9. Do NOT write any "Stand: <date> · Tested by …" / "Stand: <Datum>" / author
    placeholder metadata in the body — attribution is system-rendered.
 10. After ${L.sections.nextSteps} (and before <FaqBlock />), output the
-    FRONTMATTER_EXTRAS block.${authorInstruction}
+    DOMAIN_EXTRAS block.${authorInstruction}
 
-FRONTMATTER_EXTRAS — fields specific to ki-wissen articles:
+DOMAIN_EXTRAS — fields specific to ki-wissen articles:
 
   ALWAYS include (in addition to the standard fields):
   - "category": EXACTLY ONE of: "Grundlagen" | "Technik" | "Ethik & Recht" | "Praxis" | "Zukunft"
@@ -214,7 +214,7 @@ ${L.tldrLeadIn} [60-80 word definition]
 
 [one entry per item in the \`next\` array]
 
-<!-- FRONTMATTER_EXTRAS: {"author":"<slug>","category":"...","level":"...","icon":"...","facts":[...],"next":[...],"intentType":"general","excerpt":"...","bottomLinksVariant":"default","tags":[...],"seoTitle":"...","seoDescription":"...","translationKey":"...","updatedAt":"${today}","faq":[{"question":"...","answer":"..."}]} -->
+<!-- DOMAIN_EXTRAS: {"author":"<slug>","category":"...","level":"...","icon":"...","facts":[...],"next":[...],"intentType":"general","excerpt":"...","bottomLinksVariant":"default","tags":[...],"seoTitle":"...","seoDescription":"...","translationKey":"...","updatedAt":"${today}","faq":[{"question":"...","answer":"..."}]} -->
 
 <FaqBlock />
   `.trim();

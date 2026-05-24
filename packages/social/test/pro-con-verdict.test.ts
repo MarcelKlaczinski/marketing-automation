@@ -29,7 +29,7 @@ function makeArticle(overrides: Record<string, unknown> = {}) {
     title: "Loom Review",
     collection: "tools",
     locale: "de",
-    frontmatterExtras: {
+    domainExtras: {
       pros: [
         { text: "Async-Video direkt im Browser" },
         { text: "Auto-Transkription" },
@@ -95,7 +95,7 @@ describe("proConVerdictTemplate.eligibility", () => {
   it("rejects articles with fewer than 3 pros", () => {
     const result = proConVerdictTemplate.eligibility(
       makeArticle({
-        frontmatterExtras: {
+        domainExtras: {
           pros: [{ text: "Pro 1" }, { text: "Pro 2" }],
           cons: [{ text: "Con 1" }, { text: "Con 2" }, { text: "Con 3" }],
         },
@@ -109,7 +109,7 @@ describe("proConVerdictTemplate.eligibility", () => {
   it("rejects articles with fewer than 3 cons", () => {
     const result = proConVerdictTemplate.eligibility(
       makeArticle({
-        frontmatterExtras: {
+        domainExtras: {
           pros: [{ text: "Pro 1" }, { text: "Pro 2" }, { text: "Pro 3" }],
           cons: [{ text: "Con 1" }, { text: "Con 2" }],
         },

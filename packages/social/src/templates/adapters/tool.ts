@@ -52,7 +52,7 @@ export function getToolContext(article: Article): ToolContext {
     throw new Error(`Article "${article.slug}" is not in the tools collection`);
   }
 
-  const extras = (article.frontmatterExtras ?? {}) as ToolExtras;
+  const extras = (article.domainExtras ?? {}) as ToolExtras;
 
   const rawName = article.title ?? article.slug;
   const ctx: ToolContext = {

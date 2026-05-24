@@ -10,7 +10,7 @@
  *     regression guard so a future patch that adds them to the .set() block
  *     fails its tests immediately.
  *
- *   - JSONB entries under `articles.frontmatter_extras`: `featured`,
+ *   - JSONB entries under `articles.domain_extras`: `featured`,
  *     `pricingVerifiedAt`. These are the live lost-update risk. When
  *     PersistArticleStep replaces the whole extras blob from the bridge,
  *     these editorial values vanish unless we merge them back from the

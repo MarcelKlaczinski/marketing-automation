@@ -50,9 +50,9 @@ async function makeTool(
       source: "imported",
       // Spec 63.3b (post-investigation): seed `articles.category` directly. The
       // discovery's `loadToolInfo` reads the top-level column now, not the
-      // frontmatterExtras blob (Spec 54.8 promotion). We still set
-      // frontmatterExtras to `{}` so other rows don't carry stale data.
-      ...(category !== null ? { category, frontmatterExtras: {} } : { frontmatterExtras: {} }),
+      // domainExtras blob (Spec 54.8 promotion). We still set
+      // domainExtras to `{}` so other rows don't carry stale data.
+      ...(category !== null ? { category, domainExtras: {} } : { domainExtras: {} }),
     })
     .returning({ id: articles.id });
   if (!row) throw new Error("tool article insert failed");
@@ -75,7 +75,7 @@ async function makeBlogWithTools(
       collection: "blog",
       source: "imported",
       publishedAt,
-      frontmatterExtras: {},
+      domainExtras: {},
     })
     .returning({ id: articles.id });
   if (!art) throw new Error("blog article insert failed");
@@ -100,7 +100,7 @@ async function makeComparisonCovering(
       title: slug,
       collection: "comparisons",
       source: "imported",
-      frontmatterExtras: { toolSlugs },
+      domainExtras: { toolSlugs },
     })
     .returning({ id: articles.id });
   if (!art) throw new Error("comparison article insert failed");

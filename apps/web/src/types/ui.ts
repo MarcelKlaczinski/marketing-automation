@@ -278,7 +278,7 @@ export interface ArticleDetail {
   wordCount: number | null;
   bodyMd: string | null;
   outlineMd: string | null;
-  frontmatterExtras: Record<string, unknown> | null;
+  domainExtras: Record<string, unknown> | null;
   updatedAt: string;
   createdAt: string;
   heroImagePublicUrl: string | null;

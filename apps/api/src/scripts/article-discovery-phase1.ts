@@ -91,19 +91,19 @@ function countExternalLinks(body: string): number {
 type Row = {
   id: string;
   collection: string;
-  frontmatter_extras: Record<string, unknown>;
+  domain_extras: Record<string, unknown>;
   title: string | null;
   published_at: Date | null;
   header_count_h2: number;
 };
 
 function containerFormHint(row: Row): string {
-  const { collection, frontmatter_extras, title, published_at } = row;
+  const { collection, domain_extras, title, published_at } = row;
   switch (collection) {
     case "tools":
       return "single-tool-deep-dive";
     case "comparisons": {
-      const slugs = frontmatter_extras["toolSlugs"];
+      const slugs = domain_extras["toolSlugs"];
       const n = Array.isArray(slugs) ? slugs.length : 0;
       return n <= 2 ? "comparison-2" : "comparison-list";
     }
@@ -216,7 +216,7 @@ const articles = await db.execute<{
     internalLinks?: string[];
     hasAffiliateLinks?: boolean;
   };
-  frontmatter_extras: Record<string, unknown>;
+  domain_extras: Record<string, unknown>;
   published_at: Date | null;
   updated_at: Date;
 }>(sql`
@@ -229,7 +229,7 @@ const articles = await db.execute<{
     a.body_md,
     a.word_count,
     a.import_metadata,
-    a.frontmatter_extras,
+    a.domain_extras,
     a.published_at,
     a.updated_at
   FROM articles a
@@ -253,7 +253,7 @@ for (const article of articles) {
   try {
     const body = article.body_md ?? "";
     const im = article.import_metadata ?? {};
-    const fx = article.frontmatter_extras ?? {};
+    const fx = article.domain_extras ?? {};
 
     // Word count: prefer import_metadata, fall back to articles.word_count
     const wordCount = im.wordCount ?? article.word_count ?? 0;
@@ -291,7 +291,7 @@ for (const article of articles) {
     const hint = containerFormHint({
       id: article.id,
       collection: article.collection,
-      frontmatter_extras: fx,
+      domain_extras: fx,
       title: article.title,
       published_at: article.published_at ? new Date(article.published_at) : null,
       header_count_h2: headerCountH2,

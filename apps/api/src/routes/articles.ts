@@ -106,7 +106,7 @@ function toYaml(obj: Record<string, unknown>): string {
  * Spec 50: Builds a frontmatter object that satisfies the Astro blog collection schema.
  *
  * Field priority (highest → lowest):
- * 1. article.frontmatterExtras — LLM-generated or user-edited values (category, intentType, faq, tags…)
+ * 1. article.domainExtras — LLM-generated or user-edited values (category, intentType, faq, tags…)
  * 2. Schema-derived defaults — required fields get sensible defaults if not in extras
  * 3. Static article columns — title, slug, heroImage, wordCount, clusterRole, clusterKey, etc.
  *
@@ -126,7 +126,7 @@ function buildFrontmatter(
     heroImagePublicUrl: string | null;
     heroImageR2Key?: string | null;
     schemaJsonLd: unknown;
-    frontmatterExtras: unknown;
+    domainExtras: unknown;
     clusterRole: string | null;
     clusterKey: string | null;
     // Extended DB columns (all present on the full articles row)
@@ -145,7 +145,7 @@ function buildFrontmatter(
   const locale = (article.locale as string | null) ?? "de";
 
   // Merge LLM/user-edited extras (may contain category, intentType, tags, faq…)
-  const extras = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const extras = (article.domainExtras ?? {}) as Record<string, unknown>;
 
   // Compute readingTime string from importMetadata or wordCount
   const readingMinutes =
@@ -289,7 +289,7 @@ async function writeArticleToAstroRepo(
   const collection = (article.collection as string | null) ?? "blog";
   const fm = buildFrontmatter(article, cluster, collectionSchema);
   const yamlStr = toYaml(fm);
-  const strippedBody = (article.bodyMd ?? "").replace(/\s*<!--\s*FRONTMATTER_EXTRAS:[\s\S]*/g, "").trimEnd();
+  const strippedBody = (article.bodyMd ?? "").replace(/\s*<!--\s*DOMAIN_EXTRAS:[\s\S]*/g, "").trimEnd();
   const cleanBody = sanitizeMdxComponents(strippedBody);
   const mdxContent = [yamlStr, "", cleanBody].join("\n");
 
@@ -574,7 +574,7 @@ articleRoutes.get("/imported", zValidator("query", importedQuerySchema), async (
           publishedAt: articles.publishedAt,
           frontmatterUpdatedAt: articles.frontmatterUpdatedAt,
           filePath: articles.filePath,
-          frontmatterExtras: articles.frontmatterExtras,
+          domainExtras: articles.domainExtras,
           importMetadata: articles.importMetadata,
           lastImportedAt: articles.lastImportedAt,
           clusterKey: articles.clusterKey,
@@ -676,16 +676,16 @@ articleRoutes.get("/:id/frontmatter", async (c) => {
   const schemas = project?.astroCollectionSchemas as Record<string, FrontmatterFieldDescriptor[]> | null;
   const collectionSchema = schemas?.["blog"] ?? undefined;
 
-  // If frontmatterExtras is null/empty but bodyMd still contains the FRONTMATTER_EXTRAS
+  // If domainExtras is null/empty but bodyMd still contains the DOMAIN_EXTRAS
   // marker (LLM omitted closing -->), extract and persist it now so the panel can display
   // the fields (category, intentType, tags, faq, …) immediately without re-drafting.
-  let resolvedExtras = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
+  let resolvedExtras = (article.domainExtras ?? {}) as Record<string, unknown>;
   const hasExtras = Object.keys(resolvedExtras).length > 0;
   if (!hasExtras && article.bodyMd) {
-    const extrasStartIdx = article.bodyMd.indexOf("<!-- FRONTMATTER_EXTRAS:");
+    const extrasStartIdx = article.bodyMd.indexOf("<!-- DOMAIN_EXTRAS:");
     if (extrasStartIdx !== -1) {
       const extrasRaw = article.bodyMd.slice(extrasStartIdx);
-      const jsonMatch = extrasRaw.match(/<!--\s*FRONTMATTER_EXTRAS:\s*(\{[\s\S]*)/);
+      const jsonMatch = extrasRaw.match(/<!--\s*DOMAIN_EXTRAS:\s*(\{[\s\S]*)/);
       if (jsonMatch?.[1]) {
         const jsonStr = jsonMatch[1].replace(/\s*-->\s*$/, "").trimEnd();
         try {
@@ -695,9 +695,9 @@ articleRoutes.get("/:id/frontmatter", async (c) => {
             // Persist so future loads are fast and DraftStep's snapshot is up-to-date
             await db
               .update(articles)
-              .set({ frontmatterExtras: parsed, frontmatterUpdatedAt: new Date() })
+              .set({ domainExtras: parsed, frontmatterUpdatedAt: new Date() })
               .where(eq(articles.id, id));
-            log.info({ articleId: id }, "Backfilled frontmatterExtras from bodyMd FRONTMATTER_EXTRAS marker");
+            log.info({ articleId: id }, "Backfilled domainExtras from bodyMd DOMAIN_EXTRAS marker");
           }
         } catch {
           // JSON was malformed — skip silently
@@ -707,7 +707,7 @@ articleRoutes.get("/:id/frontmatter", async (c) => {
   }
 
   const fm = buildFrontmatter(
-    { ...article, frontmatterExtras: resolvedExtras },
+    { ...article, domainExtras: resolvedExtras },
     cluster ?? null,
     collectionSchema
   );
@@ -743,7 +743,7 @@ articleRoutes.patch(
 
     await db
       .update(articles)
-      .set({ frontmatterExtras: extras, frontmatterUpdatedAt: new Date() })
+      .set({ domainExtras: extras, frontmatterUpdatedAt: new Date() })
       .where(eq(articles.id, id));
 
     return c.json({ ok: true, data: { saved: true } });
@@ -824,7 +824,7 @@ articleRoutes.post("/:id/frontmatter-suggest", async (c) => {
     metaDescription: article.metaDescription,
     bodyExcerpt,
     schema,
-    currentExtras: (article.frontmatterExtras ?? {}) as Record<string, unknown>,
+    currentExtras: (article.domainExtras ?? {}) as Record<string, unknown>,
   });
 
   return c.json({ ok: true, data: suggestions });

@@ -157,7 +157,7 @@ export const proConVerdictTemplate: TemplateDefinition<ToolContext> = {
       return { eligible: false, reason: "Nur für tools-Collection" };
     }
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       pros?: Array<{ text: string } | string>;
       cons?: Array<{ text: string } | string>;
     };

@@ -196,7 +196,7 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
       return { eligible: false, reason: "Nur für comparisons-Collection" };
     }
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       toolSlugs?: string[];
       tools?: Array<{ slug: string; score?: number }>;
     };
@@ -207,7 +207,7 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
       return {
         eligible: false,
         reason: "Benötigt mindestens 3 Tools",
-        requirements: ["frontmatterExtras.tools.length >= 3"],
+        requirements: ["domainExtras.tools.length >= 3"],
       };
     }
 
@@ -251,7 +251,7 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
       cons?: [string, string];
     };
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       toolSlugs?: string[];
       tools?: RawToolEntry[];
       winner?: string;

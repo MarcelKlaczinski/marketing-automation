@@ -55,7 +55,7 @@ export async function runLlmEnrichment(
   projectId: string,
 ): Promise<{ fields: LlmEnrichmentFields; costUsd: number }> {
   const body = article.bodyMd ?? "";
-  const fx = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const fx = (article.domainExtras ?? {}) as Record<string, unknown>;
 
   const userMessage = `Classify this article for Instagram Carousel template routing.
 

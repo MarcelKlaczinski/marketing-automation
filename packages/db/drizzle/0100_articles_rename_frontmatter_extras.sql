@@ -1,0 +1,21 @@
+-- Spec multi-domain-evolution S5.1 — rename `articles.frontmatter_extras` to
+-- `articles.domain_extras`. Reflects the multi-domain reality: the column
+-- holds Bucket-C per-domain extras (Toolwiki: comparison/ki-wissen/tools
+-- extras; BK: future products/solar-news extras). "Frontmatter" was the
+-- pre-multi-domain framing when Astro was the only target.
+--
+-- ALTER TABLE ... RENAME COLUMN is atomic in PostgreSQL — no data copy,
+-- no rewrites. Drops the prior column index implicitly carried through
+-- (Postgres preserves index attachment across renames).
+--
+-- Drizzle schema is updated in lock-step (packages/db/src/schema/content.ts:
+-- `frontmatterExtras` → `domainExtras` with explicit `text("domain_extras")`).
+-- All 218 call sites across 68 files updated in the same commit.
+--
+-- LLM-emitted marker `<!-- FRONTMATTER_EXTRAS: ... -->` ALSO renamed to
+-- `<!-- DOMAIN_EXTRAS: ... -->` in DraftStep prompt + parser regex; OLD
+-- form will not be produced or read after deploy. Workers must be
+-- restarted on deploy (no in-flight state carries the OLD marker because
+-- DraftStep produces + parses in the same `execute()` call).
+
+ALTER TABLE articles RENAME COLUMN frontmatter_extras TO domain_extras;

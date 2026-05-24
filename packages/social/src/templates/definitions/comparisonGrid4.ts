@@ -197,7 +197,7 @@ export const comparisonGrid4Template: TemplateDefinition<Grid4Context> = {
       return { eligible: false, reason: "Nur für comparisons-Collection" };
     }
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       toolSlugs?: string[];
       tools?: Array<{ slug: string; score?: number }>;
     };
@@ -209,7 +209,7 @@ export const comparisonGrid4Template: TemplateDefinition<Grid4Context> = {
       return {
         eligible: false,
         reason: "Benötigt mindestens 4 Tools mit Score-Daten",
-        requirements: ["frontmatterExtras.tools.length >= 4"],
+        requirements: ["domainExtras.tools.length >= 4"],
       };
     }
 
@@ -251,7 +251,7 @@ export const comparisonGrid4Template: TemplateDefinition<Grid4Context> = {
       winnerFlagText?: string;
     };
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       toolSlugs?: string[];
       tools?: RawToolEntry[];
       winner?: string;

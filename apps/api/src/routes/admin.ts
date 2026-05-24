@@ -60,7 +60,7 @@ function createMockArticle(fixtureKey: string, locale: string): Article {
     noindex: false,
     internalLinksAdded: 0,
     internalLinkTargets: [],
-    frontmatterExtras: {},
+    domainExtras: {},
     frontmatterSchema: [],
     schemaExtensions: {},
     importMetadata: {},

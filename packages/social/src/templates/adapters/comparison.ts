@@ -27,7 +27,7 @@ export function getComparisonContext(
     throw new Error(`Article "${article.slug}" is not in the comparisons collection`);
   }
 
-  const extras = (article.frontmatterExtras ?? {}) as ComparisonExtras;
+  const extras = (article.domainExtras ?? {}) as ComparisonExtras;
   const tools = (extras.toolSlugs ?? [])
     .map((slug) => toolLookup.get(slug))
     .filter((t): t is ToolReference => t != null);

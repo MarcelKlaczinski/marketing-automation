@@ -31,7 +31,7 @@ const InputSchema = z.object({
   category: z.string().optional(),
   subcategory: z.string().optional(),
   tags: z.array(z.string()).optional(),
-  frontmatterExtras: z.record(z.unknown()).optional(),
+  domainExtras: z.record(z.unknown()).optional(),
   // Spec 61.1: collection type from pipeline input; defaults to 'blog' when absent
   collectionType: z.enum(ARTICLE_COLLECTION_TYPES).optional(),
 });
@@ -58,11 +58,11 @@ export class PersistArticleStep extends BaseStep<
     await db.transaction(async (tx) => {
       // Snapshot the existing draft as a version before overwriting (re-generation case).
       // First generation: bodyMd is empty/null — no snapshot needed.
-      // Spec multi-domain-evolution S1.1: also read frontmatter_extras so the
+      // Spec multi-domain-evolution S1.1: also read domain_extras so the
       // editorial-curated whitelist (featured, pricingVerifiedAt) survives a
       // re-generation that supplies fresh extras from the bridge.
       const [current] = await tx
-        .select({ bodyMd: articles.bodyMd, frontmatterExtras: articles.frontmatterExtras })
+        .select({ bodyMd: articles.bodyMd, domainExtras: articles.domainExtras })
         .from(articles)
         .where(eq(articles.id, input.articleId))
         .limit(1);
@@ -83,8 +83,8 @@ export class PersistArticleStep extends BaseStep<
       }
 
       const mergedExtras = mergePreservedExtras(
-        current?.frontmatterExtras ?? null,
-        input.frontmatterExtras ?? null,
+        current?.domainExtras ?? null,
+        input.domainExtras ?? null,
       );
 
       await tx
@@ -120,7 +120,7 @@ export class PersistArticleStep extends BaseStep<
           ...(input.category ? { category: input.category } : {}),
           ...(input.subcategory ? { subcategory: input.subcategory } : {}),
           ...(input.tags ? { tags: input.tags } : {}),
-          ...(mergedExtras ? { frontmatterExtras: mergedExtras } : {}),
+          ...(mergedExtras ? { domainExtras: mergedExtras } : {}),
           // Spec 61.1: write collection type when provided by the pipeline
           // Spec 61.2: also align articles.collection (Astro folder text column) with the enum
           ...(input.collectionType

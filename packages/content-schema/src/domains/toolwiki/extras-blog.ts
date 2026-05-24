@@ -2,9 +2,9 @@ import { z } from "zod";
 
 // ───── Toolwiki blog extras (Spec multi-domain-evolution S2.4) ────────────────
 //
-// Models the FRONTMATTER_EXTRAS fields the LLM emits for the Toolwiki `blog`
+// Models the DOMAIN_EXTRAS fields the LLM emits for the Toolwiki `blog`
 // collection. Pre-S2.4 these fields lived only as untyped entries inside the
-// `articles.frontmatter_extras` JSONB column; no Zod schema validated them
+// `articles.domain_extras` JSONB column; no Zod schema validated them
 // at the LLM-output boundary (Phase-1-discovery §1 blog inventar).
 //
 // Sprint-5 Domain-Registry will wire this schema into RenderMdxStep's
@@ -71,7 +71,7 @@ export const BlogExtrasSchema = z.object({
 export type BlogExtras = z.infer<typeof BlogExtrasSchema>;
 
 /**
- * Validate parsed FRONTMATTER_EXTRAS against blog business rules.
+ * Validate parsed DOMAIN_EXTRAS against blog business rules.
  * Returns a tagged union — no throws (Pattern 111: throw at the call site).
  *
  * Today blog has no cross-field invariants beyond per-field shape, so the

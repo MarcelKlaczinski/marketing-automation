@@ -182,8 +182,8 @@ describe("TranslationPipeline bridge — locale-aware fields (Spec 64.3)", () =>
       }),
     );
 
-    expect(result.frontmatterExtras).toBeDefined();
-    const fx = result.frontmatterExtras as Record<string, unknown>;
+    expect(result.domainExtras).toBeDefined();
+    const fx = result.domainExtras as Record<string, unknown>;
     // LANG_INDEPENDENT preserved
     expect(fx.intentType).toBe("review");
     expect(fx.primaryTool).toBe("openai");

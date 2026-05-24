@@ -147,7 +147,7 @@ function deriveCompletenessScore(
 export function runDeterministicEnrichment(article: Article): DeterministicFields {
   const body = article.bodyMd ?? "";
   const im = (article.importMetadata ?? {}) as ImportMetadata;
-  const fx = (article.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const fx = (article.domainExtras ?? {}) as Record<string, unknown>;
 
   const wordCount = im.wordCount ?? article.wordCount ?? 0;
   const headings = im.headings ?? [];

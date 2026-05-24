@@ -203,7 +203,7 @@ export const articles = pgTable(
     tags: text("tags").array(),
     noindex: boolean("noindex").notNull().default(false),
 
-    // Spec 49a: typed cluster metadata promoted from frontmatterExtras
+    // Spec 49a: typed cluster metadata promoted from domainExtras
     clusterKey: text("cluster_key"),
     clusterRole: text("cluster_role").$type<"hub" | "spoke" | null>(),
     intentType: text("intent_type"),
@@ -242,7 +242,7 @@ export const articles = pgTable(
     // ───────────────────────────────────────────────────────────────────────────
 
     // Spec 44: catch-all for collection-specific frontmatter fields
-    frontmatterExtras: jsonb("frontmatter_extras")
+    domainExtras: jsonb("domain_extras")
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),

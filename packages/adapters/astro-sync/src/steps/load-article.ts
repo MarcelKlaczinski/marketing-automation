@@ -24,7 +24,7 @@ const OutputSchema = z.object({
     collectionType: z.string(),
     wordCount: z.number(),
     // Metadata for frontmatter generation
-    frontmatterExtras: z.record(z.unknown()).nullable(),
+    domainExtras: z.record(z.unknown()).nullable(),
     category: z.string().nullable(),
     subcategory: z.string().nullable(),
     tags: z.array(z.string()).nullable(),
@@ -138,7 +138,7 @@ export class LoadArticleStep extends BaseStep<z.infer<typeof InputSchema>, LoadA
         schemaJsonLd: (article.schemaJsonLd as Array<Record<string, unknown>>) ?? [],
         collectionType: article.collectionType,
         wordCount: article.wordCount ?? article.bodyMd.split(/\s+/).length,
-        frontmatterExtras: (article.frontmatterExtras as Record<string, unknown> | null) ?? null,
+        domainExtras: (article.domainExtras as Record<string, unknown> | null) ?? null,
         category: article.category ?? null,
         subcategory: article.subcategory ?? null,
         tags: (article.tags as string[] | null) ?? null,

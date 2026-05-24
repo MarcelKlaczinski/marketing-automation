@@ -22,7 +22,7 @@ async function loadArticle(id: string) {
       wordCount: articles.wordCount,
       selfReviewScore: articles.selfReviewScore,
       selfReviewIssues: articles.selfReviewIssues,
-      frontmatterExtras: articles.frontmatterExtras,
+      domainExtras: articles.domainExtras,
       heroImageR2Key: articles.heroImageR2Key,
       heroImagePublicUrl: articles.heroImagePublicUrl,
       heroImageAltText: articles.heroImageAltText,
@@ -63,7 +63,7 @@ if (en.translationKey) {
       wordCount: articles.wordCount,
       selfReviewScore: articles.selfReviewScore,
       selfReviewIssues: articles.selfReviewIssues,
-      frontmatterExtras: articles.frontmatterExtras,
+      domainExtras: articles.domainExtras,
       heroImageR2Key: articles.heroImageR2Key,
       heroImagePublicUrl: articles.heroImagePublicUrl,
       heroImageAltText: articles.heroImageAltText,
@@ -115,8 +115,8 @@ function summary(label: string, a: NonNullable<typeof en>) {
   console.log("\n--- outline ---");
   console.log(JSON.stringify(a.outline, null, 2));
 
-  console.log("\n--- frontmatterExtras ---");
-  console.log(JSON.stringify(a.frontmatterExtras, null, 2));
+  console.log("\n--- domainExtras ---");
+  console.log(JSON.stringify(a.domainExtras, null, 2));
 
   console.log("\n--- selfReviewIssues ---");
   console.log(JSON.stringify(a.selfReviewIssues, null, 2));

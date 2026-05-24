@@ -7,7 +7,7 @@ const MAX_PRIMARY_TOOLS = 6;
 const MAX_SECONDARY_TOOLS = 3;
 
 function toToolReference(row: typeof articles.$inferSelect): ToolReference {
-  const extras = (row.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const extras = (row.domainExtras ?? {}) as Record<string, unknown>;
   const featuresRaw = Array.isArray(extras.features) ? extras.features : [];
   return {
     slug: row.slug,

@@ -216,8 +216,8 @@ Output ONLY these four tagged blocks, nothing else:
     const outlineJson = sourceArticle.outline
       ? JSON.stringify(sourceArticle.outline, null, 2)
       : null;
-    const extrasJson = sourceArticle.frontmatterExtras && Object.keys(sourceArticle.frontmatterExtras).length > 0
-      ? JSON.stringify(sourceArticle.frontmatterExtras, null, 2)
+    const extrasJson = sourceArticle.domainExtras && Object.keys(sourceArticle.domainExtras).length > 0
+      ? JSON.stringify(sourceArticle.domainExtras, null, 2)
       : null;
 
     const culturalRules = `
@@ -330,7 +330,7 @@ full translated article body in Markdown (preserving all MDX/imports)
 
     // ── Call 2: outline + frontmatter extras (JSON only, small output) ──────
     let outline = sourceArticle.outline;
-    let frontmatterExtras: Record<string, unknown> = (sourceArticle.frontmatterExtras as Record<string, unknown> | null) ?? {};
+    let domainExtras: Record<string, unknown> = (sourceArticle.domainExtras as Record<string, unknown> | null) ?? {};
 
     if (outlineJson || extrasJson) {
       const structureInstructions = `${culturalRules}
@@ -397,7 +397,7 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
         const extrasBlock = parseBlock(raw2, "EXTRAS");
         if (extrasBlock) {
           try {
-            frontmatterExtras = JSON.parse(extrasBlock) as Record<string, unknown>;
+            domainExtras = JSON.parse(extrasBlock) as Record<string, unknown>;
           } catch {
             log.warn({ targetArticleId: input.targetArticleId }, "Could not parse translated extras JSON — keeping source");
           }
@@ -418,7 +418,7 @@ ${extrasJson ? `<EXTRAS>\ntranslated frontmatter extras JSON (same structure)\n<
         bodyMd,
         wordCount,
         outline,
-        frontmatterExtras,
+        domainExtras,
         // Carry over hero image from source; generate locale-appropriate alt text
         // (source alt text is in the source locale and must not be copied verbatim)
         heroImageR2Key: sourceArticle.heroImageR2Key,

@@ -85,7 +85,7 @@ export async function buildSystemPrompt(input: SystemPromptInput): Promise<Syste
 /**
  * Spec 50: Builds a human-readable "Frontmatter Requirements" block for injection
  * into the system prompt. Tells the LLM which structured fields must appear in
- * the FRONTMATTER_EXTRAS block at the end of its output.
+ * the DOMAIN_EXTRAS block at the end of its output.
  */
 function buildFrontmatterBlock(fields: FrontmatterFieldDescriptor[]): string {
   if (!fields.length) return "";
@@ -101,8 +101,8 @@ function buildFrontmatterBlock(fields: FrontmatterFieldDescriptor[]): string {
     "",
     "# Frontmatter Requirements (Astro Content Collection)",
     "",
-    "At the end of your response, output a FRONTMATTER_EXTRAS block with structured metadata.",
-    "Format: `<!-- FRONTMATTER_EXTRAS: {...JSON...} -->`",
+    "At the end of your response, output a DOMAIN_EXTRAS block with structured metadata.",
+    "Format: `<!-- DOMAIN_EXTRAS: {...JSON...} -->`",
     "The JSON must satisfy this schema:",
     "",
   ];
@@ -136,7 +136,7 @@ function buildFrontmatterBlock(fields: FrontmatterFieldDescriptor[]): string {
   lines.push(
     "Example output (at the very end, after the article body):",
     "```",
-    "<!-- FRONTMATTER_EXTRAS: {\"category\":\"Guides & Tutorials\",\"intentType\":\"tutorial\",\"tags\":[\"ki\",\"chatbots\"],\"faq\":[{\"question\":\"...\",\"answer\":\"...\"}]} -->",
+    "<!-- DOMAIN_EXTRAS: {\"category\":\"Guides & Tutorials\",\"intentType\":\"tutorial\",\"tags\":[\"ki\",\"chatbots\"],\"faq\":[{\"question\":\"...\",\"answer\":\"...\"}]} -->",
     "```",
   );
 

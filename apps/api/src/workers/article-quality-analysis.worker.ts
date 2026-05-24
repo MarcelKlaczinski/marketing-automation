@@ -115,7 +115,7 @@ export function startArticleQualityAnalysisWorker(): Worker<ArticleQualityAnalys
           locale: articles.locale,
           publishedAt: articles.publishedAt,
           lastRefreshedAt: articles.lastRefreshedAt,
-          frontmatterExtras: articles.frontmatterExtras,
+          domainExtras: articles.domainExtras,
         })
         .from(articles)
         .where(and(
@@ -145,7 +145,7 @@ export function startArticleQualityAnalysisWorker(): Worker<ArticleQualityAnalys
       const prompt = buildQualityAnalysisPrompt({
         title: article.title ?? "(untitled)",
         body: article.bodyMd,
-        frontmatterExtras: article.frontmatterExtras ?? {},
+        domainExtras: article.domainExtras ?? {},
         locale: article.locale,
         daysSinceRefresh,
       });

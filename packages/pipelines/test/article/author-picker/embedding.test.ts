@@ -74,7 +74,7 @@ describe.skipIf(!RUN_DB)("embeddingAuthorMatch (DB + mocked voyage)", () => {
       title: "High Match Author",
       collection: "authors",
       locale: "de",
-      frontmatterExtras: {
+      domainExtras: {
         expertise: ["AI tools", "developer productivity"],
         expertiseEmbedding: HIGH_SIM_VEC,
       },
@@ -87,7 +87,7 @@ describe.skipIf(!RUN_DB)("embeddingAuthorMatch (DB + mocked voyage)", () => {
       title: "Low Match Author",
       collection: "authors",
       locale: "de",
-      frontmatterExtras: {
+      domainExtras: {
         expertise: ["cooking", "travel"],
         expertiseEmbedding: LOW_SIM_VEC,
       },
@@ -100,7 +100,7 @@ describe.skipIf(!RUN_DB)("embeddingAuthorMatch (DB + mocked voyage)", () => {
       title: "No Embedding Author",
       collection: "authors",
       locale: "de",
-      frontmatterExtras: {
+      domainExtras: {
         expertise: ["machine learning", "neural networks"],
         // No expertiseEmbedding — will trigger embed call
       },
@@ -167,11 +167,11 @@ describe.skipIf(!RUN_DB)("embeddingAuthorMatch (DB + mocked voyage)", () => {
   it("caches expertise embedding on first compute (no-embedding author)", async () => {
     // After the first test, no-embedding-author should now have an embedding cached in DB
     const rows = await db
-      .select({ frontmatterExtras: articles.frontmatterExtras })
+      .select({ domainExtras: articles.domainExtras })
       .from(articles)
       .where(eq(articles.slug, "no-embedding-author"));
 
-    const extras = (rows[0]?.frontmatterExtras ?? {}) as Record<string, unknown>;
+    const extras = (rows[0]?.domainExtras ?? {}) as Record<string, unknown>;
     // The embed mock was called and the result should be cached
     expect(Array.isArray(extras.expertiseEmbedding)).toBe(true);
   });

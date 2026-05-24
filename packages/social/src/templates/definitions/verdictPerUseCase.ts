@@ -165,7 +165,7 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
       return { eligible: false, reason: "Nur für comparisons-Collection" };
     }
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       tools?: Array<{ slug?: string }>;
       toolSlugs?: string[];
       useCaseVerdicts?: Array<{ useCase?: string; winner?: string }>;
@@ -176,7 +176,7 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
       return {
         eligible: false,
         reason: "Benötigt mindestens 3 Tools für sinnvolle Use-Case-Verdicts",
-        requirements: ["frontmatterExtras.tools.length >= 3"],
+        requirements: ["domainExtras.tools.length >= 3"],
       };
     }
 
@@ -185,7 +185,7 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
       return {
         eligible: false,
         reason: "Benötigt mindestens 5 Use-Case-Verdicts",
-        requirements: ["frontmatterExtras.useCaseVerdicts.length >= 5"],
+        requirements: ["domainExtras.useCaseVerdicts.length >= 5"],
       };
     }
 
@@ -224,7 +224,7 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
       name?: string;
     };
 
-    const extras = (article.frontmatterExtras ?? {}) as {
+    const extras = (article.domainExtras ?? {}) as {
       tools?: RawTool[];
       toolSlugs?: string[];
       useCaseVerdicts?: RawUseCaseVerdict[];

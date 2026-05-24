@@ -22,7 +22,7 @@ async function resolveAuthorName(
   locale: "de" | "en",
 ): Promise<string> {
   const rows = await db
-    .select({ title: articles.title, frontmatterExtras: articles.frontmatterExtras })
+    .select({ title: articles.title, domainExtras: articles.domainExtras })
     .from(articles)
     .where(
       and(
@@ -37,7 +37,7 @@ async function resolveAuthorName(
   const row = rows[0];
   if (!row) return slug;
 
-  const extras = (row.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const extras = (row.domainExtras ?? {}) as Record<string, unknown>;
   return row.title ?? String(extras.name ?? slug);
 }
 
@@ -77,7 +77,7 @@ async function defaultFallbackAuthor(
 
   // Verify the slug actually exists in the authors collection
   const authorRows = await db
-    .select({ title: articles.title, frontmatterExtras: articles.frontmatterExtras })
+    .select({ title: articles.title, domainExtras: articles.domainExtras })
     .from(articles)
     .where(
       and(
@@ -97,7 +97,7 @@ async function defaultFallbackAuthor(
     );
   }
 
-  const extras = (authorRow.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const extras = (authorRow.domainExtras ?? {}) as Record<string, unknown>;
   const name = authorRow.title ?? String(extras.name ?? topAuthor.slug);
 
   log.warn(

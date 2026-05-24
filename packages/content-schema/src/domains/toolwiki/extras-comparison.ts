@@ -30,7 +30,7 @@ export const UseCaseVerdictSchema = z.object({
 export type UseCaseVerdict = z.infer<typeof UseCaseVerdictSchema>;
 
 /**
- * Subset of comparison fields emitted by the LLM inside FRONTMATTER_EXTRAS.
+ * Subset of comparison fields emitted by the LLM inside DOMAIN_EXTRAS.
  * Strict shape kept narrow so we can validate without coupling to the full
  * Astro collection schema (date/locale/seo/etc. are handled by render-mdx).
  */
@@ -64,7 +64,7 @@ export const comparisonFrontmatterBounds = {
 } as const;
 
 /**
- * Validate parsed FRONTMATTER_EXTRAS against comparison-specific business rules.
+ * Validate parsed DOMAIN_EXTRAS against comparison-specific business rules.
  * Returns a tagged union — no throws — so the call site keeps full control
  * over error escalation (Pattern 111: throw `ArticlePipelineError` at the
  * call site, not here, to keep this module dependency-free).

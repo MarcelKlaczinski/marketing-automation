@@ -15,7 +15,7 @@ const InputSchema = z.object({
     // Extra fields for Review schema and author Person type (Spec 54.12 fix)
     projectId: z.string().uuid().optional(),
     intentType: z.string().nullable().optional(),
-    frontmatterExtras: z.record(z.unknown()).nullable().optional(),
+    domainExtras: z.record(z.unknown()).nullable().optional(),
     author: z.string().nullable().optional(),
   }),
   project: z.object({
@@ -113,8 +113,8 @@ export class BuildJsonLdStep extends BaseStep<
       addedTypes.push("HowTo");
     }
 
-    // Review — if intentType is "review" and a rating is present in frontmatterExtras
-    const extras = input.article.frontmatterExtras ?? {};
+    // Review — if intentType is "review" and a rating is present in domainExtras
+    const extras = input.article.domainExtras ?? {};
     const rating = typeof extras["rating"] === "number" ? extras["rating"] : null;
     if (input.article.intentType === "review" && rating !== null && input.article.projectId) {
       const primaryTool = typeof extras["primaryTool"] === "string" ? extras["primaryTool"] : null;

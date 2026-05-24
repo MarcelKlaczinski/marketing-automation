@@ -32,7 +32,7 @@ function buildQueryText(brief: TopicBrief): string {
 
 /**
  * Fetch all author profiles for a project+locale, resolving expertise embeddings.
- * Embeddings are cached in frontmatterExtras.expertiseEmbedding — computed once,
+ * Embeddings are cached in domainExtras.expertiseEmbedding — computed once,
  * written back to DB, reused on subsequent calls.
  */
 async function loadAuthorProfiles(
@@ -54,7 +54,7 @@ async function loadAuthorProfiles(
   const profiles: AuthorProfile[] = [];
 
   for (const row of rows) {
-    const extras = (row.frontmatterExtras ?? {}) as Record<string, unknown>;
+    const extras = (row.domainExtras ?? {}) as Record<string, unknown>;
     const expertiseRaw = Array.isArray(extras.expertise)
       ? (extras.expertise as unknown[]).filter((h): h is string => typeof h === "string")
       : [];
@@ -82,7 +82,7 @@ async function loadAuthorProfiles(
         const updatedExtras = { ...extras, expertiseEmbedding };
         await db
           .update(articles)
-          .set({ frontmatterExtras: updatedExtras, updatedAt: new Date() })
+          .set({ domainExtras: updatedExtras, updatedAt: new Date() })
           .where(eq(articles.id, row.id));
 
         log.info({ authorSlug: row.slug }, "cached expertise embedding for author");

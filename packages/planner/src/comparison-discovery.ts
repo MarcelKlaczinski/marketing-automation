@@ -300,11 +300,11 @@ async function loadToolInfo(projectId: string, slugs: string[]): Promise<Map<str
   //                                comparison bonuses on its own (Translation + Research +
   //                                Chatbots all collapse to text-language) but a valid
   //                                fallback when subcategory is missing.
-  //   3. `frontmatterExtras.primaryCategory` — legacy fallback for very old rows imported
+  //   3. `domainExtras.primaryCategory` — legacy fallback for very old rows imported
   //                                before the Spec 54.8 column-promotion.
   // Both `category` and `subcategory` are dedicated text columns on `articles` (promoted
-  // in Spec 54.8). They are NOT in `frontmatterExtras` — the astro-sync upsert lifts them
-  // out into top-level columns before persisting. Earlier 63.3b code read frontmatterExtras
+  // in Spec 54.8). They are NOT in `domainExtras` — the astro-sync upsert lifts them
+  // out into top-level columns before persisting. Earlier 63.3b code read domainExtras
   // which silently returned `undefined` for every row.
   const rows = await db
     .select({
@@ -312,7 +312,7 @@ async function loadToolInfo(projectId: string, slugs: string[]): Promise<Map<str
       title: articles.title,
       category: articles.category,
       subcategory: articles.subcategory,
-      frontmatterExtras: articles.frontmatterExtras,
+      domainExtras: articles.domainExtras,
     })
     .from(articles)
     .where(
@@ -324,7 +324,7 @@ async function loadToolInfo(projectId: string, slugs: string[]): Promise<Map<str
     );
   const map = new Map<string, ToolInfo>();
   for (const row of rows) {
-    const fx = (row.frontmatterExtras ?? {}) as Record<string, unknown>;
+    const fx = (row.domainExtras ?? {}) as Record<string, unknown>;
     const category =
       (row.subcategory && row.subcategory.length > 0 ? row.subcategory : null) ??
       (row.category && row.category.length > 0 ? row.category : null) ??
@@ -423,7 +423,7 @@ async function excludeCoveredPairs(
   // One query per pair via OR'd jsonb @> checks would be N round-trips. Instead, fetch
   // every comparison article's toolSlugs once and check in-memory.
   const existing = await db
-    .select({ extras: articles.frontmatterExtras })
+    .select({ extras: articles.domainExtras })
     .from(articles)
     .where(and(eq(articles.projectId, projectId), eq(articles.collection, "comparisons")));
 

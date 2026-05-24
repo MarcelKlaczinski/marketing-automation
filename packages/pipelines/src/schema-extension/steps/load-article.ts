@@ -21,7 +21,7 @@ const OutputSchema = z.object({
     heroImagePublicUrl: z.string().nullable(), // not validated as URL — localhost URLs are valid in dev
     heroImageR2Key: z.string().nullable(),
     intentType: z.string().nullable(),
-    frontmatterExtras: z.record(z.unknown()).nullable(),
+    domainExtras: z.record(z.unknown()).nullable(),
     author: z.string().nullable(),
   }),
   project: z.object({
@@ -94,7 +94,7 @@ export class LoadArticleStep extends BaseStep<
         heroImagePublicUrl: article.heroImagePublicUrl || null, // || coerces empty string to null
         heroImageR2Key: article.heroImageR2Key || null,
         intentType: article.intentType ?? null,
-        frontmatterExtras: (article.frontmatterExtras as Record<string, unknown> | null) ?? null,
+        domainExtras: (article.domainExtras as Record<string, unknown> | null) ?? null,
         author: article.author ?? null,
       },
       project: {

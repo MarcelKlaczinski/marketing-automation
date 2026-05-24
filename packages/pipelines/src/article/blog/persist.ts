@@ -82,7 +82,7 @@ export async function createBlogArticleFromBrief(
 
 /**
  * Write the picked author slug back to the article row.
- * Also writes authorPickStrategy to frontmatterExtras for audit.
+ * Also writes authorPickStrategy to domainExtras for audit.
  * Throws BlogPipelineError if the author slug does not exist in the project's
  * authors collection — defense-in-depth against author-picker bugs.
  */
@@ -93,7 +93,7 @@ export async function updateArticleAuthor(
 ): Promise<void> {
   // Read article to get projectId + locale for validation
   const [articleRow] = await db
-    .select({ projectId: articles.projectId, locale: articles.locale, frontmatterExtras: articles.frontmatterExtras })
+    .select({ projectId: articles.projectId, locale: articles.locale, domainExtras: articles.domainExtras })
     .from(articles)
     .where(eq(articles.id, articleId))
     .limit(1);
@@ -124,13 +124,13 @@ export async function updateArticleAuthor(
     );
   }
 
-  const existing = (articleRow.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const existing = (articleRow.domainExtras ?? {}) as Record<string, unknown>;
 
   await db
     .update(articles)
     .set({
       author: authorSlug,
-      frontmatterExtras: { ...existing, authorPickStrategy: matchStrategy },
+      domainExtras: { ...existing, authorPickStrategy: matchStrategy },
       updatedAt: new Date(),
     })
     .where(eq(articles.id, articleId));

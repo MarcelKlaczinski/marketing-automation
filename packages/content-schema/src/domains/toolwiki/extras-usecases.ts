@@ -2,7 +2,7 @@ import { z } from "zod";
 
 // ───── Toolwiki usecases extras (Spec multi-domain-evolution S2.4) ────────────
 //
-// Models the FRONTMATTER_EXTRAS fields for the `usecases` collection
+// Models the DOMAIN_EXTRAS fields for the `usecases` collection
 // (24 articles per Phase-1 audit). Pre-S2.4 these fields lived as untyped
 // JSONB entries; the LLM-output path used permissive parsing.
 //
@@ -37,7 +37,7 @@ export const UsecasesExtrasSchema = z.object({
 export type UsecasesExtras = z.infer<typeof UsecasesExtrasSchema>;
 
 /**
- * Validate parsed FRONTMATTER_EXTRAS against usecases business rules.
+ * Validate parsed DOMAIN_EXTRAS against usecases business rules.
  * Thin wrapper today; future cross-field rules belong here.
  */
 export function validateUsecasesExtras(

@@ -3,7 +3,7 @@
 import type { ToolReference } from "./types.ts";
 
 // Brand-color fallbacks for well-known tool slugs — used when the tool article in DB
-// has no iconSvg / iconInitials / iconHue in frontmatterExtras.
+// has no iconSvg / iconInitials / iconHue in domainExtras.
 // Exported so getToolContext() in tool.ts can apply the same fallback for single-article lookups.
 export const KNOWN_TOOL_ICONS: Record<string, { iconInitials?: string; iconHue?: number; iconSvg?: string }> = {
   cursor:     { iconInitials: "CU", iconHue: 220, iconSvg: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M11.9 2.7L0 21.3h23.8Zm0 3.918L20.857 19.5H3Z"/></svg>' },
@@ -74,7 +74,7 @@ export async function buildToolLookup(
 
   const refMap = new Map<string, ToolReference>(
     toolArticles.map((t) => {
-      const extras = (t.frontmatterExtras ?? {}) as {
+      const extras = (t.domainExtras ?? {}) as {
         logoUrl?: string;
         pricingTier?: "free" | "freemium" | "paid" | "enterprise";
         priceFrom?: number;

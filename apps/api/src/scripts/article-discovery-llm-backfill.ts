@@ -137,8 +137,8 @@ function pgArr(arr: string[]): string {
   return `{${arr.map((s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")}}`;
 }
 
-function contentHash(bodyMd: string, frontmatterExtras: unknown): string {
-  const input = bodyMd + JSON.stringify(frontmatterExtras ?? {});
+function contentHash(bodyMd: string, domainExtras: unknown): string {
+  const input = bodyMd + JSON.stringify(domainExtras ?? {});
   return createHash("md5").update(input).digest("hex");
 }
 
@@ -199,7 +199,7 @@ async function classifyWithLLM(article: {
   headerSlugs: string[];
   referencedTools: string[];
   bodyExcerpt: string;
-  frontmatterExtras: Record<string, unknown>;
+  domainExtras: Record<string, unknown>;
 }): Promise<LLMClassification> {
   const userMessage = `Classify this article for Instagram Carousel template routing.
 
@@ -217,7 +217,7 @@ BODY EXCERPT (first 2000 chars):
 ${article.bodyExcerpt}
 
 FRONTMATTER EXTRAS:
-${JSON.stringify(article.frontmatterExtras, null, 2).slice(0, 1000)}
+${JSON.stringify(article.domainExtras, null, 2).slice(0, 1000)}
 
 TASK:
 1. Identify which contentHooks are SIGNIFICANTLY present (array of strings, strict).
@@ -280,7 +280,7 @@ type ArticleRow = {
     internalLinks?: string[];
     hasAffiliateLinks?: boolean;
   };
-  frontmatter_extras: Record<string, unknown>;
+  domain_extras: Record<string, unknown>;
   published_at: Date | null;
   existing_content_hash: string | null;
   existing_mode: string | null;
@@ -294,7 +294,7 @@ console.log(`Force mode: ${FORCE}`);
 const articles = await db.execute<ArticleRow>(sql`
   SELECT
     a.id, a.collection, a.locale, a.slug, a.title,
-    a.body_md, a.word_count, a.import_metadata, a.frontmatter_extras, a.published_at,
+    a.body_md, a.word_count, a.import_metadata, a.domain_extras, a.published_at,
     d.content_hash AS existing_content_hash,
     d.enrichment_mode AS existing_mode
   FROM articles a
@@ -307,7 +307,7 @@ const articles = await db.execute<ArticleRow>(sql`
 const toProcess: ArticleRow[] = [];
 let skipped = 0;
 for (const art of articles) {
-  const hash = contentHash(art.body_md ?? "", art.frontmatter_extras);
+  const hash = contentHash(art.body_md ?? "", art.domain_extras);
   const alreadyDone = art.existing_mode === "llm_enriched" && art.existing_content_hash === hash;
   if (!FORCE && alreadyDone) { skipped++; }
   else { toProcess.push(art); }
@@ -339,7 +339,7 @@ for (let batchStart = 0; batchStart < toProcess.length; batchStart += BATCH_SIZE
     try {
       const body = article.body_md ?? "";
       const im = article.import_metadata ?? {};
-      const fx = article.frontmatter_extras ?? {};
+      const fx = article.domain_extras ?? {};
 
       // ── Phase 1: deterministic ────────────────────────────────────────────
       const wordCount = im.wordCount ?? article.word_count ?? 0;
@@ -380,7 +380,7 @@ for (let batchStart = 0; batchStart < toProcess.length; batchStart += BATCH_SIZE
         headerSlugs,
         referencedTools: tools,
         bodyExcerpt: body.slice(0, 2000),
-        frontmatterExtras: fx,
+        domainExtras: fx,
       });
 
       if (llm.templateGap) {

@@ -54,7 +54,7 @@ export async function resolveAuthorBySlug(
   const row = result[0];
   if (!row) return null;
 
-  const extras = (row.frontmatterExtras ?? {}) as Record<string, unknown>;
+  const extras = (row.domainExtras ?? {}) as Record<string, unknown>;
   return {
     slug: row.slug,
     name: row.title ?? String(extras.name ?? ""),
@@ -180,7 +180,7 @@ export interface AuthorProfileRow {
 
 /**
  * List author profiles for a project+locale, including cached expertise embeddings.
- * Expertise and expertiseEmbedding are read from frontmatterExtras.
+ * Expertise and expertiseEmbedding are read from domainExtras.
  */
 export async function listAuthorsByLocale(
   projectId: string,
@@ -198,7 +198,7 @@ export async function listAuthorsByLocale(
     );
 
   return rows.map((r) => {
-    const extras = (r.frontmatterExtras ?? {}) as Record<string, unknown>;
+    const extras = (r.domainExtras ?? {}) as Record<string, unknown>;
     const base = {
       slug: r.slug,
       name: r.title ?? String(extras.name ?? r.slug),

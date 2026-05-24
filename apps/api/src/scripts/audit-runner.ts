@@ -103,9 +103,9 @@ function checkArticle(row: Record<string, unknown>): { score: number; issues: Is
     deductions += 5;
   }
 
-  const fe = row.frontmatter_extras as Record<string, unknown> | null;
+  const fe = row.domain_extras as Record<string, unknown> | null;
   if (!fe || !fe.faq) {
-    issues.push({ criterion: "faq", severity: "info", finding: "No FAQ in frontmatter_extras — missed SEO opportunity" });
+    issues.push({ criterion: "faq", severity: "info", finding: "No FAQ in domain_extras — missed SEO opportunity" });
     deductions += 3;
   } else {
     const faq = fe.faq as Array<unknown>;
@@ -259,7 +259,7 @@ console.log("Fetching articles...");
 const articleRows = await db.execute(sql`
   SELECT id, title, locale, status, intent_type, meta_description, word_count,
          self_review_score, self_review_issues, hero_image_public_url,
-         frontmatter_extras, tags, category, body_md, cluster_key
+         domain_extras, tags, category, body_md, cluster_key
   FROM articles
   WHERE project_id = ${PROJECT_ID}
     AND status = ANY(ARRAY['published','final_review']::article_status[])

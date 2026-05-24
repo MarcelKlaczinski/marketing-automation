@@ -65,7 +65,7 @@ class TemplateRegistry {
     const resolved = mergeOverrides(schema, storedOverrides);
 
     if (key === "single-tool-spotlight") {
-      const extras = (article.frontmatterExtras ?? {}) as { pros?: unknown[] };
+      const extras = (article.domainExtras ?? {}) as { pros?: unknown[] };
       const prosCount = Array.isArray(extras.pros) ? extras.pros.length : 0;
       const { minProsCount, maxProsCount } = (resolved as { eligibility: { minProsCount: number; maxProsCount: number } }).eligibility;
       if (prosCount < minProsCount) {
