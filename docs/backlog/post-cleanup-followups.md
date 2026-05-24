@@ -72,21 +72,53 @@ need to be unwound when Cluster-Toolification triggers.
 
 ### Bucket-C Cleanup (pre-existing drift, NOT caused by Branch-A or Branch-B)
 
-- **C1 — `content_pillars` Schwester-Drift (20 rows with doppel-naming).**
-  Audit identified pillars duplicated under DE/EN variants of the same
-  semantic concept. Spec a merge strategy (canonical row + alias, or hard
-  consolidation) and a one-off cleanup script with capture-before/after
-  pattern (mirror Spec 001).
+- **C1 — `content_pillars` Schwester-Drift.** ✅ **COMPLETED 2026-05-24** via
+  [Spec 002 Bucket-C-Cleanup](../../specs/002-bucket-c-cleanup.md). Conservative
+  cleanup (Option B): 10 pillar rows deleted via
+  [cleanup-bucket-c-drift.ts](../../apps/api/src/scripts/cleanup-bucket-c-drift.ts)
+  (7 EN/DE pairs + 4-fold Praxis-drift). 1 cluster re-pointed from
+  `practice-use-cases` → `practice`. 3 ki-wissen pillars with
+  `intentTaxonomyOverride` deliberately kept. Toolwiki 29 → 19 pillars.
+  Forward convention: EN-canonical lowercase-slug-form
+  (documented in [`packages/db/src/schema/identity.ts`](../../packages/db/src/schema/identity.ts)).
+  Astro public site unaffected (Astro reads category labels from its own
+  `categories/` collection with per-locale `translations.de.label`).
 
-- **C2 — `clusters` doppel-language slugs.** Pairs like `code-assistants-2026`
-  + `code-assistenten-2026` are the same cluster in different locales but
-  modeled as separate rows. Decide: do clusters need locale-scoping (add
-  `locale` column + uniqueness key changes) or per-cluster slug
-  consolidation? Affects Hub-Spoke routing and planner cluster Belegung.
+- **C2 — `clusters` doppel-language slugs.** ✅ **COMPLETED 2026-05-24** via
+  Spec 002 Option Y (per-locale-canonical, intentional split). DB-side
+  consolidation was rejected after discovery: `articles.cluster_key` is a
+  mirror of the Astro MDX `clusterKey` frontmatter (NOT in refresh-whitelist),
+  any DB-side UPDATE would be undone by the next Re-Import. Astro public
+  frontend reads MDX directly for related-articles grouping. Fix landed in
+  the Astro repo instead: 2 MDX files edited (`tools/en/cursor.mdx` +
+  `tools/en/github-copilot.mdx` → `clusterKey: "code-assistants-2026"`). After
+  Toolwiki Re-Import, the DB will naturally have 4 DE articles under
+  `code-assistenten-2026` + 4 EN articles under `code-assistants-2026` —
+  two clusters by design (per-locale grouping matches Astro related-articles
+  widget semantics). The 2 orphan blog articles
+  (`blog/de/code-assistenten`, `blog/en/ai-code-assistants`) drop out via
+  Spec 001 `status='superseded'` flip.
 
-- **C4 — `content_categories.parent_slug` hierarchy migration.** Today's
-  schema is flat; multi-domain-evolution noted a need for parent-child
+- **C4 — `content_categories.parent_slug` hierarchy migration.** Still open.
+  Today's schema is flat; multi-domain-evolution noted a need for parent-child
   relationships. Migration + Drizzle schema + a small backfill script.
+
+#### Bucket-C Follow-up: Uncategorized cluster reassignment
+
+Out of scope for Spec 002 by Marcel-decision 2026-05-24, but documented here
+because the data is already surfaced in
+[`bucket-c-baseline-toolwiki-*.json`](../../apps/api/src/scripts/discovery/):
+
+- 20 of Toolwiki's 46 clusters (44%) currently sit under the `Uncategorized`
+  fallback pillar. Mostly `*-comparisons-2026`, `usecase-*`, and one-off topic
+  clusters. The Cluster-Creator + Importer never assigned them a semantic
+  pillar (`coding-development`, `business-productivity`, etc.).
+- Future spec: bulk-reassign these 20 clusters onto appropriate pillars
+  (manual review or rule-based slug→pillar mapping), then `Uncategorized`
+  becomes a true exception bucket instead of the de-facto default.
+- No public-site impact (clusters aren't user-facing in the Astro frontend
+  via pillar — same Spec 002 reasoning). Pure admin-UI improvement: Cluster-
+  Detail-View becomes properly grouped.
 
 ## Priorität 2 (architectural improvements to the importer)
 

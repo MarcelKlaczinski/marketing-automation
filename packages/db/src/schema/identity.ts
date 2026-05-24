@@ -41,14 +41,25 @@ export const brandVoices = pgTable(
  * - `cluster:full-plan` (the Cluster-Creator UI path) — INSERTs a row
  *   when the user names a new pillar that doesn't yet exist.
  *
- * The table accumulates drift over time and is NOT authoritatively kept
- * in sync with the Astro repo's frontmatter category-set. As of 2026-05-24,
- * Toolwiki has 29 rows with a mix of:
- *   - 14 active rows (have ≥1 article referencing them by category)
- *   - 7 sister-concept pairs (German + English variants, e.g. "Grundlagen"
- *     orphan + "fundamentals" active, "Vergleiche" orphan, etc.)
- *   - 3 wrong-table cluster slugs that landed here via `cluster:full-plan`
- *     ("ki-regulierte-branchen-2026" etc.)
+ * Convention going forward (Spec 002 Bucket-C-Cleanup, applied 2026-05-24):
+ *   - Pillar names are EN-canonical, lowercase-slug-form (`comparisons`,
+ *     `ethics-law`, `practice`, `fundamentals`, …). NOT German display
+ *     labels like `Vergleiche` or `Praxis & Use Cases`.
+ *   - Astro public-frontend reads NOTHING from this table — per-locale
+ *     display labels come from the Astro repo's own `categories/`
+ *     collection via `translations.de.label`. Cleanup is therefore
+ *     SAFE (no public-site impact).
+ *   - The `clusters.pillarId` FK uses `ON DELETE RESTRICT`. Re-point any
+ *     attached cluster before deleting a pillar (see
+ *     cleanup-bucket-c-drift.ts Phase-1 logic).
+ *
+ * Toolwiki state after BC cleanup (2026-05-24): 19 rows.
+ *   - 14 active rows (cluster references)
+ *   - 2 unused canonical EN slugs (kept for future use: `comparisons`,
+ *     `future`, `tool-reviews` — all 0 cluster refs but proper convention)
+ *   - 3 ki-wissen pillars with `intentTaxonomyOverride` set
+ *     (`ki-regulierte-branchen-2026` etc.) — DELIBERATELY kept, they carry
+ *     production-pipeline-config that consumers read by id.
  *   - 1 boilerplate "Uncategorized" fallback row
  *
  * APPROVED REFACTOR PATH: Cluster-Toolification (Toolwiki repo
@@ -130,6 +141,27 @@ export type PlanEdit = {
   hint?: string;
 };
 
+/**
+ * clusters: per-tenant cluster definitions.
+ *
+ * Convention (Spec 002 Bucket-C-Cleanup, Option Y, applied 2026-05-24):
+ *   - Cluster `name` is a per-locale slug — DE and EN articles can live in
+ *     SEPARATE clusters when the editorial intent is per-locale grouping
+ *     (e.g. `code-assistenten-2026` for DE tools, `code-assistants-2026`
+ *     for EN). The split is INTENTIONAL, not drift to consolidate.
+ *   - Source of truth for `articles.cluster_key` (the FK-like text pointer)
+ *     is the Astro MDX `clusterKey` frontmatter field. The importer
+ *     overwrites our DB column on every Re-Import (NOT in refresh-whitelist).
+ *     → To consolidate clusters, edit the MDX upstream, then let Re-Import
+ *     sync the DB. DB-side UPDATEs are temporary.
+ *   - Astro public frontend reads `clusterKey` for the related-articles
+ *     widget + tool-filtering + same-cluster +1000 scoring
+ *     (`../ki-wissensraum-neu/src/layouts/BlogPost.astro:137-199`).
+ *
+ * SCHEDULED REFACTOR: Cluster-Toolification (Toolwiki-Spec, approved 2026-05-24,
+ * implementation deferred). When implementation triggers, this table is
+ * either extended or replaced.
+ */
 export const clusters = pgTable(
   "clusters",
   {

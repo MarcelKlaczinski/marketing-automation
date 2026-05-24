@@ -74,3 +74,13 @@ apps/api/uploads/
 # Spec 001 — DB-cleanup baseline snapshots are local, project-specific, contain
 # row-level data; keep them on disk for diff but never commit.
 /apps/api/src/scripts/discovery/baseline-*.json
+
+# Spec 002 — Bucket-C cleanup baseline snapshots (same convention as Spec 001).
+/apps/api/src/scripts/discovery/bucket-c-baseline-*.json
+
+# Post-Cleanup-Cycle verification: one-shot discovery scripts.
+/apps/api/src/scripts/discovery/verify-post-cleanup-cycle.ts
+/apps/api/src/scripts/discovery/inspect-problematic-articles.ts
+
+# tmp/ for local backups, worker logs, etc.
+/tmp/
