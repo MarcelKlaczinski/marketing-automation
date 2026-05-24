@@ -1,4 +1,5 @@
 import { astroFolderFor } from "@marketing-auto/content-schema/enums";
+import { getDomainRegistry } from "@marketing-auto/pipelines/domain-registry";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import yaml from "yaml";
@@ -14,6 +15,11 @@ import type { FrontmatterField } from "../types.ts";
 const log = createLogger("astro-sync:render");
 
 const InputSchema = z.object({
+  // Spec multi-domain-evolution Domain-Registry follow-up — projectId surfaced
+  // so the boundary validator can resolve the tenant's DomainContext and
+  // verify the target Astro folder is in the registered allow-list before
+  // running the field-shape check.
+  projectId: z.string().uuid(),
   article: z.object({
     // Spec multi-domain-evolution S1.2: id surfaced so AstroSyncValidationError
     // can carry the articleId in its payload for the S1.3 notification fan-out.
@@ -26,7 +32,7 @@ const InputSchema = z.object({
     heroImageAltText: z.string(),
     schemaJsonLd: z.array(z.record(z.unknown())),
     wordCount: z.number(),
-    frontmatterExtras: z.record(z.unknown()).nullable().optional(),
+    domainExtras: z.record(z.unknown()).nullable().optional(),
     category: z.string().nullable().optional(),
     subcategory: z.string().nullable().optional(),
     tags: z.array(z.string()).nullable().optional(),
@@ -88,6 +94,49 @@ export class RenderMdxStep extends BaseStep<
     // collections, so a future enum widening in @marketing-auto/content-schema
     // does not silently route into the wrong folder.
     const astroFolder = astroFolderFor(input.article.collectionType);
+
+    // Spec multi-domain-evolution Domain-Registry follow-up — Facade gate.
+    // Registry returns the tenant's DomainContext when the project's
+    // `targetNiche` matches a registered DomainSpec; in that case, the Astro
+    // folder MUST be in the spec's collection allow-list. When the registry
+    // returns null (legacy project rows where targetNiche is missing OR a
+    // niche whose DomainSpec isn't shipped yet), we fall back to the
+    // Spec-50 JSONB validator alone — preserves zero-regression for any
+    // Toolwiki-prior project. Note: `astroFolderFor` does folder-key
+    // translation; the registry indexes by collection-key (the Drizzle
+    // enum value, e.g. "comparison" not "comparisons"). For the lookup we
+    // pass the raw `collectionType` so the comparison plural/singular
+    // mismatch (Pattern documented in root CLAUDE.md) cannot bite.
+    const domainCtx = await getDomainRegistry().forProject(input.projectId);
+    if (domainCtx !== null) {
+      const allowed = domainCtx.getAllowedCollections();
+      if (!allowed.includes(input.article.collectionType)) {
+        log.error(
+          {
+            articleId: input.article.id,
+            projectId: input.projectId,
+            niche: domainCtx.niche,
+            collectionType: input.article.collectionType,
+            astroFolder,
+            allowed,
+          },
+          "[render-mdx] collection not in domain registry — refusing to write MDX",
+        );
+        throw new AstroSyncValidationError({
+          articleId: input.article.id,
+          collection: astroFolder,
+          failures: [
+            {
+              fieldPath: "collection_type",
+              expected: `one of [${allowed.join(", ")}]`,
+              actual: input.article.collectionType,
+              reason: "collection_not_in_registry",
+            },
+          ],
+        });
+      }
+    }
+
     const mdxPath = `${input.astroRepoRoot}/${astroFolder}/${input.article.slug}.mdx`;
     const fm = buildFrontmatter(input);
 
@@ -128,12 +177,12 @@ export class RenderMdxStep extends BaseStep<
       })
       .trimEnd();
 
-    // Strip FRONTMATTER_EXTRAS marker — DraftStep embeds it at end of bodyMd;
+    // Strip DOMAIN_EXTRAS marker — DraftStep embeds it at end of bodyMd;
     // MDX parser crashes on HTML comments (<!-- -->).
     // The LLM sometimes omits the closing "-->" so strip unconditionally to end-of-string
     // (the marker always appears last in the body by DraftStep convention).
     const strippedBody = input.article.bodyMd
-      .replace(/\s*<!--\s*FRONTMATTER_EXTRAS:[\s\S]*/g, "")
+      .replace(/\s*<!--\s*DOMAIN_EXTRAS:[\s\S]*/g, "")
       .trim();
 
     // Strip JSX component tags that have no import statement — the LLM occasionally
@@ -166,8 +215,8 @@ function buildFrontmatter(input: z.infer<typeof InputSchema>): Record<string, un
 
   // Layer 1: LLM-generated extras (faq, seoTitle, seoDescription, bottomLinksVariant, etc.)
   const extras: Record<string, unknown> =
-    article.frontmatterExtras && typeof article.frontmatterExtras === "object"
-      ? { ...article.frontmatterExtras }
+    article.domainExtras && typeof article.domainExtras === "object"
+      ? { ...article.domainExtras }
       : {};
 
   // Layer 2: normalized DB columns (override extras — these are authoritative)

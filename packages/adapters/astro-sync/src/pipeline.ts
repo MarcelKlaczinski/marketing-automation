@@ -74,6 +74,10 @@ export class ArticleSyncPipeline extends Pipeline<PipelineInput, z.infer<typeof 
       const schema = getStepOutput<{ collectionInfo: unknown }>("resolve-schema")!;
       const hero = output as { heroPublicPath: string };
       return {
+        // Spec multi-domain-evolution Domain-Registry follow-up — projectId
+        // threaded through so RenderMdxStep can resolve the tenant's
+        // DomainContext for the allowed-collections gate.
+        projectId: pipelineInput.projectId,
         article: load.article,
         cluster: load.cluster,
         collectionInfo: schema.collectionInfo,

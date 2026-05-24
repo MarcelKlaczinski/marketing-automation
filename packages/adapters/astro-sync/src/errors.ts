@@ -13,7 +13,15 @@
 export type ValidationFailureReason =
   | "missing_required"
   | "type_mismatch"
-  | "enum_mismatch";
+  | "enum_mismatch"
+  /**
+   * Spec multi-domain-evolution Domain-Registry follow-up — the Astro folder
+   * derived from `articles.collection_type` is not in the project's
+   * `DomainSpec.collections` allow-list. Surfaces when a tenant's project
+   * row points to a niche whose DomainSpec doesn't yet register the target
+   * collection (e.g. BK ships before its `usecases` collection is added).
+   */
+  | "collection_not_in_registry";
 
 export interface ValidationFailureDetail {
   /** Frontmatter field name. Top-level only — no dotted paths yet. */

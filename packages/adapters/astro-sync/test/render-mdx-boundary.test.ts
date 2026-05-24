@@ -1,15 +1,61 @@
 /**
- * Spec multi-domain-evolution S1.2 — boundary validator integration test for
- * RenderMdxStep. Verifies that the new AstroSyncValidationError throws on
- * schema-drift between Tool-generated frontmatter and Astro-declared schema.
+ * Spec multi-domain-evolution S1.2 + Domain-Registry follow-up — boundary
+ * validator integration test for RenderMdxStep. Verifies:
+ *   (S1.2) AstroSyncValidationError throws on schema-drift between
+ *          Tool-generated frontmatter and Astro-declared schema.
+ *   (DR)   The registry-level allowed-collections gate throws
+ *          collection_not_in_registry when the project's DomainSpec
+ *          doesn't register the target collection. Null-registry
+ *          fall-through preserves legacy Spec-50-only behavior.
  *
- * No DB / GitHub needed — RenderMdxStep is pure in-memory composition.
+ * No DB / GitHub needed — RenderMdxStep is pure in-memory composition;
+ * the registry is stubbed via `setDomainRegistryForTesting`.
  */
-import { describe, expect, it } from "bun:test";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import type { StepContext } from "@marketing-auto/pipelines";
+import {
+  resetDomainRegistryForTesting,
+  setDomainRegistryForTesting,
+} from "@marketing-auto/pipelines/domain-registry";
+import { toolwikiDomain } from "@marketing-auto/content-schema/domains/toolwiki";
+import {
+  createDbBackedRegistry,
+  type ProjectLookup,
+} from "@marketing-auto/content-schema/registry";
 import { createLogger } from "@marketing-auto/shared";
 import { AstroSyncValidationError, RenderMdxStep } from "../src/index.ts";
 import type { FrontmatterField } from "../src/types.ts";
+
+const TOOLWIKI_PROJECT_ID = "22222222-2222-2222-2222-222222222222";
+const BK_PROJECT_ID = "33333333-3333-3333-3333-333333333333";
+const UNREGISTERED_PROJECT_ID = "44444444-4444-4444-4444-444444444444";
+
+/**
+ * Stub ProjectLookup — no DB. Maps the three synthetic projectIds above
+ * to fixture domain contexts, returns null for everything else (which
+ * exercises the legacy Spec-50-only fall-through).
+ */
+const stubProjectLookup: ProjectLookup = {
+  async resolve(projectId) {
+    if (projectId === TOOLWIKI_PROJECT_ID) {
+      return {
+        niche: "ai-tool-wiki",
+        domain: "toolwiki.ai",
+        locales: ["de", "en"] as const,
+      };
+    }
+    if (projectId === BK_PROJECT_ID) {
+      // BK is a synthetic future tenant — niche won't match any registered
+      // DomainSpec because we only register `toolwikiDomain` below.
+      return {
+        niche: "solar-energy",
+        domain: "balkon-kraft-werk.de",
+        locales: ["de"] as const,
+      };
+    }
+    return null;
+  },
+};
 
 // Spec 62.0a-followup Issue 6 — local wrapper for the cross-package
 // makeMockCtx. Same defaults; widen here when StepContext grows a new field.
@@ -50,8 +96,11 @@ function buildInput(overrides: {
   category?: string | null;
   extras?: Record<string, unknown>;
   tags?: string[] | null;
+  projectId?: string;
+  collectionType?: string;
 }) {
   return {
+    projectId: overrides.projectId ?? UNREGISTERED_PROJECT_ID,
     article: {
       id: "11111111-1111-1111-1111-111111111111",
       title: "Test Article",
@@ -62,14 +111,14 @@ function buildInput(overrides: {
       heroImageAltText: "Hero alt text",
       schemaJsonLd: [{ "@type": "Article" }],
       wordCount: 1200,
-      frontmatterExtras: overrides.extras ?? { excerpt: "Brief intro" },
+      domainExtras: overrides.extras ?? { excerpt: "Brief intro" },
       category: overrides.category ?? "Vergleiche",
       subcategory: null,
       tags: overrides.tags ?? ["ai", "ml"],
       author: "anna-weidner",
       intentType: "comparison",
       locale: "de",
-      collectionType: "blog",
+      collectionType: overrides.collectionType ?? "blog",
     },
     cluster: { name: "AI Tools", pillar: "AI Pillar" },
     collectionInfo: { collectionName: "blog", fields: BLOG_FIELDS },
@@ -80,6 +129,19 @@ function buildInput(overrides: {
 
 describe("RenderMdxStep boundary validator (Spec multi-domain-evolution S1.2)", () => {
   const step = new RenderMdxStep();
+
+  // Existing S1.2 tests run against UNREGISTERED_PROJECT_ID → registry returns
+  // null → fall-through to the field-shape validator. Inject a stub registry
+  // (no DB) and reset between tests so the singleton state is clean.
+  beforeEach(() => {
+    setDomainRegistryForTesting(
+      createDbBackedRegistry([toolwikiDomain], stubProjectLookup),
+    );
+  });
+
+  afterEach(() => {
+    resetDomainRegistryForTesting();
+  });
 
   it("passes a valid Toolwiki blog article through to MDX", async () => {
     const input = buildInput({});
@@ -107,7 +169,7 @@ describe("RenderMdxStep boundary validator (Spec multi-domain-evolution S1.2)", 
   });
 
   it("throws when a required field is missing (tags array with wrong shape)", async () => {
-    // Inject a bad type via frontmatterExtras — buildFrontmatter passes extras
+    // Inject a bad type via domainExtras — buildFrontmatter passes extras
     // through. tags being a non-array string is a type_mismatch on string_array.
     // Also pass a non-string array on the column so the extras→column→known
     // merge in buildFrontmatter doesn't fall back to an empty array.
@@ -151,5 +213,94 @@ describe("RenderMdxStep boundary validator (Spec multi-domain-evolution S1.2)", 
     input.collectionInfo.fields = [];
     const out = await step.execute(input, mockCtx());
     expect(out.mdxContent).toContain("\"title\": \"Test Article\"");
+  });
+});
+
+describe("RenderMdxStep registry allowed-collections gate (Domain-Registry follow-up)", () => {
+  const step = new RenderMdxStep();
+
+  beforeEach(() => {
+    setDomainRegistryForTesting(
+      createDbBackedRegistry([toolwikiDomain], stubProjectLookup),
+    );
+  });
+
+  afterEach(() => {
+    resetDomainRegistryForTesting();
+  });
+
+  it("Toolwiki project passes when collectionType is in the spec allow-list", async () => {
+    const input = buildInput({
+      projectId: TOOLWIKI_PROJECT_ID,
+      collectionType: "blog",
+    });
+    const out = await step.execute(input, mockCtx({ projectId: TOOLWIKI_PROJECT_ID }));
+    expect(out.mdxPath).toBe("src/content/blog/test-article.mdx");
+  });
+
+  it("Synthetic BK project rejects unknown collection with collection_not_in_registry", async () => {
+    // BK's projectLookup resolves niche=solar-energy, but we only register
+    // toolwikiDomain in the stub registry — so forProject returns null and
+    // we skip the gate. To exercise the rejection path we need the niche
+    // to MATCH a registered DomainSpec but the collection NOT to be in
+    // its allow-list. Build that case by routing BK through toolwiki's
+    // niche but asking for a synthetic "products" collection that no
+    // DomainSpec registers.
+    const customLookup: ProjectLookup = {
+      async resolve(projectId) {
+        if (projectId === BK_PROJECT_ID) {
+          return { niche: "ai-tool-wiki", domain: "balkon-kraft-werk.de", locales: ["de"] as const };
+        }
+        return null;
+      },
+    };
+    setDomainRegistryForTesting(createDbBackedRegistry([toolwikiDomain], customLookup));
+
+    const input = buildInput({
+      projectId: BK_PROJECT_ID,
+      collectionType: "products", // not in toolwikiDomain.collections
+    });
+    let caught: unknown;
+    try {
+      await step.execute(input, mockCtx({ projectId: BK_PROJECT_ID }));
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(AstroSyncValidationError);
+    const err = caught as AstroSyncValidationError;
+    expect(err.failures).toHaveLength(1);
+    expect(err.failures[0]?.fieldPath).toBe("collection_type");
+    expect(err.failures[0]?.reason).toBe("collection_not_in_registry");
+    expect(err.failures[0]?.actual).toBe("products");
+    expect(err.failures[0]?.expected).toContain("blog");
+  });
+
+  it("Null-registry fall-through preserves legacy Spec-50-only validation (no extra throw)", async () => {
+    // UNREGISTERED_PROJECT_ID is not in the stubProjectLookup, so
+    // forProject returns null → the gate is skipped entirely. The Spec-50
+    // field-shape validator still runs and passes on a well-formed input.
+    const input = buildInput({ projectId: UNREGISTERED_PROJECT_ID });
+    const out = await step.execute(input, mockCtx({ projectId: UNREGISTERED_PROJECT_ID }));
+    expect(out.mdxPath).toBe("src/content/blog/test-article.mdx");
+  });
+
+  it("Null-registry fall-through still surfaces Spec-50 field violations", async () => {
+    // Confirms the gate is independent of the field-shape validator: a
+    // missing-field violation under null-registry still throws S1.2.
+    const input = buildInput({
+      projectId: UNREGISTERED_PROJECT_ID,
+      category: "Not-A-Valid-Category",
+    });
+    let caught: unknown;
+    try {
+      await step.execute(input, mockCtx({ projectId: UNREGISTERED_PROJECT_ID }));
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(AstroSyncValidationError);
+    const err = caught as AstroSyncValidationError;
+    // Existing S1.2 path — NOT a collection_not_in_registry failure.
+    expect(err.failures.some((f) => f.reason === "enum_mismatch")).toBe(true);
+    expect(err.failures.some((f) => f.reason === "collection_not_in_registry")).toBe(false);
   });
 });

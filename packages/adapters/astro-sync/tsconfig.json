@@ -6,7 +6,8 @@
     "paths": {
       "@marketing-auto/shared/brand-tokens": ["../../../packages/shared/src/brand-tokens/index.ts"],
       "@marketing-auto/shared/hero-variants": ["../../../packages/shared/src/hero-variants.ts"],
-      "@marketing-auto/pipelines/config": ["../../../packages/pipelines/src/config/index.ts"]
+      "@marketing-auto/pipelines/config": ["../../../packages/pipelines/src/config/index.ts"],
+      "@marketing-auto/pipelines/domain-registry": ["../../../packages/pipelines/src/_lib/domain-registry-singleton.ts"]
     }
   },
   "include": ["src/**/*", "test/**/*"]
