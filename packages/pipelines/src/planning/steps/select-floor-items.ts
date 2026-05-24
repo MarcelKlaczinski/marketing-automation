@@ -157,7 +157,16 @@ function pipelineInputFromBrief(
     projectId,
     title: brief.suggestedTitle ?? brief.topicTitle,
   };
-  if (contentType === "comparison") input.collectionType = "comparison";
+  if (contentType === "comparison") {
+    input.collectionType = "comparison";
+    // Spec 64.18: comparison_discovery briefs since Phase C.2 carry a
+    // resolver-stamped `clusterId` (subcategory-aware comparison-pillar
+    // routing). Forward to the executor so `pipeline-router` `case
+    // "comparison":` spreads it into the article:blog jobData and
+    // `PersistArticleStep` writes `articles.cluster_id`. NULL stays NULL —
+    // unrouted briefs land orphaned (pre-64.18 behaviour preserved).
+    if (brief.clusterId !== null) input.clusterId = brief.clusterId;
+  }
   if (contentType === "ki_wissen") input.collectionType = "ki-wissen";
   // Spec 63.7b + 64.1: cluster + cluster_spoke items need cluster_action +
   // cluster_id + intent_type available at execution time so `getPipelineForItem`

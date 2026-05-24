@@ -46,6 +46,31 @@ export const globalCredentials = pgTable(
   })
 );
 
+/**
+ * Spec 64.18 / Phase B (L8): documented shape of `cost_logs.metadata` jsonb.
+ *
+ * `track()` in `@marketing-auto/cost-tracker` always writes `durationMs` +
+ * `estimatedCostEur` and spreads any caller-provided `metadata(result)`
+ * callback fields on top. The two `augmented*` fields are forward-relevant
+ * only — Spec 64.8 (Image-Prompt Refactor) will consume them once it lands.
+ * Existing rows have `augmented` undefined → consumers treat as `false`.
+ *
+ * The index signature keeps the type forward-compat with future audit fields
+ * (per the cost-tracker contract — "no signature change needed to add new
+ * audit fields"). Pattern mirrors the metadata-callback convention in
+ * `packages/cost-tracker/CLAUDE.md`.
+ */
+export interface CostLogMetadata {
+  durationMs?: number;
+  estimatedCostEur?: number;
+  /** Whether this LLM call was augmented (RAG, few-shot, etc.). Spec 64.18 / L8. */
+  augmented?: boolean;
+  /** Free-form augmentation tag (e.g. "rag", "few-shot", "system-prompt-injection",
+   *  "tool-context"). Text, not enum — keep future-proof. Spec 64.18 / L8. */
+  augmentation_type?: string;
+  [key: string]: unknown;
+}
+
 export const costLogs = pgTable(
   "cost_logs",
   {
@@ -59,7 +84,7 @@ export const costLogs = pgTable(
 
     costEur: decimal("cost_eur", { precision: 10, scale: 6 }).notNull(),
 
-    metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+    metadata: jsonb("metadata").$type<CostLogMetadata>().notNull().default({}),
 
     pipelineRunId: uuid("pipeline_run_id"),
     articleId: uuid("article_id"),

@@ -30,7 +30,7 @@ const result = await track({
 - ALWAYS provide a realistic `estimatedCostEur` (used for limit check before execution)
 - `computeCostEur` runs AFTER execution and uses real tokens — gives accurate billing
 
-## Metadata Callback (Spec 64.6d)
+## Metadata Callback (Spec 64.6d + 64.18)
 
 `track()` accepts `metadata?: (result: T) => Record<string, unknown>` which gets spread into
 `cost_logs.metadata` alongside `durationMs` + `estimatedCostEur`. **No signature change is needed
@@ -39,6 +39,13 @@ added `prompt` / `resolution` / `aspectRatio` to nano-banana + replicate metadat
 quality-audit reconstruction; `track()` itself was untouched. JSONB-additive so no DB migration.
 When adding new audit fields, also extend the matching test in `cost-tracker/test/` to assert
 the field round-trips through `cost_logs.metadata`.
+
+**Column-side type** (Spec 64.18 / L8): the stored shape is `CostLogMetadata` exported from
+[`@marketing-auto/db/schema/operations`](../db/src/schema/operations.ts) — `{durationMs?, estimatedCostEur?, augmented?,
+augmentation_type?, [key: string]: unknown}`. The index signature keeps the type forward-compat
+with future audit fields without TypeScript churn. Consumers reading `cost_logs.metadata` (analytics
+queries, dashboard) should use this type via the Drizzle `$type<>` inference; the `augmented` flag
+is forward-relevant for Spec 64.8 (Image-Prompt Refactor).
 
 ## Limits
 

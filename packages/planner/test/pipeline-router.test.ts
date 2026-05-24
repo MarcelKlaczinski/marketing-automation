@@ -208,6 +208,39 @@ describe("getPipelineForItem", () => {
     }
   });
 
+  it("comparison routing forwards clusterId from pipelineInput (Spec 64.18 / Phase C.2)", () => {
+    // SelectFloorItemsStep stamps clusterId on the planned_items row when the
+    // brief carries one (post-64.18 resolver). Router must spread it into
+    // jobData so downstream BlogPipeline writes articles.cluster_id.
+    const item = mkItem({
+      contentType: "comparison",
+      pipelineInput: {
+        briefId: "brief-1",
+        projectId: "proj-1",
+        title: "Claude vs ChatGPT",
+        clusterId: "cluster-chatbot-comparisons-2026",
+      },
+    });
+    const route = getPipelineForItem(item, "sync");
+    expect(route.kind).toBe("enqueue");
+    if (route.kind === "enqueue") {
+      expect(route.jobData.clusterId).toBe("cluster-chatbot-comparisons-2026");
+      expect(route.jobData.collectionType).toBe("comparison");
+    }
+  });
+
+  it("comparison routing leaves clusterId undefined when not stamped (legacy briefs)", () => {
+    // Pre-64.18 stuck briefs (or any brief whose resolver returned create_new)
+    // have no clusterId in pipelineInput. Router must not invent one — the
+    // resulting article lands with articles.cluster_id = NULL.
+    const item = mkItem({ contentType: "comparison" }); // default pipelineInput has no clusterId
+    const route = getPipelineForItem(item, "sync");
+    expect(route.kind).toBe("enqueue");
+    if (route.kind === "enqueue") {
+      expect(route.jobData.clusterId).toBeUndefined();
+    }
+  });
+
   it("routes ki_wissen → article:blog with collectionType=ki-wissen", () => {
     const item = mkItem({ contentType: "ki_wissen" });
     const route = getPipelineForItem(item, "batch");

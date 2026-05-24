@@ -466,7 +466,14 @@ describe("SelectFloorItemsStep", () => {
     expect(item.pipelineInput["intentType"]).toBeUndefined();
   });
 
-  it("does NOT stamp cluster fields on comparison/ki_wissen items (Spec 63.7b scope)", async () => {
+  it("stamps clusterId on comparison items, leaves ki_wissen untouched (Spec 63.7b + 64.18)", async () => {
+    // Spec 63.7b originally asserted "neither comparison nor ki_wissen stamps
+    // clusterId". Spec 64.18 narrowed that: comparison briefs (whose clusterId
+    // is now resolver-stamped at brief-creation by `comparison-discovery.ts`)
+    // DO carry it through to pipelineInput so the router can spread it into
+    // article:blog jobData. `clusterAction` and `intentType` are still skipped
+    // (only the `cluster` + `cluster_spoke` content_types use those for
+    // route-discrimination).
     const briefs = [
       brief({ clusterAction: "comparison", clusterId: "ccc11111-1111-1111-1111-111111111111" }),
       brief({
@@ -491,11 +498,24 @@ describe("SelectFloorItemsStep", () => {
       contentType: string;
       pipelineInput: Record<string, unknown>;
     }>;
-    for (const item of items) {
-      // Only cluster items carry the routing-decision fields.
-      expect(item.pipelineInput["clusterAction"]).toBeUndefined();
-      expect(item.pipelineInput["clusterId"]).toBeUndefined();
-      expect(item.pipelineInput["intentType"]).toBeUndefined();
+    const comparisonItem = items.find((it) => it.contentType === "comparison");
+    const kiWissenItem = items.find((it) => it.contentType === "ki_wissen");
+    expect(comparisonItem).toBeDefined();
+    expect(kiWissenItem).toBeDefined();
+    if (comparisonItem) {
+      // Spec 64.18: comparison items now forward the resolver-stamped clusterId.
+      expect(comparisonItem.pipelineInput["clusterId"]).toBe(
+        "ccc11111-1111-1111-1111-111111111111",
+      );
+      // Other routing-discriminator fields still skipped.
+      expect(comparisonItem.pipelineInput["clusterAction"]).toBeUndefined();
+      expect(comparisonItem.pipelineInput["intentType"]).toBeUndefined();
+    }
+    if (kiWissenItem) {
+      // Pre-64.18 behaviour unchanged for ki_wissen.
+      expect(kiWissenItem.pipelineInput["clusterAction"]).toBeUndefined();
+      expect(kiWissenItem.pipelineInput["clusterId"]).toBeUndefined();
+      expect(kiWissenItem.pipelineInput["intentType"]).toBeUndefined();
     }
   });
 

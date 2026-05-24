@@ -30,6 +30,12 @@ import {
   type ComparisonMetadata,
 } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
+import {
+  loadComparisonClusterIndex,
+  resolveComparisonCluster,
+  type ComparisonClusterEntry,
+  type ResolverToolInfo,
+} from "./comparison-routing.ts";
 
 const log = createLogger("planner:comparison-discovery");
 
@@ -54,6 +60,11 @@ export interface DiscoverComparisonPairsInput {
   crossCategoryPenalty?: number;
   /** Weight applied to recencyBoost (0..1). Default 0.2 (unchanged). */
   recencyWeight?: number;
+  // Spec 64.18 / Phase C.2: per-tenant pillar slug for cluster-routing. Defaults
+  // to "comparisons" (Toolwiki convention from Spec 002 / Bucket-C cleanup).
+  // Bellemann / Balkonkraftwerk override via the HTTP route body or planner
+  // config when their own comparison pillar lands.
+  comparisonPillarName?: string;
 }
 
 export interface ComparisonDiscoveryResult {
@@ -82,7 +93,16 @@ interface PairAggregate {
 interface ToolInfo {
   slug: string;
   name: string;
+  /** Resolved per the Spec 63.3b cascade (subcategory → category → legacy
+   *  domainExtras.primaryCategory). This is what `computePairScore` uses for
+   *  same-category bonus. The raw `subcategory` + `category` are kept on the
+   *  same struct so Spec 64.18 cluster-routing can prefer subcategory match
+   *  over the combined "category" alias. */
   category: string | null;
+  /** Raw `articles.subcategory` (Spec 54.8 promoted column). Spec 64.18. */
+  subcategory: string | null;
+  /** Raw `articles.category` (Spec 54.8 promoted column). Spec 64.18. */
+  rawCategory: string | null;
 }
 
 const DEFAULT_MIN_CO_MENTION = 2;
@@ -189,8 +209,21 @@ export async function discoverComparisonPairs(
   // 8. Cap + persist.
   const sorted = [...filtered].sort((a, b) => b.score - a.score);
   const toPersist = sorted.slice(0, topNToPersist);
-  await persistPairs(projectId, toPersist);
 
+  // Spec 64.18 / Phase C.2: stamp `clusterId` + `clusterAction` on each brief
+  // at creation time so downstream `pipeline-router` `case "comparison":` can
+  // route the article into the matched comparison-pillar cluster instead of
+  // leaving it orphaned (Discovery 64.18 / Phase C.1 §1 root cause).
+  const clusterIndex =
+    toPersist.length > 0
+      ? await loadComparisonClusterIndex(
+          projectId,
+          input.comparisonPillarName ? { pillarName: input.comparisonPillarName } : {},
+        )
+      : [];
+  await persistPairs(projectId, toPersist, toolInfoBySlug, clusterIndex);
+
+  const routedCount = countRoutedToCluster(toPersist, toolInfoBySlug, clusterIndex);
   log.info(
     {
       projectId,
@@ -198,6 +231,8 @@ export async function discoverComparisonPairs(
       pairsScored: allScored.length,
       pairsAboveThreshold: aboveThreshold.length,
       pairsPersisted: toPersist.length,
+      pairsRoutedToCluster: routedCount,
+      pairsAwaitingCluster: toPersist.length - routedCount,
     },
     "comparison-discovery: complete",
   );
@@ -331,7 +366,15 @@ async function loadToolInfo(projectId: string, slugs: string[]): Promise<Map<str
       (typeof fx["primaryCategory"] === "string" && fx["primaryCategory"].length > 0
         ? fx["primaryCategory"]
         : null);
-    map.set(row.slug, { slug: row.slug, name: row.title ?? row.slug, category });
+    map.set(row.slug, {
+      slug: row.slug,
+      name: row.title ?? row.slug,
+      category,
+      // Spec 64.18: keep raw values so the cluster-routing resolver can match
+      // subcategory-first without re-querying.
+      subcategory: row.subcategory && row.subcategory.length > 0 ? row.subcategory : null,
+      rawCategory: row.category && row.category.length > 0 ? row.category : null,
+    });
   }
   return map;
 }
@@ -448,7 +491,12 @@ async function excludeCoveredPairs(
 
 // ─── 8. Persist via partial-unique-index upsert ───────────────────────────────
 
-async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Promise<void> {
+async function persistPairs(
+  projectId: string,
+  pairs: ComparisonMetadata[],
+  toolInfoBySlug: Map<string, ToolInfo>,
+  clusterIndex: ComparisonClusterEntry[],
+): Promise<void> {
   if (pairs.length === 0) return;
 
   // Validate every payload through Zod before write — guarantees canonicalization invariant.
@@ -470,6 +518,14 @@ async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Pro
   await db.transaction(async (tx) => {
     for (const pair of pairs) {
       const topicTitle = `${pair.toolAName} vs. ${pair.toolBName}`;
+      // Spec 64.18: resolve target cluster once per pair. The pair always has
+      // both slugs in `toolInfoBySlug` because `loadToolInfo` was seeded from
+      // `uniqueSlugSet(survivors)` upstream — but be defensive and fall back
+      // to `create_new` if either lookup misses (e.g. tool article rolled out
+      // mid-run). The downstream `pipeline-router` `case "comparison":`
+      // handles both routed and unrouted briefs cleanly.
+      const routing = computeRouting(pair, toolInfoBySlug, clusterIndex);
+
       // WHERE predicate matches the migration 0072 partial unique index exactly so the
       // planner uses the index for the existence check (root CLAUDE.md targetWhere rule):
       //   WHERE source = 'comparison_discovery' AND comparison_metadata IS NOT NULL.
@@ -488,11 +544,16 @@ async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Pro
         .limit(1);
 
       if (existing[0]) {
+        // Spec 64.18: re-stamp `clusterId` on every run so a newly-created
+        // matching cluster picks up briefs from prior runs that lacked it.
+        // `clusterAction` stays `"comparison"` (the planner content-type
+        // discriminator); the routing decision lives on `clusterId` alone.
         await tx
           .update(topicBriefs)
           .set({
             comparisonMetadata: pair,
             topicTitle,
+            clusterId: routing.clusterId,
             updatedAt: new Date(),
           })
           .where(eq(topicBriefs.id, existing[0].id));
@@ -503,6 +564,7 @@ async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Pro
           topicTitle,
           secondaryKeywords: [],
           clusterAction: "comparison",
+          ...(routing.clusterId !== null ? { clusterId: routing.clusterId } : {}),
           comparisonMetadata: pair,
           approvalRequired: true,
           approvalStatus: "pending",
@@ -510,6 +572,44 @@ async function persistPairs(projectId: string, pairs: ComparisonMetadata[]): Pro
       }
     }
   });
+}
+
+// Spec 64.18 / Phase C.2: thin wrapper around `resolveComparisonCluster` that
+// looks the pair's tools up by slug before calling the pure resolver. Pure
+// itself (no I/O) — kept private to the discovery module because it's only
+// useful in the persist + log paths.
+function computeRouting(
+  pair: ComparisonMetadata,
+  toolInfoBySlug: Map<string, ToolInfo>,
+  clusterIndex: ComparisonClusterEntry[],
+): { clusterId: string | null } {
+  const toolA = toolInfoBySlug.get(pair.toolASlug);
+  const toolB = toolInfoBySlug.get(pair.toolBSlug);
+  if (!toolA || !toolB) return { clusterId: null };
+  const resolverA: ResolverToolInfo = {
+    slug: toolA.slug,
+    category: toolA.rawCategory,
+    subcategory: toolA.subcategory,
+  };
+  const resolverB: ResolverToolInfo = {
+    slug: toolB.slug,
+    category: toolB.rawCategory,
+    subcategory: toolB.subcategory,
+  };
+  const decision = resolveComparisonCluster(resolverA, resolverB, clusterIndex);
+  return { clusterId: decision.clusterAction === "append_to_existing" ? decision.clusterId : null };
+}
+
+function countRoutedToCluster(
+  pairs: ComparisonMetadata[],
+  toolInfoBySlug: Map<string, ToolInfo>,
+  clusterIndex: ComparisonClusterEntry[],
+): number {
+  let n = 0;
+  for (const p of pairs) {
+    if (computeRouting(p, toolInfoBySlug, clusterIndex).clusterId !== null) n++;
+  }
+  return n;
 }
 
 // ─── Empty result builder ─────────────────────────────────────────────────────

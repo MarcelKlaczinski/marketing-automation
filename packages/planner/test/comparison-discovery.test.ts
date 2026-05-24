@@ -8,6 +8,8 @@ import {
   and,
   articleDiscovery,
   articles,
+  clusters,
+  contentPillars,
   db,
   eq,
   inArray,
@@ -120,6 +122,10 @@ afterEach(async () => {
     await db.delete(articles).where(inArray(articles.id, articleIds));
   }
   await db.delete(topicBriefs).where(eq(topicBriefs.projectId, projectId));
+  // Spec 64.18: clean up pillar + clusters seeded by the cluster-routing test
+  // before the project to satisfy the FK chain (cluster → pillar restrict).
+  await db.delete(clusters).where(eq(clusters.projectId, projectId));
+  await db.delete(contentPillars).where(eq(contentPillars.projectId, projectId));
   const { projects } = await import("@marketing-auto/db");
   await db.delete(projects).where(eq(projects.id, projectId));
 });
@@ -331,5 +337,186 @@ describe("computePairScore (Spec 63.3b)", () => {
       recencyBoost: 1.0,
     });
     expect(pre633b).toBeGreaterThan(post633b);
+  });
+});
+
+// Spec 64.18 / Phase C.2: end-to-end cluster-routing on persistPairs.
+// Seeds a project with a "comparisons" pillar + a chatbot cluster + 2 chatbot
+// tools sharing subcategory, then verifies the resulting brief stamps
+// `cluster_id` so the downstream `pipeline-router` can route to article:blog
+// under the matched cluster instead of leaving it orphaned.
+async function makePillarAndCluster(
+  projectId: string,
+  pillarName: string,
+  clusterName: string,
+  options: { memberSubcategory?: string; memberCategory?: string } = {},
+): Promise<{ pillarId: string; clusterId: string }> {
+  const [pillar] = await db
+    .insert(contentPillars)
+    .values({ projectId, name: pillarName, position: 0 })
+    .returning({ id: contentPillars.id });
+  if (!pillar) throw new Error("pillar insert failed");
+  const [cluster] = await db
+    .insert(clusters)
+    .values({ projectId, pillarId: pillar.id, name: clusterName, status: "manual" })
+    .returning({ id: clusters.id });
+  if (!cluster) throw new Error("cluster insert failed");
+
+  // Spec 64.18: mirror live Toolwiki shape — comparison clusters have ≥1
+  // member article whose `subcategory` + `category` feed the resolver's
+  // matchTokens via `loadComparisonClusterIndex`. Without a member, the
+  // matchTokens only contain name-segments ("chatbot", "comparisons", "2026")
+  // and the resolver can't match a tool's "chatbots-assistants" subcategory.
+  if (options.memberSubcategory || options.memberCategory) {
+    const [memberArt] = await db
+      .insert(articles)
+      .values({
+        projectId,
+        slug: `member-${cluster.id.slice(0, 8)}`,
+        title: "Member article",
+        collection: "comparisons",
+        source: "imported",
+        clusterId: cluster.id,
+        ...(options.memberCategory ? { category: options.memberCategory } : {}),
+        ...(options.memberSubcategory ? { subcategory: options.memberSubcategory } : {}),
+        domainExtras: {},
+      })
+      .returning({ id: articles.id });
+    if (memberArt) articleIds.push(memberArt.id);
+  }
+  return { pillarId: pillar.id, clusterId: cluster.id };
+}
+
+async function makeToolWithSubcategory(
+  projectId: string,
+  slug: string,
+  title: string,
+  category: string,
+  subcategory: string,
+): Promise<string> {
+  const [row] = await db
+    .insert(articles)
+    .values({
+      projectId,
+      slug,
+      title,
+      collection: "tools",
+      source: "imported",
+      category,
+      subcategory,
+      domainExtras: {},
+    })
+    .returning({ id: articles.id });
+  if (!row) throw new Error("tool article insert failed");
+  articleIds.push(row.id);
+  return row.id;
+}
+
+describe("discoverComparisonPairs cluster-routing (Spec 64.18 / Phase C.2)", () => {
+  it("stamps clusterId on the brief when a matching comparison cluster exists", async () => {
+    // Mirror the 4-stuck-briefs Toolwiki shape: chatbot pair + chatbot-named
+    // cluster under "comparisons" pillar with a chatbot member article so the
+    // resolver's matchTokens include "chatbots-assistants" via subcategory.
+    const { clusterId } = await makePillarAndCluster(
+      projectId,
+      "comparisons",
+      "chatbot-comparisons-2026",
+      { memberSubcategory: "chatbots-assistants", memberCategory: "text-language" },
+    );
+    await makeToolWithSubcategory(projectId, "claude", "Claude", "text-language", "chatbots-assistants");
+    await makeToolWithSubcategory(projectId, "chatgpt", "ChatGPT", "text-language", "chatbots-assistants");
+    await makeBlogWithTools(projectId, "art1", ["claude", "chatgpt"]);
+    await makeBlogWithTools(projectId, "art2", ["claude", "chatgpt"]);
+
+    const result = await discoverComparisonPairs({ projectId, minScore: 0 });
+    expect(result.pairsPersisted).toBe(1);
+
+    const persisted = await db
+      .select({ clusterId: topicBriefs.clusterId, clusterAction: topicBriefs.clusterAction })
+      .from(topicBriefs)
+      .where(and(eq(topicBriefs.projectId, projectId), eq(topicBriefs.source, "comparison_discovery")));
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]?.clusterId).toBe(clusterId);
+    // clusterAction stays the planner content-type discriminator.
+    expect(persisted[0]?.clusterAction).toBe("comparison");
+  });
+
+  it("leaves clusterId null when no matching cluster exists (pre-64.18 behaviour preserved)", async () => {
+    // No pillar / no cluster seeded. The brief lands without a clusterId,
+    // matching today's stuck-brief state.
+    await makeToolWithSubcategory(projectId, "claude", "Claude", "text-language", "chatbots-assistants");
+    await makeToolWithSubcategory(projectId, "chatgpt", "ChatGPT", "text-language", "chatbots-assistants");
+    await makeBlogWithTools(projectId, "art1", ["claude", "chatgpt"]);
+    await makeBlogWithTools(projectId, "art2", ["claude", "chatgpt"]);
+
+    const result = await discoverComparisonPairs({ projectId, minScore: 0 });
+    expect(result.pairsPersisted).toBe(1);
+
+    const persisted = await db
+      .select({ clusterId: topicBriefs.clusterId })
+      .from(topicBriefs)
+      .where(and(eq(topicBriefs.projectId, projectId), eq(topicBriefs.source, "comparison_discovery")));
+
+    expect(persisted).toHaveLength(1);
+    expect(persisted[0]?.clusterId).toBeNull();
+  });
+
+  it("re-stamps clusterId on second run after a matching cluster was created", async () => {
+    // Run 1: no cluster yet → brief lands with NULL.
+    // Run 2: cluster created in between → brief gets clusterId on UPDATE path.
+    // Verifies the persistPairs UPDATE branch actually re-sets clusterId.
+    await makeToolWithSubcategory(projectId, "claude", "Claude", "text-language", "chatbots-assistants");
+    await makeToolWithSubcategory(projectId, "chatgpt", "ChatGPT", "text-language", "chatbots-assistants");
+    await makeBlogWithTools(projectId, "art1", ["claude", "chatgpt"]);
+    await makeBlogWithTools(projectId, "art2", ["claude", "chatgpt"]);
+
+    await discoverComparisonPairs({ projectId, minScore: 0 });
+
+    const { clusterId } = await makePillarAndCluster(
+      projectId,
+      "comparisons",
+      "chatbot-comparisons-2026",
+      { memberSubcategory: "chatbots-assistants", memberCategory: "text-language" },
+    );
+
+    await discoverComparisonPairs({ projectId, minScore: 0 });
+
+    const rows = await db
+      .select({ id: topicBriefs.id, clusterId: topicBriefs.clusterId })
+      .from(topicBriefs)
+      .where(and(eq(topicBriefs.projectId, projectId), eq(topicBriefs.source, "comparison_discovery")));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.clusterId).toBe(clusterId);
+  });
+
+  it("honours a custom pillarName when passed via input.comparisonPillarName", async () => {
+    // Multi-Domain readiness check: tenant uses "vergleiche" instead of
+    // "comparisons" — resolver must pick up the pillar from that name.
+    const { clusterId } = await makePillarAndCluster(
+      projectId,
+      "vergleiche",
+      "chatbot-vergleiche-2026",
+      { memberSubcategory: "chatbots-assistants", memberCategory: "text-language" },
+    );
+    await makeToolWithSubcategory(projectId, "claude", "Claude", "text-language", "chatbots-assistants");
+    await makeToolWithSubcategory(projectId, "chatgpt", "ChatGPT", "text-language", "chatbots-assistants");
+    await makeBlogWithTools(projectId, "art1", ["claude", "chatgpt"]);
+    await makeBlogWithTools(projectId, "art2", ["claude", "chatgpt"]);
+
+    const result = await discoverComparisonPairs({
+      projectId,
+      minScore: 0,
+      comparisonPillarName: "vergleiche",
+    });
+    expect(result.pairsPersisted).toBe(1);
+
+    const persisted = await db
+      .select({ clusterId: topicBriefs.clusterId })
+      .from(topicBriefs)
+      .where(and(eq(topicBriefs.projectId, projectId), eq(topicBriefs.source, "comparison_discovery")));
+
+    expect(persisted[0]?.clusterId).toBe(clusterId);
   });
 });

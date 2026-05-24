@@ -32,6 +32,16 @@ export {
 } from "./comparison-discovery.ts";
 
 export {
+  DEFAULT_COMPARISON_PILLAR,
+  loadComparisonClusterIndex,
+  resolveComparisonCluster,
+  type ComparisonClusterAction,
+  type ComparisonClusterEntry,
+  type ComparisonRoutingResolution,
+  type ResolverToolInfo,
+} from "./comparison-routing.ts";
+
+export {
   loadPendingTopicBriefs,
   PLANNER_HANDLED_SOURCES,
   type LoadPendingTopicBriefsInput,

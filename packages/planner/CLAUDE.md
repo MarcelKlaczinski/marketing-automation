@@ -64,7 +64,7 @@ import {
 
 Shortfall (`target - emitted`) is logged + surfaced in `generation_notes` so the user sees thin pools rather than missing items.
 
-## Pipeline Router (Spec 62.8 + 63.7b)
+## Pipeline Router (Spec 62.8 + 63.7b + 64.18)
 
 `getPipelineForItem(item, llmMode)` in `src/execution/pipeline-router.ts` is the pure routing function consumed by `executePlan()`. Returns a `RoutedJob` discriminated union (`kind: "enqueue"` for BullMQ-backed pipelines, `kind: "inline"` for free-function pipelines like `cluster:full-plan` per Memory D127). The router reads `planned_items.pipeline_input` (jsonb) for routing decisions — never re-queries.
 
@@ -73,13 +73,13 @@ Shortfall (`target - emitted`) is logged + surfaced in `generation_notes` so the
 - `"create_new"` (or any legacy planned_item missing the stamped fields) → `inline cluster:full-plan` (unchanged behaviour).
 - Missing `clusterId` despite `append_to_existing` → falls through to `cluster:full-plan` (safe default for misclassified briefs).
 
-**Three fields must be stamped into `pipelineInput` at plan-generation time** for the router to make the decision: `clusterAction`, `clusterId`, `intentType`. The select step (`SelectFloorItemsStep`) does this only for `contentType === "cluster"` items.
+**Three fields must be stamped into `pipelineInput` at plan-generation time** for the router to make the decision: `clusterAction`, `clusterId`, `intentType`. The select step (`SelectFloorItemsStep`) stamps all three for `contentType === "cluster" | "cluster_spoke"`; for `"comparison"` it stamps only `clusterId` since 64.18 (see Comparison-Pair Discovery section).
 
 **`pipelineNameForItem()` in `select-floor-items.ts` must mirror the router's predicate** — when `append_to_existing` + `clusterId`, the persisted `planned_items.pipeline_name` becomes `article:blog` (not `cluster:full-plan`) so the cost estimator's tier-1 step-sum reflects the cheaper spoke cost. If you change the router's cluster-branch predicate, change `pipelineNameForItem` in lockstep.
 
 **`collectionType` in jobData MUST be an `ArticleCollectionType` enum value, NOT the Astro folder name.** I.e. `"comparison"` (singular) not `"comparisons"` (plural). `BlogPipelineInputSchema` validates against the enum and rejects the folder name. Pre-63.7b this was dead code (executor dropped `collectionType` before `enqueueBlogGeneration`) and the typo went undetected. Since 63.7b the value is threaded through, so `deriveCollectionFromIntent` returns `ArticleCollectionType` and the comparison/ki_wissen branches assign via a typed `const collectionType: ArticleCollectionType` to keep the typo out at compile time. The Astro folder mapping (`"comparison"` → `"comparisons"`) happens later in `COLLECTION_ASTRO_NAME` inside the article pipeline.
 
-## Comparison-Pair Discovery (Spec 62.3 + 63.3b)
+## Comparison-Pair Discovery (Spec 62.3 + 63.3b + 64.18)
 
 `discoverComparisonPairs({ projectId, ...weights })` produces pending `topic_briefs` with `source='comparison_discovery'` from co-mention matrices in `article_discovery`. Algorithm + persistence detailed in `src/comparison-discovery.ts` header. Two things callers commonly want to tune:
 
@@ -101,3 +101,18 @@ Defaults shift weight toward semantic fit (same-category) over raw popularity. T
 **Weekly cron** is registered by `apps/api/src/workers/comparison-discovery.worker.ts` (job_type `comparison_discovery`, default Sunday 06:00 UTC, OFF). The worker calls `discoverComparisonPairs()` directly — it's a free function, not a registered pipeline, so no `triggerWithPreRunId` / `pipeline_runs` row is involved. Settings UI lives in `SettingsPlannerPage.vue`; the toggle is independent of the planner cron's validity gate since discovery only writes pending briefs (no cost / no planned_item).
 
 **`loadToolInfo()` category-lookup uses Spec 54.8 promoted columns, NOT `domainExtras`** — `articles.category` and `articles.subcategory` are dedicated text columns lifted out of the Astro frontmatter by `adapter-astro-sync` during `upsertArticles`. The original 63.3a code read `domainExtras.category` and silently returned `undefined` for every Toolwiki tool, defeating the same-category bonus. Lookup precedence is now: `articles.subcategory` (13 buckets, ≥3 tools each — the editorial taxonomy) → `articles.category` (7 buckets, fallback) → `domainExtras.primaryCategory` (legacy). When extending the lookup for other projects (Bellemann, Balkonkraftwerk affiliate) verify whether their astro-sync setup promotes equivalent columns or if a different field needs to be added to the cascade.
+
+**Cluster-routing at brief-creation (Spec 64.18)** — `persistPairs()` calls `resolveComparisonCluster(toolA, toolB, clusterIndex)` (pure helper in [`src/comparison-routing.ts`](src/comparison-routing.ts)) and stamps the resulting `clusterId` directly on the brief. Before 64.18 every comparison_discovery brief landed with `cluster_id = NULL` and its eventual article was orphaned from any hub-spoke. Routing precedence (sibling to 63.4's pgvector Hub-Spoke for trend briefs, but structured-input not vector):
+
+1. Both tools share `subcategory` → cluster whose `matchTokens` contain it → `append_to_existing`.
+2. Either tool's `subcategory` matches a cluster (chatbot-anchor pattern: "Claude vs DeepL" → `chatbot-comparisons-2026`).
+3. Shared `category` match → cluster whose `matchTokens` contain it.
+4. No match → `clusterAction: 'create_new'` (the downstream `pipeline-router` `case "comparison":` accepts both routed and unrouted, so unmatchable pairs still flow through).
+
+`matchTokens` per cluster are pre-built once by `loadComparisonClusterIndex(projectId, { pillarName? })` from cluster `name` segments + `primaryKeyword` + member-article `subcategory`/`category`. The loader is DI-friendly (accepts `tx`) and `pillarName` defaults to `"comparisons"` — Bellemann / Balkonkraftwerk pass a different slug via the `DiscoverComparisonPairsInput.comparisonPillarName` knob (forwarded by the HTTP route body).
+
+**Re-stamp on every run (late-binding resolver)** — `persistPairs()`'s UPDATE branch re-applies `routing.clusterId` on every discovery run. If a matching cluster is created *after* a brief was first persisted with `cluster_id = NULL`, the next discovery run backfills the brief without manual SQL. Pattern is reusable any time a resolver depends on world-state that may post-date the row insert (e.g. tag → cluster lookups, author → project assignment).
+
+**Two `clusterAction` namespaces — don't confuse them.** `topic_briefs.cluster_action` is the brief-side discriminator (text column with values `"create_new" | "append_to_existing" | "comparison" | "standalone"`). The Spec 64.18 resolver's `ComparisonClusterAction` is the routing-decision discriminator (`"append_to_existing" | "create_new"`). Comparison briefs keep `clusterAction: "comparison"` on the row (planner content-type marker); only `clusterId` is mutated by the resolver. Don't UPDATE the row's `clusterAction` from the resolver's output — it's a different semantic axis.
+
+**Comparison branch stamps `clusterId` (Spec 64.18, narrows 63.7b).** The `case "comparison":` spreads `pipelineInput` into the article:blog jobData, so any field stamped at plan-time flows through. `SelectFloorItemsStep.pipelineInputFromBrief()` now stamps `clusterId` for comparison content_type (was: cluster + cluster_spoke only). `clusterAction` and `intentType` stay scoped to the cluster branch because they're the inline-vs-enqueue discriminator there; the comparison branch unconditionally enqueues so they're unused.
