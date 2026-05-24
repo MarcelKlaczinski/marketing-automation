@@ -32,6 +32,22 @@ export interface CollectionContext {
    * any per-tenant overrides. Always returns a SafeParse-style result.
    */
   validate(frontmatter: unknown): { ok: true; data: unknown } | { ok: false; error: string };
+  /**
+   * Extras-only validation — runs ONLY the Bucket-C extras schema (NOT
+   * the composed base+extras) plus any registered cross-field rules.
+   * Consumed by `DraftStep` to validate the LLM-emitted DOMAIN_EXTRAS
+   * block, which is the extras-only object (Layer 1 frontmatter fields
+   * like title/date/heroImage aren't present in that block — they're
+   * assembled later by PersistArticleStep).
+   *
+   * When the registering DomainSpec attaches a `validateExtras` callback
+   * (e.g. Toolwiki's `validateComparisonExtras` carrying the
+   * `winner="depends"⇒useCaseVerdicts non-empty` cross-field rule), it
+   * runs through that callback. Otherwise falls back to a plain
+   * `extrasSchema.safeParse(raw)` so per-tenant DomainSpecs that only
+   * register a schema still produce sensible errors.
+   */
+  validateExtras(raw: unknown): { ok: true; data: unknown } | { ok: false; error: string };
   /** Just the Core (Layer 1) schema — useful for partial validation. */
   getCoreSchema(): z.ZodTypeAny;
   /** Just the Extras (Layer 2 / Bucket C) schema. */
@@ -51,6 +67,17 @@ export interface DomainContext {
   getAllowedCollections(): ReadonlyArray<string>;
   /** Intent taxonomy used by article-output classification. */
   getIntentTaxonomy(): ReadonlyArray<string>;
+  /**
+   * Per-tenant `collection_hint → default intent_type` mapping consumed by
+   * the manual-brief route's `deriveIntentFromCollection()` helper when the
+   * user submits a brief without explicit `intentType`. Keys include both
+   * real collection names (e.g. `"blog"`, `"comparison"`, `"ki-wissen"`)
+   * AND planner pseudo-collections (e.g. `"cluster"` — Spec 62.4) — keeping
+   * the map flat (not derived from `DomainSpec.collections`) so pseudo-keys
+   * fit naturally. Returns an empty object for domains that don't register
+   * a map; the call site falls back to its own hardcoded default switch.
+   */
+  getCollectionToIntentMap(): Readonly<Record<string, string>>;
   /**
    * Category slugs registered for a given scope (`tool`/`blog`/`knowledge`/
    * `usecase`). Returns the live set from `content_categories` when a DB

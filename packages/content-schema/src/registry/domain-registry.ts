@@ -38,6 +38,19 @@ export interface DomainCollectionSpec {
   readonly name: string;
   /** Bucket-C extras schema (e.g. `ComparisonExtrasSchema`). */
   readonly extrasSchema: z.ZodTypeAny;
+  /**
+   * Optional extras-validator callback. When present, `CollectionContext
+   * .validateExtras()` calls this instead of a bare `extrasSchema.safeParse`.
+   * Register this when the domain has cross-field rules that aren't
+   * expressible in pure Zod (e.g. Toolwiki's
+   * `winner="depends"⇒useCaseVerdicts non-empty` constraint on the
+   * comparison collection). Default fallback (no callback) wraps
+   * `extrasSchema.safeParse(raw)` with the same tagged-union shape so
+   * downstream call sites are uniform.
+   */
+  readonly validateExtras?: (
+    raw: unknown,
+  ) => { ok: true; data: unknown } | { ok: false; error: string };
 }
 
 /**
@@ -50,6 +63,16 @@ export interface DomainSpec {
   readonly locales: LocaleSet;
   readonly collections: ReadonlyArray<DomainCollectionSpec>;
   readonly intentTaxonomy: ReadonlyArray<string>;
+  /**
+   * Optional `collection_hint → default intent_type` map for the manual-brief
+   * route. When absent, `DomainContext.getCollectionToIntentMap()` returns an
+   * empty object and the call site falls back to its own hardcoded default
+   * switch (preserves zero-regression for tenants that don't register one).
+   * Keys may include planner pseudo-collections (`"cluster"`) alongside real
+   * collection names — kept as a flat map (not derived from `collections`)
+   * so pseudo-keys fit. Values must be elements of `intentTaxonomy`.
+   */
+  readonly collectionToIntentMap?: Readonly<Record<string, string>>;
 }
 
 /** Resolver: projectId → niche/domain/locales (DB-backed in production). */
@@ -76,6 +99,14 @@ function buildCollectionContext(
     name: collection.name,
     validate(frontmatter) {
       const result = composed.safeParse(frontmatter);
+      if (result.success) return { ok: true, data: result.data };
+      return { ok: false, error: result.error.message };
+    },
+    validateExtras(raw) {
+      // Registered callback (with cross-field rules) wins; otherwise fall
+      // back to a plain extrasSchema.safeParse with the same shape.
+      if (collection.validateExtras) return collection.validateExtras(raw);
+      const result = collection.extrasSchema.safeParse(raw);
       if (result.success) return { ok: true, data: result.data };
       return { ok: false, error: result.error.message };
     },
@@ -109,6 +140,9 @@ function buildDomainContextSync(
     },
     getIntentTaxonomy() {
       return spec.intentTaxonomy;
+    },
+    getCollectionToIntentMap() {
+      return spec.collectionToIntentMap ?? {};
     },
     async getCategorySlugs(_scope: CategoryScope) {
       // Without a categoryLookup we can't enumerate slugs (the DI seam needs
