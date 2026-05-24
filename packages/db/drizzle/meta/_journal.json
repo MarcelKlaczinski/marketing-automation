@@ -708,6 +708,13 @@
       "when": 1787800000000,
       "tag": "0100_articles_rename_frontmatter_extras",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1787900000000,
+      "tag": "0101_articles_hero_image_source_sha256",
+      "breakpoints": true
     }
   ]
 }

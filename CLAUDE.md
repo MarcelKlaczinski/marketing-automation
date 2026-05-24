@@ -371,6 +371,17 @@ To add a new project:
   # then create project-contexts/<slug>/marketing-context.md
   # then run sync-context
 
+## External Repo Reserved Assets
+
+### Toolwiki-Astro-Repo (`ki-wissensraum-neu`)
+
+- `public/heroes/default.webp` — Fallback hero for articles without an explicit
+  `heroImage` (or legacy `image`) frontmatter field. Consumed by
+  `MirrorHeroImagesStep` (`packages/adapters/astro-sync/src/import/steps/mirror-hero-images.ts`,
+  Spec 000). Path must remain stable. If the file is replaced, invalidate
+  `articles.hero_image_source_sha256` for affected rows so the next import
+  re-mirrors against the new bytes.
+
 ## Key Project Context
 - Marcel is solo dev + small team (1-3 people)
 - Mobile-first because Marcel approves content on the go

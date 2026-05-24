@@ -9,6 +9,7 @@ import { ExtractCollectionSchemasStep } from "./steps/extract-collection-schemas
 import { FilterChangedFilesStep } from "./steps/filter-changed-files.ts";
 import { LinkTranslationPairsStep } from "./steps/link-translation-pairs.ts";
 import { ListContentFilesStep } from "./steps/list-content-files.ts";
+import { MirrorHeroImagesStep } from "./steps/mirror-hero-images.ts";
 import { ParseFrontmatterBatchStep } from "./steps/parse-frontmatter-batch.ts";
 import { SyncClustersFromFrontmatterStep } from "./steps/sync-clusters-from-frontmatter.ts";
 import { UpdateImportRunStep } from "./steps/update-import-run.ts";
@@ -38,6 +39,7 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
     new ListContentFilesStep(),
     new FilterChangedFilesStep(),
     new ParseFrontmatterBatchStep(),
+    new MirrorHeroImagesStep(),           // Spec 000: hero-image-mirror (R2 upload + hash dedup)
     new UpsertArticlesStep(),
     new LinkTranslationPairsStep(),
     new SyncClustersFromFrontmatterStep(), // Spec 49a: auto-populate clusters from clusterKey frontmatter
@@ -73,8 +75,29 @@ export class RepoImportPipeline extends Pipeline<PipelineInput, z.infer<typeof O
       };
     }
 
-    if (fromStep.name === "parse-frontmatter-batch" && toStep.name === "upsert-articles") {
+    if (fromStep.name === "parse-frontmatter-batch" && toStep.name === "mirror-hero-images") {
+      // Spec 000: mirror needs the project + repo config + head SHA (for blob fetches
+      // pinned to the commit listed earlier in the pipeline) + the parsed entries.
       const out = output as { parsed: unknown[]; failedCount: number };
+      const list = getStepOutput<{ headCommitSha: string; files: unknown[] }>(
+        "list-content-files"
+      );
+      if (!list) {
+        throw new Error("mirror-hero-images: list-content-files output unavailable");
+      }
+      return {
+        projectId: pipelineInput.projectId,
+        astroRepo: pipelineInput.astroRepo,
+        headCommitSha: list.headCommitSha,
+        parsed: out.parsed,
+      };
+    }
+
+    if (fromStep.name === "mirror-hero-images" && toStep.name === "upsert-articles") {
+      // Spec 000: pass the hero-augmented parsed entries through. Mirror's output
+      // shape extends ParsedEntry with `hero: HeroFields | null` — UpsertArticles
+      // reads `entry.hero` on each row.
+      const out = output as { parsed: unknown[]; stats: unknown };
       return {
         projectId: pipelineInput.projectId,
         parsed: out.parsed,

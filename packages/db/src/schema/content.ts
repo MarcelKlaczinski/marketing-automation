@@ -101,6 +101,12 @@ export const articles = pgTable(
     // NULL = input was already WebP, or row predates migration 0091 and hasn't been
     // processed by the historical-backfill script.
     heroImageOriginalR2Key: text("hero_image_original_r2_key"),
+    // Spec 000 (Hero-Image-Mirror): SHA-256 (hex) over the raw source hero bytes
+    // from the Astro repo. Populated by `MirrorHeroImagesStep` on import; used for
+    // DE+EN sibling + cross-run dedup and the hash-equality refresh whitelist in
+    // `UpsertArticlesStep`. NULL = article has never been mirrored (or predates
+    // migration 0101).
+    heroImageSourceSha256: text("hero_image_source_sha256"),
 
     // Schema.org JSON-LD — array of objects (Spec 23 extended from single object in Spec 20)
     schemaJsonLd: jsonb("schema_json_ld").$type<Array<Record<string, unknown>>>(),

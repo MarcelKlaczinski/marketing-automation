@@ -1,7 +1,8 @@
-import { articles, db, eq, projects } from "@marketing-auto/db";
+import { articles, db, eq, projects, sql } from "@marketing-auto/db";
 import { BaseStep, type StepContext } from "@marketing-auto/pipelines/engine";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
+import type { HeroFields } from "./mirror-hero-images.ts";
 
 // Spec multi-domain-evolution S4.1: tool_* promoted columns on `articles`
 // are Toolwiki-domain-specific (Phase-2 Bucket-C). Only the Toolwiki tenant
@@ -59,6 +60,11 @@ export class UpsertArticlesStep extends BaseStep<
       const locale = (typed.locale as string | null) ?? "de";
       const collection = (p.collection as string) ?? "unknown";
       const extras = (p.extras as Record<string, unknown>) ?? {};
+      // Spec 000 — Hero-Image-Mirror. `mirror-hero-images` step stamps
+      // either a `HeroFields` object or `null` on every parsed entry.
+      // Null means the entry was skipped (collection without hero / failed
+      // mirror) — we do NOT touch the hero columns in that case.
+      const hero = (p.hero as HeroFields | null | undefined) ?? null;
 
       // Spec 54.8: fallback title to name (for authors collection)
       const title = (typed.title as string | null) ?? (typed.name as string | null) ?? null;
@@ -81,6 +87,34 @@ export class UpsertArticlesStep extends BaseStep<
       // they happen to have a `tools` collection in their Astro repo.
       const toolColumns =
         isToolwikiDomain && collection === "tools" ? buildToolColumns(extras) : {};
+
+      // Spec 000 — Hero-Image-Mirror.
+      // INSERT path: write all hero columns unconditionally — a new row has
+      // nothing to preserve.
+      // UPDATE path: hash-equality refresh whitelist. Each hero column is
+      // wrapped in `CASE WHEN existing hash IS DISTINCT FROM new hash THEN
+      // new ELSE existing END`. When the file in the repo hasn't changed
+      // (same hash), the DB columns are left untouched — preserves any
+      // manual UI edit to `heroImageAltText`. When the file changes, all
+      // hero columns flip atomically to the new values.
+      const heroInsertCols = hero
+        ? {
+            heroImageR2Key: hero.heroImageR2Key,
+            heroImagePublicUrl: hero.heroImagePublicUrl,
+            heroImageOriginalR2Key: hero.heroImageOriginalR2Key,
+            heroImageSourceSha256: hero.heroImageSourceSha256,
+            heroImageAltText: hero.heroImageAltText,
+          }
+        : {};
+      const heroUpdateCols = hero
+        ? {
+            heroImageR2Key: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImageR2Key}::text ELSE ${articles.heroImageR2Key} END`,
+            heroImagePublicUrl: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImagePublicUrl}::text ELSE ${articles.heroImagePublicUrl} END`,
+            heroImageOriginalR2Key: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImageOriginalR2Key}::text ELSE ${articles.heroImageOriginalR2Key} END`,
+            heroImageSourceSha256: hero.heroImageSourceSha256,
+            heroImageAltText: sql`CASE WHEN ${articles.heroImageSourceSha256} IS DISTINCT FROM ${hero.heroImageSourceSha256} THEN ${hero.heroImageAltText}::text ELSE ${articles.heroImageAltText} END`,
+          }
+        : {};
 
       try {
         const result = await db
@@ -115,6 +149,7 @@ export class UpsertArticlesStep extends BaseStep<
             lastImportedAt: now,
             status: "published",
             ...toolColumns,
+            ...heroInsertCols,
           })
           .onConflictDoUpdate({
             target: [
@@ -147,6 +182,7 @@ export class UpsertArticlesStep extends BaseStep<
               lastImportedAt: now,
               updatedAt: now,
               ...toolColumns,
+              ...heroUpdateCols,
             },
           })
           .returning({ id: articles.id, importedAt: articles.importedAt });

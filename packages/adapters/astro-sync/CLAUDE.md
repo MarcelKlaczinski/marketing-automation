@@ -119,6 +119,45 @@ The step parses this with a regex, strips it from `bodyMd`, and saves to `articl
   `approval_status IN (...)` part, Postgres throws "there is no unique or exclusion constraint
   matching the ON CONFLICT specification" at runtime. Always reproduce the full index WHERE clause.
 
+## Hero-Image Mirroring (Spec 000)
+
+`MirrorHeroImagesStep` sits between `ParseFrontmatterBatchStep` and
+`UpsertArticlesStep` in `RepoImportPipeline`. It mirrors hero source files
+from the Astro repo to R2, deduped by source-byte SHA-256.
+
+- **Source-byte resolution**: Astro frontmatter `heroImage` / `image` refs
+  with a leading `/` are resolved against the Astro repo's `public/` directory,
+  fetched via the GitHub-App `contents` + `git/blobs` API pinned to
+  `headCommitSha` from `ListContentFilesStep`. Refs without a leading slash
+  (relative `../assets/...`, remote URLs, data URIs) are reported as `failed`
+  in V1 — extend `repoPathForHeroRef` if a future tenant uses `src/assets/...`.
+- **R2 upload**: routed through `@marketing-auto/adapter-image-webp`
+  (`convertImageToWebp`) — Pattern 119. WebP-shaped bytes upload as-is;
+  PNG/JPG/GIF/AVIF inputs are converted via sharp + the pre-conversion
+  original stored under `/originals/`.
+- **Dedup**: in-run `Map<sha256, HeroFields>` makes DE+EN siblings pay one
+  upload. Cross-run, a `WHERE project_id = $1 AND hero_image_source_sha256 = $2`
+  lookup against the existing `articles_hero_image_source_sha256_idx` partial
+  index reuses prior R2 keys.
+- **Default-hero fallback**: when an article has no `heroImage`/`image`
+  frontmatter, the step falls back to `public/heroes/default.webp` — a
+  cross-repo contract documented in root CLAUDE.md and the Astro repo's
+  CLAUDE.md. Missing default-hero produces a one-line `warn` per affected
+  article and the entry lands in `failed`.
+- **Refresh-whitelist**: `UpsertArticlesStep` writes all five hero columns
+  through `CASE WHEN heroImageSourceSha256 IS DISTINCT FROM <new hash> THEN <new>
+  ELSE <existing> END`. Unchanged files leave the columns untouched —
+  preserves UI-edited `hero_image_alt_text`. Changed files atomically flip
+  every column.
+- **Skipped collections**: `COLLECTIONS_WITHOUT_HERO` (currently
+  `{"tool-categories"}`) short-circuits before fetch. Extend the constant
+  when adding a future collection with no hero by design.
+
+The pure per-article helper `mirrorOneArticle(deps, input)` is exported from
+the step module so the backfill CLI (`apps/api/src/scripts/backfill-imported-heroes.ts`)
+can drive it offline with the same dependency-injection seam used in the
+unit tests.
+
 ## Gap Detection (Spec 54.3)
 
 `DetectContentGapsStep` counts ALL project articles regardless of `source` (imported, generated,

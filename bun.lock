@@ -107,6 +107,7 @@
       "name": "@marketing-auto/adapter-astro-sync",
       "version": "0.1.0",
       "dependencies": {
+        "@marketing-auto/adapter-image-webp": "workspace:*",
         "@marketing-auto/content-schema": "workspace:*",
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/cost-tracker": "workspace:*",
