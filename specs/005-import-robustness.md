@@ -1,11 +1,21 @@
-# Spec: Importer-Robustness Fixes
+# Spec: Importer-Robustness Fixes (v2)
 
 _Branch: `feature/importer-robustness`_
 _Codebase: Marketing-Tool-Monorepo_
-_Status: Draft._
+_Status: Draft v2 (2026-05-24, patched mit Lessons aus Spec 004 Discovered §1 + §4)._
 _Aufwand: ~1-2 Tage, 2 Sprints._
-_Voraussetzung: Mini-Cleanup-Followups (F1-F3) durchgelaufen._
+_Voraussetzung: Mini-Cleanup-Followups (F1-F3) + F1.5 (Categories Slug-Format) durchgelaufen._
 _Parallel-Branches: keine._
+
+## v2 Changes (Lessons aus Spec 004)
+
+Während der Mini-Cleanup-Followups-Implementation kamen zwei wichtige Erkenntnisse die diese Spec präzisieren:
+
+1. **Defense-in-Depth statt Single-Point-of-Decision** (aus F3 Discovered §1):
+   F3 spec sagte „Single-Point-of-Decision in trigger.ts reicht". Tatsächlich gibt's parallele Pfade (`enqueueSchemaExtensionPipeline` vs `enqueueSchemaExtension`) — Filter musste an beiden Stellen angewendet werden. IR1 muss analog defense-in-depth denken: nach Code-Read prüfen ob es weitere Match-Pfade gibt (z.B. parallel pipeline-trigger).
+
+2. **`pipeline_runs` ist 1 Parent + N Step-Children** (aus F2 Discovered §4):
+   Spec 004 F2 fehlinterpretierte 11 Rows als 11 Duplicate-Triggers — tatsächlich ist es 1 parent + 10 step children, by design. IR2.4 Smoke-Tests müssen das Pattern berücksichtigen: ein Re-Import-Trigger produziert N+1 Rows (1 parent + N steps), nicht 1 Row.
 
 ---
 
@@ -71,7 +81,7 @@ Beide Pattern-Konflikte mit Code-Änderungen im Importer schließen, sodass:
 
 ### 3.1 Sprint IR1 — Slug-Rename-Filter (4-6h)
 
-**IR1.1 Code-Read** (1h)
+**IR1.1 Code-Read** (1-1.5h)
 
 Dateien zu lesen:
 - `packages/adapters/astro-sync/src/import/steps/upsert-articles.ts`
@@ -83,7 +93,16 @@ Fragen:
 2. Wann triggert eine in-place-Mutation vs. ein INSERT?
 3. Gibt es heute schon einen `status`-Filter irgendwo in der Match-Logic?
 
-**Output:** Notiz in `docs/discovery/ir1-upsert-articles-code-read.md` mit aktuellem Match-Pfad + vorgeschlagener Fix.
+**Defense-in-Depth-Check (NEU in v2):** Spec 004 F3 entdeckte parallel pipeline-trigger paths (`enqueueSchemaExtension` vs `enqueueSchemaExtensionPipeline`). Bevor wir den Filter in `UpsertArticlesStep` einbauen, **prüfen ob es weitere Pfade gibt** die Articles touchen:
+- Andere Steps in `RepoImportPipeline` die DB-Rows mutieren?
+- HTTP-Routes die direkten Article-Slug-Updates erlauben?
+- Andere Pipelines (RefreshArticles, ArticleGenerationPipeline) die slug-basiertes Matching machen?
+- Reverse-Lookup: grep nach `articles.slug` Queries plus `eq(articles.slug)` Patterns
+
+**Output:** Notiz in `docs/discovery/ir1-upsert-articles-code-read.md` mit:
+- Aktueller Match-Pfad im UpsertArticlesStep
+- Liste aller weiteren Slug-Match-Stellen (Defense-in-Depth-Map)
+- Vorgeschlagener Fix mit Bewertung wo Filter angewendet werden müssen
 
 **IR1.2 Fix-Decision** (15min — Marcel-Action)
 
@@ -282,6 +301,10 @@ Test-Cases:
 2. **New insert + existing-without-hero:** Pipeline mit 1 INSERT + 1 UPDATE auf existing-row die noch kein Hero hat. Beide werden gemirrored.
 3. **Mirror-Idempotency:** Pipeline läuft 2x mit gleichem Input. Zweiter Lauf: keine R2-Uploads (alle Hashes match).
 
+**Wichtig (v2 — Lessons aus Spec 004 F2 Discovered §4):** Pipeline-Run-Count-Erwartung ist `1 parent + N step children`, nicht „1 Row gesamt". `astro:repo-import` hat 10 Steps → 11 `pipeline_runs`-Rows pro Trigger. By-design Pattern, nicht BullMQ-Dedup-Issue.
+
+Falls Smoke-Test Pipeline-Run-Count verifiziert: Erwartung anpassen auf `parent_run_id IS NULL` Rows zählen (= 1 parent) plus `parent_run_id = <parent.id>` Rows zählen (= N step children), nicht `COUNT(*)`.
+
 **IR2.5 Regression-Test gegen Anomaly-B** (1h)
 
 Datei: `packages/adapters/astro-sync/test/mirror-after-upsert-regression-anomaly-b.test.ts`
@@ -373,6 +396,8 @@ Vergleich), kann safe nochmal laufen wenn Pipeline retried.
 | IR-3 | Test-Strategie | TDD: Regression-Tests vor Fix | Beweist dass Fix das Problem wirklich löst |
 | IR-4 | Unique-Constraint anpassen? | Klären in IR1.3 | Hängt von aktuellem Constraint ab |
 | IR-5 | Refresh-Whitelist anpassen? | Klären in IR2.3 | Hängt von aktueller Whitelist ab |
+| IR-6 (v2) | Defense-in-Depth: Filter an mehreren Stellen? | Klären in IR1.1 Code-Read | Spec 004 F3 zeigte parallel paths existieren; analog hier prüfen |
+| IR-7 (v2) | Pipeline-Run-Count Test-Erwartung | parent + step children Pattern | Spec 004 F2 Discovery: by-design Pattern |
 
 ## 8. Risiken & Mitigation
 
@@ -384,6 +409,8 @@ Vergleich), kann safe nochmal laufen wenn Pipeline retried.
 | R4 | Mirror-Step's `hero_image_*` Spalten nicht in Refresh-Whitelist | Pre-Implementation Whitelist-Check, ggf. Whitelist-Erweiterung |
 | R5 | Bestehende Tests brechen durch Step-Reordering | Full-Test-Run vor Fix, Diff der Failures |
 | R6 | TDD-Regression-Test ist schwer zu schreiben | Start mit einfachem Setup, iterativ erweitern; bei >2h Test-Setup: refactor Test-Helper |
+| R7 (v2) | IR1-Fix nur an einer Stelle, parallele Pfade übersehen | IR1.1 Defense-in-Depth-Check explizit als Code-Read-Schritt; analog zu Spec 004 F3 Discovered §1 |
+| R8 (v2) | IR2 Smoke-Test schlägt fehl wegen falscher Pipeline-Run-Count-Erwartung | Test-Helper auf `parent_run_id`-Pattern aktualisieren; Spec 004 F2 Discovered §4 als Reference |
 
 ## 9. Implemented
 
