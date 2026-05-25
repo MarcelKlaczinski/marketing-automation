@@ -21,6 +21,35 @@ class TemplateRegistry {
     this.templates.set(template.key, template as TemplateDefinition);
   }
 
+  /**
+   * Spec 65.0 Day 3 — hot-reload entry point. Replaces an existing entry by
+   * key without the duplicate-registration guard of `register()`. Used by
+   * the filesystem-watcher (API process) and the change-subscriber (worker
+   * process) to swap in a fresh module after a definition file was edited.
+   *
+   * If the key was previously absent the call behaves like `register()`.
+   * Returns `true` when an existing entry was overwritten, `false` when
+   * the key was new.
+   */
+  replace<T>(template: TemplateDefinition<T>): boolean {
+    const existed = this.templates.has(template.key);
+    this.templates.set(template.key, template as TemplateDefinition);
+    return existed;
+  }
+
+  /**
+   * Spec 65.0 Day 3 — remove an entry by key. Used by tests for cleanup;
+   * production code does NOT remove entries on file-unlink (renders in
+   * flight could break), it only deactivates the DB row.
+   *
+   * Accepts a plain `string` rather than narrowing to `TemplateKey` so
+   * test fixtures with synthetic keys (outside the published union) can
+   * call it without `as TemplateKey` casts. Returns `true` if the key existed.
+   */
+  unregister(key: string): boolean {
+    return this.templates.delete(key as TemplateKey);
+  }
+
   getById(key: TemplateKey): TemplateDefinition {
     const t = this.templates.get(key);
     if (!t) throw new Error(`Template "${key}" is not registered`);

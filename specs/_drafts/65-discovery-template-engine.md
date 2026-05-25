@@ -718,6 +718,54 @@ Spec 65.0 — Template Engine (Pre-Theme-65 Foundation)
 
 - The bootstrap-sync writes 5 rows on every cold start (~50ms). When the watcher lands (Day 3), warm-restart syncs should be no-ops (all `unchanged` per the file-hash equality check). Worth verifying live once watcher is in.
 
-### Day 3+ (not yet started)
+### Day 3 (2026-05-25, landed)
 
-— filesystem watcher, Remotion bundle re-call, multi-process cache invalidation via Redis pub/sub.
+**Landed:**
+
+- chokidar@5 added to `apps/api/package.json`
+- [`packages/core/src/events/template-events.ts`](../../packages/core/src/events/template-events.ts) — `TEMPLATE_EVENTS_CHANNEL` constant, `templateChangeEventSchema` (Zod), `publishTemplateChangeEvent()` with a lazy IORedis publisher singleton (mirrors the pipeline-events publisher shape from Spec 55.1 Section B)
+- [`packages/social/src/templates/registry.ts`](../../packages/social/src/templates/registry.ts) — `replace<T>(template)` for hot-reload + `unregister(key: string)` for test cleanup
+- [`apps/api/src/lib/template-registry-sync.ts`](../../apps/api/src/lib/template-registry-sync.ts) — extracted `buildSpecFromTemplate()` pure helper, added `syncOneTemplateFromFile()` (the per-file hot-reload entry point used by both the watcher and the subscriber), `cacheCopyPathFor()` pure helper, `cleanupStaleCacheCopies()` for boot-time + periodic sweep of stale dotfiles
+- [`apps/api/src/lib/template-watcher.ts`](../../apps/api/src/lib/template-watcher.ts) — chokidar watcher: `awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }` + 500ms post-settle debounce + `ignored: /(^|[/\\])\..+\.ts$/` for cache-copy dotfile feedback prevention. add/change → `syncOneTemplateFromFile()` with `publish: true`. unlink → DB `is_active=false` sweep + `template.removed` event (in-memory entry kept until restart — Spec 65.0 §13 Q8 default).
+- [`apps/api/src/lib/template-change-subscriber.ts`](../../apps/api/src/lib/template-change-subscriber.ts) — worker-process subscriber to `TEMPLATE_EVENTS_CHANNEL`. Calls `syncOneTemplateFromFile()` with `publish: false` (CRITICAL: prevents feedback loops). `template.removed` events log only (no in-memory removal for in-flight render safety).
+- [`apps/api/src/server.ts`](../../apps/api/src/server.ts) — boot-time cache-copy cleanup + `startTemplateWatcher()` wiring
+- [`apps/api/src/workers/index.ts`](../../apps/api/src/workers/index.ts) — boot-time cleanup + `bootstrapAndSyncTemplates()` + `startTemplateChangeSubscriber()` + `stopTemplateChangeSubscriber()` in shutdown
+- [`apps/api/test/lib/template-watcher.test.ts`](../../apps/api/test/lib/template-watcher.test.ts) — 8 cases: `syncOneTemplateFromFile()` end-to-end with temp .ts fixtures (add → update → unchanged → bad-export-throws), `cacheCopyPathFor()` pure helper, `cleanupStaleCacheCopies()` with mtime-stamped fixtures
+
+**Three discoveries that shaped the implementation:**
+
+1. **Bun caches dynamic-import by absolute file PATH, ignoring URL query strings.** Verified live: `await import("file:///foo.ts?v=1")` and `await import("file:///foo.ts?v=2")` return the same cached module even when the file content changed between imports. The spec's §6.1 (d) "Remotion bundle()-re-call" applies to the render path; for the in-memory `templateRegistry` we need a different cache-bust strategy. **Solution:** before each hot-reload, write a sibling dot-prefixed cache-copy named `.<base>.<hash16>.ts` to the same directory and import that fresh filename. Bun's path-based cache keys each unique hash separately. Relative imports inside the copy resolve correctly because it sits in the original's dir. Trade-off: cache-copies accumulate during a session; the boot-time `cleanupStaleCacheCopies({maxAgeMs: 0})` sweep handles the prior-session leftovers. Added as a root CLAUDE.md DO-NOT rule.
+2. **`readdir(dir, {withFileTypes: true})` returns inconsistent shapes in Bun.** The Day-3 cleanup helper initially returned 0 deletions until I switched to plain `readdir(dir)` + per-name `Bun.file(path).stat()` per the existing workspace convention (root CLAUDE.md "DO NOT use `{withFileTypes: true}`").
+3. **`mtimeMs <= cutoff` (not `<`) is the right boundary** for the cleanup helper. With `<`, `maxAgeMs: 0` (boot-time "delete everything") leaves files freshly written in the same millisecond as the call. `<=` makes the predicate inclusive at the cutoff edge.
+
+**Marcel-decisions used (defaults from §13):**
+
+- Q3 (hot-reload in production): ✓ implemented. Watcher runs unconditionally in `server.ts`; deploy = git-push not docker-rebuild remains viable.
+- Q4 (watcher in API process): ✓ watcher lives in `apps/api/src/lib/template-watcher.ts`, single source of truth. Workers consume via Redis pub/sub.
+- Q5 (malformed template-file handling): ✓ `syncOneTemplateFromFile()` throws on missing `TemplateDefinition`-shaped export; watcher's catch wrapper logs warn + skips, registry stays usable.
+
+**Architectural deviations from spec narrative:**
+
+- Spec §6.1 evaluated four cache-bust strategies and recommended (d) Remotion bundle re-call. That fits the RENDER pipeline, not the in-memory registry. Day 3 implements an orthogonal strategy (sibling dotfile copies) for the registry side. The Remotion bundle path remains as-is — when a re-rendered template lands, the existing `bundle()` call paths pick up the fresh module on next render (no integration needed; Remotion's bundler imports fresh each time it builds).
+- Spec §5.3 sketched a `templates:changed` channel; the actual event payload schema adds `type: 'template.added' | 'template.changed' | 'template.removed'` discriminator + `fileHash: string | null` + `projectId: string | null` (Memory D5 multi-tenant). Added as a Zod schema in the same file as the publisher so the subscriber can `safeParse()` defensively.
+- Spec §5.2 sketched no `ignored` regex; the cache-copy approach mandates one (`/(^|[/\\])\..+\.ts$/`) — without it the watcher fires on every cache-copy write, infinite-looping. Added to the watcher's chokidar options.
+
+**Pending Marcel-Decision sites for Day 4+:**
+
+- Q2 (preview modal vs page) — Day 5
+- Q6 (auto-fill data source) — Day 5
+- Q7 (cache preview renders) — Day 4
+- Q8 (soft vs hard disable) — partial: unlink → soft DB-flag is implemented; UI surfacing deferred to Day 6
+- Q10 (LRU ownership) — Spec 65.6
+
+**Test deltas:** apps/api 364 pass / 6 skip / 0 fail (was 356 after Day 1-2). Workspace typecheck 0 errors across 26 packages.
+
+**Known limitations (carry-overs to Day 4+):**
+
+- The cache-copy dotfiles in `packages/social/src/templates/definitions/` accumulate during a session. Boot-time cleanup handles prior sessions but a long-running prod instance with frequent template edits accumulates files (small, ~few KB each, max ~50/day at Marcel's edit cadence). Day 6 should add a periodic sweep timer (~hourly) if this becomes an operational concern.
+- The in-memory `templateRegistry.replace()` swap is not synchronized with active renders. A render that starts at T0 reading template-V1 and finishes at T2 after watcher swaps to V2 produces V1 output. Acceptable for V1 (render durations are seconds; edits during render are rare).
+- Spec §10 promised per-template directory layout (`<key>/definition.ts`). Day 3 still uses the flat `definitions/<camelKey>.ts` layout. Day 6 or later: extend `relativeDefinitionPath` to check both shapes.
+
+### Day 4+ (not yet started)
+
+— preview endpoint (`POST /api/projects/:slug/templates/:key/preview`), preview-mode flag in the render pipeline, optional R2 caching with TTL.

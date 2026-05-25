@@ -1,5 +1,11 @@
+import { resolve } from "node:path";
 import { createLogger, getEnv } from "@marketing-auto/shared";
-import { bootstrapAndSyncTemplates } from "./lib/template-registry-sync.ts";
+import {
+  REPO_ROOT,
+  bootstrapAndSyncTemplates,
+  cleanupStaleCacheCopies,
+} from "./lib/template-registry-sync.ts";
+import { startTemplateWatcher } from "./lib/template-watcher.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -51,6 +57,16 @@ const log = createLogger("api");
 // the `templates` table so the planner/UI can list available templates from
 // the DB. Idempotent and DB-failure-tolerant (see `bootstrapAndSyncTemplates`).
 await bootstrapAndSyncTemplates();
+
+// Spec 65.0 Day 3: sweep any stale cache-copy files (`.<base>.<hash>.ts`)
+// left over from a prior session, then start the filesystem watcher.
+// Watcher is best-effort — failure logs warn and returns null without
+// blocking server start (see `startTemplateWatcher`).
+await cleanupStaleCacheCopies({
+  directory: resolve(REPO_ROOT, "packages/social/src/templates/definitions"),
+  maxAgeMs: 0, // boot-time sweep: delete all stale dotfiles regardless of age
+}).catch(() => undefined);
+startTemplateWatcher();
 
 const app = new Hono();
 

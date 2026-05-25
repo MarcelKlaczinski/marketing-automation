@@ -1,5 +1,5 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
 import { RepoImportPipeline } from "@marketing-auto/adapter-astro-sync/import";
 import {
@@ -80,6 +80,15 @@ import {
 } from "./step-pause-cleanup.worker.ts";
 import { startTrendSynthesizerWorker, seedTrendSynthesizerCron } from "./trend-synthesizer.ts";
 import { reconcileStalledRenders } from "./lib/render-reconciliation.ts";
+import {
+  REPO_ROOT,
+  bootstrapAndSyncTemplates,
+  cleanupStaleCacheCopies,
+} from "../lib/template-registry-sync.ts";
+import {
+  startTemplateChangeSubscriber,
+  stopTemplateChangeSubscriber,
+} from "../lib/template-change-subscriber.ts";
 
 const log = createLogger("worker");
 
@@ -251,6 +260,19 @@ async function main() {
 
   log.info("Starting workers");
 
+  // Spec 65.0 Day 3: sweep stale cache-copy dotfiles, bootstrap the
+  // in-memory template registry + DB-sync, then subscribe to the
+  // `templates:changed` Redis channel so the worker's local registry
+  // mirrors any live changes the API process's watcher detects. All
+  // best-effort — failures degrade to "stale templates until restart"
+  // without blocking worker startup.
+  await cleanupStaleCacheCopies({
+    directory: resolve(REPO_ROOT, "packages/social/src/templates/definitions"),
+    maxAgeMs: 0,
+  }).catch(() => undefined);
+  await bootstrapAndSyncTemplates();
+  startTemplateChangeSubscriber();
+
   pipelineRegistry.register(new ArticleOutlinePipeline());
   pipelineRegistry.register(new ArticleDraftPipeline());
   pipelineRegistry.register(new BlogPipeline());
@@ -388,6 +410,7 @@ async function main() {
     await githubInventoryRefreshWorker.close();
     await githubInventoryDiscoveryWorker.close();
     await schedulerWorker.close();
+    await stopTemplateChangeSubscriber();
     await closePipelineInfrastructure();
     await releasePidLock();
     process.exit(0);
