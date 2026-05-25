@@ -187,6 +187,8 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
     requiresLiveData: false,
   },
 
+  renderServerFn: "renderComparisonGrid3",
+
   bounds: comparisonGrid3DefinitionBounds,
   generatedSchema: comparisonGrid3GeneratedSchema,
   slotMap: {},

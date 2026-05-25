@@ -169,6 +169,8 @@ export const singleToolSpotlightTemplate: TemplateDefinition<ToolContext> = {
     requiresLiveData: false,
   },
 
+  renderServerFn: "renderSingleToolSpotlight",
+
   bounds: singleToolSpotlightBounds,
   generatedSchema: singleToolSpotlightGeneratedSchema,
   slotMap: {

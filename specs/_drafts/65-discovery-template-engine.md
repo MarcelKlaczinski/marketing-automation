@@ -766,6 +766,45 @@ Spec 65.0 — Template Engine (Pre-Theme-65 Foundation)
 - The in-memory `templateRegistry.replace()` swap is not synchronized with active renders. A render that starts at T0 reading template-V1 and finishes at T2 after watcher swaps to V2 produces V1 output. Acceptable for V1 (render durations are seconds; edits during render are rare).
 - Spec §10 promised per-template directory layout (`<key>/definition.ts`). Day 3 still uses the flat `definitions/<camelKey>.ts` layout. Day 6 or later: extend `relativeDefinitionPath` to check both shapes.
 
-### Day 4+ (not yet started)
+### Day 4 (2026-05-25, landed)
 
-— preview endpoint (`POST /api/projects/:slug/templates/:key/preview`), preview-mode flag in the render pipeline, optional R2 caching with TTL.
+**Landed:**
+
+- [`apps/api/src/lib/template-preview-service.ts`](../../apps/api/src/lib/template-preview-service.ts) — `previewTemplate()` returning a discriminated-union `PreviewResult | PreviewError`, `cleanupStalePreviewDirs()` for boot-time sweep of `apps/api/renders/preview/preview-*/` dirs, `resolveProjectIdBySlug()` route helper. Lazy-imports `@marketing-auto/social/render-server` so Remotion + headless Chrome stay off the API cold-boot path.
+- [`apps/api/src/routes/projects/templates.ts`](../../apps/api/src/routes/projects/templates.ts) — `POST /:slug/templates/:templateKey/preview`. Zod body `{ sampleData: Record<string, unknown>, theme?, locale?, brandTokensOverride? }`. Exhaustive switch over `PreviewError` variants → 4xx/5xx mapping. Auth-gated.
+- [`apps/api/src/server.ts`](../../apps/api/src/server.ts) — mount + boot-time `cleanupStalePreviewDirs({ maxAgeMs: 0 })`.
+- **Uniformity fix:** `RenderServerFn` strict union + required `renderServerFn` field on `TemplateDefinition` ([packages/social/src/templates/types.ts](../../packages/social/src/templates/types.ts)). All 5 templates self-declare their render-server export ([comparisonGrid4](../../packages/social/src/templates/definitions/comparisonGrid4.ts), [comparisonGrid3](../../packages/social/src/templates/definitions/comparisonGrid3.ts), [verdictPerUseCase](../../packages/social/src/templates/definitions/verdictPerUseCase.ts), [singleToolSpotlight](../../packages/social/src/templates/definitions/singleToolSpotlight.ts), [proConVerdict](../../packages/social/src/templates/definitions/proConVerdict.ts)). Preview service reads `template.renderServerFn` — single source of truth, no parallel hardcoded map. TS catches mismatches at compile time.
+- Tests: 7 service-level (3 error-paths + 2 `resolveProjectIdBySlug` + 2 `cleanupStalePreviewDirs`) + 4 HTTP route (401 / 404-project / 404-template / 400-zod) + **2 RUN_VISUAL-gated actual-Remotion-renders** (PNG-magic-byte + size + cached-bundle latency). apps/api 375 pass / 8 skip / 0 fail / 18.25s default-suite. Workspace typecheck 0 errors across 26 packages.
+
+**Three discoveries that reshaped the implementation:**
+
+1. **Bun caches dynamic-import by absolute file path, NOT URL** — same trap as Day 3, but Day 4 didn't trigger it (render-server module is loaded once and reused). The Day-3 root CLAUDE.md DO-NOT rule already covers it; mentioning here for cross-reference.
+2. **`mockFixtures[X].input` is `buildInput`-output shape, NOT composition-input shape.** Initial Day-4 implementation tried to feed `fixture.input` (Grid4Context / ToolContext) straight to `renderComparisonGrid4` (expects `ComparisonGrid4Input` with `generated: { eyebrow, headline, tools[].verdictStrong, ... }`). Composition crashed at `g.eyebrow` undefined. **Fix:** dropped the fixture-path; required `sampleData` to be the full composition-input shape; Day-5 UI will build a convenience layer (§7.3 "auto-fill from last brief") on top of the raw API. The two shapes can't be auto-transformed without re-implementing each template's `render()` merge logic.
+3. **`Bun.file(path).stat()` on a directory returns invalid `mtimeMs`.** `Bun.file` is file-only; for directory metadata use `node:fs/promises.stat()`. The Day-4 preview-dir cleanup needed this fix.
+
+**Uniformity rationale (Marcel's "einheitlich"-question):**
+
+Production-render uses `template.render(context)` which dynamic-imports `@marketing-auto/social/render-server` and calls e.g. `socialModule.renderComparisonGrid4(compositionInput)`. Day-4 preview uses `previewTemplate({sampleData})` which dynamic-imports the same module and dispatches via `template.renderServerFn`. Both end up at the same render-server function with the same composition-input shape. Before the uniformity fix, the dispatch name lived in TWO places: each template's own `render()` method (hardcoded) AND `RENDER_FN_MAP` in the preview service. After the fix, the field is on `TemplateDefinition` itself — adding a new template means one field + one render-server export, TS enforces the link. This is the Memory D125 "two-source enum gotcha" pattern, applied to function-name strings.
+
+**Production-vs-Preview convergence path (still open for Day 6+):**
+
+The remaining structural difference is that `template.render(context)` orchestrates `buildInput → generateContent → merge → renderServerFn`, while the preview path goes straight to `renderServerFn(sampleData)`. Day 5 UI populates sampleData from one of: (a) raw JSON editor, (b) a future `/preview-examples` endpoint that runs `buildInput` + `generateContent` server-side against a synthetic Article, (c) a copy from the last `template_renders` row of the same template. (a) and (c) are 1-day UI work; (b) bridges to the production orchestration but doesn't merge it.
+
+**Marcel-decisions confirmed (defaults from §13):**
+
+- Q7 (cache preview renders): default "No V1, ephemeral renders only" — implemented. Slides live under `apps/api/renders/preview/preview-<uuid>/`, swept at every API boot via `cleanupStalePreviewDirs({ maxAgeMs: 0 })`. No R2 upload, no DB row.
+
+**Pending Marcel-Decision sites for Day 5+:**
+
+- Q2 (preview modal vs page) — Day 5
+- Q6 (auto-fill data source) — Day 5
+- Q8 (soft vs hard disable) — partially deferred; soft is implemented via `is_active=false` sweep, UI surfacing still in Day 6.
+
+**Known limitations (carry-overs):**
+
+- `RUN_VISUAL=1` gate documented in `packages/social/CLAUDE.md` and now mirrored at `apps/api/test/lib/template-preview-render.test.ts`. CI should set `RUN_VISUAL=1` for full coverage; default fast-suite runs skip.
+- No retry/timeout policy on Remotion render. If headless Chrome hangs, the request hangs. Day 6 polish could add a 30s wall-clock timeout via `AbortController`.
+
+### Day 5+ (not yet started)
+
+— Settings-UI TemplatesPage + Preview-Modal + auto-fill helper, sample-data validation against composition schemas, optional R2 caching with TTL.

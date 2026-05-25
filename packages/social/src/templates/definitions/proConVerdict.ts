@@ -146,6 +146,8 @@ export const proConVerdictTemplate: TemplateDefinition<ToolContext> = {
     requiresLiveData: false,
   },
 
+  renderServerFn: "renderProConVerdict",
+
   bounds: proConVerdictDefinitionBounds,
   generatedSchema: proConVerdictGeneratedSchema,
   slotMap: {},

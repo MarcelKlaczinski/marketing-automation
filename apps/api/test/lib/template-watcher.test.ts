@@ -169,6 +169,13 @@ describe("cleanupStaleCacheCopies", () => {
     await writeFile(join(dir, ".other.fedcba9876543210.ts"), "export const x = 2;");
     await writeFile(join(dir, "realTemplate.ts"), "export const real = 1;");
 
+    // Stamp the dotfiles 60 seconds in the past so the `mtime <= cutoff`
+    // check doesn't flake on millisecond timing under the full test suite
+    // (passes in isolation; intermittent under concurrent load).
+    const past = new Date(Date.now() - 60 * 1000);
+    await utimes(join(dir, ".fake.abcdef0123456789.ts"), past, past);
+    await utimes(join(dir, ".other.fedcba9876543210.ts"), past, past);
+
     const deleted = await cleanupStaleCacheCopies({ directory: dir, maxAgeMs: 0 });
     expect(deleted).toBe(2);
 

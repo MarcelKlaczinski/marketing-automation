@@ -1,0 +1,282 @@
+/**
+ * Spec 65.0 Day 4 — Template preview service.
+ *
+ * Renders a template with caller-supplied (or fixture) sample data and
+ * writes the slide PNGs to a per-session preview directory under
+ * `<cwd>/renders/preview/<sessionId>/`. The existing static handler in
+ * `server.ts` serves these via `/renders/preview/...` URLs.
+ *
+ * Preview-mode (per Spec 65.0 §7.1 + §13 Q7 default):
+ *   - No R2 upload
+ *   - No `articles` / `social_posts` / `template_renders` DB row
+ *   - No cost tracking (rendering is local Remotion + Sharp — no external API call)
+ *   - Ephemeral files cleaned up via `cleanupStalePreviewDirs()` at server boot
+ *
+ * The service bypasses `template.render()` (which needs an Article-shaped DB
+ * row + ArticleDiscovery row) and calls the render-server functions directly
+ * — mirrors the `packages/social/scripts/visual-render-all.ts` pattern.
+ */
+import { mkdir, readdir, rm, stat as fsStat, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { createLogger } from "@marketing-auto/shared";
+import {
+  DEFAULT_BRAND_TOKENS,
+  type BrandTokens,
+} from "@marketing-auto/shared/brand-tokens";
+import { templateRegistry } from "@marketing-auto/social/templates";
+import type { Locale, Theme, TemplateKey } from "@marketing-auto/social/templates";
+import { db, eq, getTemplate, projects } from "@marketing-auto/db";
+import { getBrandTokens } from "./brand-asset-service.ts";
+
+const log = createLogger("template-preview-service");
+
+type RenderServerCallable = (input: Record<string, unknown>) => Promise<{
+  slides: Buffer[];
+  sequenceCount?: number;
+}>;
+
+let _renderServer: Record<string, unknown> | null = null;
+
+/**
+ * Dynamic-import the Remotion render-server lazily. Keeps Remotion + headless
+ * Chrome out of the API process's cold-boot path (heavy module load).
+ * Cached after first call.
+ */
+async function loadRenderServer(): Promise<Record<string, unknown>> {
+  if (_renderServer) return _renderServer;
+  _renderServer = (await import(
+    "@marketing-auto/social/render-server"
+  )) as Record<string, unknown>;
+  return _renderServer;
+}
+
+export interface PreviewInput {
+  projectId: string;
+  templateKey: string;
+  /**
+   * The full composition input as the render-server function expects it
+   * — same shape as the composition's Zod schema (e.g. `ComparisonGrid4Input`,
+   * `SingleToolSpotlightInput`). The caller is responsible for constructing
+   * a valid payload; the preview service does NOT transform fixture data
+   * because `mockFixtures[X].input` is the `buildInput`-output shape
+   * (`ToolContext`/`Grid4Context`), not the composition's input shape.
+   *
+   * Day-5 UI work (§7.3 auto-fill) is where convenience layers (last-brief
+   * data, fixture-derived examples) get bolted on top of this raw API.
+   */
+  sampleData: Record<string, unknown>;
+  /**
+   * Top-level overrides — these win over fields embedded inside sampleData.
+   * Useful for Settings UI "render with both themes" / "render with both
+   * locales" / "render with project tokens vs custom" pickers.
+   */
+  theme?: Theme;
+  locale?: Locale;
+  /** Optional brand-tokens override; falls back to the project's stored tokens. */
+  brandTokensOverride?: BrandTokens;
+}
+
+export interface PreviewResult {
+  sessionId: string;
+  /** First slide URL — usable as a thumbnail / cover preview. */
+  previewUrl: string;
+  /** All slide URLs in order. */
+  previewUrls: string[];
+  slideCount: number;
+  renderDurationMs: number;
+}
+
+export type PreviewError =
+  | { kind: "project_not_found" }
+  | { kind: "template_not_found"; templateKey: string }
+  | { kind: "template_not_in_registry"; templateKey: string }
+  | { kind: "no_render_function"; templateKey: string }
+  | { kind: "render_failed"; message: string };
+
+/**
+ * The on-disk preview root, relative to `process.cwd()`. The existing
+ * `serveStatic({ root: "./" })` middleware in `server.ts` serves files from
+ * here at `/renders/preview/...`. The API process's cwd is `apps/api/` in
+ * dev + prod; tests may run from repo root which writes to a different
+ * `<root>/renders/preview/` — fine because tests don't hit the static
+ * handler directly.
+ */
+function previewRoot(): string {
+  return join(process.cwd(), "renders", "preview");
+}
+
+/**
+ * Run a preview render. Throws on infrastructure errors; returns a
+ * discriminated-union `PreviewError | PreviewResult` for caller-actionable
+ * outcomes so the route can map each to the right HTTP status.
+ */
+export async function previewTemplate(
+  input: PreviewInput,
+): Promise<PreviewResult | PreviewError> {
+  // 1. Resolve template metadata via the DB layer (Spec 65.0 Day 1-2).
+  //    `getTemplate` prefers the project-scoped row, falling back to global.
+  const dbRow = await getTemplate({
+    projectId: input.projectId,
+    templateKey: input.templateKey,
+  });
+  if (!dbRow) {
+    return { kind: "template_not_found", templateKey: input.templateKey };
+  }
+
+  // 2. Pull the in-memory template definition — needed for `renderServerFn`.
+  //    The registry is the canonical source for the render path; the DB row
+  //    is metadata-only.
+  let template;
+  try {
+    template = templateRegistry.getById(input.templateKey as TemplateKey);
+  } catch {
+    return { kind: "template_not_in_registry", templateKey: input.templateKey };
+  }
+  void dbRow; // DB row only used as gate above; meta consumed via the registry def.
+
+  // 3. Resolve the render-server function for this template. The template
+  //    self-declares its render-server export via `renderServerFn` — single
+  //    source of truth shared with each template's own `render()` method.
+  //    Memory D125: avoids the two-source-enum-gotcha that a parallel
+  //    Record<key, fnName> map would re-introduce.
+  const fnName = template.renderServerFn;
+  const mod = await loadRenderServer();
+  const renderFn = mod[fnName] as RenderServerCallable | undefined;
+  if (typeof renderFn !== "function") {
+    return { kind: "no_render_function", templateKey: input.templateKey };
+  }
+
+  // 4. Merge run-time overrides into the caller-supplied sample data.
+  //    Top-level fields on `input` (theme/locale/brandTokensOverride) win
+  //    over the same fields embedded inside sampleData — useful for the
+  //    Settings UI's "render with both themes" picker without forcing the
+  //    user to mutate sampleData manually.
+  const source = input.sampleData;
+  const theme: Theme = input.theme ?? (source.theme as Theme) ?? "dark";
+  const locale: Locale = input.locale ?? (source.locale as Locale) ?? "de";
+  const brandTokens: BrandTokens = input.brandTokensOverride
+    ?? (source.brandTokens as BrandTokens | undefined)
+    ?? (await getBrandTokens(input.projectId).catch(() => DEFAULT_BRAND_TOKENS));
+  const renderInput: Record<string, unknown> = {
+    ...source,
+    theme,
+    locale,
+    brandTokens,
+  };
+
+  // 6. Render.
+  const sessionId = `preview-${randomUUID()}`;
+  const startedAt = Date.now();
+  let renderResult: { slides: Buffer[]; sequenceCount?: number };
+  try {
+    renderResult = await renderFn(renderInput);
+  } catch (err) {
+    log.warn(
+      { err, templateKey: input.templateKey, projectId: input.projectId },
+      "Preview render threw — likely Zod-schema mismatch on sampleData",
+    );
+    return {
+      kind: "render_failed",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+  const renderDurationMs = Date.now() - startedAt;
+
+  // 7. Persist slides to the preview directory.
+  const sessionDir = join(previewRoot(), sessionId);
+  await mkdir(sessionDir, { recursive: true });
+  const previewUrls: string[] = [];
+  for (let i = 0; i < renderResult.slides.length; i++) {
+    const buf = renderResult.slides[i];
+    if (!buf) continue;
+    const fileName = `slide-${String(i).padStart(2, "0")}.png`;
+    await writeFile(join(sessionDir, fileName), buf);
+    previewUrls.push(`/renders/preview/${sessionId}/${fileName}`);
+  }
+  if (previewUrls.length === 0) {
+    return { kind: "render_failed", message: "Render produced 0 slides" };
+  }
+  // Non-null assertion safe: just-checked `previewUrls.length > 0`.
+  const firstUrl = previewUrls[0] as string;
+
+  log.info(
+    {
+      sessionId,
+      templateKey: input.templateKey,
+      projectId: input.projectId,
+      slideCount: previewUrls.length,
+      renderDurationMs,
+    },
+    "Template preview rendered",
+  );
+
+  return {
+    sessionId,
+    previewUrl: firstUrl,
+    previewUrls,
+    slideCount: previewUrls.length,
+    renderDurationMs,
+  };
+}
+
+/**
+ * Sweep stale `preview-<uuid>/` directories under `<cwd>/renders/preview/`.
+ * Called on server startup with `maxAgeMs: 0` to drop all prior-session
+ * leftovers (no preview should outlive the API process — files are
+ * ephemeral by design). Same posture as `cleanupStaleCacheCopies` from
+ * the watcher path.
+ */
+export async function cleanupStalePreviewDirs(opts?: {
+  maxAgeMs?: number;
+  /**
+   * Override the preview root. Tests use this to point at a tmpdir instead
+   * of polluting the real `apps/api/renders/preview/`. Production callers
+   * leave it undefined.
+   */
+  directory?: string;
+}): Promise<number> {
+  const root = opts?.directory ?? previewRoot();
+  const cutoff = Date.now() - (opts?.maxAgeMs ?? 60 * 60 * 1000);
+  let deleted = 0;
+  let entries: string[];
+  try {
+    entries = await readdir(root);
+  } catch {
+    // Root doesn't exist yet — first boot. No-op.
+    return 0;
+  }
+  for (const name of entries) {
+    if (!name.startsWith("preview-")) continue;
+    const dirPath = join(root, name);
+    try {
+      // `node:fs/promises.stat` is the portable way to read mtime on a
+      // directory; `Bun.file(...).stat()` is file-only and returns invalid
+      // mtime on directory paths.
+      const info = await fsStat(dirPath);
+      if (info.mtimeMs <= cutoff) {
+        await rm(dirPath, { recursive: true, force: true });
+        deleted += 1;
+      }
+    } catch {
+      // Best-effort.
+    }
+  }
+  if (deleted > 0) {
+    log.info({ deleted, root, maxAgeMs: opts?.maxAgeMs }, "Swept stale preview dirs");
+  }
+  return deleted;
+}
+
+/**
+ * Resolve a project by slug. Convenience wrapper for the route layer.
+ * Returns null when the project doesn't exist.
+ */
+export async function resolveProjectIdBySlug(slug: string): Promise<string | null> {
+  const [project] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  return project?.id ?? null;
+}

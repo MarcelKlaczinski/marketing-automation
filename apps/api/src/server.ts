@@ -6,6 +6,8 @@ import {
   cleanupStaleCacheCopies,
 } from "./lib/template-registry-sync.ts";
 import { startTemplateWatcher } from "./lib/template-watcher.ts";
+import { cleanupStalePreviewDirs } from "./lib/template-preview-service.ts";
+import { templatePreviewRoutes } from "./routes/projects/templates.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -67,6 +69,10 @@ await cleanupStaleCacheCopies({
   maxAgeMs: 0, // boot-time sweep: delete all stale dotfiles regardless of age
 }).catch(() => undefined);
 startTemplateWatcher();
+
+// Spec 65.0 Day 4: sweep stale preview-* dirs under <cwd>/renders/preview/.
+// Previews are ephemeral by design — no preview should outlive a process restart.
+await cleanupStalePreviewDirs({ maxAgeMs: 0 }).catch(() => undefined);
 
 const app = new Hono();
 
@@ -139,6 +145,7 @@ app.route("/api/projects", articleStandaloneRoutes);
 app.route("/api/projects", projectCronRoutes);
 app.route("/api/projects", projectRefreshRoutes);
 app.route("/api/projects", templateOverrideRoutes);
+app.route("/api/projects", templatePreviewRoutes);
 app.route("/api/projects", signalSourcesRoutes);
 app.route("/api/projects", inventoryRoutes);
 app.route("/api/projects", signalsRefreshRoutes);

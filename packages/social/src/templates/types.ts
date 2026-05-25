@@ -27,6 +27,23 @@ export type TemplateKey =
   | "price-comparison"
   | "pro-con-verdict";
 
+/**
+ * Spec 65.0 Day 4 — name of the function exported by
+ * `@marketing-auto/social/render-server` that this template invokes for
+ * Remotion rendering. Each template's own `render()` method already calls
+ * the function via dynamic import; this field exposes that mapping as
+ * metadata so other consumers (the preview endpoint, future planner tools)
+ * can dispatch without re-implementing the lookup. Strict union keeps the
+ * field in sync with render-server.ts exports — adding a new template
+ * means adding both the export and a union member here in the same diff.
+ */
+export type RenderServerFn =
+  | "renderComparisonGrid4"
+  | "renderComparisonGrid3"
+  | "renderVerdictPerUseCase"
+  | "renderSingleToolSpotlight"
+  | "renderProConVerdict";
+
 export type Theme = "dark" | "light";
 export type Locale = "de" | "en";
 
@@ -137,6 +154,15 @@ export interface TemplateDefinition<TInput = unknown> {
   compatibleChannels: Channel[];
   generationClass: GenerationClass;
   plannerMeta: TemplatePlannerMeta;
+
+  /**
+   * Spec 65.0 Day 4 — name of the `@marketing-auto/social/render-server`
+   * export that this template's `render()` method ultimately invokes.
+   * Surfaces the existing dynamic-import target as metadata so the preview
+   * endpoint can dispatch via `template.renderServerFn` instead of a
+   * separate hardcoded map (two-source enum gotcha, Memory D125).
+   */
+  renderServerFn: RenderServerFn;
 
   /**
    * Hard bounds on all LLM-produced fields for this template.

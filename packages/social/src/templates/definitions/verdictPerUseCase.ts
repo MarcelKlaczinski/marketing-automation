@@ -156,6 +156,8 @@ export const verdictPerUseCaseTemplate: TemplateDefinition<VerdictContext> = {
     requiresLiveData: false,
   },
 
+  renderServerFn: "renderVerdictPerUseCase",
+
   bounds: verdictPerUseCaseBounds,
   generatedSchema: verdictPerUseCaseGeneratedSchema,
   slotMap: {},

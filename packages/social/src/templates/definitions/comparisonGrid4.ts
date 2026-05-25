@@ -188,6 +188,8 @@ export const comparisonGrid4Template: TemplateDefinition<Grid4Context> = {
     requiresLiveData: false,
   },
 
+  renderServerFn: "renderComparisonGrid4",
+
   bounds: comparisonGrid4DefinitionBounds,
   generatedSchema: comparisonGrid4GeneratedSchema,
   slotMap: {},
