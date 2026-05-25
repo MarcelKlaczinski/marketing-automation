@@ -20,6 +20,8 @@ import {
   db,
   eq,
   inArray,
+  markCronRunFailed,
+  markCronRunSucceeded,
   projects,
 } from "@marketing-auto/db";
 import {
@@ -252,61 +254,84 @@ export async function handleDiscoveryTick(
   const githubCreds: GitHubCredentials = { personalAccessToken: pat };
   log.info({ projectId: input.projectId, type: input.type }, "Starting discovery tick");
 
-  // Fire both sources in parallel for wall-clock efficiency.
-  const [searchResult, awesomeResult] = await Promise.all([
-    deps.discoverViaSearch({ credentials: githubCreds }).catch((err) => {
-      log.warn({ err }, "Search-API discovery failed");
-      return {
-        candidates: [] as DiscoveryCandidate[],
-        rawCount: 0,
-        failedQueries: [{ query: "all", error: err instanceof Error ? err.message : String(err) }],
-      } satisfies DiscoverViaSearchResult;
-    }),
-    deps.discoverViaAwesomeLists({ credentials: githubCreds }).catch((err) => {
-      log.warn({ err }, "Awesome-list discovery failed");
-      return {
-        candidates: [] as DiscoveryCandidate[],
-        perListCounts: [] as Array<{ list: string; linksFound: number }>,
-        failedLists: [{ list: "all", error: err instanceof Error ? err.message : String(err) }],
-      } satisfies DiscoverViaAwesomeListsResult;
-    }),
-  ]);
+  // Spec 62.7-followup — record last-run timestamp for the Settings UI. The
+  // try/catch wrapper guarantees one mark* call regardless of which branch
+  // (success / fetcher-failure / persist-failure) finishes.
+  try {
+    // Fire both sources in parallel for wall-clock efficiency.
+    const [searchResult, awesomeResult] = await Promise.all([
+      deps.discoverViaSearch({ credentials: githubCreds }).catch((err) => {
+        log.warn({ err }, "Search-API discovery failed");
+        return {
+          candidates: [] as DiscoveryCandidate[],
+          rawCount: 0,
+          failedQueries: [{ query: "all", error: err instanceof Error ? err.message : String(err) }],
+        } satisfies DiscoverViaSearchResult;
+      }),
+      deps.discoverViaAwesomeLists({ credentials: githubCreds }).catch((err) => {
+        log.warn({ err }, "Awesome-list discovery failed");
+        return {
+          candidates: [] as DiscoveryCandidate[],
+          perListCounts: [] as Array<{ list: string; linksFound: number }>,
+          failedLists: [{ list: "all", error: err instanceof Error ? err.message : String(err) }],
+        } satisfies DiscoverViaAwesomeListsResult;
+      }),
+    ]);
 
-  // Merge — Search-API entries override awesome-list entries for the same
-  // sourceIdentifier (Search-API knows stars, awesome-list doesn't).
-  const merged = new Map<string, DiscoveryCandidate>();
-  for (const c of awesomeResult.candidates) merged.set(c.sourceIdentifier, c);
-  for (const c of searchResult.candidates) merged.set(c.sourceIdentifier, c);
-  const combined = Array.from(merged.values());
+    // Merge — Search-API entries override awesome-list entries for the same
+    // sourceIdentifier (Search-API knows stars, awesome-list doesn't).
+    const merged = new Map<string, DiscoveryCandidate>();
+    for (const c of awesomeResult.candidates) merged.set(c.sourceIdentifier, c);
+    for (const c of searchResult.candidates) merged.set(c.sourceIdentifier, c);
+    const combined = Array.from(merged.values());
 
-  const persistResult = await persistCandidates({
-    projectId: input.projectId,
-    candidates: combined,
-  });
+    const persistResult = await persistCandidates({
+      projectId: input.projectId,
+      candidates: combined,
+    });
 
-  log.info(
-    {
-      projectId:               input.projectId,
-      type:                    input.type,
-      searchCandidates:        searchResult.candidates.length,
-      awesomeListCandidates:   awesomeResult.candidates.length,
-      mergedCandidates:        combined.length,
-      inserted:                persistResult.inserted,
-      skippedDuplicate:        persistResult.skippedDuplicate,
-      capped:                  persistResult.capped,
-      searchFailedQueries:     searchResult.failedQueries.length,
-      awesomeListFailedLists:  awesomeResult.failedLists.length,
-    },
-    "Discovery tick completed",
-  );
+    log.info(
+      {
+        projectId:               input.projectId,
+        type:                    input.type,
+        searchCandidates:        searchResult.candidates.length,
+        awesomeListCandidates:   awesomeResult.candidates.length,
+        mergedCandidates:        combined.length,
+        inserted:                persistResult.inserted,
+        skippedDuplicate:        persistResult.skippedDuplicate,
+        capped:                  persistResult.capped,
+        searchFailedQueries:     searchResult.failedQueries.length,
+        awesomeListFailedLists:  awesomeResult.failedLists.length,
+      },
+      "Discovery tick completed",
+    );
 
-  return {
-    inserted:              persistResult.inserted,
-    skippedDuplicate:      persistResult.skippedDuplicate,
-    capped:                persistResult.capped,
-    searchCandidates:      searchResult.candidates.length,
-    awesomeListCandidates: awesomeResult.candidates.length,
-  };
+    // Per-fetcher failures (search OR awesome-list throwing) are already
+    // swallowed above and counted in failedQueries/failedLists. The tick
+    // itself succeeded — Marcel sees timestamp + status='success' even if
+    // individual sources had transient issues.
+    await markCronRunSucceeded({
+      projectId: input.projectId,
+      jobType: "github_inventory_discovery",
+    });
+
+    return {
+      inserted:              persistResult.inserted,
+      skippedDuplicate:      persistResult.skippedDuplicate,
+      capped:                persistResult.capped,
+      searchCandidates:      searchResult.candidates.length,
+      awesomeListCandidates: awesomeResult.candidates.length,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ projectId: input.projectId, err: message }, "Discovery tick failed");
+    await markCronRunFailed({
+      projectId: input.projectId,
+      jobType: "github_inventory_discovery",
+      errorMessage: message,
+    });
+    throw err;
+  }
 }
 
 // ─── Worker ────────────────────────────────────────────────────────────────

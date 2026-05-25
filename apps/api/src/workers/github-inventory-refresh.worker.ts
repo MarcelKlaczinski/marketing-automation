@@ -25,6 +25,8 @@ import {
   getInventoryById,
   insertStarSnapshot,
   listInventoryDueForRefresh,
+  markCronRunFailed,
+  markCronRunSucceeded,
   markInventoryError,
   markInventoryFetching,
   markInventoryOk,
@@ -448,6 +450,9 @@ export async function handleInventoryRefresh(
   const deps: InventoryRefreshDeps = { ...defaultDeps, ...depsOverride };
 
   // PAT from vault — shared `service='github'` key with signal-collector (Spec 59.1b).
+  // PAT-missing returns EARLY without writing cron_state.lastRun* — the tick
+  // didn't actually run, so recording "success" would lie. Marcel sees "—" in
+  // the UI until the next tick after he configures the PAT.
   let pat: string;
   try {
     const creds = await deps.readCreds("github");
@@ -463,59 +468,90 @@ export async function handleInventoryRefresh(
 
   const githubCreds: GitHubCredentials = { personalAccessToken: pat };
 
-  const rows: ContentSourceInventory[] = input.ids?.length
-    ? await Promise.all(input.ids.map((id) => getInventoryById(id))).then((rs) =>
-        rs.filter((r): r is ContentSourceInventory => r !== null && r.projectId === input.projectId),
-      )
-    : await listInventoryDueForRefresh({
+  // Spec 62.7-followup — Marcel observed "Letzter Lauf: —" in the UI even
+  // after running cron tasks. The cron_state.lastRun* columns existed since
+  // migration 0076 but no code path was writing them. This try/finally records
+  // success/failure exactly once per tick, regardless of which branch
+  // (cron-triggered, refresh-manual, rate-limited mid-batch) actually fired.
+  try {
+    const rows: ContentSourceInventory[] = input.ids?.length
+      ? await Promise.all(input.ids.map((id) => getInventoryById(id))).then((rs) =>
+          rs.filter((r): r is ContentSourceInventory => r !== null && r.projectId === input.projectId),
+        )
+      : await listInventoryDueForRefresh({
+          projectId: input.projectId,
+          limit: BATCH_SIZE,
+          ageBufferSeconds: AGE_BUFFER_SECONDS,
+        });
+
+    if (rows.length === 0) {
+      log.debug({ projectId: input.projectId, type: input.type }, "No due rows — tick is a no-op");
+      // No-op tick still counts as "ran" — record so the UI shows current
+      // timestamp instead of staying at "—" forever for inventories with no
+      // due rows yet.
+      await markCronRunSucceeded({
         projectId: input.projectId,
-        limit: BATCH_SIZE,
-        ageBufferSeconds: AGE_BUFFER_SECONDS,
+        jobType: "github_inventory_refresh",
       });
-
-  if (rows.length === 0) {
-    log.debug({ projectId: input.projectId, type: input.type }, "No due rows — tick is a no-op");
-    return;
-  }
-
-  log.info(
-    { projectId: input.projectId, type: input.type, rowCount: rows.length },
-    "Starting inventory-refresh tick",
-  );
-
-  let attempted = 0;
-  let rateLimited = false;
-
-  for (const row of rows) {
-    attempted += 1;
-    const result = await refreshOne(row, githubCreds, deps);
-    if (!result.continueBatch) {
-      rateLimited = true;
-      break;
+      return;
     }
-  }
 
-  // Per-row success/failure granularity is in the structured log emitted by
-  // `refreshOne`; the tick-level summary stays coarse on purpose.
-  log.info(
-    {
+    log.info(
+      { projectId: input.projectId, type: input.type, rowCount: rows.length },
+      "Starting inventory-refresh tick",
+    );
+
+    let attempted = 0;
+    let rateLimited = false;
+
+    for (const row of rows) {
+      attempted += 1;
+      const result = await refreshOne(row, githubCreds, deps);
+      if (!result.continueBatch) {
+        rateLimited = true;
+        break;
+      }
+    }
+
+    // Per-row success/failure granularity is in the structured log emitted by
+    // `refreshOne`; the tick-level summary stays coarse on purpose.
+    log.info(
+      {
+        projectId: input.projectId,
+        type: input.type,
+        rowCount: rows.length,
+        attempted,
+        rateLimited,
+      },
+      "Inventory-refresh tick completed",
+    );
+
+    // Spec 64.21 — end-of-tick housekeeping. Star-history rows accumulate at the
+    // refresh-interval cadence; prune anything older than the retention window.
+    // Single DELETE per tick, indexed scan via snapshot_at.
+    await pruneStarHistoryAtEndOfTick();
+
+    // Drop per-tick cache so subsequent invocations re-read fresh config (e.g.
+    // Marcel changed thresholds via Settings UI between ticks).
+    _starTrendConfigCache.clear();
+
+    // Tick succeeded — rate-limited mid-batch still counts as success because
+    // (a) the rate-limited row is persisted with fetchStatus='error' and
+    // (b) subsequent rows just stay pending for the next tick (no error).
+    await markCronRunSucceeded({
       projectId: input.projectId,
-      type: input.type,
-      rowCount: rows.length,
-      attempted,
-      rateLimited,
-    },
-    "Inventory-refresh tick completed",
-  );
-
-  // Spec 64.21 — end-of-tick housekeeping. Star-history rows accumulate at the
-  // refresh-interval cadence; prune anything older than the retention window.
-  // Single DELETE per tick, indexed scan via snapshot_at.
-  await pruneStarHistoryAtEndOfTick();
-
-  // Drop per-tick cache so subsequent invocations re-read fresh config (e.g.
-  // Marcel changed thresholds via Settings UI between ticks).
-  _starTrendConfigCache.clear();
+      jobType: "github_inventory_refresh",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.error({ projectId: input.projectId, err: message }, "Inventory-refresh tick failed");
+    await markCronRunFailed({
+      projectId: input.projectId,
+      jobType: "github_inventory_refresh",
+      errorMessage: message,
+    });
+    throw err; // re-throw so BullMQ marks the job as failed
+  }
 }
 
 // ─── Worker ──────────────────────────────────────────────────────────────────
