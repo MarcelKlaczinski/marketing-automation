@@ -100,6 +100,20 @@ Three rules:
 - Always wrap external calls in cost-tracker decorator
 - Always log structured (pino, JSON output)
 
+### Time-series + threshold detection in cron-driven workers (Spec 64.21)
+
+Pattern for any cron-driven worker that needs to compare current state against history (star-counts, fork-counts, response-time percentiles, ad-spend daily totals, etc.):
+
+1. **History table** — separate from the entity table. Columns: `(id, project_id, <entity_id>, snapshot_at, <metric>, created_at)`. Three indexes: `(<entity_id>, snapshot_at DESC)` for the primary read pattern (find snapshot N days ago), `(snapshot_at)` for pruning, `(project_id)` for tenant-scope queries.
+2. **Per-row snapshot insert BEFORE the entity-table write** — preserves read-after-write order. The next tick's `queryMetricAgo(cutoff)` sees the fresh snapshot only if it's strictly older than the next cutoff.
+3. **Detect logic in a pure helper module** — no I/O, no DB. Takes `(prior, current, config)` and returns `{triggered, ...diagnostics}`. Fully unit-testable. Negative-direction filters belong here, not in the emit module (keeps "downside" branches out of the pipeline entirely; future "inverse" signals get their own detect function).
+4. **Application-layer dedup** when partial unique indexes can't express the predicate. PostgreSQL forbids non-immutable `NOW()` in partial-index `WHERE`, so window-scoped existence checks (`EXISTS … WHERE entity_id=$1 AND created_at >= NOW - windowDays`) are the alternative.
+5. **Per-project config cache scoped to one tick** — `Map<projectId, ResolvedConfig>` keyed at first read per project per tick, `.clear()` at end-of-tick. Cheaper than per-row SELECT, safer than session-long cache (Marcel's UI edits between ticks visible immediately).
+6. **End-of-tick housekeeping** — single DELETE prunes rows older than retention window. Retention = 3× detection-window default so future widening doesn't lose baselines. Wrap in try/catch (failure must NOT crash the tick).
+7. **DI seam (Pattern 121)** — `*Deps` interface with `emit*Brief` as an injectable function. Default = real emit module from the relevant pipelines package; tests inject fakes to capture invocations without touching DB.
+
+Canonical example: `github-inventory-refresh.worker.ts` — Star-Trend (Spec 64.21) sits on top of the same worker that does Release-Detection (Spec 64.20 A3). Same retention + DI + try/catch posture, different metric + detect function.
+
 ## Worker Lifecycle (Spec 64.11)
 
 ### Startup reconciliation
