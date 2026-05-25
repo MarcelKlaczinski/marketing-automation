@@ -716,6 +716,21 @@ Verified at runtime: `bun --filter @marketing-auto/api typecheck` clean across t
 - **No GET /:slug/inventory/:id** endpoint exists — tests verify single-row state via direct `db.select()` queries against `contentSourceInventory`, not via HTTP GET. The PATCH route's `loadInventoryForProject` already serves as the read-by-id surface for the page-level CRUD.
 - **`import.meta.env.DEV` over `$q.platform.is.dev`** — `$q.platform` is a `Platform` object without a `dev` property; Vite's `import.meta.env.DEV` is the canonical way to gate dev-only diagnostic logs.
 
+### Day 9 post-merge — pre-existing worker test fix
+
+The 1 pre-existing failure carried over from Day 8 (`handleInventoryRefresh — short-circuits the batch on GitHubRateLimitError`) was a latent **DB query ordering** bug, not a worker bug:
+
+- [`listInventoryDueForRefresh`](../../packages/db/src/helpers/content-source-inventory-read.ts) ordered by `lastFetchedAt ASC NULLS FIRST` only — every freshly-seeded test row has `lastFetchedAt = NULL`, so PostgreSQL returned them in arbitrary order.
+- The rate-limit test created `r1` ("rate/limited") then `r2` ("next/row") and assumed r1 was processed first. The actual order varied per run because of the missing tiebreaker.
+- Fix: append `asc(createdAt), asc(id)` as stable secondary sort keys (same convention as cursor-pagination's tiebreaker requirement, root CLAUDE.md "Cursor pagination needs a unique tiebreaker").
+- Effect on production: harmless before (the worker processed all due rows per tick regardless of order). Becomes correctness-critical the moment any future feature depends on "earliest-created first" semantics, e.g. a rate-limit-budget-fair-share that wants to retry the longest-waiting row first.
+- Tests: 11/11 worker tests grün; full apps/api suite 345 pass / 0 fail / 6 skip.
+
+Documented as new DO-NOT rules in:
+- `packages/db/CLAUDE.md` — "query helper with single sort column whose values may collide → add tiebreaker"
+- `apps/api/CLAUDE.md` — extended the Hono route-ordering rule with the 3-segment case (`:id/approve` vs `discovery/approve`) + added the new bulk-mutate snapshot-before-UPDATE rule
+- `apps/web/CLAUDE.md` — `import.meta.env.DEV` over `$q.platform.is.dev`
+
 
 
 *Discovery erstellt 2026-05-24. Pending Marcel-Decisions vor Spec-Schreiben: Q1-Q10 (§11). Default-Recommendation: Option C (5d) + Schema α + Angles A+B + Theme 65 Spec read first.*

@@ -93,7 +93,16 @@ export async function listInventoryDueForRefresh(
     .select()
     .from(contentSourceInventory)
     .where(and(...conditions))
-    .orderBy(sql`${contentSourceInventory.lastFetchedAt} ASC NULLS FIRST`)
+    .orderBy(
+      sql`${contentSourceInventory.lastFetchedAt} ASC NULLS FIRST`,
+      // Stable secondary tiebreaker — every freshly-seeded row has
+      // `lastFetchedAt IS NULL`, so without this the order is arbitrary
+      // and the rate-limit short-circuit test (which assumes the
+      // earliest-created row is processed first) flakes. Same tiebreaker
+      // idiom as cursor pagination (Memory: cursor + unique tiebreaker).
+      asc(contentSourceInventory.createdAt),
+      asc(contentSourceInventory.id),
+    )
     .limit(input.limit);
 }
 
