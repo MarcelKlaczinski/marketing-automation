@@ -243,6 +243,21 @@ export default defineComponent({
         if (!this.jsonText) this.onAutoFill();
       }
     },
+    /**
+     * Spec 65.0 Day 5 fix-up — when the user switches templates from the
+     * list (modal stays mounted, parent swaps the prop), reset jsonText
+     * so the watch-handler above re-runs auto-fill with the new template's
+     * sample-data. Without this guard, jsonText from template A leaks
+     * into template B's render call and produces a schema mismatch.
+     */
+    templateKey(): void {
+      this.jsonText = "";
+      this.successMs = null;
+      this.failureMessage = null;
+      this.previewUrls = [...this.initialPreviewUrls];
+      this.renderedAt = this.initialRenderedAt;
+      if (this.modelValue) this.onAutoFill();
+    },
   },
 
   methods: {
