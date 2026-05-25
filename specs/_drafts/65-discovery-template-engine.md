@@ -921,6 +921,21 @@ The two columns existed since Day 1-2 but went unwritten until Day 6. Now all 4 
 
 **Verified:** workspace typecheck 0 errors across web + api + pipelines + db; apps/api 379 pass / 8 skip / 0 fail; packages/db 99 pass / 0 fail. Pre-existing `buildSystemPrompt > throws when project context is missing` failure in `packages/pipelines/test/prompts.test.ts` is environment drift (skills submodule not populated locally) — orthogonal to Day 6.
 
+### Day 6 polish (2026-05-25, same day)
+
+Marcel: "mach mal die inputs für settingstemplate noch passend zur app schicker". The Day-6 filter row shipped with native `<select>` + `<input type=checkbox>` elements; rebuilt with Quasar components to match the canonical settings-toolbar pattern from [`SettingsInventoryPage.vue`](../../apps/web/src/pages/settings/SettingsInventoryPage.vue:67) (3× `q-select dense outlined dark emit-value map-options` + 1× `q-checkbox dark dense`).
+
+Concrete changes in [`SettingsTemplatesPage.vue`](../../apps/web/src/pages/settings/SettingsTemplatesPage.vue):
+- Format-type select: `clearable` replaces the "All formats" sentinel option — clearing returns the model to `null`, identical semantics, cleaner option-list.
+- Scope select: same `q-select` shape, options built via new `scopeSelectOptions` computed returning `Array<{label: string; value: "all" | "global" | "project"}>`.
+- Include-Inactive toggle: `q-checkbox v-model="includeInactive" dark dense` replaces the bespoke `<input :checked @change>` pair — drops the `onToggleIncludeInactive` method since q-checkbox handles boolean two-way binding natively.
+- Two new computeds: `formatTypeSelectOptions` (wraps the existing `formatTypeOptions` string list with `$t()`-resolved labels) + `scopeSelectOptions`.
+- ~30 lines of native-control CSS dropped (`.filter-group`, `.filter-label`, `.filter-checkbox-label`, custom `accent-color` styling, etc.). Replaced with `.filter-select { min-width: 200px; }` so the longest format-type label ("tool-spotlight") doesn't truncate, plus a `.filter-checkbox { margin-left: auto; }` so the toggle right-aligns into the toolbar baseline.
+
+Visual outcome: filter row is now byte-equivalent to the inventory page's toolbar — same outlined dark inputs, same dense baseline height, same hover/focus glow. No behavior change.
+
+Verified: workspace typecheck 0 errors in `@marketing-auto/web`.
+
 ### Day 7+ (backlog, not started)
 
 — cross-template layout pass to fill canvas height (deferred per Marcel until more templates land — see Day-5 fix-up §4; candidate for a unified design-token refactor across all 5 templates rather than piecemeal); PATCH endpoint test (auth gate, 404, success, scope discrimination).

@@ -6,38 +6,36 @@
     </header>
 
     <section class="filters-row">
-      <div class="filter-group">
-        <label class="filter-label">{{ $t("settings.templates.filters.formatType") as string }}</label>
-        <select v-model="formatTypeFilter" class="filter-select">
-          <option :value="null">{{ $t("settings.templates.filters.allFormats") as string }}</option>
-          <option
-            v-for="ft in formatTypeOptions"
-            :key="ft"
-            :value="ft"
-          >
-            {{ formatTypeLabel(ft) }}
-          </option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label class="filter-label">{{ $t("settings.templates.filters.scope") as string }}</label>
-        <select v-model="scopeFilter" class="filter-select">
-          <option value="all">{{ $t("settings.templates.filters.allScopes") as string }}</option>
-          <option value="global">{{ $t("settings.templates.filters.scopeGlobal") as string }}</option>
-          <option value="project">{{ $t("settings.templates.filters.scopeProject") as string }}</option>
-        </select>
-      </div>
-      <div class="filter-group filter-group-checkbox">
-        <label class="filter-checkbox-label">
-          <input
-            type="checkbox"
-            :checked="includeInactive"
-            class="filter-checkbox"
-            @change="onToggleIncludeInactive"
-          />
-          {{ $t("settings.templates.filters.includeInactive") as string }}
-        </label>
-      </div>
+      <q-select
+        v-model="formatTypeFilter"
+        :options="formatTypeSelectOptions"
+        :label="$t('settings.templates.filters.formatType') as string"
+        dense
+        outlined
+        dark
+        clearable
+        emit-value
+        map-options
+        class="filter-select"
+      />
+      <q-select
+        v-model="scopeFilter"
+        :options="scopeSelectOptions"
+        :label="$t('settings.templates.filters.scope') as string"
+        dense
+        outlined
+        dark
+        emit-value
+        map-options
+        class="filter-select"
+      />
+      <q-checkbox
+        v-model="includeInactive"
+        :label="$t('settings.templates.filters.includeInactive') as string"
+        dark
+        dense
+        class="filter-checkbox"
+      />
     </section>
 
     <div v-if="loading" class="state-banner">
@@ -234,6 +232,24 @@ export default defineComponent({
     formatTypeOptions(): string[] {
       return ["comparison", "tool-spotlight", "use-case", "news", "concept"];
     },
+    /**
+     * Spec 65.0 Day 6 follow-up — `q-select` consumer shape. The "All formats"
+     * sentinel is conveyed via `clearable` (clears to `null`) so the option
+     * list itself only contains the real format-types.
+     */
+    formatTypeSelectOptions(): Array<{ label: string; value: string }> {
+      return this.formatTypeOptions.map((ft) => ({
+        label: this.formatTypeLabel(ft),
+        value: ft,
+      }));
+    },
+    scopeSelectOptions(): Array<{ label: string; value: "all" | "global" | "project" }> {
+      return [
+        { label: this.$t("settings.templates.filters.allScopes") as string, value: "all" },
+        { label: this.$t("settings.templates.filters.scopeGlobal") as string, value: "global" },
+        { label: this.$t("settings.templates.filters.scopeProject") as string, value: "project" },
+      ];
+    },
     filteredItems(): TemplateListItem[] {
       if (this.scopeFilter === "all") return this.items;
       return this.items.filter((t) => t.scope === this.scopeFilter);
@@ -316,13 +332,6 @@ export default defineComponent({
     openPreview(tpl: TemplateListItem): void {
       this.activeTemplate = tpl;
       this.previewOpen = true;
-    },
-    /**
-     * Spec 65.0 Day 6 — toggle the "Include Inactive" filter from the checkbox.
-     * Re-fetches via the composable's slug/formatType/includeInactive watcher.
-     */
-    onToggleIncludeInactive(event: Event): void {
-      this.includeInactive = (event.target as HTMLInputElement).checked;
     },
     /**
      * Spec 65.0 Day 6 — flip `is_active` for one template (project-scoped row
@@ -435,55 +444,26 @@ export default defineComponent({
 
 .filters-row {
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
   border-bottom: 1px solid var(--border-subtle);
   padding-bottom: 16px;
 }
 
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.filter-label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
+/* Spec 65.0 Day 6 follow-up — q-select wrapper for inventory-style toolbar
+ * uniformity. The inner Quasar styling already respects --bg-glass-strong
+ * via `dark outlined`; we only set min-width here so the dropdown labels
+ * don't truncate at standard format-type lengths ("tool-spotlight"). */
 .filter-select {
-  background: var(--bg-glass-strong);
-  color: var(--text-primary);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  font-size: 13px;
-  min-width: 180px;
-}
-
-/* Spec 65.0 Day 6 — Include-Inactive filter checkbox */
-.filter-group-checkbox {
-  justify-content: flex-end;
-}
-
-.filter-checkbox-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 6px 0;
+  min-width: 200px;
 }
 
 .filter-checkbox {
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-  accent-color: var(--color-brand, var(--text-primary));
+  /* q-checkbox is dense by default — pad-top compensates for the
+   * outlined q-select baseline so the row sits on one optical line. */
+  padding-top: 2px;
+  margin-left: auto;
 }
 
 .state-banner {
