@@ -20,4 +20,6 @@ export default {
   actionPlannerSubtitle: "Wochenplan ansehen und freigeben",
   actionPlannerGenerate: "Neuen Plan erzeugen",
   actionPlannerGenerateSubtitle: "Plan für die aktuelle KW generieren",
+  actionInventory: "GitHub-Inventory",
+  actionInventorySubtitle: "Stabile Repo-Metadaten für Tools und Skills pflegen",
 };

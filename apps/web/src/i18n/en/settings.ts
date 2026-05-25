@@ -8,6 +8,7 @@ export default {
     credentials: "Credentials",
     "signal-sources": "Signal Sources",
     planner: "Planner Goals",
+    inventory: "GitHub Inventory",
   },
 
   project: {
@@ -533,5 +534,70 @@ export default {
     lastUsed: "Last used {time}",
     revoke: "Revoke",
     deviceRevoked: "Device revoked",
+  },
+
+  // Spec 64.20 — GitHub Tool-Inventory
+  inventory: {
+    title: "GitHub Inventory",
+    description: "Stable GitHub metadata (stars, releases, topics, license) for tools and skills. Refreshed every 15 minutes by a cron worker against each row's individual refresh interval.",
+    counts: {
+      tools: "Tools",
+      skills: "Skills",
+    },
+    filters: {
+      objectType: "Type",
+      fetchStatus: "Status",
+    },
+    objectType: {
+      tool: "Tool",
+      skill: "Skill",
+    },
+    fetchStatus: {
+      pending: "Pending",
+      fetching: "Fetching",
+      ok: "OK",
+      error: "Error",
+    },
+    cols: {
+      displayName: "Name",
+      type: "Type",
+      sourceIdentifier: "GitHub path",
+      stars: "Stars",
+      latestRelease: "Latest release",
+      status: "Status",
+      lastFetched: "Last fetched",
+      interval: "Interval",
+      actions: "Actions",
+    },
+    refreshAll: "Refresh all due rows",
+    addRow: "Add row",
+    empty: "No inventory entries yet. Click 'Add row' to get started.",
+    intervalHours: "{n} hour | {n} hours",
+    intervalDays: "{n} day | {n} days",
+    actions: {
+      refresh: "Refresh now",
+      edit: "Edit",
+      delete: "Delete",
+    },
+    createTitle: "Add inventory entry",
+    editTitle: "Edit inventory entry",
+    form: {
+      sourceIdentifier: "GitHub path (owner/repo or owner/repo:subdir)",
+      sourceIdentifierHint: "Tools: anthropics/claude-code. Skills in a mono-repo: anthropics/skills:web-design.",
+      objectType: "Type",
+      displayName: "Display name",
+      description: "Description (optional)",
+      refreshIntervalHours: "Refresh interval (hours)",
+      refreshIntervalHint: "168 = weekly (default). 24 = daily. Min 1, max 8760.",
+    },
+    errors: {
+      required: "GitHub path and display name are required.",
+    },
+    savedSuccess: "Saved.",
+    deletedSuccess: "Entry deleted.",
+    refreshEnqueued: "Refresh enqueued.",
+    refreshAllEnqueued: "Refresh of all due rows enqueued.",
+    deleteConfirmTitle: "Delete entry?",
+    deleteConfirmMessage: "Delete '{name}'? This cannot be undone.",
   },
 };

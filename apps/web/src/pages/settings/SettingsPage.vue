@@ -39,6 +39,7 @@ export default defineComponent({
         { key: "credentials" },
         { key: "signal-sources" },
         { key: "planner" },
+        { key: "inventory" },
       ];
     },
   },

@@ -8,6 +8,7 @@ export default {
     credentials: "Zugangsdaten",
     "signal-sources": "Signal-Quellen",
     planner: "Planner-Ziele",
+    inventory: "GitHub-Inventory",
   },
 
   project: {
@@ -534,5 +535,70 @@ export default {
     lastUsed: "Zuletzt {time}",
     revoke: "Widerrufen",
     deviceRevoked: "Gerät widerrufen",
+  },
+
+  // Spec 64.20 — GitHub Tool-Inventory
+  inventory: {
+    title: "GitHub-Inventory",
+    description: "Stabile GitHub-Metadaten (Stars, Releases, Topics, Lizenz) für Tools und Skills. Aktualisiert per Cron alle 15 Minuten gegen das individuelle Refresh-Intervall pro Zeile.",
+    counts: {
+      tools: "Tools",
+      skills: "Skills",
+    },
+    filters: {
+      objectType: "Typ",
+      fetchStatus: "Status",
+    },
+    objectType: {
+      tool: "Tool",
+      skill: "Skill",
+    },
+    fetchStatus: {
+      pending: "Wartet",
+      fetching: "Lädt",
+      ok: "OK",
+      error: "Fehler",
+    },
+    cols: {
+      displayName: "Name",
+      type: "Typ",
+      sourceIdentifier: "GitHub-Pfad",
+      stars: "Stars",
+      latestRelease: "Letztes Release",
+      status: "Status",
+      lastFetched: "Zuletzt geholt",
+      interval: "Intervall",
+      actions: "Aktionen",
+    },
+    refreshAll: "Alle fälligen aktualisieren",
+    addRow: "Neue Zeile",
+    empty: 'Noch keine Inventory-Einträge. Klick "Neue Zeile" um zu beginnen.',
+    intervalHours: "{n} Stunde | {n} Stunden",
+    intervalDays: "{n} Tag | {n} Tage",
+    actions: {
+      refresh: "Jetzt aktualisieren",
+      edit: "Bearbeiten",
+      delete: "Löschen",
+    },
+    createTitle: "Inventory-Eintrag anlegen",
+    editTitle: "Inventory-Eintrag bearbeiten",
+    form: {
+      sourceIdentifier: "GitHub-Pfad (owner/repo oder owner/repo:subdir)",
+      sourceIdentifierHint: "Tools: anthropics/claude-code. Skills im Mono-Repo: anthropics/skills:web-design.",
+      objectType: "Typ",
+      displayName: "Anzeigename",
+      description: "Beschreibung (optional)",
+      refreshIntervalHours: "Refresh-Intervall (Stunden)",
+      refreshIntervalHint: "168 = wöchentlich (Standard). 24 = täglich. Min. 1, max. 8760.",
+    },
+    errors: {
+      required: "GitHub-Pfad und Anzeigename sind Pflichtfelder.",
+    },
+    savedSuccess: "Gespeichert.",
+    deletedSuccess: "Eintrag gelöscht.",
+    refreshEnqueued: "Refresh in die Warteschlange gestellt.",
+    refreshAllEnqueued: "Refresh aller fälligen Zeilen in die Warteschlange gestellt.",
+    deleteConfirmTitle: "Eintrag löschen?",
+    deleteConfirmMessage: 'Möchtest du "{name}" wirklich löschen? Diese Aktion ist nicht umkehrbar.',
   },
 };

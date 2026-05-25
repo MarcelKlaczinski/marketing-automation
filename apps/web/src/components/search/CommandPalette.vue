@@ -221,6 +221,13 @@ export default defineComponent({
           subtitle: this.$t("search.actionPlannerGenerateSubtitle") as string,
           href: `/projects/${slug}/planner?generate=current`,
         },
+        // 64.20 GitHub inventory
+        {
+          id: "action-inventory",
+          title: this.$t("search.actionInventory") as string,
+          subtitle: this.$t("search.actionInventorySubtitle") as string,
+          href: `/projects/${slug}/settings/inventory`,
+        },
       ];
     },
   },

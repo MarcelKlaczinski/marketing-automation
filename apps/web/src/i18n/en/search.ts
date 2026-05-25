@@ -20,4 +20,6 @@ export default {
   actionPlannerSubtitle: "View and approve the weekly plan",
   actionPlannerGenerate: "Generate new plan",
   actionPlannerGenerateSubtitle: "Generate a plan for the current week",
+  actionInventory: "GitHub inventory",
+  actionInventorySubtitle: "Track stable repo metadata for tools and skills",
 };
