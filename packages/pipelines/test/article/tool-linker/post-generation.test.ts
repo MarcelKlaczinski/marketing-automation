@@ -205,7 +205,7 @@ describe("buildToolsContextFragment", () => {
     );
     const fragment = buildToolsContextFragment({
       primary: [
-        { slug: "chatgpt", name: "ChatGPT", pricing: "freemium", rating: 4.7, shortDescription: "Best LLM", features: [] },
+        { slug: "chatgpt", name: "ChatGPT", pricing: "freemium", rating: 4.7, shortDescription: "Best LLM", features: [], github: null },
       ],
       secondary: [],
     });
@@ -221,7 +221,7 @@ describe("buildToolsContextFragment", () => {
     const fragment = buildToolsContextFragment({
       primary: [],
       secondary: [
-        { slug: "claude", name: "Claude", pricing: "freemium", rating: 4.8, shortDescription: null, features: [] },
+        { slug: "claude", name: "Claude", pricing: "freemium", rating: 4.8, shortDescription: null, features: [], github: null },
       ],
     });
     expect(fragment).toContain("Claude");
