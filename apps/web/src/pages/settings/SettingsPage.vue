@@ -106,10 +106,19 @@ export default defineComponent({
   color: var(--text-primary);
 }
 
+/* Settings content area:
+ * - 800px max-width was too narrow for wide-table pages like GitHub-Inventory
+ *   (Spec 64.20) which has 9 columns + action buttons and forced horizontal
+ *   scroll on common desktop widths (1440px, 1920px).
+ * - 1400px gives wide tables enough room while still keeping form-heavy pages
+ *   (Project, Brand-Tokens, Planner) at comfortable text-line lengths.
+ * - 95vw cap prevents pinning to the absolute edge on smaller screens before
+ *   the @media (max-width: 1023px) override kicks in.
+ */
 .settings-content {
   padding: 24px 32px;
   overflow-y: auto;
-  max-width: 800px;
+  max-width: min(1400px, 95vw);
 }
 
 .nav-icon {
