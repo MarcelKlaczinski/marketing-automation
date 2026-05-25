@@ -783,6 +783,31 @@ packages/social/src/end-slides/
 
 **Goal:** Generate parallel article output alongside social carousel for definitions with `output_targets.article = true`. Hub-Spoke linking.
 
+### ⚠️ Deferred from Spec 64.20 (2026-05-25)
+
+**Profile-Pages Inventory Integration** belongs in this spec. Marcel deferred the standalone implementation during Spec 64.20 — the data layer (`content_source_inventory` table + cron-refresh worker) is live and populated (30 tools + 10 skills for Toolwiki), but no Astro template reads it yet.
+
+The cross-repo work belongs here because 65.10 already owns the Astro-template + schema surface for recurring-content articles. Folding A1 into 65.10 keeps the Astro-side edits in one coherent spec instead of fragmenting across multiple. Three routing options were evaluated during Spec 64.20 Phase-0 — pick one when starting 65.10:
+
+| Option | Aufwand | Trade-off |
+|---|---|---|
+| **A1.2 Snapshot-Export** | ~0.75d | Marketing-automation writes `src/data/inventory.json` daily into Astro repo via GitHub-App commit. Astro tool-profile template imports + JOINs by slug. One commit/day = manageable history. Works for ALL tool articles (imported + future generated). **Recommended.** |
+| A1.1 Forward-compat only | 0.5d | Extend `RenderMdxStep` to inject `github:` frontmatter for future LLM-generated tool articles. Zero value for current 30 imported tools — only helps if Toolwiki starts generating tool articles via pipeline. |
+| A1.3 Write-back per-tool MDX | 1.5d | Inventory-worker commits `github:` frontmatter back into each tool's MDX. Noisy Astro commit history (~30 commits per refresh tick). |
+
+Full Discovery + reasoning preserved at [`specs/_drafts/64.20-followup-profile-pages-discovery.md`](_drafts/64.20-followup-profile-pages-discovery.md).
+
+**What lands as part of 65.10 implementation:**
+- Pick routing option (default A1.2)
+- Astro repo `src/content/config.ts` extension — declare `github:` schema field on `tools` collection
+- Astro repo `tools/[slug].astro` template render: stars + license + latest release + "Updated weekly from GitHub" badge
+- If A1.2: new `apps/api/src/scripts/export-inventory-snapshot.ts` + post-refresh hook or daily cron to write the JSON
+
+**Verify-points when picking up:**
+- Inventory has ≥2 weeks of cron-refresh data (so `last_fetched_at` is meaningful)
+- Astro `tools` collection schema doesn't already declare `github*` fields (grep before adding)
+- Marcel-decision on UX: badge format + which fields to surface on profile page
+
 ### Article Generation
 
 When a recurring definition fires with `output_targets.article = true`:
