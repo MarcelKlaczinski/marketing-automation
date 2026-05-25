@@ -5,6 +5,7 @@ export default {
     project: "Projekt",
     "brand-tokens": "Brand-Tokens",
     "brand-assets": "Brand-Assets",
+    "tool-brand-assets": "Tool-Logos & Farben",
     templates: "Templates",
     credentials: "Zugangsdaten",
     "signal-sources": "Signal-Quellen",
@@ -727,6 +728,60 @@ export default {
       close: "Schließen",
       copyJson: "JSON kopieren",
       copyJsonSuccess: "JSON in die Zwischenablage kopiert.",
+    },
+  },
+
+  toolBrandAssets: {
+    title: "Tool-Logos & Markenfarben",
+    description:
+      "Logos und Markenfarben pro Tool. Logos werden automatisch aus der Resolver-Kette gezogen — Farben pflegst du hier manuell.",
+    loading: "Lade Tool-Brand-Assets …",
+    loadError: "Brand-Assets konnten nicht geladen werden.",
+    empty: "Noch keine Tools für dieses Projekt importiert.",
+    stats: {
+      total: "Tools gesamt",
+      needsReview: "Brauchen Review",
+      complete: "Fertig kuratiert",
+      missing: "Ohne Asset-Row",
+    },
+    filters: {
+      status: "Status",
+      statusAll: "Alle",
+      statusReview: "Nur Review",
+      statusOk: "Nur fertig",
+      source: "Quelle",
+    },
+    status: {
+      review: "Review",
+      ok: "OK",
+      missing: "Backfill nötig",
+    },
+    notifications: {
+      runBackfill:
+        "Einige Tools haben noch keine Asset-Row. Du kannst sie hier manuell befüllen oder den Backfill ausführen, um Logos automatisch über die Resolver-Kette zu ziehen:",
+    },
+    modal: {
+      title: "Brand-Asset bearbeiten: {name}",
+      brandNameCanonical: "Markenname (kanonisch)",
+      primaryColor: "Primärfarbe",
+      secondaryColor: "Sekundärfarbe",
+      tertiaryColor: "Tertiärfarbe (heller Tint / Background)",
+      wordmarkLabel: "Wordmark",
+      saved: "Brand-Asset gespeichert.",
+      source: "Quelle",
+      reresolve: "Logo neu auflösen",
+      uploadCustom: "Eigenes SVG hochladen",
+      reresolved: "Logo erneut aufgelöst.",
+      uploaded: "Logo hochgeladen.",
+      save: "Speichern & als reviewed markieren",
+      autoFlipHint: "Beide Farben gesetzt — beim Speichern wird der Review-Status entfernt.",
+      colorPlaceholder: "#RRGGBB",
+      colorPickerAria: "Farbwähler",
+      clearColor: "Farbe löschen",
+      invalidHex: "Ungültiger Hex-Code (erwartet: #RRGGBB)",
+      multiDomainWarning:
+        "Dieses Tool wird auch in {n} anderem Projekt verwendet. | Dieses Tool wird auch in {n} anderen Projekten verwendet.",
+      loadingUsage: "Prüfe Cross-Projekt-Verwendung …",
     },
   },
 };

@@ -5,6 +5,7 @@ export default {
     project: "Project",
     "brand-tokens": "Brand Tokens",
     "brand-assets": "Brand Assets",
+    "tool-brand-assets": "Tool Logos & Colors",
     templates: "Templates",
     credentials: "Credentials",
     "signal-sources": "Signal Sources",
@@ -726,6 +727,60 @@ export default {
       close: "Close",
       copyJson: "Copy JSON",
       copyJsonSuccess: "JSON copied to clipboard.",
+    },
+  },
+
+  toolBrandAssets: {
+    title: "Tool Logos & Brand Colors",
+    description:
+      "Logos and brand colors per tool. Logos are auto-resolved via the chain — fill colors manually here.",
+    loading: "Loading tool brand assets …",
+    loadError: "Failed to load brand assets.",
+    empty: "No tools imported for this project yet.",
+    stats: {
+      total: "Tools total",
+      needsReview: "Needs review",
+      complete: "Curated",
+      missing: "No asset row",
+    },
+    filters: {
+      status: "Status",
+      statusAll: "All",
+      statusReview: "Review only",
+      statusOk: "Curated only",
+      source: "Source",
+    },
+    status: {
+      review: "Review",
+      ok: "OK",
+      missing: "Backfill needed",
+    },
+    notifications: {
+      runBackfill:
+        "Some tools have no asset row yet. You can fill them manually here or run the backfill to auto-resolve logos via the chain:",
+    },
+    modal: {
+      title: "Edit brand asset: {name}",
+      brandNameCanonical: "Brand name (canonical)",
+      primaryColor: "Primary color",
+      secondaryColor: "Secondary color",
+      tertiaryColor: "Tertiary color (light tint / background)",
+      wordmarkLabel: "Wordmark",
+      saved: "Brand asset saved.",
+      source: "Source",
+      reresolve: "Re-resolve logo",
+      uploadCustom: "Upload custom SVG",
+      reresolved: "Logo re-resolved.",
+      uploaded: "Logo uploaded.",
+      save: "Save & mark reviewed",
+      autoFlipHint: "Both colors set — saving will clear the review flag.",
+      colorPlaceholder: "#RRGGBB",
+      colorPickerAria: "Color picker",
+      clearColor: "Clear color",
+      invalidHex: "Invalid hex (expected #RRGGBB)",
+      multiDomainWarning:
+        "This tool is also used in {n} other project. | This tool is also used in {n} other projects.",
+      loadingUsage: "Checking cross-project usage …",
     },
   },
 };

@@ -51,8 +51,10 @@ export async function upsertBrandAsset(input: NewToolBrandAsset): Promise<ToolBr
       set: {
         logoUrl: input.logoUrl ?? null,
         logoDarkUrl: input.logoDarkUrl ?? null,
+        logoWordmarkUrl: input.logoWordmarkUrl ?? null,
         primaryColor: input.primaryColor ?? null,
         secondaryColor: input.secondaryColor ?? null,
+        tertiaryColor: input.tertiaryColor ?? null,
         brandNameCanonical: input.brandNameCanonical ?? null,
         source: input.source,
         needsReview: input.needsReview ?? false,

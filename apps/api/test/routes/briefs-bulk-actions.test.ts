@@ -255,7 +255,12 @@ describe("POST /api/projects/:slug/briefs/bulk-approve (Spec 64.17)", () => {
   });
 
   // ─── Test #5: briefIds cap of 500 is accepted (boundary) ───────────────────
-  it("briefIds.length = 500 of unknown UUIDs → 202 with 0 processed (no-op)", async () => {
+  // 15s timeout: boundary test sends 500 unknown UUIDs through sequential
+  // `approveBrief()` calls (briefs.ts:227). Each call does a DB SELECT; under
+  // full-suite parallel load the per-call latency rises and the 5s Bun default
+  // is too tight. Passes well under 2s in isolation — only flakes when run
+  // alongside other test files contending for the connection pool.
+  it("briefIds.length = 500 of unknown UUIDs → 202 with 0 processed (no-op)", { timeout: 15_000 }, async () => {
     const ids = Array.from({ length: 500 }, () => crypto.randomUUID());
 
     const res = await app.fetch(

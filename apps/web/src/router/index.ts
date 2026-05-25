@@ -126,6 +126,12 @@ const routes = [
             component: () => import("src/pages/settings/SettingsBrandAssetsPage.vue"),
           },
           {
+            path: "tool-brand-assets",
+            name: "settings-tool-brand-assets",
+            component: () =>
+              import("src/pages/settings/SettingsToolBrandAssetsPage.vue"),
+          },
+          {
             path: "credentials",
             name: "settings-credentials",
             component: () => import("src/pages/settings/SettingsCredentialsPage.vue"),

@@ -11,13 +11,25 @@ import { sql } from "drizzle-orm";
  * referenced a non-existent `tools` table; tools live as articles with
  * collection='tools'. Write-side helper enforces the collection guard.
  *
- * Sources (text, not enum — new providers may appear): 'brandfetch' |
- * 'clearbit' | 'favicon' | 'manual'. Tested via constants in 65.2.
+ * Sources (text, not enum — new providers may appear). 65.2 widened the union
+ * to include the chain sources produced by the pipelines logo resolver
+ * (`packages/pipelines/src/_lib/resolve-tool-icon.ts`); 65.1 sources kept for
+ * back-compat with rows written before 65.2.
  */
 import { boolean, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { articles } from "./content.ts";
 
-export type BrandAssetSource = "brandfetch" | "clearbit" | "favicon" | "manual";
+export type BrandAssetSource =
+  // 65.1 (kept for back-compat; no production writer today)
+  | "brandfetch"
+  | "clearbit"
+  | "favicon"
+  // 65.2 — chain resolver outputs + Marcel-edits
+  | "lobe-icons"
+  | "iconify"
+  | "simple-icons"
+  | "deterministic-avatar"
+  | "manual";
 
 export const toolBrandAssets = pgTable(
   "tool_brand_assets",
@@ -34,10 +46,24 @@ export const toolBrandAssets = pgTable(
     logoUrl: text("logo_url"),
     /** Variant designed for dark backgrounds. NULL when the tool only ships one variant. */
     logoDarkUrl: text("logo_dark_url"),
+    /**
+     * Wordmark variant — logo + brand text together. lobe-icons publishes
+     * `<slug>-text.svg` for every brand; we upload it as a separate R2 key.
+     * Used by social templates when the layout has horizontal space for the
+     * brand name (e.g. carousel cover slides). Falls back to logoUrl when
+     * NULL. Migration 0118.
+     */
+    logoWordmarkUrl: text("logo_wordmark_url"),
 
     /** Hex #RRGGBB. Renderer validates the format at consume-time. */
     primaryColor: text("primary_color"),
     secondaryColor: text("secondary_color"),
+    /**
+     * Third Brandfetch-style palette slot — typically the light tint /
+     * surface color (e.g. Selago `#F5F8FE` for Anyword, Aqua Haze `#F2F5F8`
+     * for Beautiful.ai). Nullable; migration 0117 added the column.
+     */
+    tertiaryColor: text("tertiary_color"),
 
     /** Canonical brand-name (may differ from article.title; e.g. "Anthropic Claude" vs "Claude"). */
     brandNameCanonical: text("brand_name_canonical"),

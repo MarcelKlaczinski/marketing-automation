@@ -53,9 +53,16 @@ const TOOLWIKI_TO_SIMPLE_ICONS: Record<string, string> = {
   "o4": "openai",
   "o4-mini": "openai",
   "sora": "openai",
-  "dall-e": "openai",
-  "dall-e-3": "openai",
+  // dall-e / dalle: prefer the dedicated DALL-E icon when simple-icons
+  // exports one, fall through to openai parent brand otherwise. The
+  // exact-match lookup tries the mapped value first; the adapter walks back
+  // through PREFIX_BRAND_MAP if there's no `siDalle` export.
+  "dall-e": "dalle",
+  "dall-e-3": "dalle",
+  "dalle": "dalle",
   "codex": "openai",
+  "openai-operator": "openai",
+  "openai-search": "openai",
   "codex-cli": "openai",
   "openai-codex": "openai",
   "whisper": "openai",
@@ -176,15 +183,28 @@ export const simpleIconsAdapter: IconSourceAdapter = {
     if (!icon?.svg) return null;
 
     // simple-icons SVGs lack the outer <svg> wrapper; wrap it
-    const svgContent = icon.svg.startsWith("<svg")
+    const rawSvg = icon.svg.startsWith("<svg")
       ? icon.svg
       : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${icon.svg}</svg>`;
+
+    // Colorize: simple-icons publishes monochrome SVGs without an explicit
+    // fill on the root <svg> tag — paths inherit `currentColor` which renders
+    // black on white-card backgrounds (Spec 65.2 follow-up screenshot
+    // 2026-05-25: Claude logo barely visible). Inject the brand hex so the
+    // SVG renders in-brand without consumer-side styling. Skip when an
+    // explicit `fill=` attribute is already on the root element (lobe-icons
+    // colored variants don't go through this adapter, but a defensive check
+    // future-proofs the path).
+    const hex = `#${icon.hex}`;
+    const svgContent = /<svg[^>]*\sfill=/.test(rawSvg)
+      ? rawSvg
+      : rawSvg.replace(/<svg\b/, `<svg fill="${hex}"`);
 
     return {
       source: "simple-icons",
       sourceRef: mapped,
       svgContent,
-      brandColor: `#${icon.hex}`,
+      brandColor: hex,
       format: "svg",
     };
   },

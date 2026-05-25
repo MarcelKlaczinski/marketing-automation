@@ -1114,3 +1114,29 @@ These are formatted by `buildToolsContextFragment()` and injected into the Outli
 ### Blog brief detection (API layer)
 
 `isBlogBrief(brief)` = `brief.locale !== null && brief.clusterId !== null`. Both conditions must be true for the brief to route to `article:blog`; otherwise falls back to `article:outline`. Trend briefs always satisfy this (guarded at the approval endpoint).
+
+## Icon-source resolver chain (Spec 65.2 follow-up)
+
+`packages/pipelines/src/_lib/resolve-tool-icon.ts` walks three adapters before falling back to a deterministic HSL avatar:
+
+```
+lobe-icons (AI-focused) → simple-icons (universal monochrome) → iconify (logos + skill-icons + devicon) → deterministic-avatar
+```
+
+**Chain order is lobe-FIRST since Spec 65.2** because lobe-icons publishes structurally richer assets for AI brands:
+
+1. **3 variants per brand** — `<slug>.svg` (mono, `currentColor`), `<slug>-color.svg` (colored — 223/850 brands), `<slug>-text.svg` (wordmark with brand text). Adapter prefers `-color` for the icon URL and uploads `-text` separately to `tool_brand_assets.logo_wordmark_url`.
+2. **Multi-color SVGs inline** — Gemini's 4 brand colors (blue/green/red/yellow), DALL-E's 3 colors, etc. all live as distinct `fill="#..."` attributes on separate paths. `extractBrandColors()` returns the first 3 distinct hex values (skipping near-white/near-black structural fills) so the service can seed `primary_color` + `secondary_color` + `tertiary_color` in one resolve.
+3. **Gradient fallback** — when no solid-hex fill exists (Kling, Luma, Hailuo), the extractor locates `fill="url(#gradient-id)"` → walks to `<linearGradient id="...">` or `<radialGradient>` block → returns the first `<stop stop-color="#...">` value.
+
+**simple-icons SVGs need server-side colorize** — they ship with `currentColor` fills and a separate `icon.hex` field. The adapter injects `fill="${hex}"` on the root `<svg>` BEFORE returning. Without this, monochrome SVGs render invisibly on dark UI backgrounds.
+
+**Slug mapping conventions** (per-adapter `TOOL_SLUG_TO_*` maps):
+
+- **Product-family slugs map to parent brand** when the product has no dedicated lobe icon: `chatgpt → openai`, `chatgpt-atlas → openai`, `openai-operator → openai`, `gpt-4 → openai`. ChatGPT variants are consumer-facing products of the OpenAI brand; lobe has no separate icon.
+- **Dedicated lobe brands stay separate** even when conceptually adjacent: `dalle` (NOT openai), `sora` (NOT openai), `claudecode` (NOT claude), `claude-computer-use → claude` (no separate icon).
+- **Locale/CLI variants share the parent**: `gemini-live`, `gemini-pro`, `gemini-flash`, `gemini-advanced`, `gemini-deep-research` → `gemini`.
+
+**`@lobehub/icons-static-svg` is the source-of-truth package** (NOT `static-png`). Static-png is kept as a defensive fallback for the handful of brands lobe ships only as PNG. The SVG variant is vector + extractable via regex; PNG was the original V1 choice but became second-class once Spec 65.2's `extractBrandColors` + wordmark pickup landed.
+
+**The `project_brand_assets` (Spec 52b) cache is a side-effect** of `resolveToolIcon` — every successful chain-hit writes the resolved SVG + metadata to that table. The chain READS from this cache first on the next call to the same project+slug. After ANY adapter logic change (mapping update, new extractor branch, wordmark fetch), the cache MUST be invalidated before the next backfill or the new logic stays dormant. Production-grade solution (Redis pub-sub) is deferred to "Engine reads-from-DB" backlog item.

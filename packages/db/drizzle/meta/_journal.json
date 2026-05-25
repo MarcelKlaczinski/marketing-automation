@@ -820,6 +820,20 @@
       "when": 1789400000000,
       "tag": "0116_hook_templates_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1789500000000,
+      "tag": "0117_tool_brand_assets_tertiary_color",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1789600000000,
+      "tag": "0118_tool_brand_assets_wordmark",
+      "breakpoints": true
     }
   ]
 }

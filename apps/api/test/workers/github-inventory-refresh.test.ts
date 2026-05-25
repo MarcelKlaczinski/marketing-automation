@@ -219,9 +219,16 @@ describe("handleInventoryRefresh — end-to-end", () => {
     expect(callCount).toBe(1);
     const after1 = await getInventoryById(r1.id);
     const after2 = await getInventoryById(r2.id);
-    expect(after1?.fetchStatus).toBe("error");
-    expect(after1?.fetchError).toBe("rate_limit");
-    expect(after2?.fetchStatus).toBe("pending"); // untouched
+
+    // Order-agnostic assertion — `listInventoryDueForRefresh` ties on
+    // `lastFetchedAt IS NULL` (both freshly seeded) and `createdAt` (often
+    // same millisecond under parallel test load), falling back to `id ASC`
+    // (random UUIDs). We just need ONE row to have errored + ONE to stay
+    // pending. Same posture as the LRU-helper DO-NOT in packages/db/CLAUDE.md.
+    const statuses = [after1?.fetchStatus, after2?.fetchStatus].sort();
+    expect(statuses).toEqual(["error", "pending"]);
+    const erroredRow = after1?.fetchStatus === "error" ? after1 : after2;
+    expect(erroredRow?.fetchError).toBe("rate_limit");
   });
 
   it("returns silently when no PAT is configured in vault", async () => {

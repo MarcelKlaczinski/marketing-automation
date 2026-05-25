@@ -260,3 +260,59 @@ as Spec 64.10's `cleanup-orphan-heroes`).
   cleanup specs can reason about it without code-spelunking. Caught Spec 001
   D3 (stale `category`/`published_at`/`tags` were Refresh-Whitelist-protected,
   forcing the cleanup-NULL approach).
+
+## Spec 65.2 — Brand-Asset Pipeline Follow-Ups
+
+Bewusst aus 65.2 V1 herausgehalten — sechs Items, gestaffelt nach Priorität.
+Logged 2026-05-25 nach erstem Toolwiki-Backfill (54 Rows / 0 errors / 24 ohne
+Logo-Treffer in der Chain).
+
+### Priorität 2 (sobald 65.7/65.8 Templates landen)
+
+- **Schema-Refactor: `tool_brand_assets.toolId` per-locale → per-tool-concept.**
+  V1 ist `toolId` FK auf `articles.id` (per-locale). Bilinguale Tools (Toolwiki
+  seit Spec 59.2) erzeugen damit zwei logische Asset-Slots pro Tool — V1 löst
+  das via Locale-Filter (`projects.targetLocales[0]`) im List- und Backfill-
+  Endpoint, aber EN-Renders finden via `articles.id`-Lookup keine Row. Sauberer:
+  PK-Wechsel auf `(project_id, slug)` ODER eine separate `tool_concepts`-Tabelle
+  mit `articles.tool_concept_id` FK. Migration ist nicht trivial (108 Rows
+  müssen re-verknüpft werden) — ergibt nur Sinn wenn die Templates Brand-Assets
+  cross-locale konsumieren wollen.
+
+- **Sibling-Traversal beim Template-Render** (V1-Workaround zum Schema-Refactor).
+  Solange `toolId` per-locale bleibt: Template-Adapter sollte beim Lookup für
+  EN-Artikel auf den DE-Sibling via `translationKey` fallen-back-en. Kein DB-
+  Eingriff nötig, nur Code-Pfad im Render-Adapter. Diese Lösung reicht
+  vermutlich für 65.7/65.8 — der Schema-Refactor oben wird dann eventuell nicht
+  mehr nötig.
+
+- **Engine reads-from-DB (Option C der 65.2 Discovery §3.2).** Aktuell liest die
+  Engine `resolveToolIcon` aus `project_brand_assets` (52b-Tabelle), nicht aus
+  `tool_brand_assets` (65.2-Tabelle). Marcel-Edits in der 65.2-UI wirken sich
+  daher noch NICHT auf Production-Renders aus. Ziel: Engine liest erst aus
+  `tool_brand_assets`, fällt zur Chain zurück, Redis-Pub/Sub
+  `brand-assets:changed` invalidiert In-Memory-Cache bei UI-PATCH. Vorher
+  müssen 65.7/65.8 die Tabelle aktiv konsumieren (sonst nur Cache-Aufwand
+  ohne Nutzen).
+
+### Priorität 3 (Coverage-Verbesserungen, optional)
+
+- **Iconify `devicon`-Namespace ergänzen.** ~150 Dev-Tool-Icons, MIT-lizenziert,
+  passt in die bestehende Iconify-Adapter-Schicht. Würde Coverage in Tools wie
+  `synthesia`, `murf`, `jasper`, `writesonic` (aktuell deterministic-avatar in
+  Toolwiki) potenziell verbessern — Backfill-Bilanz 2026-05-25 zeigte
+  24/54 (44%) Avatar-Fallbacks. Alternative zu YeThura-Repo (siehe Coverage-
+  Analyse 2026-05-25: 75% direkte Überlappung mit lobe-icons + simple-icons,
+  KEIN LICENSE-File im YeThura-Repo → nicht adoptierbar).
+
+- **Iconify `mdi` (Material Design Icons) als Last-Resort.** ~7000 generische
+  Icons, Apache 2.0. Schlechter als Brand-Logos für Marketing-Output, aber
+  besser als reiner Initials-Avatar wenn z.B. `tana` oder `tome` als
+  generisches "Note-Taking-App"-Symbol angedeutet werden soll. Kann auch
+  per-Tool-Override via UI angeklickt werden statt automatisch.
+
+- **Dark-Variant des Logos** (`tool_brand_assets.logo_dark_url`). 65.1 Schema
+  hat das Feld schon, 65.2 V1 nutzt es nicht — alle Logos kommen single-variant.
+  Lobe-icons liefert separate dark/light Files; simple-icons hat im `icon.svg`
+  oft `fill="currentColor"` was dunkel-rendert (siehe Screenshot 2026-05-25).
+  Wenn 65.7/65.8 Light- UND Dark-Mode-Templates haben, lohnt sich der Aufwand.

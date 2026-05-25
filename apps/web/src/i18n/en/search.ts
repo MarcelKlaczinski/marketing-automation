@@ -22,4 +22,6 @@ export default {
   actionPlannerGenerateSubtitle: "Generate a plan for the current week",
   actionInventory: "GitHub inventory",
   actionInventorySubtitle: "Track stable repo metadata for tools and skills",
+  actionToolBrandAssets: "Tool logos & colors",
+  actionToolBrandAssetsSubtitle: "Resolve logos and curate brand colors per tool",
 };

@@ -22,4 +22,6 @@ export default {
   actionPlannerGenerateSubtitle: "Plan für die aktuelle KW generieren",
   actionInventory: "GitHub-Inventory",
   actionInventorySubtitle: "Stabile Repo-Metadaten für Tools und Skills pflegen",
+  actionToolBrandAssets: "Tool-Logos & Farben",
+  actionToolBrandAssetsSubtitle: "Logos auflösen und Markenfarben pro Tool pflegen",
 };

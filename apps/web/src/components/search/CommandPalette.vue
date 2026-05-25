@@ -228,6 +228,13 @@ export default defineComponent({
           subtitle: this.$t("search.actionInventorySubtitle") as string,
           href: `/projects/${slug}/settings/inventory`,
         },
+        // 65.2 Tool brand assets
+        {
+          id: "action-tool-brand-assets",
+          title: this.$t("search.actionToolBrandAssets") as string,
+          subtitle: this.$t("search.actionToolBrandAssetsSubtitle") as string,
+          href: `/projects/${slug}/settings/tool-brand-assets`,
+        },
       ];
     },
   },
