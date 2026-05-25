@@ -13,7 +13,7 @@ import { join } from "node:path";
 import { db, projects } from "@marketing-auto/db";
 import { eq } from "drizzle-orm";
 import {
-  cleanupStalePreviewDirs,
+  cleanupLegacyPreviewSessions,
   previewTemplate,
   resolveProjectIdBySlug,
 } from "../../src/lib/template-preview-service.ts";
@@ -48,6 +48,7 @@ describe("template-preview-service error paths (Spec 65.0 Day 4)", () => {
   it("returns template_not_found for an unknown template", async () => {
     const result = await previewTemplate({
       projectId,
+      projectSlug: "preview-test",
       templateKey: "this-template-does-not-exist",
       sampleData: {},
     });
@@ -61,6 +62,7 @@ describe("template-preview-service error paths (Spec 65.0 Day 4)", () => {
     // rejects with a parse error before any pixel work.
     const result = await previewTemplate({
       projectId,
+      projectSlug: "preview-test",
       templateKey: "comparison-grid-4",
       sampleData: {},
     });
@@ -109,7 +111,7 @@ describe("resolveProjectIdBySlug (Spec 65.0 Day 4)", () => {
   });
 });
 
-describe("cleanupStalePreviewDirs (Spec 65.0 Day 4)", () => {
+describe("cleanupLegacyPreviewSessions (Spec 65.0 Day 4)", () => {
   let previewDir: string;
 
   beforeAll(async () => {
@@ -136,7 +138,7 @@ describe("cleanupStalePreviewDirs (Spec 65.0 Day 4)", () => {
     await utimes(join(previewDir, "preview-aaa"), past, past);
     await utimes(join(previewDir, "preview-bbb"), past, past);
 
-    const deleted = await cleanupStalePreviewDirs({ maxAgeMs: 0, directory: previewDir });
+    const deleted = await cleanupLegacyPreviewSessions({ maxAgeMs: 0, directory: previewDir });
     expect(deleted).toBe(2);
 
     const remaining = await readdir(previewDir);
@@ -147,7 +149,7 @@ describe("cleanupStalePreviewDirs (Spec 65.0 Day 4)", () => {
 
   it("no-ops when the preview root is missing", async () => {
     const missingDir = join(tmpdir(), `preview-missing-${Date.now()}`);
-    const deleted = await cleanupStalePreviewDirs({ maxAgeMs: 0, directory: missingDir });
+    const deleted = await cleanupLegacyPreviewSessions({ maxAgeMs: 0, directory: missingDir });
     expect(deleted).toBe(0);
   });
 
@@ -155,7 +157,7 @@ describe("cleanupStalePreviewDirs (Spec 65.0 Day 4)", () => {
     const youngDir = join(previewDir, `preview-young-${Date.now()}`);
     await mkdir(youngDir, { recursive: true });
     // Default 1h threshold — just-created dir is far younger.
-    const deleted = await cleanupStalePreviewDirs({
+    const deleted = await cleanupLegacyPreviewSessions({
       maxAgeMs: 60 * 60 * 1000,
       directory: previewDir,
     });

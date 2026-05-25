@@ -128,6 +128,7 @@ describe("previewTemplate actual-render (Spec 65.0 Day 4, RUN_VISUAL=1 only)", (
     async () => {
       const result = await previewTemplate({
         projectId,
+        projectSlug: "preview-render-test",
         templateKey: "comparison-grid-4",
         sampleData: buildSampleData(),
       });
@@ -136,14 +137,19 @@ describe("previewTemplate actual-render (Spec 65.0 Day 4, RUN_VISUAL=1 only)", (
       expect("kind" in result).toBe(false);
       if ("kind" in result) throw new Error("preview returned an error variant");
 
-      expect(result.sessionId.startsWith("preview-")).toBe(true);
+      // Spec 65.0 Day 5: deterministic sessionId — `<projectSlug>/<templateKey>`
+      expect(result.sessionId).toBe("preview-render-test/comparison-grid-4");
       expect(result.previewUrls.length).toBeGreaterThanOrEqual(1);
       expect(result.slideCount).toBe(result.previewUrls.length);
       expect(result.renderDurationMs).toBeGreaterThan(0);
 
       // URL shape: /renders/preview/<sessionId>/slide-00.png
       const firstUrl = result.previewUrls[0] as string;
-      expect(firstUrl).toMatch(/^\/renders\/preview\/preview-[\w-]+\/slide-\d{2}\.png$/);
+      // Spec 65.0 Day 5 deterministic path:
+      // `/renders/preview/<projectSlug>/<templateKey>/slide-NN.png`.
+      expect(firstUrl).toMatch(
+        /^\/renders\/preview\/preview-render-test\/comparison-grid-4\/slide-\d{2}\.png$/,
+      );
 
       // The first slide PNG must exist on disk and be non-empty.
       const cwd = process.cwd();
@@ -173,6 +179,7 @@ describe("previewTemplate actual-render (Spec 65.0 Day 4, RUN_VISUAL=1 only)", (
       const start = Date.now();
       const result = await previewTemplate({
         projectId,
+        projectSlug: "preview-render-test",
         templateKey: "comparison-grid-4",
         // Re-use the same shape; renders a different content variant.
         sampleData: {

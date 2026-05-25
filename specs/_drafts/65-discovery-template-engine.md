@@ -805,6 +805,58 @@ The remaining structural difference is that `template.render(context)` orchestra
 - `RUN_VISUAL=1` gate documented in `packages/social/CLAUDE.md` and now mirrored at `apps/api/test/lib/template-preview-render.test.ts`. CI should set `RUN_VISUAL=1` for full coverage; default fast-suite runs skip.
 - No retry/timeout policy on Remotion render. If headless Chrome hangs, the request hangs. Day 6 polish could add a 30s wall-clock timeout via `AbortController`.
 
-### Day 5+ (not yet started)
+### Day 5 (2026-05-25, landed)
 
-— Settings-UI TemplatesPage + Preview-Modal + auto-fill helper, sample-data validation against composition schemas, optional R2 caching with TTL.
+**Landed (frontend Settings-UI + backend GET + persistent rendering):**
+
+Backend:
+- [`apps/api/src/routes/projects/templates.ts`](../../apps/api/src/routes/projects/templates.ts) — new `GET /:slug/templates?formatType=` returns project-scoped + global rows merged via `listActiveTemplates()` from Day 1-2. Each row carries `scope: "global" | "project"` discriminator + `lastPreview: { previewUrls, renderedAt } | null` (filesystem-probed per row).
+- [`apps/api/src/lib/template-preview-service.ts`](../../apps/api/src/lib/template-preview-service.ts) — persistence rewrite: `sessionId` is now deterministic `<projectSlug>/<templateKey>`; render writes to `<cwd>/renders/preview/<projectSlug>/<templateKey>/slide-NN.png`; re-renders `rm -rf` the dir before writing so leftover slides from a prior longer render don't leak. `PreviewResult.renderedAt: string` added. New `loadPersistedPreviewState({projectSlug, templateKey})` helper (filesystem probe). `cleanupStalePreviewDirs` renamed to `cleanupLegacyPreviewSessions` — now only sweeps Day-4 `preview-<uuid>/` legacy dirs, leaves the new persistent paths alone.
+- Server boot now calls `cleanupLegacyPreviewSessions()` (not `cleanupStalePreviewDirs({maxAgeMs:0})`).
+
+Frontend:
+- [`apps/web/src/pages/settings/SettingsTemplatesPage.vue`](../../apps/web/src/pages/settings/SettingsTemplatesPage.vue) — list page with format-type + scope filters, template cards with thumbnail (from `lastPreview.previewUrls[0]` when set), "Preview" + stubbed "Disable" buttons. Cache-busted thumbnail URL `?v=<renderedAt>` so re-renders don't show stale PNGs from browser cache.
+- [`apps/web/src/components/settings/TemplatePreviewModal.vue`](../../apps/web/src/components/settings/TemplatePreviewModal.vue) — `q-dialog` with split layout. Pre-loads `initialPreviewUrls` + `initialRenderedAt` props on open so the user sees the last persistent render immediately. Emits `rendered` event after a fresh render so the page can patch its `items[]` without a full refetch. "Zuletzt gerendert" hint above the slides (locale-aware `toLocaleString`).
+- [`apps/web/src/composables/settings/useTemplatesList.ts`](../../apps/web/src/composables/settings/useTemplatesList.ts) — `MaybeRefOrGetter` inputs so Options-API callers can pass `() => this.projectSlug` directly.
+- [`apps/web/src/composables/settings/usePreviewTemplate.ts`](../../apps/web/src/composables/settings/usePreviewTemplate.ts) — raw `fetch` (not `apiPost`) to preserve the structured `{ error, message }` 400 response.
+- [`apps/web/src/lib/template-sample-data.ts`](../../apps/web/src/lib/template-sample-data.ts) — auto-fill examples for ALL 5 templates (comparison-grid-3, comparison-grid-4, verdict-per-use-case, single-tool-spotlight body-slide, pro-con-verdict). Adapted from `packages/social/scripts/visual-render-all.ts`.
+
+Structural reshuffle:
+- [`SettingsProjectPage.vue`](../../apps/web/src/pages/settings/SettingsProjectPage.vue) no longer mounts `TemplateOverridesSection` (Spec 57.3). That section moved to the new SettingsTemplatesPage so Templates is the single home for everything template-related (registry browser + preview + per-project overrides). Project settings stays focused on project basics.
+- [`SettingsPage.vue`](../../apps/web/src/pages/settings/SettingsPage.vue) sidebar gets `"templates"` between brand-assets and credentials.
+- [`router/index.ts`](../../apps/web/src/router/index.ts) new `settings-templates` route at `/projects/:slug/settings/templates`.
+- i18n: new `settings.templates.*` namespace in [de/settings.ts](../../apps/web/src/i18n/de/settings.ts) + [en/settings.ts](../../apps/web/src/i18n/en/settings.ts) (~55 keys × 2 languages).
+
+**Three discoveries that reshaped Day 5:**
+
+1. **`q-page` requires a `q-layout` ancestor** — other settings sub-pages (Inventory, Project, Planner) use a plain `<div class="page-name">` because the parent `SettingsPage.vue` is just a grid wrapper, not a Quasar layout. Day-5 V1 used `<q-page>` and threw `QPage needs to be a deep child of QLayout` in the console on every mount. Fixed to match the existing convention. Worth noting because the same trap will hit any future settings sub-page that's copy-pasted from a layout-rooted page.
+2. **`mockFixtures[X].input` ≠ composition-input shape** — Day-4 already documented this for the preview-service; Day 5 ran into it again when building auto-fill examples. The shape needed in the JSON editor is the FULL composition input (`{ slideIndex, locale, theme, generated: {...}, brandTokens? }`), NOT the `buildInput`-output shape stored in `TemplateDefinition.mockFixtures` (`{ tools: [...] }`-style Context). The hardcoded sample-data in `template-sample-data.ts` is the right level — copy from `visual-render-all.ts`, not from `mockFixtures`. Same gotcha will hit anyone wiring a new template's auto-fill: don't reach for `mockFixtures`, copy the composition-input shape from the canonical visual harness.
+3. **Browser cache + deterministic URLs** — when re-render overwrites bytes at the same URL, the browser keeps showing the old PNG (cached). Cache-bust via `?v=<renderedAt>` query string on every `<img src>`. Done in both the card thumbnail (`cacheBustedThumb()` in the page) and the modal slide grid (`cacheBustedUrl()` in the modal). Worth a CLAUDE.md note for future persistent-render features.
+
+**Marcel-decisions confirmed:**
+
+- Q2 (preview modal vs page): ✓ modal implemented (split JSON-editor + preview grid in `q-dialog`).
+- Q6 (auto-fill source): "last brief" deferred — V1 ships hardcoded examples per template (5/5 covered). Brief-data → composition-input transform is a separate spec because briefs don't carry composition shape; bridging needs server-side logic.
+- Q7 (cache preview renders): UPDATED from default "No V1, ephemeral only" → **persistent on-disk per `(projectSlug, templateKey)`** per Marcel's request mid-session. Re-render overwrites at the same path. Browser cache-bust handles the URL→bytes mismatch. No R2 layer (filesystem is enough for V1; CDN sits in front of `/renders/*` in prod).
+
+**Architectural deviations from spec narrative:**
+
+- Spec §7.1 sketched "ephemeral renders, no persistence" (default Q7). Day 5 changed this to **persistent renders with re-render overwrite** based on Marcel's explicit request: "gerendert speichern dass man es persistent anschauen kann, neu rendern überschreibt dann". Practical reason: without persistence the user has to re-render every time they revisit the Settings page (5-15s wait per template). With persistence they see the last render instantly.
+- Spec §7.3 sketched "auto-fill from last brief". Day 5 ships hardcoded sample-data per template instead. Briefs are stored in `topic_briefs.*` columns that don't map 1:1 to composition input shapes; bridging requires per-template transform logic that's out of scope for a Settings UI session. Hardcoded examples cover the "show me what a render looks like" use case fully.
+- Spec §7.2 sketched a separate "Disable" button per card. Day 5 ships it as a stubbed `disabled` button with a `q-tooltip` flagging Day 6 — the PATCH `templates.is_active=false` endpoint isn't implemented yet (Spec 65.0 §13 Q8 "Soft DB flag" default still applies, just deferred by one day).
+
+**Pending Marcel-Decision sites for Day 6+:**
+
+- Q8 (soft vs hard disable): UI stub exists; PATCH endpoint + active-mark workflow is Day 6.
+
+**Test deltas:** apps/api 378 pass / 8 skip / 1 fail (the fail is the pre-existing flaky `briefs/bulk-approve > briefIds.length = 500` from Spec 64.17 — 5000ms DB-batch timeout on local dev, unrelated to Day 5). Workspace typecheck 0 errors across 26 packages. The new GET endpoint has 4 dedicated route tests (auth gate, 404, list-happy-path verifies all 5 canonical keys appear, GIN-filter `formatType=use-case` narrows correctly).
+
+**Known limitations (carry-overs):**
+
+- Disable workflow is stubbed pending Day 6.
+- No frontend automated tests for the new page/modal (the web app has no component-test infrastructure). Verified manually via Marcel's `/projects/<slug>/settings/templates` walk-through.
+- Long-running Remotion render has no client-side timeout — if the API hangs, the modal shows "Rendering …" forever. Day 6 polish could add an `AbortController` with a 30s ceiling.
+
+### Day 6+ (not yet started)
+
+— soft-disable PATCH endpoint + UI activation; article snapshot wire-up (`articles.template_key` / `template_version` populated by render-pipeline); periodic cache-copy + preview-dir sweep; Remotion render abort controller.

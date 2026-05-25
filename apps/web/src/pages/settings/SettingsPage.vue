@@ -36,6 +36,7 @@ export default defineComponent({
         { key: "project" },
         { key: "brand-tokens" },
         { key: "brand-assets" },
+        { key: "templates" },
         { key: "credentials" },
         { key: "signal-sources" },
         { key: "planner" },

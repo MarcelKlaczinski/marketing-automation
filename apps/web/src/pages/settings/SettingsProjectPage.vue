@@ -488,8 +488,10 @@
         </p>
       </FormSection>
 
-      <!-- Section 10: Template Overrides -->
-      <TemplateOverridesSection :slug="($route.params.slug as string)" />
+      <!-- Spec 65.0 Day 5: TemplateOverridesSection moved to
+           SettingsTemplatesPage so Templates is the single home for
+           template-related config (registry browser + preview + overrides).
+           Project settings stays focused on project basics. -->
     </template>
   </div>
 </template>
@@ -504,7 +506,6 @@ import FormSelect from "src/components/forms/FormSelect.vue";
 import FormTextarea from "src/components/forms/FormTextarea.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import CronStatusDisplay from "src/components/settings/CronStatusDisplay.vue";
-import TemplateOverridesSection from "src/components/settings/TemplateOverridesSection.vue";
 import { useSettingsProjectPage } from "src/composables/useSettingsProjectPage";
 import { apiPost } from "src/lib/api";
 
@@ -519,7 +520,6 @@ export default defineComponent({
     FormTextarea,
     GlassButton,
     CronStatusDisplay,
-    TemplateOverridesSection,
   },
 
   setup() {

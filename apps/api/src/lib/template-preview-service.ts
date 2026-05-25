@@ -18,7 +18,6 @@
  */
 import { mkdir, readdir, rm, stat as fsStat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { createLogger } from "@marketing-auto/shared";
 import {
   DEFAULT_BRAND_TOKENS,
@@ -53,6 +52,13 @@ async function loadRenderServer(): Promise<Record<string, unknown>> {
 
 export interface PreviewInput {
   projectId: string;
+  /**
+   * Slug used for the deterministic on-disk path
+   * `<cwd>/renders/preview/<projectSlug>/<templateKey>/slide-NN.png`.
+   * Passing both id (for DB lookups) + slug (for URLs) avoids a duplicate
+   * resolveProjectIdBySlug call inside the service.
+   */
+  projectSlug: string;
   templateKey: string;
   /**
    * The full composition input as the render-server function expects it
@@ -78,6 +84,10 @@ export interface PreviewInput {
 }
 
 export interface PreviewResult {
+  /**
+   * Deterministic path key — `<projectSlug>/<templateKey>`. Persistent
+   * across renders; re-renders overwrite under the same key.
+   */
   sessionId: string;
   /** First slide URL — usable as a thumbnail / cover preview. */
   previewUrl: string;
@@ -85,6 +95,8 @@ export interface PreviewResult {
   previewUrls: string[];
   slideCount: number;
   renderDurationMs: number;
+  /** ISO timestamp of when the render completed. Useful for "last rendered" UI. */
+  renderedAt: string;
 }
 
 export type PreviewError =
@@ -166,7 +178,7 @@ export async function previewTemplate(
   };
 
   // 6. Render.
-  const sessionId = `preview-${randomUUID()}`;
+  const sessionId = `${input.projectSlug}/${input.templateKey}`;
   const startedAt = Date.now();
   let renderResult: { slides: Buffer[]; sequenceCount?: number };
   try {
@@ -183,8 +195,11 @@ export async function previewTemplate(
   }
   const renderDurationMs = Date.now() - startedAt;
 
-  // 7. Persist slides to the preview directory.
-  const sessionDir = join(previewRoot(), sessionId);
+  // 7. Persist slides under the deterministic preview directory. Wipe the
+  //    existing dir first so an old render with N slides doesn't leak
+  //    leftover slide-{N..} files when the new render produces fewer.
+  const sessionDir = join(previewRoot(), input.projectSlug, input.templateKey);
+  await rm(sessionDir, { recursive: true, force: true }).catch(() => undefined);
   await mkdir(sessionDir, { recursive: true });
   const previewUrls: string[] = [];
   for (let i = 0; i < renderResult.slides.length; i++) {
@@ -192,7 +207,9 @@ export async function previewTemplate(
     if (!buf) continue;
     const fileName = `slide-${String(i).padStart(2, "0")}.png`;
     await writeFile(join(sessionDir, fileName), buf);
-    previewUrls.push(`/renders/preview/${sessionId}/${fileName}`);
+    previewUrls.push(
+      `/renders/preview/${input.projectSlug}/${input.templateKey}/${fileName}`,
+    );
   }
   if (previewUrls.length === 0) {
     return { kind: "render_failed", message: "Render produced 0 slides" };
@@ -205,6 +222,7 @@ export async function previewTemplate(
       sessionId,
       templateKey: input.templateKey,
       projectId: input.projectId,
+      projectSlug: input.projectSlug,
       slideCount: previewUrls.length,
       renderDurationMs,
     },
@@ -217,23 +235,61 @@ export async function previewTemplate(
     previewUrls,
     slideCount: previewUrls.length,
     renderDurationMs,
+    renderedAt: new Date().toISOString(),
   };
 }
 
 /**
- * Sweep stale `preview-<uuid>/` directories under `<cwd>/renders/preview/`.
- * Called on server startup with `maxAgeMs: 0` to drop all prior-session
- * leftovers (no preview should outlive the API process — files are
- * ephemeral by design). Same posture as `cleanupStaleCacheCopies` from
- * the watcher path.
+ * Spec 65.0 Day 5 — return URLs of persisted slides for one
+ * (projectSlug, templateKey) pair, or null when no render has ever
+ * happened. Used by `GET /:slug/templates` to surface a thumbnail per row
+ * + by the preview modal to pre-populate with the last render.
  */
-export async function cleanupStalePreviewDirs(opts?: {
+export async function loadPersistedPreviewState(opts: {
+  projectSlug: string;
+  templateKey: string;
+}): Promise<{ previewUrls: string[]; renderedAt: string } | null> {
+  const sessionDir = join(previewRoot(), opts.projectSlug, opts.templateKey);
+  let entries: string[];
+  try {
+    entries = await readdir(sessionDir);
+  } catch {
+    return null;
+  }
+  const slideFiles = entries
+    .filter((n) => /^slide-\d{2}\.png$/.test(n))
+    .sort();
+  if (slideFiles.length === 0) return null;
+  // The dir's mtime is a reasonable "last rendered" signal — every render
+  // wipes the dir and writes fresh files inside.
+  let renderedAt = new Date().toISOString();
+  try {
+    const info = await fsStat(sessionDir);
+    renderedAt = new Date(info.mtimeMs).toISOString();
+  } catch {
+    // Fallback to "now" if stat fails (shouldn't happen since readdir worked).
+  }
+  return {
+    previewUrls: slideFiles.map(
+      (n) => `/renders/preview/${opts.projectSlug}/${opts.templateKey}/${n}`,
+    ),
+    renderedAt,
+  };
+}
+
+/**
+ * Spec 65.0 Day 5: sweep ONLY the legacy Day-4 `preview-<uuid>/` directories
+ * under `<cwd>/renders/preview/`. The new persistent-render path is
+ * `<projectSlug>/<templateKey>/slide-NN.png` — those dirs don't start with
+ * `preview-` and are deliberately preserved across boots so users can
+ * revisit the last render. Re-rendering overwrites at the same path
+ * (handled in `previewTemplate()`).
+ *
+ * Test callers can override the directory; production calls with no args
+ * use the conventional `<cwd>/renders/preview/`.
+ */
+export async function cleanupLegacyPreviewSessions(opts?: {
   maxAgeMs?: number;
-  /**
-   * Override the preview root. Tests use this to point at a tmpdir instead
-   * of polluting the real `apps/api/renders/preview/`. Production callers
-   * leave it undefined.
-   */
   directory?: string;
 }): Promise<number> {
   const root = opts?.directory ?? previewRoot();

@@ -6,7 +6,7 @@ import {
   cleanupStaleCacheCopies,
 } from "./lib/template-registry-sync.ts";
 import { startTemplateWatcher } from "./lib/template-watcher.ts";
-import { cleanupStalePreviewDirs } from "./lib/template-preview-service.ts";
+import { cleanupLegacyPreviewSessions } from "./lib/template-preview-service.ts";
 import { templatePreviewRoutes } from "./routes/projects/templates.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -70,9 +70,11 @@ await cleanupStaleCacheCopies({
 }).catch(() => undefined);
 startTemplateWatcher();
 
-// Spec 65.0 Day 4: sweep stale preview-* dirs under <cwd>/renders/preview/.
-// Previews are ephemeral by design — no preview should outlive a process restart.
-await cleanupStalePreviewDirs({ maxAgeMs: 0 }).catch(() => undefined);
+// Spec 65.0 Day 5: previews are now persistent at
+// `<cwd>/renders/preview/<projectSlug>/<templateKey>/slide-NN.png` so users
+// can revisit the last render. We DO sweep the legacy `preview-<uuid>/`
+// dirs from Day-4's ephemeral implementation so they don't accumulate.
+await cleanupLegacyPreviewSessions().catch(() => undefined);
 
 const app = new Hono();
 

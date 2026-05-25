@@ -119,3 +119,62 @@ describe("POST /:slug/templates/:templateKey/preview (Spec 65.0 Day 4)", () => {
     expect(res.status).toBe(400);
   });
 });
+
+describe("GET /:slug/templates (Spec 65.0 Day 5)", () => {
+  it("returns 401 without a session cookie", async () => {
+    const res = await app.fetch(
+      new Request(`http://localhost/api/projects/${slug}/templates`),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 for an unknown project slug", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/nonexistent-${Date.now()}/templates`),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("lists active templates (global rows from bootstrap-sync)", async () => {
+    const res = await app.fetch(authed(`/api/projects/${slug}/templates`));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      ok: boolean;
+      data: { items: Array<{ templateKey: string; scope: "global" | "project" }> };
+    };
+    expect(body.ok).toBe(true);
+    // bootstrap-sync registers 5 canonical global templates on startup.
+    const keys = body.data.items.map((t) => t.templateKey);
+    for (const expected of [
+      "comparison-grid-4",
+      "comparison-grid-3",
+      "verdict-per-use-case",
+      "single-tool-spotlight",
+      "pro-con-verdict",
+    ]) {
+      expect(keys).toContain(expected);
+    }
+    for (const item of body.data.items) {
+      expect(["global", "project"]).toContain(item.scope);
+    }
+  });
+
+  it("narrows by formatType GIN-filter", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/templates?formatType=use-case`),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      ok: boolean;
+      data: { items: Array<{ templateKey: string; formatTypes: string[] }> };
+    };
+    expect(body.ok).toBe(true);
+    // Only verdict-per-use-case has formatTypes: ["use-case"] in the canonical 5.
+    const keys = body.data.items.map((t) => t.templateKey);
+    expect(keys).toContain("verdict-per-use-case");
+    expect(keys).not.toContain("comparison-grid-4");
+    for (const item of body.data.items) {
+      expect(item.formatTypes).toContain("use-case");
+    }
+  });
+});

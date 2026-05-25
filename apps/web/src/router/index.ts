@@ -145,6 +145,11 @@ const routes = [
             name: "settings-inventory",
             component: () => import("src/pages/settings/SettingsInventoryPage.vue"),
           },
+          {
+            path: "templates",
+            name: "settings-templates",
+            component: () => import("src/pages/settings/SettingsTemplatesPage.vue"),
+          },
           // Redirect bare /settings to /settings/project. The "settings"
           // name lives here so `router.push({ name: "settings" })` reaches
           // the default sub-page.

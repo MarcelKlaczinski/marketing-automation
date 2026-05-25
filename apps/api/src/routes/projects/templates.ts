@@ -15,8 +15,10 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { createLogger } from "@marketing-auto/shared";
 import { brandTokensSchema } from "@marketing-auto/shared/brand-tokens";
+import { listActiveTemplates } from "@marketing-auto/db";
 import { requireAuth } from "../../middleware/auth.ts";
 import {
+  loadPersistedPreviewState,
   previewTemplate,
   resolveProjectIdBySlug,
 } from "../../lib/template-preview-service.ts";
@@ -25,6 +27,80 @@ const log = createLogger("api:templates-preview");
 
 export const templatePreviewRoutes = new Hono();
 templatePreviewRoutes.use(requireAuth);
+
+// ─── GET /api/projects/:slug/templates — list active templates ──────────────
+
+const listQuerySchema = z.object({
+  /**
+   * Optional filter: return only templates whose `format_types` array
+   * contains this value. Hits the GIN index on `format_types` from Day 1-2.
+   */
+  formatType: z.string().min(1).max(64).optional(),
+});
+
+templatePreviewRoutes.get(
+  "/:slug/templates",
+  zValidator("query", listQuerySchema),
+  async (c) => {
+    const { slug } = c.req.param();
+    const q = c.req.valid("query");
+
+    const projectId = await resolveProjectIdBySlug(slug);
+    if (!projectId) {
+      return c.json({ ok: false, error: "project_not_found" }, 404);
+    }
+
+    const rows = await listActiveTemplates({
+      projectId,
+      ...(q.formatType !== undefined && { formatType: q.formatType }),
+    });
+
+    // Spec 65.0 Day 5: probe the filesystem per row for persisted preview
+    // slides. Each preview lives under
+    // `<cwd>/renders/preview/<slug>/<templateKey>/slide-NN.png`; re-renders
+    // overwrite the same path. The probe is one readdir per row (~5 rows
+    // typical) — cheap. Failures degrade silently to `lastPreview: null`.
+    const items = await Promise.all(
+      rows.map(async (r) => {
+        const lastPreview = await loadPersistedPreviewState({
+          projectSlug: slug,
+          templateKey: r.templateKey,
+        });
+        return {
+          id: r.id,
+          projectId: r.projectId,
+          templateKey: r.templateKey,
+          baseTemplateKey: r.baseTemplateKey,
+          variant: r.variant,
+          filePath: r.filePath,
+          fileHash: r.fileHash,
+          isActive: r.isActive,
+          formatTypes: r.formatTypes,
+          outputFormat: r.outputFormat,
+          compatibleChannels: r.compatibleChannels,
+          generationClass: r.generationClass,
+          displayName: r.displayName,
+          description: r.description,
+          defaultSlideCount: r.defaultSlideCount,
+          estimatedCostUsd: r.estimatedCostUsd,
+          usageCount: r.usageCount,
+          lastUsedAt: r.lastUsedAt,
+          lastSeenAt: r.lastSeenAt,
+          previewImageUrl: r.previewImageUrl,
+          // `scope` is convenience: tells the UI whether this row is global
+          // (any tenant) or project-specific without dereferencing projectId.
+          scope: r.projectId === null ? "global" : "project",
+          // null when no preview has ever been rendered for this project + key.
+          lastPreview,
+        };
+      }),
+    );
+
+    return c.json({ ok: true, data: { items } });
+  },
+);
+
+// ─── POST /api/projects/:slug/templates/:templateKey/preview ────────────────
 
 const previewBodySchema = z.object({
   /**
@@ -55,6 +131,7 @@ templatePreviewRoutes.post(
 
     const result = await previewTemplate({
       projectId,
+      projectSlug: slug,
       templateKey,
       sampleData: body.sampleData,
       ...(body.theme !== undefined && { theme: body.theme }),
