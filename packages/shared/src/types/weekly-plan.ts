@@ -53,6 +53,7 @@ export const topicBriefSnapshotEntrySchema = z.object({
     "refresh_detection",
     "manual",
     "comparison_discovery",
+    "release_detection",
   ]),
   clusterAction: z.enum([
     "append_to_existing",

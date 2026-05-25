@@ -73,6 +73,10 @@ function fakeDeps(overrides: Partial<InventoryRefreshDeps> = {}): InventoryRefre
     readCreds: async () => ({ personal_access_token: "ghp_fake_for_test" }),
     fetchFullRepoMetadata: async () => ({ metadata: { ...SAMPLE_METADATA }, rateLimit: null }),
     detectSkill: async () => ({ frontmatter: null, rateLimit: null }),
+    // Spec 64.20 follow-up A3 — default to no-op so existing tests don't
+    // accidentally write briefs. Release-detection tests override this to
+    // capture invocations + assert payload shape.
+    emitReleaseBrief: async () => ({ briefId: null, skipped: null }),
     ...overrides,
   };
 }
@@ -275,5 +279,194 @@ describe("handleInventoryRefresh — end-to-end", () => {
     const after2 = await getInventoryById(r2.id);
     expect(after1?.fetchStatus).toBe("ok");
     expect(after2?.fetchStatus).toBe("pending"); // not in ids[]
+  });
+
+  // ─── A3: release-detection ────────────────────────────────────────────────
+
+  it("emits no brief on first fetch (baseline) — prior latestRelease.tag is null", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "release/baseline",
+      displayName: "Baseline",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    let emitCalled = false;
+    await handleInventoryRefresh(
+      { projectId, type: "cron-triggered" },
+      fakeDeps({
+        emitReleaseBrief: async () => {
+          emitCalled = true;
+          return { briefId: null, skipped: null };
+        },
+      }),
+    );
+
+    expect(emitCalled).toBe(false); // first fetch — no prior tag to diff against
+  });
+
+  it("emits no brief when tags are identical between ticks", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "release/same",
+      displayName: "Same",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // First tick — sets baseline tag
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps(),
+    );
+
+    // Second tick — same tag in SAMPLE_METADATA
+    let emitCalled = false;
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        emitReleaseBrief: async () => {
+          emitCalled = true;
+          return { briefId: null, skipped: null };
+        },
+      }),
+    );
+
+    expect(emitCalled).toBe(false);
+  });
+
+  it("emits a release-detection brief on tag change with full metadata", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "release/changed",
+      displayName: "Tag-Change Tool",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // First tick — sets baseline v1.0.0
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps(),
+    );
+
+    // Second tick — adapter returns v1.1.0
+    const newMetadata = {
+      ...SAMPLE_METADATA,
+      latestRelease: {
+        tag: "v1.1.0",
+        name: "Release 1.1",
+        publishedAt: "2026-05-25T08:00:00.000Z",
+      },
+    };
+    type EmitInput = Parameters<NonNullable<InventoryRefreshDeps["emitReleaseBrief"]>>[0];
+    const captured: EmitInput[] = [];
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        fetchFullRepoMetadata: async () => ({ metadata: newMetadata, rateLimit: null }),
+        emitReleaseBrief: async (input) => {
+          captured.push(input);
+          return { briefId: "00000000-0000-0000-0000-000000000099", skipped: null };
+        },
+      }),
+    );
+
+    expect(captured).toHaveLength(1);
+    const payload = captured[0]!;
+    expect(payload.inventoryRowId).toBe(row.id);
+    expect(payload.sourceIdentifier).toBe("release/changed");
+    expect(payload.displayName).toBe("Tag-Change Tool");
+    expect(payload.previousReleaseTag).toBe("v1.0.0");
+    expect(payload.newReleaseTag).toBe("v1.1.0");
+    expect(payload.releaseName).toBe("Release 1.1");
+    expect(payload.releasePublishedAt).toBe("2026-05-25T08:00:00.000Z");
+    expect(payload.starsCount).toBe(SAMPLE_METADATA.starsCount);
+  });
+
+  it("emits no brief when newer fetch has null latestRelease (release removed)", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "release/removed",
+      displayName: "Removed",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // First tick — sets baseline v1.0.0
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps(),
+    );
+
+    // Second tick — no release anymore
+    const noReleaseMeta = { ...SAMPLE_METADATA, latestRelease: null };
+    let emitCalled = false;
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        fetchFullRepoMetadata: async () => ({ metadata: noReleaseMeta, rateLimit: null }),
+        emitReleaseBrief: async () => {
+          emitCalled = true;
+          return { briefId: null, skipped: null };
+        },
+      }),
+    );
+
+    expect(emitCalled).toBe(false);
+  });
+
+  it("worker continues refresh even if emitReleaseBrief throws", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "release/emit-throws",
+      displayName: "Emit-Throws",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // First tick — baseline
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps(),
+    );
+
+    // Second tick — different tag + emitReleaseBrief throws
+    const newMetadata = {
+      ...SAMPLE_METADATA,
+      latestRelease: { tag: "v2.0.0", name: null, publishedAt: "2026-05-25T08:00:00.000Z" },
+    };
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        fetchFullRepoMetadata: async () => ({ metadata: newMetadata, rateLimit: null }),
+        emitReleaseBrief: async () => {
+          throw new Error("simulated brief-emit failure");
+        },
+      }),
+    );
+
+    // The metadata refresh should STILL have landed — brief failure is non-fatal.
+    const after = await getInventoryById(row.id);
+    expect(after?.fetchStatus).toBe("ok");
+    expect((after?.githubMetadata as { latestRelease?: { tag: string } } | undefined)?.latestRelease?.tag).toBe(
+      "v2.0.0",
+    );
   });
 });

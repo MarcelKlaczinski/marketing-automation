@@ -29,6 +29,7 @@ import {
   markInventoryOk,
   projects,
   type ContentSourceInventory,
+  type GithubInventoryMetadata as DbGithubInventoryMetadata,
 } from "@marketing-auto/db";
 import {
   fetchFullRepoMetadata as defaultFetchFullRepoMetadata,
@@ -39,6 +40,11 @@ import {
   type FetchFullRepoMetadataResult,
   type GitHubCredentials,
 } from "@marketing-auto/adapter-github-inventory";
+import {
+  emitReleaseBrief as defaultEmitReleaseBrief,
+  type EmitReleaseBriefInput,
+  type EmitReleaseBriefResult,
+} from "@marketing-auto/pipelines";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { readAdapterCreds as defaultReadAdapterCreds } from "../lib/system-service.ts";
 
@@ -143,12 +149,15 @@ export interface InventoryRefreshDeps {
     sourceIdentifier: string,
     creds: GitHubCredentials,
   ) => Promise<DetectSkillResult>;
+  /** Spec 64.20 follow-up A3 — emit release-detection brief on tag change. */
+  emitReleaseBrief: (input: EmitReleaseBriefInput) => Promise<EmitReleaseBriefResult>;
 }
 
 const defaultDeps: InventoryRefreshDeps = {
   readCreds: defaultReadAdapterCreds,
   fetchFullRepoMetadata: defaultFetchFullRepoMetadata,
   detectSkill: defaultDetectSkill,
+  emitReleaseBrief: defaultEmitReleaseBrief,
 };
 
 // ─── Per-row refresh ─────────────────────────────────────────────────────────
@@ -187,7 +196,62 @@ async function refreshOne(
       }
     }
 
-    await markInventoryOk(row.id, metadata);
+    // Spec 64.20 follow-up A3 — release-detection.
+    // Compare prior github_metadata.latestRelease.tag (read from the row
+    // BEFORE markInventoryOk overrides it) against the freshly-fetched tag.
+    // Emit a brief only when (a) a prior tag existed (not the first-fetch
+    // baseline), (b) a new tag exists, (c) they differ.
+    const prevMeta = row.githubMetadata as
+      | DbGithubInventoryMetadata
+      | Record<string, never>;
+    const previousReleaseTag =
+      "latestRelease" in prevMeta && prevMeta.latestRelease
+        ? prevMeta.latestRelease.tag
+        : null;
+    const newReleaseTag = metadata.latestRelease?.tag ?? null;
+
+    if (
+      previousReleaseTag !== null &&
+      newReleaseTag !== null &&
+      previousReleaseTag !== newReleaseTag &&
+      metadata.latestRelease !== null
+    ) {
+      try {
+        const result = await deps.emitReleaseBrief({
+          projectId:          row.projectId,
+          inventoryRowId:     row.id,
+          sourceIdentifier:   row.sourceIdentifier,
+          displayName:        row.displayName,
+          previousReleaseTag,
+          newReleaseTag,
+          releaseName:        metadata.latestRelease.name,
+          releasePublishedAt: metadata.latestRelease.publishedAt,
+          starsCount:         metadata.starsCount,
+        });
+        if (result.briefId) {
+          log.info(
+            { id: row.id, briefId: result.briefId, previousReleaseTag, newReleaseTag },
+            "Release-detection brief emitted",
+          );
+        } else if (result.skipped) {
+          log.debug(
+            { id: row.id, skipped: result.skipped, previousReleaseTag, newReleaseTag },
+            "Release-detection emission skipped",
+          );
+        }
+      } catch (err) {
+        // Don't fail the refresh tick on brief-emit issues — log + continue.
+        log.warn(
+          { id: row.id, err: err instanceof Error ? err.message : String(err) },
+          "Release-detection brief emission failed; continuing refresh",
+        );
+      }
+    }
+
+    // Adapter + DB types are structurally compatible; the cast resolves the
+    // exactOptionalPropertyTypes mismatch on the `watchersCount?: number` /
+    // `watchersCount?: number | undefined` divergence.
+    await markInventoryOk(row.id, metadata as unknown as DbGithubInventoryMetadata);
     return { continueBatch: true };
   } catch (err) {
     if (err instanceof GitHubRateLimitError) {

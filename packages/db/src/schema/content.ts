@@ -854,6 +854,32 @@ export const ComparisonMetadataSchema = z.object({
 });
 export type ComparisonMetadata = z.infer<typeof ComparisonMetadataSchema>;
 
+// ── ReleaseMetadata (Spec 64.20 follow-up A3) ─────────────────────────────────
+// Emitted by the github-inventory-refresh worker when a tracked tool ships a
+// new release. The brief lands with source='release_detection',
+// clusterAction='standalone', intentType='news' — Marcel reviews + approves
+// the same way as gap-analysis/trend-discovery briefs.
+
+export const ReleaseMetadataSchema = z.object({
+  /** UUID of the content_source_inventory row that triggered emission. */
+  inventoryRowId:      z.string().uuid(),
+  /** GitHub repo path, e.g. "anthropics/claude-code". */
+  sourceIdentifier:    z.string(),
+  /** Human-facing name from inventory.display_name. */
+  displayName:         z.string(),
+  /** Tag observed on the prior tick — never null (first-fetch baseline is skipped). */
+  previousReleaseTag:  z.string(),
+  /** Tag observed on this tick. */
+  newReleaseTag:       z.string(),
+  /** Release name from GitHub API, when set. */
+  releaseName:         z.string().nullable(),
+  /** ISO 8601 publishedAt from GitHub API. */
+  releasePublishedAt:  z.string().datetime(),
+  /** Repo stars at emission time, used downstream for pacing-sort. */
+  starsCount:          z.number().int().min(0).optional(),
+});
+export type ReleaseMetadata = z.infer<typeof ReleaseMetadataSchema>;
+
 // ── Drizzle table ─────────────────────────────────────────────────────────────
 
 export const topicBriefs = pgTable(
@@ -863,7 +889,7 @@ export const topicBriefs = pgTable(
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
 
     source: text("source").notNull().$type<
-      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery"
+      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery" | "release_detection"
     >(),
 
     // FK to content_gaps declared in migration SQL (avoids circular ordering within this file)
@@ -904,6 +930,8 @@ export const topicBriefs = pgTable(
     trendMetadata:      jsonb("trend_metadata").$type<TrendMetadata>(),
     refreshMetadata:    jsonb("refresh_metadata").$type<RefreshMetadata>(),
     comparisonMetadata: jsonb("comparison_metadata").$type<ComparisonMetadata>(),
+    /** Spec 64.20 follow-up A3 — release-detection brief metadata. */
+    releaseMetadata:    jsonb("release_metadata").$type<ReleaseMetadata>(),
 
     // Spec 64.15 Phase C: precomputed Voyage-3 embedding (1024d). emit-brief.ts
     // (trend-discovery) writes this at brief-creation time so the planner doesn't
@@ -946,6 +974,7 @@ export const TopicBriefInsertSchema = z
       "refresh_detection",
       "manual",
       "comparison_discovery", // Spec 62.3
+      "release_detection",    // Spec 64.20 follow-up A3
     ]),
     gapId: z.string().uuid().nullable().optional(),
 
@@ -990,6 +1019,7 @@ export const TopicBriefInsertSchema = z
     trendMetadata:      TrendMetadataSchema.nullable().optional(),
     refreshMetadata:    RefreshMetadataSchema.nullable().optional(),
     comparisonMetadata: ComparisonMetadataSchema.nullable().optional(),
+    releaseMetadata:    ReleaseMetadataSchema.nullable().optional(),
 
     // Spec 64.15 Phase C: precomputed Voyage-3 embedding for plan diversity.
     // Optional + nullable: emit-brief.ts (trend-discovery) populates this at
@@ -1002,7 +1032,8 @@ export const TopicBriefInsertSchema = z
     const hasTrend      = data.trendMetadata      != null;
     const hasRefresh    = data.refreshMetadata    != null;
     const hasComparison = data.comparisonMetadata != null;
-    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0);
+    const hasRelease    = data.releaseMetadata    != null;
+    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0) + (hasRelease ? 1 : 0);
 
     if (data.source === "manual") {
       if (total !== 0) {
@@ -1027,6 +1058,7 @@ export const TopicBriefInsertSchema = z
       trend_discovery:       hasTrend,
       refresh_detection:     hasRefresh,
       comparison_discovery:  hasComparison,
+      release_detection:     hasRelease,
     } as const;
 
     if (!expectedMap[data.source as keyof typeof expectedMap]) {
@@ -1035,6 +1067,7 @@ export const TopicBriefInsertSchema = z
         trend_discovery:      "trend_metadata",
         refresh_detection:    "refresh_metadata",
         comparison_discovery: "comparison_metadata",
+        release_detection:    "release_metadata",
       }[data.source as keyof typeof expectedMap];
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

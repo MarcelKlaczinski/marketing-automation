@@ -270,6 +270,7 @@ function makeBrief(trendMeta?: { trendScore?: number; freshnessWindow?: "breakin
     trendMetadata,
     refreshMetadata: null,
     comparisonMetadata: null,
+    releaseMetadata: null,
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,
