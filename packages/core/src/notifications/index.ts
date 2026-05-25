@@ -80,7 +80,16 @@ export async function createNotification(
 
   void dispatchToSseSubscribers(result);
   if (result.severity === "critical") {
-    void dispatchToWebPushSubscribers(result);
+    // Skip the real web-push fan-out when running under bun:test — the test
+    // suite intentionally creates owner-user rows + calls `notifyPipelineCompletion`
+    // to assert the DB-row shape, but the helper enumerates ALL owners globally
+    // (incl. Marcel's real account), and critical-severity rows trigger an
+    // actual browser push notification. The DB row stays so tests can still
+    // assert against the `notifications` table; only the network hop is
+    // suppressed in test env.
+    if (env.NODE_ENV !== "test") {
+      void dispatchToWebPushSubscribers(result);
+    }
   }
 
   return result;
