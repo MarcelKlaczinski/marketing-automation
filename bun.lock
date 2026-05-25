@@ -152,6 +152,14 @@
         "drizzle-orm": "^0.36.0",
       },
     },
+    "packages/adapters/github-inventory": {
+      "name": "@marketing-auto/adapter-github-inventory",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/shared": "workspace:*",
+        "zod": "^3.23.0",
+      },
+    },
     "packages/adapters/github-trending": {
       "name": "@marketing-auto/adapter-github-trending",
       "version": "0.1.0",
@@ -709,6 +717,8 @@
     "@marketing-auto/adapter-dataforseo": ["@marketing-auto/adapter-dataforseo@workspace:packages/adapters/dataforseo"],
 
     "@marketing-auto/adapter-email": ["@marketing-auto/adapter-email@workspace:packages/adapters/email"],
+
+    "@marketing-auto/adapter-github-inventory": ["@marketing-auto/adapter-github-inventory@workspace:packages/adapters/github-inventory"],
 
     "@marketing-auto/adapter-github-trending": ["@marketing-auto/adapter-github-trending@workspace:packages/adapters/github-trending"],
 

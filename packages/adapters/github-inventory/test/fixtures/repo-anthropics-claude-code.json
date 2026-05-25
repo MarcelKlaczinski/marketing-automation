@@ -1,0 +1,21 @@
+{
+  "id": 12345678,
+  "name": "claude-code",
+  "full_name": "anthropics/claude-code",
+  "html_url": "https://github.com/anthropics/claude-code",
+  "description": "Official CLI for Claude",
+  "homepage": "https://claude.com/code",
+  "language": "TypeScript",
+  "topics": ["ai", "cli", "claude"],
+  "stargazers_count": 25000,
+  "forks_count": 1234,
+  "watchers_count": 500,
+  "open_issues_count": 42,
+  "archived": false,
+  "default_branch": "main",
+  "created_at": "2024-09-01T00:00:00Z",
+  "pushed_at": "2026-05-20T12:00:00Z",
+  "license": {
+    "spdx_id": "MIT"
+  }
+}

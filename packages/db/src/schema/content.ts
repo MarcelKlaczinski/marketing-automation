@@ -25,6 +25,7 @@ import {
 } from "./_enums.ts";
 import { clusters } from "./identity.ts";
 import { projects } from "./projects.ts";
+import { users } from "./auth.ts";
 
 // ArticleOutline and SelfReviewIssue shapes are defined in packages/pipelines — these
 // are lightweight re-declarations for DB typing only (no Zod dependency in DB package).
@@ -1148,3 +1149,153 @@ export const rejectedTopicCandidates = pgTable(
 
 export type RejectedTopicCandidate    = typeof rejectedTopicCandidates.$inferSelect;
 export type NewRejectedTopicCandidate = typeof rejectedTopicCandidates.$inferInsert;
+
+// ─── Spec 64.20: Content-Source Inventory ────────────────────────────────────
+
+/**
+ * Structured GitHub metadata stored in `content_source_inventory.github_metadata`.
+ * Typed bucket (D143 pattern) — never read this column as `Record<string, unknown>`.
+ */
+export const githubInventoryMetadataSchema = z.object({
+  starsCount: z.number().int().min(0),
+  forksCount: z.number().int().min(0),
+  watchersCount: z.number().int().min(0).optional(),
+  primaryLanguage: z.string().nullable(),
+  license: z.string().nullable(), // SPDX id or "no-license"
+  topics: z.array(z.string()).default([]),
+  defaultBranch: z.string(),
+  createdAt: z.string().datetime(),
+  pushedAt: z.string().datetime(),
+  latestRelease: z
+    .object({
+      tag: z.string(),
+      name: z.string().nullable(),
+      publishedAt: z.string().datetime(),
+    })
+    .nullable(),
+  /** Skill-specific subset, only populated when object_type='skill'. */
+  skillFrontmatter: z
+    .object({
+      name: z.string(),
+      description: z.string(),
+      category: z.string().optional(),
+      version: z.string().optional(),
+    })
+    .optional(),
+});
+
+export type GithubInventoryMetadata = z.infer<typeof githubInventoryMetadataSchema>;
+
+/** Object-type discriminator. CHECK constraint in SQL keeps DB + TS in sync. */
+export const INVENTORY_OBJECT_TYPES = ["tool", "skill"] as const;
+export type InventoryObjectType = (typeof INVENTORY_OBJECT_TYPES)[number];
+
+/** Fetch-lifecycle status. CHECK constraint in SQL keeps DB + TS in sync. */
+export const INVENTORY_FETCH_STATUSES = ["pending", "fetching", "ok", "error"] as const;
+export type InventoryFetchStatus = (typeof INVENTORY_FETCH_STATUSES)[number];
+
+/** Source taxonomy — text + CHECK so future gitlab/npm/pypi are CHECK-widen only. */
+export const INVENTORY_SOURCES = ["github"] as const;
+export type InventorySource = (typeof INVENTORY_SOURCES)[number];
+
+export const contentSourceInventory = pgTable(
+  "content_source_inventory",
+  {
+    id:                   uuid("id").primaryKey().defaultRandom(),
+    projectId:            uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+
+    // Source taxonomy
+    source:               text("source").notNull().$type<InventorySource>(),
+    objectType:           text("object_type").notNull().$type<InventoryObjectType>(),
+    /**
+     * Tool:                 "anthropics/claude-code"
+     * Skill (standalone):   "coleam00/excalidraw-diagram-skill"
+     * Skill (in mono-repo): "anthropics/skills:web-design"
+     */
+    sourceIdentifier:     text("source_identifier").notNull(),
+
+    // Human-facing
+    displayName:          text("display_name").notNull(),
+    description:          text("description"),
+    homepageUrl:          text("homepage_url"),
+
+    // Typed-bucket jsonb (Memory D143). Consumers MUST gate reads on
+    // fetchStatus === 'ok' — pending rows have `{}` runtime even though the
+    // declared type asserts populated. Matches codebase convention for all
+    // other $type<>() jsonb columns.
+    githubMetadata:       jsonb("github_metadata").$type<GithubInventoryMetadata>().notNull().default(sql`'{}'::jsonb`),
+
+    // Lifecycle
+    fetchStatus:          text("fetch_status").notNull().$type<InventoryFetchStatus>().default("pending"),
+    fetchError:           text("fetch_error"),
+    lastFetchedAt:        timestamp("last_fetched_at", { withTimezone: true }),
+    refreshIntervalHours: integer("refresh_interval_hours").notNull().default(168),
+
+    // Approve-gate (V1: pre-approved via Marcel-Seed; V1.1: Auto-Discovery)
+    approvedAt:           timestamp("approved_at", { withTimezone: true }),
+    approvedByUserId:     uuid("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+
+    /**
+     * Optional link to corresponding tool-article. NULL for skills + new tools.
+     * Application-layer convention: if objectType='tool' AND articleId IS NOT NULL,
+     * THEN articles.collection MUST = 'tools'. Enforced in helper-write + tests.
+     */
+    articleId:            uuid("article_id").references(() => articles.id, { onDelete: "set null" }),
+
+    createdAt:            timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:            timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Partial unique on approved rows — see migration 0105 comment for D108 rationale.
+    projectSourceIdentifierApprovedUnique: uniqueIndex("csi_project_source_identifier_approved_unique")
+      .on(t.projectId, t.source, t.sourceIdentifier)
+      .where(sql`${t.approvedAt} IS NOT NULL`),
+    // Cron candidate index — rows due for refresh
+    dueForRefreshIdx: index("csi_due_for_refresh_idx")
+      .on(t.lastFetchedAt)
+      .where(sql`${t.approvedAt} IS NOT NULL AND ${t.fetchStatus} IN ('ok', 'pending')`),
+    // Lookup by linked article
+    articleIdIdx: index("csi_article_id_idx")
+      .on(t.articleId)
+      .where(sql`${t.articleId} IS NOT NULL`),
+    // Settings-UI list (project + object-type + status filter)
+    projectObjectTypeIdx: index("csi_project_object_type_idx").on(t.projectId, t.objectType, t.fetchStatus),
+  }),
+);
+
+export type ContentSourceInventory    = typeof contentSourceInventory.$inferSelect;
+export type NewContentSourceInventory = typeof contentSourceInventory.$inferInsert;
+
+/**
+ * Zod schema for INSERT bodies (HTTP routes + CLI). Excludes server-managed columns.
+ * `githubMetadata` is omitted because INSERT starts with empty `{}`; populated by
+ * the cron worker via `markInventoryOk`.
+ */
+export const ContentSourceInventoryInsertSchema = z.object({
+  projectId:            z.string().uuid(),
+  source:               z.enum(INVENTORY_SOURCES),
+  objectType:           z.enum(INVENTORY_OBJECT_TYPES),
+  sourceIdentifier:     z.string().min(1).max(255),
+  displayName:          z.string().min(1).max(255),
+  description:          z.string().max(2000).nullable().optional(),
+  homepageUrl:          z.string().url().max(500).nullable().optional(),
+  refreshIntervalHours: z.number().int().min(1).max(8760).default(168),
+  approvedAt:           z.date().nullable().optional(),
+  approvedByUserId:     z.string().uuid().nullable().optional(),
+  articleId:            z.string().uuid().nullable().optional(),
+});
+
+export type ContentSourceInventoryInsertInput = z.infer<typeof ContentSourceInventoryInsertSchema>;
+
+/**
+ * Zod schema for PATCH bodies — all fields optional, ID excluded (path param).
+ */
+export const ContentSourceInventoryPatchSchema = z.object({
+  displayName:          z.string().min(1).max(255).optional(),
+  description:          z.string().max(2000).nullable().optional(),
+  homepageUrl:          z.string().url().max(500).nullable().optional(),
+  refreshIntervalHours: z.number().int().min(1).max(8760).optional(),
+  articleId:            z.string().uuid().nullable().optional(),
+});
+
+export type ContentSourceInventoryPatchInput = z.infer<typeof ContentSourceInventoryPatchSchema>;

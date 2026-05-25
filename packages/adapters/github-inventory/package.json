@@ -1,0 +1,19 @@
+{
+  "name": "@marketing-auto/adapter-github-inventory",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./verify": "./src/verify.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "cd ../../.. && bun test packages/adapters/github-inventory/test",
+    "verify": "bun --env-file ../../../.env src/verify.ts"
+  },
+  "dependencies": {
+    "@marketing-auto/shared": "workspace:*",
+    "zod": "^3.23.0"
+  }
+}

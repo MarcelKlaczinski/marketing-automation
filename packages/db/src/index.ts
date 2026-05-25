@@ -19,3 +19,5 @@ export * from "./helpers/project-planner-config-write.ts";
 export * from "./helpers/weekly-plan-read.ts";
 export * from "./helpers/weekly-plan-write.ts";
 export * from "./helpers/planned-item-read.ts";
+export * from "./helpers/content-source-inventory-read.ts";
+export * from "./helpers/content-source-inventory-write.ts";
