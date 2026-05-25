@@ -757,6 +757,13 @@
       "when": 1788500000000,
       "tag": "0107_topic_briefs_release_detection",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1788600000000,
+      "tag": "0108_cron_job_type_github_inventory_discovery",
+      "breakpoints": true
     }
   ]
 }

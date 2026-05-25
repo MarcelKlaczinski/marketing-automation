@@ -19,6 +19,7 @@ import { getStepPauseCleanupQueue } from "./step-pause-cleanup.worker.ts";
 import { getPlannerWeeklyGenerationQueue } from "./planner-weekly-generation.worker.ts";
 import { getComparisonDiscoveryQueue } from "./comparison-discovery.worker.ts";
 import { getGithubInventoryQueue } from "./github-inventory-refresh.worker.ts";
+import { getGithubInventoryDiscoveryQueue } from "./github-inventory-discovery.worker.ts";
 
 const log = createLogger("cron-orchestrator");
 
@@ -76,6 +77,7 @@ function getQueueForJobType(jobType: CronJobType): Queue {
   if (jobType === "planner_weekly_generation") return getPlannerWeeklyGenerationQueue();
   if (jobType === "comparison_discovery") return getComparisonDiscoveryQueue();
   if (jobType === "github_inventory_refresh") return getGithubInventoryQueue();
+  if (jobType === "github_inventory_discovery") return getGithubInventoryDiscoveryQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -115,6 +117,7 @@ export async function syncCronJobs(): Promise<void> {
     getPlannerWeeklyGenerationQueue(),
     getComparisonDiscoveryQueue(),
     getGithubInventoryQueue(),
+    getGithubInventoryDiscoveryQueue(),
   ];
 
   for (const queue of allQueues) {
@@ -132,7 +135,8 @@ export async function syncCronJobs(): Promise<void> {
         repeat.name.startsWith("step_pause_cleanup:") ||
         repeat.name.startsWith("planner_weekly_generation:") ||
         repeat.name.startsWith("comparison_discovery:") ||
-        repeat.name.startsWith("github_inventory_refresh:");
+        repeat.name.startsWith("github_inventory_refresh:") ||
+        repeat.name.startsWith("github_inventory_discovery:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

@@ -14,7 +14,22 @@ export {
   fetchLatestRelease,
   fetchRepoContents,
   fetchRateLimit,
+  searchRepositories,
 } from "./client.ts";
+
+// Discovery — Spec 64.20 follow-up A2
+export {
+  discoverViaSearch,
+  discoverViaAwesomeLists,
+  parseGithubLinksFromMarkdown,
+  DEFAULT_SEARCH_QUERIES,
+  DEFAULT_AWESOME_LISTS,
+  type DiscoveryCandidate,
+  type DiscoverViaSearchInput,
+  type DiscoverViaSearchResult,
+  type DiscoverViaAwesomeListsInput,
+  type DiscoverViaAwesomeListsResult,
+} from "./discovery/index.ts";
 
 // Composers
 export {

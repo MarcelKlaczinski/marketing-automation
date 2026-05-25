@@ -66,6 +66,10 @@ import {
   seedGithubInventoryRefreshCron,
   startGithubInventoryRefreshWorker,
 } from "./github-inventory-refresh.worker.ts";
+import {
+  seedGithubInventoryDiscoveryCron,
+  startGithubInventoryDiscoveryWorker,
+} from "./github-inventory-discovery.worker.ts";
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
@@ -343,6 +347,7 @@ async function main() {
   const planExecutionWorker = startPlanExecutionWorker();
   const comparisonDiscoveryWorker = startComparisonDiscoveryWorker();
   const githubInventoryRefreshWorker = startGithubInventoryRefreshWorker();
+  const githubInventoryDiscoveryWorker = startGithubInventoryDiscoveryWorker();
   // Spec 62.0a Section 4.5.3 + 62.7 + 63.3b + 64.20: seed cron_state rows on startup
   // (idempotent). The orchestrator's next tick (within 60s) picks them up and
   // creates the BullMQ repeat job. Seed lives in code, not SQL migration,
@@ -353,6 +358,7 @@ async function main() {
   await seedComparisonDiscoveryCron();
   await seedTrendSynthesizerCron();
   await seedGithubInventoryRefreshCron();
+  await seedGithubInventoryDiscoveryCron();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -380,6 +386,7 @@ async function main() {
     await planExecutionWorker.close();
     await comparisonDiscoveryWorker.close();
     await githubInventoryRefreshWorker.close();
+    await githubInventoryDiscoveryWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

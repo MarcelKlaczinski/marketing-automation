@@ -5,6 +5,8 @@
 
 import { zValidator } from "@hono/zod-validator";
 import {
+  and,
+  contentSourceInventory,
   ContentSourceInventoryPatchSchema,
   countByObjectType,
   createInventoryRow,
@@ -14,6 +16,7 @@ import {
   hardDeleteInventoryRow,
   INVENTORY_FETCH_STATUSES,
   INVENTORY_OBJECT_TYPES,
+  isNull,
   listInventoryByProject,
   patchInventoryRow,
   projects,
@@ -25,6 +28,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
 import { getGithubInventoryQueue } from "../../workers/github-inventory-refresh.worker.ts";
+import { getGithubInventoryDiscoveryQueue } from "../../workers/github-inventory-discovery.worker.ts";
 
 const log = createLogger("api:inventory-routes");
 
@@ -251,4 +255,67 @@ inventoryRoutes.post("/:slug/inventory/:id/refresh", async (c) => {
   );
 
   return c.json({ ok: true, data: { jobId } });
+});
+
+// ─── A2 Auto-Discovery (Spec 64.20 follow-up A2) ───────────────────────────
+
+// POST /:slug/inventory/discovery/run — manual trigger of the discovery cron
+//   for ad-hoc runs (e.g. Marcel just curated the seed list + wants to see
+//   what Auto-Discovery surfaces immediately, not next Sunday).
+inventoryRoutes.post("/:slug/inventory/discovery/run", async (c) => {
+  const slug = c.req.param("slug");
+  const proj = await loadProjectBySlug(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const queue = getGithubInventoryDiscoveryQueue();
+  const jobId = `inventory-discovery-${proj.id}-${Date.now()}`;
+  await queue.add(
+    "manual",
+    { projectId: proj.id, type: "manual" },
+    { jobId, removeOnComplete: 50, removeOnFail: 50 },
+  );
+
+  return c.json({ ok: true, data: { jobId } });
+});
+
+// POST /:slug/inventory/:id/approve — flip approved_at on a discovery
+//   candidate (an unapproved row from Auto-Discovery). Sets approved_at = NOW
+//   and approved_by_user_id = current user. Idempotent — re-approving a
+//   row that's already approved is a no-op.
+inventoryRoutes.post("/:slug/inventory/:id/approve", async (c) => {
+  const slug = c.req.param("slug");
+  const id = c.req.param("id");
+  const user = c.var.user;
+
+  const proj = await loadProjectBySlug(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const row = await loadInventoryForProject(id, proj.id);
+  if (!row) return c.json({ ok: false, error: "inventory_row_not_found" }, 404);
+
+  if (row.approvedAt !== null) {
+    return c.json({ ok: true, data: row, alreadyApproved: true });
+  }
+
+  const patched = await patchInventoryRow(id, {});
+  // patchInventoryRow returns null on empty patch — instead we run a
+  // dedicated UPDATE to set approval fields atomically.
+  void patched;
+
+  const rows = await db
+    .update(contentSourceInventory)
+    .set({
+      approvedAt: new Date(),
+      approvedByUserId: user?.id ?? null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(contentSourceInventory.id, id),
+        isNull(contentSourceInventory.approvedAt),
+      ),
+    )
+    .returning();
+
+  return c.json({ ok: true, data: rows[0] ?? row });
 });

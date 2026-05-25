@@ -11,6 +11,7 @@ import { PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN } from "../workers/planner-we
 import { COMPARISON_DISCOVERY_DEFAULT_PATTERN } from "../workers/comparison-discovery.worker.ts";
 import { TREND_SYNTHESIZER_DEFAULT_PATTERN } from "../workers/trend-synthesizer.ts";
 import { GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN } from "../workers/github-inventory-refresh.worker.ts";
+import { GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN } from "../workers/github-inventory-discovery.worker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -331,6 +332,19 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         jobType: "github_inventory_refresh",
         isActive: true,
         cronPattern: GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN,
+      })
+      .onConflictDoNothing();
+
+    // Spec 64.20 follow-up A2: github_inventory_discovery — OFF by default.
+    // Auto-discovery surfaces candidate tools for Marcel review; he opts in
+    // per-project once the initial Marcel-Seed baseline is curated.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "github_inventory_discovery",
+        isActive: false,
+        cronPattern: GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
 

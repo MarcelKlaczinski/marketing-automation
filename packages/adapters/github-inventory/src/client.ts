@@ -12,6 +12,7 @@ import {
   rawRepoSchema,
   rawReleaseSchema,
   rawContentFileSchema,
+  rawSearchResponseSchema,
 } from "./schemas.ts";
 import type {
   GitHubCredentials,
@@ -226,6 +227,32 @@ export async function fetchRepoContents(
     return { body: null, rateLimit: result.rateLimit };
   }
   return { body: rawContentFileSchema.parse(data), rateLimit: result.rateLimit };
+}
+
+/**
+ * `GET /search/repositories?q=…&sort=stars` — Spec 64.20 follow-up A2.
+ * Used by the Auto-Discovery worker to surface candidate AI tools that
+ * Marcel hasn't seeded yet. Returns up to `perPage` (max 100) repos
+ * sorted by stars descending. Pagination is intentionally skipped —
+ * top 30-50 by stars is enough quality signal; the long tail can be
+ * surfaced via more specific queries.
+ *
+ * Caller decides whether to retry on rate-limit. The doGet retry wrapper
+ * handles 5xx/transport; search-API quota is separate from core (30/min
+ * authenticated) so 429 is mapped to GitHubRateLimitError as usual.
+ */
+export async function searchRepositories(
+  query: string,
+  creds: GitHubCredentials,
+  perPage = 30,
+) {
+  const url = `/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${Math.min(perPage, 100)}`;
+  const { response, rateLimit } = await doGet(url, creds);
+  if (!response) {
+    throw new GitHubTransportError("search endpoint returned null body");
+  }
+  const data = await response.json();
+  return { body: rawSearchResponseSchema.parse(data), rateLimit };
 }
 
 /** `GET /rate_limit` — never fails on rate-limit (the endpoint itself doesn't count). */

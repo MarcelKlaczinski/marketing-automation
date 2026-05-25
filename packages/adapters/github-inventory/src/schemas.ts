@@ -68,3 +68,18 @@ export const rawRateLimitSchema = z.object({
   }),
 });
 export type RawRateLimit = z.infer<typeof rawRateLimitSchema>;
+
+/**
+ * `GET /search/repositories?q=...` — Spec 64.20 follow-up A2 (Auto-Discovery).
+ * Returns the GitHub search-API response shape; items array carries one
+ * `rawRepoSchema`-compatible row per match. We re-use `rawRepoSchema` for
+ * the items because Search-API entries have the same field set as
+ * `/repos/{owner}/{repo}` (a subset, but rawRepoSchema is tolerant of
+ * extras + has all fields Search-API returns).
+ */
+export const rawSearchResponseSchema = z.object({
+  total_count: z.number(),
+  incomplete_results: z.boolean(),
+  items: z.array(rawRepoSchema),
+});
+export type RawSearchResponse = z.infer<typeof rawSearchResponseSchema>;
