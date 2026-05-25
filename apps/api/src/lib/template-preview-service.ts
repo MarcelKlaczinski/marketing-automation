@@ -31,6 +31,16 @@ import { resolveToolIcon, type ResolvedIcon } from "./icon-resolver.ts";
 
 const log = createLogger("template-preview-service");
 
+/**
+ * Spec 65.0 Day 6 — hard ceiling on how long a single preview render can
+ * take before the request bails with `render_failed`. Covers the worst
+ * realistic case: cold Remotion bundle (~10-15s) + headless Chrome boot
+ * (~3-5s) + actual render (~1-3s). Anything beyond ~30s post-warm-up
+ * indicates Chrome is stuck. The user is waiting in the modal — we don't
+ * want to make them sit through a hanging request.
+ */
+const RENDER_TIMEOUT_MS = 120_000;
+
 type RenderServerCallable = (input: Record<string, unknown>) => Promise<{
   slides: Buffer[];
   sequenceCount?: number;
@@ -191,11 +201,30 @@ export async function previewTemplate(
   const startedAt = Date.now();
   let renderResult: { slides: Buffer[]; sequenceCount?: number };
   try {
-    renderResult = await renderFn(renderInput);
+    // Spec 65.0 Day 6 — hard timeout via `Promise.race`. Remotion's
+    // `renderStill` does not surface a reliable cancel-signal across all
+    // backends (headless Chrome may keep its process alive briefly even
+    // after we reject here), but the user-facing response returns within
+    // the budget. Worst-case dangling Chrome processes are cleaned up by
+    // the regular OS process lifecycle / Remotion's internal pool.
+    renderResult = await Promise.race([
+      renderFn(renderInput),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `Render timed out after ${RENDER_TIMEOUT_MS / 1000} seconds`,
+              ),
+            ),
+          RENDER_TIMEOUT_MS,
+        ),
+      ),
+    ]);
   } catch (err) {
     log.warn(
       { err, templateKey: input.templateKey, projectId: input.projectId },
-      "Preview render threw — likely Zod-schema mismatch on sampleData",
+      "Preview render failed — Zod-schema mismatch, render exception, or timeout",
     );
     return {
       kind: "render_failed",

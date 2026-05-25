@@ -15,7 +15,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { createLogger } from "@marketing-auto/shared";
 import { brandTokensSchema } from "@marketing-auto/shared/brand-tokens";
-import { listActiveTemplates } from "@marketing-auto/db";
+import { listActiveTemplates, setTemplateActive } from "@marketing-auto/db";
 import { requireAuth } from "../../middleware/auth.ts";
 import {
   loadPersistedPreviewState,
@@ -30,12 +30,61 @@ templatePreviewRoutes.use(requireAuth);
 
 // ─── GET /api/projects/:slug/templates — list active templates ──────────────
 
+// ─── PATCH /api/projects/:slug/templates/:templateKey — flip is_active ──────
+
+const patchBodySchema = z.object({
+  /** Spec 65.0 §13 Q8 default: soft-disable via DB flag. */
+  isActive: z.boolean(),
+});
+
+templatePreviewRoutes.patch(
+  "/:slug/templates/:templateKey",
+  zValidator("json", patchBodySchema),
+  async (c) => {
+    const { slug, templateKey } = c.req.param();
+    const body = c.req.valid("json");
+
+    const projectId = await resolveProjectIdBySlug(slug);
+    if (!projectId) {
+      return c.json({ ok: false, error: "project_not_found" }, 404);
+    }
+
+    const result = await setTemplateActive({
+      projectId,
+      templateKey,
+      isActive: body.isActive,
+    });
+
+    if (result.updated === 0) {
+      return c.json({ ok: false, error: "template_not_found", templateKey }, 404);
+    }
+
+    return c.json({
+      ok: true,
+      data: {
+        templateKey,
+        isActive: body.isActive,
+        // Tells the UI whether the flip targeted the project-scoped row or
+        // the global one — useful for the eventual "show me what scope is
+        // hidden vs visible" admin view.
+        scope: result.scope,
+      },
+    });
+  },
+);
+
 const listQuerySchema = z.object({
   /**
    * Optional filter: return only templates whose `format_types` array
    * contains this value. Hits the GIN index on `format_types` from Day 1-2.
    */
   formatType: z.string().min(1).max(64).optional(),
+  /**
+   * Spec 65.0 Day 6: include soft-disabled (`is_active = false`) rows.
+   * Default omits them — matches the pre-Day-6 contract that returned
+   * only active templates.
+   */
+  includeInactive: z.coerce.boolean().optional(),
 });
 
 templatePreviewRoutes.get(
@@ -53,6 +102,7 @@ templatePreviewRoutes.get(
     const rows = await listActiveTemplates({
       projectId,
       ...(q.formatType !== undefined && { formatType: q.formatType }),
+      ...(q.includeInactive !== undefined && { includeInactive: q.includeInactive }),
     });
 
     // Spec 65.0 Day 5: probe the filesystem per row for persisted preview

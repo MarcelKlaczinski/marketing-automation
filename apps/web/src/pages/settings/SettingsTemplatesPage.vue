@@ -27,6 +27,17 @@
           <option value="project">{{ $t("settings.templates.filters.scopeProject") as string }}</option>
         </select>
       </div>
+      <div class="filter-group filter-group-checkbox">
+        <label class="filter-checkbox-label">
+          <input
+            type="checkbox"
+            :checked="includeInactive"
+            class="filter-checkbox"
+            @change="onToggleIncludeInactive"
+          />
+          {{ $t("settings.templates.filters.includeInactive") as string }}
+        </label>
+      </div>
     </section>
 
     <div v-if="loading" class="state-banner">
@@ -46,12 +57,18 @@
         v-for="tpl in filteredItems"
         :key="tpl.id"
         class="template-card"
+        :class="{ inactive: !tpl.isActive }"
       >
         <header class="card-header">
           <div class="card-name">{{ tpl.displayName ?? tpl.templateKey }}</div>
-          <span class="card-scope-chip" :class="`scope-${tpl.scope}`">
-            {{ scopeLabel(tpl.scope) }}
-          </span>
+          <div class="card-header-chips">
+            <span v-if="!tpl.isActive" class="card-inactive-chip">
+              {{ $t("settings.templates.card.inactiveBadge") as string }}
+            </span>
+            <span class="card-scope-chip" :class="`scope-${tpl.scope}`">
+              {{ scopeLabel(tpl.scope) }}
+            </span>
+          </div>
         </header>
 
         <div class="card-key mono">{{ tpl.templateKey }}</div>
@@ -105,13 +122,25 @@
             @click="openPreview(tpl)"
           />
           <q-btn
+            v-if="tpl.isActive"
             flat
-            disable
             size="sm"
+            color="negative"
+            :loading="isPending(tpl)"
+            :disable="isPending(tpl)"
             :label="$t('settings.templates.card.disable') as string"
-          >
-            <q-tooltip>{{ $t("settings.templates.card.disableTooltip") as string }}</q-tooltip>
-          </q-btn>
+            @click="onSetActive(tpl, false)"
+          />
+          <q-btn
+            v-else
+            flat
+            size="sm"
+            color="positive"
+            :loading="isPending(tpl)"
+            :disable="isPending(tpl)"
+            :label="$t('settings.templates.card.enable') as string"
+            @click="onSetActive(tpl, true)"
+          />
         </footer>
       </article>
     </div>
@@ -145,6 +174,7 @@ import {
   useTemplatesList,
   type TemplateListItem,
 } from "src/composables/settings/useTemplatesList";
+import { useTemplateActions } from "src/composables/settings/useTemplateActions";
 import TemplatePreviewModal from "src/components/settings/TemplatePreviewModal.vue";
 import TemplateOverridesSection from "src/components/settings/TemplateOverridesSection.vue";
 import { assetUrl } from "src/lib/asset-url";
@@ -178,12 +208,17 @@ export default defineComponent({
   data: () => ({
     formatTypeFilter: null as string | null,
     scopeFilter: "all" as "all" | "global" | "project",
+    includeInactive: false as boolean,
     items: [] as TemplateListItem[],
     loading: false,
     error: null as string | null,
     previewOpen: false,
     activeTemplate: null as TemplateListItem | null,
+    /** Spec 65.0 Day 6 — set of templateKeys currently being toggled. Used to
+     *  disable both buttons while the PATCH is in flight to prevent double-clicks. */
+    pendingTemplateKeys: new Set<string>(),
     _refetch: (() => Promise.resolve()) as () => Promise<void>,
+    _setActive: null as ReturnType<typeof useTemplateActions>["setActive"] | null,
   }),
 
   computed: {
@@ -216,12 +251,16 @@ export default defineComponent({
 
   mounted() {
     // Wire the composable here (not in setup()) so we can access reactive
-    // `data()` values (formatTypeFilter). Pattern: pass getter functions to
-    // the composable so it always reads the latest data().
+    // `data()` values (formatTypeFilter, includeInactive). Pattern: pass getter
+    // functions to the composable so it always reads the latest data().
     const composable = useTemplatesList({
       slug: () => this.projectSlug,
       formatType: () => this.formatTypeFilter,
+      includeInactive: () => this.includeInactive,
     });
+    // Spec 65.0 Day 6 — actions composable for the soft-disable PATCH endpoint.
+    const actions = useTemplateActions();
+    this._setActive = actions.setActive;
     // Mirror composable refs onto this so the template can read them
     // through `data` slots and re-render on change.
     this._refetch = () => composable.refetch();
@@ -277,6 +316,65 @@ export default defineComponent({
     openPreview(tpl: TemplateListItem): void {
       this.activeTemplate = tpl;
       this.previewOpen = true;
+    },
+    /**
+     * Spec 65.0 Day 6 — toggle the "Include Inactive" filter from the checkbox.
+     * Re-fetches via the composable's slug/formatType/includeInactive watcher.
+     */
+    onToggleIncludeInactive(event: Event): void {
+      this.includeInactive = (event.target as HTMLInputElement).checked;
+    },
+    /**
+     * Spec 65.0 Day 6 — flip `is_active` for one template (project-scoped row
+     * wins, falls back to global). On success the row in `items` is patched
+     * locally; on failure a Quasar negative notification shows the structured
+     * 404/500 error from the API.
+     */
+    async onSetActive(tpl: TemplateListItem, isActive: boolean): Promise<void> {
+      if (!this._setActive) return;
+      // Rebuild the Set (Vue 3 reactivity won't track `.add()` on the existing
+      // proxy — see apps/web/CLAUDE.md "DO NOT mutate Set/Map in data()").
+      this.pendingTemplateKeys = new Set(this.pendingTemplateKeys);
+      this.pendingTemplateKeys.add(tpl.templateKey);
+      try {
+        const result = await this._setActive({
+          slug: this.projectSlug,
+          templateKey: tpl.templateKey,
+          isActive,
+        });
+        if ("error" in result) {
+          this.$q.notify({
+            type: "negative",
+            message: this.$t(
+              isActive
+                ? "settings.templates.card.enableFailed"
+                : "settings.templates.card.disableFailed",
+            ) as string,
+            caption: result.error,
+          });
+          return;
+        }
+        // Local patch — replace the row in-place so the card flips visual state
+        // without a full refetch. The composable refetch on the next filter
+        // toggle picks up any drift.
+        this.items = this.items.map((t) =>
+          t.templateKey === tpl.templateKey ? { ...t, isActive: result.isActive } : t,
+        );
+        this.$q.notify({
+          type: "positive",
+          message: this.$t(
+            isActive
+              ? "settings.templates.card.enableSuccess"
+              : "settings.templates.card.disableSuccess",
+          ) as string,
+        });
+      } finally {
+        this.pendingTemplateKeys = new Set(this.pendingTemplateKeys);
+        this.pendingTemplateKeys.delete(tpl.templateKey);
+      }
+    },
+    isPending(tpl: TemplateListItem): boolean {
+      return this.pendingTemplateKeys.has(tpl.templateKey);
     },
     assetUrl(path: string | null | undefined): string {
       return assetUrl(path);
@@ -366,6 +464,28 @@ export default defineComponent({
   min-width: 180px;
 }
 
+/* Spec 65.0 Day 6 — Include-Inactive filter checkbox */
+.filter-group-checkbox {
+  justify-content: flex-end;
+}
+
+.filter-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 6px 0;
+}
+
+.filter-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--color-brand, var(--text-primary));
+}
+
 .state-banner {
   background: var(--bg-glass-strong);
   border: 1px solid var(--border-soft);
@@ -399,6 +519,33 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 10px;
+  transition: opacity 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)),
+              border-color 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+
+/* Spec 65.0 Day 6 — soft-disabled card visual state. Lower opacity + dashed
+ * border signals "available but excluded from auto-render selection". */
+.template-card.inactive {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
+.card-header-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-inactive-chip {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-base);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-soft);
 }
 
 .card-header {

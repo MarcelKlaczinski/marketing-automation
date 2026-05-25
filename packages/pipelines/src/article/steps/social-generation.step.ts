@@ -2,7 +2,7 @@
 // Runs only when project.socialAutoRenderLocales is set.
 // Writes to template_renders (canonical table per Pattern 104).
 import { z } from "zod";
-import { type Article, type ArticleDiscovery, articleDiscovery, articles, db, projects, templateRenders } from "@marketing-auto/db";
+import { type Article, type ArticleDiscovery, articleDiscovery, articles, db, getTemplate, markArticleTemplateSnapshot, projects, templateRenders } from "@marketing-auto/db";
 import { and, eq, inArray } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -217,6 +217,23 @@ export class SocialGenerationStep extends BaseStep<SocialGenerationInput, Social
         if (!insertedRow) {
           log.warn({ articleId: input.articleId, templateKey, bcp47Locale }, "[social-generation] DB insert failed — skipped");
           continue;
+        }
+
+        // Spec 65.0 Day 6 — stamp the article with the rendering template's
+        // current file_hash so `articles.template_key/template_version`
+        // reflect the latest render (Marcel-Decision §8 "current wins").
+        // Best-effort: failure here must not break the render flow.
+        try {
+          const tplRow = await getTemplate({ projectId: ctx.projectId, templateKey });
+          if (tplRow) {
+            await markArticleTemplateSnapshot({
+              articleId: input.articleId,
+              templateKey,
+              templateVersion: tplRow.fileHash,
+            });
+          }
+        } catch (err) {
+          log.warn({ err, articleId: input.articleId, templateKey }, "[social-generation] template snapshot write failed");
         }
 
         try {

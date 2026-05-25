@@ -1,5 +1,5 @@
 import { zValidator } from "@hono/zod-validator";
-import { articleDiscovery, articles, db, fetchTemplateOverrides, projects, socialPosts, templateRenders } from "@marketing-auto/db";
+import { articleDiscovery, articles, db, fetchTemplateOverrides, getTemplate, markArticleTemplateSnapshot, projects, socialPosts, templateRenders } from "@marketing-auto/db";
 import type { Article, ArticleDiscovery } from "@marketing-auto/db";
 import { readFile } from "node:fs/promises";
 import { templateRegistry } from "@marketing-auto/social/templates";
@@ -742,6 +742,21 @@ socialPostRoutes.post(
 
       const renderId = insertedRow.id;
 
+      // Spec 65.0 Day 6 — stamp the article with the rendering template's
+      // current file_hash. Best-effort: never block the render queue.
+      try {
+        const tplRow = await getTemplate({ projectId: article.projectId, templateKey });
+        if (tplRow) {
+          await markArticleTemplateSnapshot({
+            articleId,
+            templateKey,
+            templateVersion: tplRow.fileHash,
+          });
+        }
+      } catch (err) {
+        log.warn({ err, articleId, templateKey }, "template snapshot write failed");
+      }
+
       const { jobId } = await enqueueTemplateRenderJob(renderId);
       jobs.push({ templateKey, status: "queued", jobId, renderId });
     }
@@ -895,6 +910,34 @@ socialPostRoutes.post("/:articleId/template-renders/:renderId/re-render", async 
     .returning({ id: templateRenders.id });
 
   if (!newRow) return c.json({ ok: false, error: "Failed to create re-render row" }, 500);
+
+  // Spec 65.0 Day 6 — stamp the article with the current template version.
+  // Re-render uses the SAME templateKey + locale + theme; only the template
+  // file_hash might have changed since the original render.
+  if (render.templateKey) {
+    try {
+      const [art] = await db
+        .select({ projectId: articles.projectId })
+        .from(articles)
+        .where(eq(articles.id, articleId))
+        .limit(1);
+      if (art) {
+        const tplRow = await getTemplate({
+          projectId: art.projectId,
+          templateKey: render.templateKey,
+        });
+        if (tplRow) {
+          await markArticleTemplateSnapshot({
+            articleId,
+            templateKey: render.templateKey,
+            templateVersion: tplRow.fileHash,
+          });
+        }
+      }
+    } catch (err) {
+      log.warn({ err, articleId, templateKey: render.templateKey }, "template snapshot write failed on re-render");
+    }
+  }
 
   const { jobId } = await enqueueTemplateRenderJob(newRow.id);
   log.info({ articleId, originalRenderId: renderId, newRenderId: newRow.id, jobId }, "Template render re-enqueued");

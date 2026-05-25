@@ -1,5 +1,5 @@
 import { pruneOldNotifications } from "@marketing-auto/core/notifications";
-import { articleDiscovery, articles, db, templateRenders } from "@marketing-auto/db";
+import { articleDiscovery, articles, db, getTemplate, markArticleTemplateSnapshot, templateRenders } from "@marketing-auto/db";
 import { and, desc, eq, inArray, isNotNull, sql } from "@marketing-auto/db";
 import type { Article, ArticleDiscovery } from "@marketing-auto/db";
 import { templateRegistry } from "@marketing-auto/social/templates";
@@ -433,6 +433,23 @@ adminRoutes.post(
       costUsd: costUsd !== null ? String(costUsd) : null,
       completedAt,
     });
+
+    // Spec 65.0 Day 6 — article-level template snapshot for audit.
+    try {
+      const tplRow = await getTemplate({
+        projectId: articleRow.projectId,
+        templateKey,
+      });
+      if (tplRow) {
+        await markArticleTemplateSnapshot({
+          articleId: body.sampleArticleId,
+          templateKey,
+          templateVersion: tplRow.fileHash,
+        });
+      }
+    } catch (err) {
+      log.warn({ err, articleId: body.sampleArticleId, templateKey }, "template snapshot write failed in admin render");
+    }
 
     log.info({ templateKey, articleId: body.sampleArticleId }, "Saved render to template_renders");
 

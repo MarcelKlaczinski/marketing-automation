@@ -676,3 +676,39 @@ Cache-bust: `DELETE FROM project_brand_assets WHERE asset_type='tool_icon' AND a
 
 The `emoji` field was removed from `ExtractToolsStep` output in Spec 52a.
 Existing posts with emoji-logos are intentionally NOT re-rendered (Spec decision).
+
+## Template Engine (Spec 65.0 Day 1-6)
+
+Filesystem-based registry with hot-reload, preview, persistent renders, and Day-6 soft-disable + snapshot patterns.
+
+### Soft-disable resolution (Spec 65.0 Day 6)
+
+`PATCH /api/projects/:slug/templates/:templateKey` flips `templates.is_active` via `setTemplateActive({projectId, templateKey, isActive})` from `@marketing-auto/db`. The helper resolves **project-scoped row first, falls back to global only if no project-scoped row exists**, and returns a discriminated `{updated, scope: "project" | "global" | null}` so the API can echo the resolved scope back to the UI. The partial unique index `templates_active_key_per_project_uniq WHERE is_active = TRUE` makes flipping safe — `false` rows fall out of the unique-key constraint scope so re-enabling never collides with concurrent enables of the same key in another scope.
+
+`GET /api/projects/:slug/templates?includeInactive=true` widens the listing to include `is_active=false` rows. Default (omitted) preserves the pre-Day-6 active-only contract. The query param is parsed with `z.coerce.boolean().optional()` so `?includeInactive=true` and `?includeInactive=false` both work.
+
+### Article snapshot wire-up (`articles.template_key` / `template_version`)
+
+The two columns exist since Day 1-2 but went unwritten until Day 6. `markArticleTemplateSnapshot({articleId, templateKey, templateVersion})` in `@marketing-auto/db` is the shared write that stamps the snapshot from every `template_renders` INSERT site (Marcel-Decision §8 "current wins" — articles always point at the most recently rendered template's `file_hash`). All 4 call sites wrap the write in try-catch with `log.warn` so a snapshot-write failure NEVER breaks the render flow. Canonical sites:
+
+- `packages/pipelines/src/article/steps/social-generation.step.ts` — pipeline auto-render after template_renders INSERT
+- `apps/api/src/routes/social-posts.ts` — generate-templates endpoint + re-render endpoint (the latter fetches `projectId` fresh because `articleId` is the only param in scope)
+- `apps/api/src/routes/admin.ts` — admin manual render (uses `articleRow.projectId` already in scope)
+
+When adding a new `template_renders` INSERT site, wire the snapshot write inside the same scope with the same try/catch posture. Always call `getTemplate({projectId, templateKey})` to resolve the current `file_hash` rather than passing a stale version through pipeline state.
+
+### Render timeout via `Promise.race`
+
+`apps/api/src/lib/template-preview-service.ts` wraps `renderFn(renderInput)` in `Promise.race` against a 120-second `setTimeout` (constant `RENDER_TIMEOUT_MS = 120_000`). The ceiling covers Remotion's cold-bundle init + headless Chrome boot + LLM-bound sample-data renders. Note: Remotion's `renderStill` doesn't reliably surface cancel signals across backends — the user-facing response returns within budget but Chrome processes may dangle briefly (cleaned up by OS lifecycle). Use the same `Promise.race` pattern for any future endpoint that calls into Remotion or other process-spawning libraries.
+
+### Periodic cache-copy + preview-dir sweep
+
+`server.ts` runs `cleanupStaleCacheCopies` + `cleanupLegacyPreviewSessions` at boot (with `maxAgeMs: 0` to wipe legacy artifacts) AND every hour via `setInterval` (with `maxAgeMs: PERIODIC_SWEEP_MS = 3600000`). Add `.unref()` on the interval handle so the process can still exit cleanly in tests and signal-handler graceful-shutdown paths.
+
+### Common Day-6 mistakes
+
+- DO NOT call `apiPatch` from a frontend composable when the backend's 4xx response body carries structured fields the call site needs — `apiPatch` throws `Error(body.error)` and drops sibling fields. Use raw `fetch` + `res.json()` manually, returning a discriminated `Success | Failure` union to the caller. Canonical example: [`useTemplateActions.ts`](../../apps/web/src/composables/settings/useTemplateActions.ts) preserves the 404-body `templateKey` field so the UI can patch the right card by templateKey instead of by index. Same posture as `usePauseActions.ts` (Spec 62.6) for 409 `impact` body.
+- DO NOT INSERT into `template_renders` without immediately calling `markArticleTemplateSnapshot` in a try/catch — the article row's `template_key` / `template_version` columns become stale and Marcel-Decision §8 ("current wins") silently breaks. All 4 existing INSERT sites use the same try/catch + log.warn pattern; copy it verbatim for new sites.
+- DO NOT raise `RENDER_TIMEOUT_MS` past 120s without checking whether the BullMQ job's `lockDuration` (currently 10 min) still has comfortable headroom — a render timeout that approaches lock-duration would let BullMQ relocate the job mid-render and double-bill.
+- DO NOT omit `.unref()` on a `setInterval` registered in `server.ts` — tests that import the server module for route assertions would hang waiting for the interval handle to clear.
+- DO NOT add a new query-param filter (like `?includeInactive=`) to the templates GET route without also extending the `useTemplatesList` composable input + the watcher dependency array — the composable re-fetches only when watched dependencies change, so a new flag must be in the watcher tuple or it'll only kick in on the first toggle from `false`.

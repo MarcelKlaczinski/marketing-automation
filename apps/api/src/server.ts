@@ -76,6 +76,24 @@ startTemplateWatcher();
 // dirs from Day-4's ephemeral implementation so they don't accumulate.
 await cleanupLegacyPreviewSessions().catch(() => undefined);
 
+// Spec 65.0 Day 6: periodic background sweep (every hour) for
+// (a) cache-copy dotfiles older than 1h (accumulate during a long dev
+//     session as templates are edited)
+// (b) legacy `preview-<uuid>/` dirs older than 1h (defensive backstop in
+//     case a Day-4-era preview leaked back somehow)
+// Persistent `<projectSlug>/<templateKey>/` dirs are NOT swept — they're
+// the canonical "last render" storage and survive across boots.
+const PERIODIC_SWEEP_MS = 60 * 60 * 1000; // 1 hour
+setInterval(() => {
+  void cleanupStaleCacheCopies({
+    directory: resolve(REPO_ROOT, "packages/social/src/templates/definitions"),
+    maxAgeMs: PERIODIC_SWEEP_MS,
+  }).catch(() => undefined);
+  void cleanupLegacyPreviewSessions({ maxAgeMs: PERIODIC_SWEEP_MS }).catch(
+    () => undefined,
+  );
+}, PERIODIC_SWEEP_MS).unref();
+
 const app = new Hono();
 
 // Middleware (order matters: CORS first, then logger, then session loader)

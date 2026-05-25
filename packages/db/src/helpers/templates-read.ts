@@ -33,17 +33,28 @@ export async function getTemplate(opts: {
 }
 
 /**
- * List active templates in a project's scope (global + project-scoped).
- * Optional `formatType` filter uses the GIN-indexed `format_types` column.
+ * List templates in a project's scope (global + project-scoped). By
+ * default only active rows are returned; pass `includeInactive: true`
+ * (Spec 65.0 Day 6 Settings-UI "show inactive" filter) to surface soft-
+ * disabled rows too. Optional `formatType` filter uses the GIN-indexed
+ * `format_types` column.
  */
 export async function listActiveTemplates(opts: {
   projectId: string;
   formatType?: string;
+  /**
+   * When true, also include rows with `is_active = false`. Default false
+   * preserves the pre-Day-6 contract: every consumer that doesn't opt in
+   * only sees enabled templates.
+   */
+  includeInactive?: boolean;
 }): Promise<Template[]> {
   const conditions = [
-    eq(templates.isActive, true),
     or(eq(templates.projectId, opts.projectId), isNull(templates.projectId)),
   ];
+  if (!opts.includeInactive) {
+    conditions.push(eq(templates.isActive, true));
+  }
   if (opts.formatType !== undefined) {
     conditions.push(sql`${opts.formatType} = ANY(${templates.formatTypes})`);
   }

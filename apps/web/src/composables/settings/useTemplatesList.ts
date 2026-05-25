@@ -57,6 +57,12 @@ export interface UseTemplatesListInput {
   slug: MaybeRefOrGetter<string>;
   /** Optional format-type filter — re-fetches when this changes. */
   formatType: MaybeRefOrGetter<string | null>;
+  /**
+   * Spec 65.0 Day 6 — when true, the GET request includes `?includeInactive=true`
+   * so soft-disabled (project- or global-scoped) templates appear in the result.
+   * Default false preserves the pre-Day-6 contract (active-only).
+   */
+  includeInactive?: MaybeRefOrGetter<boolean>;
 }
 
 export function useTemplatesList(input: UseTemplatesListInput) {
@@ -74,7 +80,11 @@ export function useTemplatesList(input: UseTemplatesListInput) {
     error.value = null;
     try {
       const ft = toValue(input.formatType);
-      const qs = ft ? `?formatType=${encodeURIComponent(ft)}` : "";
+      const includeInactive = input.includeInactive ? toValue(input.includeInactive) : false;
+      const params: string[] = [];
+      if (ft) params.push(`formatType=${encodeURIComponent(ft)}`);
+      if (includeInactive) params.push("includeInactive=true");
+      const qs = params.length > 0 ? `?${params.join("&")}` : "";
       const data = await apiGet<TemplatesListResponse>(
         `/projects/${slug}/templates${qs}`,
       );
@@ -90,7 +100,11 @@ export function useTemplatesList(input: UseTemplatesListInput) {
   // Re-fetch when slug or formatType changes. `immediate: true` runs once on
   // mount so the consumer doesn't need to remember to call `refetch()`.
   watch(
-    () => [toValue(input.slug), toValue(input.formatType)],
+    () => [
+      toValue(input.slug),
+      toValue(input.formatType),
+      input.includeInactive ? toValue(input.includeInactive) : false,
+    ],
     () => {
       void refetch();
     },

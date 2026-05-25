@@ -222,3 +222,57 @@ export async function incrementTemplateUsage(opts: {
       ),
     );
 }
+
+/**
+ * Spec 65.0 Day 6 — flip a template's `is_active` flag.
+ *
+ * Resolution order: project-scoped row wins over global. If a project has
+ * its own override row for this `templateKey`, that's the one we flip.
+ * If only a global row exists, the call updates the global row (caller is
+ * responsible for whether that's the right scope — admins disabling a
+ * template globally vs a project hiding it locally are different
+ * operations; the route layer decides which is appropriate).
+ *
+ * Returns the count of rows affected (0 if no matching template exists,
+ * 1 normally, never more because the partial unique index guarantees
+ * at-most-one active row per (project, key)). Idempotent — calling
+ * `setTemplateActive(..., true)` on an already-active row is a no-op.
+ */
+export async function setTemplateActive(opts: {
+  projectId: string;
+  templateKey: string;
+  isActive: boolean;
+}): Promise<{ updated: number; scope: "project" | "global" | null }> {
+  // Try project-scoped row first.
+  const projectScoped = await db
+    .update(templates)
+    .set({ isActive: opts.isActive, updatedAt: new Date() })
+    .where(
+      and(
+        eq(templates.projectId, opts.projectId),
+        eq(templates.templateKey, opts.templateKey),
+      ),
+    )
+    .returning({ id: templates.id });
+
+  if (projectScoped.length > 0) {
+    return { updated: projectScoped.length, scope: "project" };
+  }
+
+  // Fall back to global.
+  const global = await db
+    .update(templates)
+    .set({ isActive: opts.isActive, updatedAt: new Date() })
+    .where(
+      and(
+        isNull(templates.projectId),
+        eq(templates.templateKey, opts.templateKey),
+      ),
+    )
+    .returning({ id: templates.id });
+
+  if (global.length > 0) {
+    return { updated: global.length, scope: "global" };
+  }
+  return { updated: 0, scope: null };
+}

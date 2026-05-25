@@ -884,6 +884,43 @@ Flagged for Day-6 polish as a coordinated cross-template layout pass.
 - 15 preview tests pass / 2 RUN_VISUAL renders pass / workspace typecheck 0 errors across 26 packages
 - Debug script confirms all 4 service-level renders work end-to-end with the new sample-data + auto-icon-resolve
 
-### Day 6+ (not yet started)
+### Day 6 (2026-05-25, landed)
 
-— soft-disable PATCH endpoint + UI activation; article snapshot wire-up (`articles.template_key` / `template_version` populated by render-pipeline); periodic cache-copy + preview-dir sweep; Remotion render abort controller; cross-template layout pass to fill canvas height (see Day-5 fix-up §4).
+Four polish tasks from §17 backlog shipped; cross-template layout pass deferred per Marcel ("den layoutpass schieben wir bis mehr templates da sind, eventuell großes einheitliches refactoring, nichts für jetzt").
+
+**1. Soft-disable PATCH endpoint + UI activation (Q8 default)**
+- New helper `setTemplateActive({projectId, templateKey, isActive})` in [packages/db/src/helpers/templates-write.ts](../../packages/db/src/helpers/templates-write.ts) — project-scoped row wins over global; falls back to global only if no project-scoped row exists. Returns discriminated `{updated, scope: "project" | "global" | null}`.
+- New endpoint `PATCH /api/projects/:slug/templates/:templateKey` in [apps/api/src/routes/projects/templates.ts](../../apps/api/src/routes/projects/templates.ts) — Zod body `{isActive: boolean}`, returns 404 with `templateKey` field on `updated === 0`, 200 with `{templateKey, isActive, scope}` on success.
+- `listActiveTemplates` extended with optional `includeInactive` flag (default false preserves pre-Day-6 contract). GET endpoint extended with `?includeInactive=true` via `z.coerce.boolean().optional()`.
+- Partial unique index `templates_active_key_per_project_uniq WHERE is_active = TRUE` makes the flip structurally safe — flipping to `false` removes the row from the active-key uniqueness scope.
+- New composable [`useTemplateActions.ts`](../../apps/web/src/composables/settings/useTemplateActions.ts) wraps the PATCH via raw fetch (not `apiPatch`) so the structured 404-body error stays available — returns discriminated `SetActiveSuccess | SetActiveFailure`.
+- [SettingsTemplatesPage.vue](../../apps/web/src/pages/settings/SettingsTemplatesPage.vue) adds: third filter group with "Include Inactive" checkbox, inactive-badge chip in card header, dashed-border + 0.55-opacity visual state for inactive cards, Enable/Disable buttons (mutually exclusive via `v-if="tpl.isActive"`), `pendingTemplateKeys` Set (rebuilt on mutate per Vue reactivity rule) for in-flight click-disable, Quasar notify for success + structured error caption.
+- i18n keys added under `settings.templates.filters.includeInactive` + `card.{enable, disable*Success, *Failed, inactiveBadge}` in DE+EN.
+
+**2. Article snapshot wire-up — `articles.template_key` / `template_version`**
+
+The two columns existed since Day 1-2 but went unwritten until Day 6. Now all 4 `template_renders` INSERT sites stamp the snapshot via the shared helper:
+- New helper [`markArticleTemplateSnapshot({articleId, templateKey, templateVersion})`](../../packages/db/src/helpers/articles-write.ts) — pure write, updates `articles.template_key` + `template_version` + `updated_at`.
+- Wired at 4 sites — [`social-generation.step.ts`](../../packages/pipelines/src/article/steps/social-generation.step.ts) (pipeline auto-render), [`social-posts.ts`](../../apps/api/src/routes/social-posts.ts) (generate-templates endpoint + re-render endpoint, latter fetches projectId fresh), [`admin.ts`](../../apps/api/src/routes/admin.ts) (admin manual render, uses `articleRow.projectId`).
+- All 4 call sites wrap the snapshot write in try-catch with `log.warn` — best-effort, never breaks the render flow. Reflects Marcel-Decision §8 "current wins" — the article row always points at the most recently rendered template's file_hash.
+
+**3. Periodic cache-copy + preview-dir sweep**
+
+[apps/api/src/server.ts](../../apps/api/src/server.ts) adds a `setInterval` at hourly cadence calling `cleanupStaleCacheCopies` + `cleanupLegacyPreviewSessions` with `maxAgeMs = PERIODIC_SWEEP_MS = 3600000`. Separated from boot-time cleanup which uses `maxAgeMs: 0` to wipe legacy artifacts on every restart. `.unref()` on the interval prevents process-exit blocking.
+
+**4. Remotion render abort controller (120s — Marcel pushed back on 30s)**
+
+[apps/api/src/lib/template-preview-service.ts](../../apps/api/src/lib/template-preview-service.ts) wraps `renderFn(renderInput)` in `Promise.race` against a 120-second `setTimeout` with constant `RENDER_TIMEOUT_MS = 120_000`. 120s ceiling justified: covers Remotion's cold-bundle init + headless Chrome boot + LLM-bound sample-data renders. Original spec sketch said 30s; Marcel feedback: "ich würde den render timeout schon höher setzen der warum so eng?" — value chosen to give the slowest cold-start path generous headroom while still rejecting genuinely-stuck renders. Note: Remotion's `renderStill` doesn't reliably surface cancel signals across backends, so user-facing response returns within budget but Chrome processes may dangle briefly (cleaned up by OS lifecycle).
+
+**Spec deviations §10 (5 entries):**
+- Spec §17 didn't enumerate `includeInactive` query-param + the watcher widening on the composable — both added because the UI checkbox needs a server round-trip to surface the previously-filtered inactive rows.
+- The original "PATCH endpoint" sketch hand-waved scope resolution; the actual contract is "project-scoped row wins over global, falls back to global only if no project-scoped row exists" — surfaced via the discriminated `scope` return field so the UI can show which scope was flipped.
+- `useTemplateActions.ts` uses raw `fetch` instead of `apiPatch` because the 404 response body includes the structured `templateKey` field that `apiPatch` drops by throwing `Error(body.error)` only — same posture as `usePauseActions.ts` (Spec 62.6) for the 409 `impact` field.
+- Snapshot write is wrapped at all 4 INSERT sites in try-catch + `log.warn` — Marcel-Decision §8 said the snapshot is best-effort, never block render. Re-render-from-admin uses `articleRow.projectId` (already in scope) instead of re-querying.
+- Periodic sweep uses `.unref()` on the interval — without it the process would refuse to exit cleanly in tests / signal-handler graceful-shutdown paths.
+
+**Verified:** workspace typecheck 0 errors across web + api + pipelines + db; apps/api 379 pass / 8 skip / 0 fail; packages/db 99 pass / 0 fail. Pre-existing `buildSystemPrompt > throws when project context is missing` failure in `packages/pipelines/test/prompts.test.ts` is environment drift (skills submodule not populated locally) — orthogonal to Day 6.
+
+### Day 7+ (backlog, not started)
+
+— cross-template layout pass to fill canvas height (deferred per Marcel until more templates land — see Day-5 fix-up §4; candidate for a unified design-token refactor across all 5 templates rather than piecemeal); PATCH endpoint test (auth gate, 404, success, scope discrimination).
