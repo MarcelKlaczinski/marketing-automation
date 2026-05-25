@@ -63,6 +63,7 @@ function brief(overrides: Partial<TopicBrief> = {}): TopicBrief {
     refreshMetadata: null,
     comparisonMetadata: null,
     releaseMetadata: null,
+    starTrendMetadata: null,
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,

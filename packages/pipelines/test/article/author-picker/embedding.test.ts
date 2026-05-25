@@ -154,6 +154,7 @@ describe.skipIf(!RUN_DB)("embeddingAuthorMatch (DB + mocked voyage)", () => {
       refreshMetadata: null,
       comparisonMetadata: null,
     releaseMetadata: null,
+    starTrendMetadata: null,
       routedArticleId: null,
       routedCornerstoneSpecId: null,
       createdAt: new Date(),

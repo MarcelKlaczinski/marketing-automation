@@ -118,3 +118,77 @@ export function resolveTrendScoreWeights(
     coverage: override.coverage ?? DEFAULT_TREND_SCORE_WEIGHTS.coverage,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Star-Trend Story detection knobs (Spec 64.21)
+//
+// Stored in `project_planner_config.star_trend_config` JSONB (migration 0111).
+// Same partial-override pattern as trendScoreWeights — NULL column = use all
+// defaults; partial objects merge field-by-field. See `resolveStarTrendConfig`.
+//
+// Detection rule (`detectStarTrend` in packages/pipelines/src/topic-sources/star-trend/detect.ts):
+//   absoluteHit = (current - prior) >= absoluteThreshold
+//   relativeHit = (current - prior) / prior * 100 >= relativeThresholdPct
+//                 AND current >= minAbsoluteForRelative
+//   triggered   = absoluteHit OR relativeHit
+//
+// `windowDays` controls how far back the worker looks for the prior snapshot —
+// `queryStarsAgo(inventoryId, NOW - windowDays)` returns the most recent
+// snapshot at-or-before that cutoff. With weekly refresh (default), windowDays:30
+// gives 4 snapshots to compare against. `weeklyCap` paces the brief emission
+// (same convention as RELEASE_DETECTION_WEEKLY_CAP=5 in 64.20 A3).
+//
+// ⚠️  DO NOT add `.default(...)` at the field level — same rationale as
+// trendScoreWeightsSchema above (would break the partial-override JSONB roundtrip
+// AND the "all-defaults → NULL" payload optimisation).
+export const starTrendConfigSchema = z
+  .object({
+    absoluteThreshold:      z.number().int().min(1).optional(),
+    relativeThresholdPct:   z.number().int().min(1).max(10_000).optional(),
+    minAbsoluteForRelative: z.number().int().min(0).optional(),
+    weeklyCap:              z.number().int().min(0).max(50).optional(),
+    windowDays:             z.number().int().min(1).max(365).optional(),
+  })
+  .strict()
+  .describe(
+    "Per-project star-trend detection override. Each knob defaults to the DEFAULT_STAR_TREND_CONFIG constant when omitted. Stored as JSONB on project_planner_config.",
+  );
+
+export type StarTrendConfig = z.infer<typeof starTrendConfigSchema>;
+
+/**
+ * Fully-resolved shape with all five knobs required — what
+ * `resolveStarTrendConfig()` returns and what the detect/emit modules consume.
+ * Same `Resolved*` interface idiom as `ResolvedTrendScoreWeights` for
+ * `exactOptionalPropertyTypes` narrowing.
+ */
+export interface ResolvedStarTrendConfig {
+  absoluteThreshold: number;
+  relativeThresholdPct: number;
+  minAbsoluteForRelative: number;
+  weeklyCap: number;
+  windowDays: number;
+}
+
+/** Code defaults per Marcel-decision (Spec 64.21 §Decisions). */
+export const DEFAULT_STAR_TREND_CONFIG: ResolvedStarTrendConfig = {
+  absoluteThreshold:      5_000,
+  relativeThresholdPct:   50,
+  minAbsoluteForRelative: 500,
+  weeklyCap:              3,
+  windowDays:             30,
+};
+
+/** Merge override with defaults — used at detect time. */
+export function resolveStarTrendConfig(
+  override: StarTrendConfig | null | undefined,
+): ResolvedStarTrendConfig {
+  if (!override) return { ...DEFAULT_STAR_TREND_CONFIG };
+  return {
+    absoluteThreshold:      override.absoluteThreshold      ?? DEFAULT_STAR_TREND_CONFIG.absoluteThreshold,
+    relativeThresholdPct:   override.relativeThresholdPct   ?? DEFAULT_STAR_TREND_CONFIG.relativeThresholdPct,
+    minAbsoluteForRelative: override.minAbsoluteForRelative ?? DEFAULT_STAR_TREND_CONFIG.minAbsoluteForRelative,
+    weeklyCap:              override.weeklyCap              ?? DEFAULT_STAR_TREND_CONFIG.weeklyCap,
+    windowDays:             override.windowDays             ?? DEFAULT_STAR_TREND_CONFIG.windowDays,
+  };
+}

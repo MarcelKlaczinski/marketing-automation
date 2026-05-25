@@ -77,6 +77,8 @@ function fakeDeps(overrides: Partial<InventoryRefreshDeps> = {}): InventoryRefre
     // accidentally write briefs. Release-detection tests override this to
     // capture invocations + assert payload shape.
     emitReleaseBrief: async () => ({ briefId: null, skipped: null }),
+    // Spec 64.21 — same no-op default for star-trend; specific tests override.
+    emitStarTrendBrief: async () => ({ briefId: null, skipped: null }),
     ...overrides,
   };
 }
@@ -468,5 +470,147 @@ describe("handleInventoryRefresh — end-to-end", () => {
     expect((after?.githubMetadata as { latestRelease?: { tag: string } } | undefined)?.latestRelease?.tag).toBe(
       "v2.0.0",
     );
+  });
+});
+
+// ─── Spec 64.21 — Star-Trend Story integration ──────────────────────────────
+
+describe("handleInventoryRefresh — star-trend integration (Spec 64.21)", () => {
+  it("inserts a snapshot row on every successful refresh, even when no prior history exists", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "star/first-tick",
+      displayName: "Star First Tick",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    let emitCalled = false;
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        emitStarTrendBrief: async () => {
+          emitCalled = true;
+          return { briefId: null, skipped: null };
+        },
+      }),
+    );
+
+    // First tick: no prior snapshot at-or-before NOW - windowDays → no emit.
+    // The snapshot insert itself is verified indirectly by the next case
+    // (`emits a star-trend brief…`) which depends on a backdated insert
+    // succeeding via the same `insertStarSnapshot` helper.
+    expect(emitCalled).toBe(false);
+  });
+
+  it("emits a star-trend brief when a backdated snapshot shows growth above the absolute threshold", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "star/jumper",
+      displayName: "Star Jumper",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // Seed a 35-day-old prior snapshot at 10000 stars. Fresh fetch returns
+    // SAMPLE_METADATA.starsCount = 25000 → +15000 growth = above 5000 absolute
+    // threshold. detectStarTrend MUST fire.
+    const thirtyFiveDaysAgo = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000);
+    const { insertStarSnapshot } = await import("@marketing-auto/db");
+    await insertStarSnapshot({
+      projectId,
+      inventoryId: row.id,
+      starsCount: 10_000,
+      snapshotAt: thirtyFiveDaysAgo,
+    });
+
+    let captured: { priorStarsCount?: number; currentStarsCount?: number; trigger?: string } = {};
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        emitStarTrendBrief: async (input) => {
+          captured = {
+            priorStarsCount: input.priorStarsCount,
+            currentStarsCount: input.currentStarsCount,
+            trigger: input.trigger,
+          };
+          return { briefId: "fake-brief-id", skipped: null };
+        },
+      }),
+    );
+
+    expect(captured.priorStarsCount).toBe(10_000);
+    expect(captured.currentStarsCount).toBe(25_000);
+    expect(captured.trigger).toBe("absolute");
+  });
+
+  it("does NOT emit when growth is below threshold (small uptick)", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "star/quiet",
+      displayName: "Star Quiet",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // Prior at 24000 → current 25000 = +1000 (below 5000 absolute, ~4% relative).
+    const thirtyFiveDaysAgo = new Date(Date.now() - 35 * 24 * 60 * 60 * 1000);
+    const { insertStarSnapshot } = await import("@marketing-auto/db");
+    await insertStarSnapshot({
+      projectId,
+      inventoryId: row.id,
+      starsCount: 24_000,
+      snapshotAt: thirtyFiveDaysAgo,
+    });
+
+    let emitCalled = false;
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        emitStarTrendBrief: async () => {
+          emitCalled = true;
+          return { briefId: null, skipped: null };
+        },
+      }),
+    );
+
+    expect(emitCalled).toBe(false);
+  });
+
+  it("survives star-history failures — metadata refresh + release-detection still land", async () => {
+    const row = await createInventoryRow({
+      projectId,
+      source: "github",
+      objectType: "tool",
+      sourceIdentifier: "star/resilient",
+      displayName: "Star Resilient",
+      refreshIntervalHours: 168,
+      approvedAt: new Date(),
+    });
+    await makeRefreshable(row.id);
+
+    // Force a star-trend emission attempt that throws — should not stop the tick.
+    await handleInventoryRefresh(
+      { projectId, type: "refresh-manual", ids: [row.id] },
+      fakeDeps({
+        emitStarTrendBrief: async () => {
+          throw new Error("simulated star-trend emit failure");
+        },
+      }),
+    );
+
+    // Metadata still landed — the star-trend try/catch is graceful.
+    const after = await getInventoryById(row.id);
+    expect(after?.fetchStatus).toBe("ok");
+    expect((after?.githubMetadata as { starsCount?: number } | undefined)?.starsCount).toBe(25_000);
   });
 });

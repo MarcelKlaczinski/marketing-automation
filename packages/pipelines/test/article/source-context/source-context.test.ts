@@ -37,6 +37,7 @@ function makeBrief(
     refreshMetadata: null,
     comparisonMetadata: null,
     releaseMetadata: null,
+    starTrendMetadata: null,
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,

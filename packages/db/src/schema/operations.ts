@@ -16,6 +16,7 @@ import {
 import { isNull, sql } from "drizzle-orm";
 import type {
   SignalSourceContentTypeMap,
+  StarTrendConfig,
   TrendScoreWeights,
   WeeklyPlanInputSnapshot,
 } from "@marketing-auto/shared";
@@ -658,6 +659,11 @@ export const projectPlannerConfig = pgTable("project_planner_config", {
   // column = all defaults. See resolveTrendScoreWeights() helper.
   trendScoreWeights: jsonb("trend_score_weights")
     .$type<TrendScoreWeights | null>(),
+  // Spec 64.21: per-project override for star-trend detection knobs. Partial
+  // overrides — unset knobs fall back to DEFAULT_STAR_TREND_CONFIG. NULL
+  // column = all defaults. See resolveStarTrendConfig() helper.
+  starTrendConfig: jsonb("star_trend_config")
+    .$type<StarTrendConfig | null>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

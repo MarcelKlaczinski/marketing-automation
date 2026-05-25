@@ -11,3 +11,13 @@ export {
   type EmitReleaseBriefInput,
   type EmitReleaseBriefResult,
 } from "./release-detection/index.ts";
+
+// Spec 64.21 — Star-Trend Stories
+export {
+  detectStarTrend,
+  emitStarTrendBrief,
+  type DetectStarTrendInput,
+  type DetectStarTrendResult,
+  type EmitStarTrendBriefInput,
+  type EmitStarTrendBriefResult,
+} from "./star-trend/index.ts";

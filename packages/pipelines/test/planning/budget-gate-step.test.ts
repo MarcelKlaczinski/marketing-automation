@@ -41,6 +41,8 @@ function config(overrides: Partial<ProjectPlannerConfig> = {}): ProjectPlannerCo
     signalSourceContentTypeMap: null,
     // Spec 64.19 / Phase D: per-project trend-score weights; null = use defaults.
     trendScoreWeights: null,
+    // Spec 64.21: per-project star-trend config; null = use defaults.
+    starTrendConfig: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

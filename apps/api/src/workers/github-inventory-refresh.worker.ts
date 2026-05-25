@@ -23,11 +23,16 @@ import {
   cronState,
   db,
   getInventoryById,
+  insertStarSnapshot,
   listInventoryDueForRefresh,
   markInventoryError,
   markInventoryFetching,
   markInventoryOk,
+  projectPlannerConfig,
   projects,
+  pruneStarSnapshots,
+  queryStarsAgo,
+  eq,
   type ContentSourceInventory,
   type GithubInventoryMetadata as DbGithubInventoryMetadata,
 } from "@marketing-auto/db";
@@ -41,11 +46,20 @@ import {
   type GitHubCredentials,
 } from "@marketing-auto/adapter-github-inventory";
 import {
+  detectStarTrend,
   emitReleaseBrief as defaultEmitReleaseBrief,
+  emitStarTrendBrief as defaultEmitStarTrendBrief,
   type EmitReleaseBriefInput,
   type EmitReleaseBriefResult,
+  type EmitStarTrendBriefInput,
+  type EmitStarTrendBriefResult,
 } from "@marketing-auto/pipelines";
-import { createLogger, getEnv } from "@marketing-auto/shared";
+import {
+  createLogger,
+  getEnv,
+  resolveStarTrendConfig,
+  type ResolvedStarTrendConfig,
+} from "@marketing-auto/shared";
 import { readAdapterCreds as defaultReadAdapterCreds } from "../lib/system-service.ts";
 
 const log = createLogger("github-inventory-refresh");
@@ -151,6 +165,8 @@ export interface InventoryRefreshDeps {
   ) => Promise<DetectSkillResult>;
   /** Spec 64.20 follow-up A3 — emit release-detection brief on tag change. */
   emitReleaseBrief: (input: EmitReleaseBriefInput) => Promise<EmitReleaseBriefResult>;
+  /** Spec 64.21 — emit star-trend brief when threshold crossed. */
+  emitStarTrendBrief: (input: EmitStarTrendBriefInput) => Promise<EmitStarTrendBriefResult>;
 }
 
 const defaultDeps: InventoryRefreshDeps = {
@@ -158,7 +174,124 @@ const defaultDeps: InventoryRefreshDeps = {
   fetchFullRepoMetadata: defaultFetchFullRepoMetadata,
   detectSkill: defaultDetectSkill,
   emitReleaseBrief: defaultEmitReleaseBrief,
+  emitStarTrendBrief: defaultEmitStarTrendBrief,
 };
+
+// ─── Star-trend per-project config cache (Spec 64.21) ───────────────────────
+//
+// `project_planner_config.star_trend_config` is read once per tick (potentially
+// for every row in the batch). A simple in-memory Map cache (keyed by
+// projectId) avoids N+1 SELECTs. Cache is per-process and per-tick — the next
+// cron fire creates a fresh map.
+
+const _starTrendConfigCache = new Map<string, ResolvedStarTrendConfig>();
+
+async function getStarTrendConfigForProject(projectId: string): Promise<ResolvedStarTrendConfig> {
+  const cached = _starTrendConfigCache.get(projectId);
+  if (cached) return cached;
+  const [row] = await db
+    .select({ starTrendConfig: projectPlannerConfig.starTrendConfig })
+    .from(projectPlannerConfig)
+    .where(eq(projectPlannerConfig.projectId, projectId))
+    .limit(1);
+  const resolved = resolveStarTrendConfig(row?.starTrendConfig ?? null);
+  _starTrendConfigCache.set(projectId, resolved);
+  return resolved;
+}
+
+/**
+ * Compare the prior snapshot (windowDays ago) against the freshly-fetched
+ * star count. On trigger, emit a star-trend brief. The function is called
+ * AFTER `insertStarSnapshot` so the fresh count is in the time-series — but
+ * `queryStarsAgo(NOW - windowDays)` returns the snapshot strictly older than
+ * the fresh insert (DESC order, cutoff = NOW - windowDays).
+ */
+async function maybeEmitStarTrend(
+  row: ContentSourceInventory,
+  currentStarsCount: number,
+  latestReleaseTag: string | null,
+  deps: InventoryRefreshDeps,
+): Promise<void> {
+  const config = await getStarTrendConfigForProject(row.projectId);
+  const cutoff = new Date(Date.now() - config.windowDays * 24 * 60 * 60 * 1000);
+  const prior = await queryStarsAgo(row.id, cutoff);
+  if (!prior) {
+    // No history old enough — the row was added less than windowDays ago.
+    // No detection possible until the time-series accumulates.
+    log.debug(
+      { id: row.id, currentStarsCount, windowDays: config.windowDays },
+      "Star-trend skip — no prior snapshot at or before cutoff",
+    );
+    return;
+  }
+
+  const detection = detectStarTrend({
+    priorStarsCount: prior.starsCount,
+    currentStarsCount,
+    config,
+  });
+  if (!detection.triggered) return;
+
+  // `trigger: "absolute" | "relative"` after the !triggered guard above.
+  if (detection.trigger === "none") return; // defensive; cannot happen post-guard
+
+  const result = await deps.emitStarTrendBrief({
+    projectId:        row.projectId,
+    inventoryRowId:   row.id,
+    sourceIdentifier: row.sourceIdentifier,
+    displayName:      row.displayName,
+    priorStarsCount:  prior.starsCount,
+    currentStarsCount,
+    growthAbsolute:   detection.growthAbsolute,
+    growthPct:        detection.growthPct,
+    trigger:          detection.trigger,
+    periodDays:       config.windowDays,
+    weeklyCap:        config.weeklyCap,
+    latestReleaseTag,
+  });
+  if (result.briefId) {
+    log.info(
+      {
+        id: row.id,
+        briefId: result.briefId,
+        priorStarsCount: prior.starsCount,
+        currentStarsCount,
+        growthAbsolute: detection.growthAbsolute,
+        growthPct: detection.growthPct,
+        trigger: detection.trigger,
+      },
+      "Star-trend brief emitted",
+    );
+  } else if (result.skipped) {
+    log.debug(
+      { id: row.id, skipped: result.skipped, trigger: detection.trigger },
+      "Star-trend emission skipped",
+    );
+  }
+}
+
+/** Retention: 90 days = 3× default 30-day detection window. */
+const STAR_HISTORY_RETENTION_DAYS = 90;
+
+/**
+ * End-of-tick housekeeping — single DELETE per tick (idempotent, cheap when
+ * partitioned by the snapshotAt index). Test-injectable via the deps shape
+ * is unnecessary because the function is a no-op on an empty table.
+ */
+async function pruneStarHistoryAtEndOfTick(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - STAR_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const deleted = await pruneStarSnapshots(cutoff);
+    if (deleted > 0) {
+      log.info({ deleted, cutoff: cutoff.toISOString() }, "Pruned stale star-history rows");
+    }
+  } catch (err) {
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Star-history prune failed; will retry next tick",
+    );
+  }
+}
 
 // ─── Per-row refresh ─────────────────────────────────────────────────────────
 
@@ -244,6 +377,29 @@ async function refreshOne(
         log.warn(
           { id: row.id, err: err instanceof Error ? err.message : String(err) },
           "Release-detection brief emission failed; continuing refresh",
+        );
+      }
+    }
+
+    // Spec 64.21 — Star-Trend Story detection. Snapshot the current star count
+    // BEFORE `markInventoryOk` so the time-series order matches the metadata
+    // write order (read-after-write consistency for the next tick). The
+    // detection compares against the snapshot from `windowDays` ago.
+    if (typeof metadata.starsCount === "number" && metadata.starsCount >= 0) {
+      try {
+        await insertStarSnapshot({
+          projectId:   row.projectId,
+          inventoryId: row.id,
+          starsCount:  metadata.starsCount,
+        });
+        await maybeEmitStarTrend(row, metadata.starsCount, metadata.latestRelease?.tag ?? null, deps);
+      } catch (err) {
+        // Star-history failure must not break the refresh tick — log + continue
+        // (same try/catch posture as release-detection). The next tick will
+        // try again from the same baseline.
+        log.warn(
+          { id: row.id, err: err instanceof Error ? err.message : String(err) },
+          "Star-trend snapshot/detection failed; continuing refresh",
         );
       }
     }
@@ -351,6 +507,15 @@ export async function handleInventoryRefresh(
     },
     "Inventory-refresh tick completed",
   );
+
+  // Spec 64.21 — end-of-tick housekeeping. Star-history rows accumulate at the
+  // refresh-interval cadence; prune anything older than the retention window.
+  // Single DELETE per tick, indexed scan via snapshot_at.
+  await pruneStarHistoryAtEndOfTick();
+
+  // Drop per-tick cache so subsequent invocations re-read fresh config (e.g.
+  // Marcel changed thresholds via Settings UI between ticks).
+  _starTrendConfigCache.clear();
 }
 
 // ─── Worker ──────────────────────────────────────────────────────────────────

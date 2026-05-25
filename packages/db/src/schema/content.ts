@@ -880,6 +880,36 @@ export const ReleaseMetadataSchema = z.object({
 });
 export type ReleaseMetadata = z.infer<typeof ReleaseMetadataSchema>;
 
+// ── StarTrendMetadata (Spec 64.21) ────────────────────────────────────────────
+// Emitted by the github-inventory-refresh worker when a tracked tool's star
+// count crosses a configured threshold within a rolling window (default 30d).
+// The brief lands with source='star_trend', clusterAction='standalone',
+// intentType='news' — same review surface as release_detection (64.20 A3).
+
+export const StarTrendMetadataSchema = z.object({
+  /** UUID of the content_source_inventory row that triggered emission. */
+  inventoryRowId:    z.string().uuid(),
+  /** GitHub repo path, e.g. "anthropics/claude-code". */
+  sourceIdentifier:  z.string(),
+  /** Human-facing name from inventory.display_name. */
+  displayName:       z.string(),
+  /** Star count at the start of the detection window (snapshot ≥ windowDays ago). */
+  priorStarsCount:   z.number().int().min(0),
+  /** Star count at emission time (latest refresh). */
+  currentStarsCount: z.number().int().min(0),
+  /** currentStarsCount - priorStarsCount. Can be ≤ 0 if the comparison was inverted (defensive — emit gates on positive growth). */
+  growthAbsolute:    z.number().int(),
+  /** (growthAbsolute / priorStarsCount) × 100 — rounded to 2 decimals. */
+  growthPct:         z.number(),
+  /** Window the snapshot pair spans (days). Sourced from star_trend_config.windowDays. */
+  periodDays:        z.number().int().min(1),
+  /** Which trigger rule fired — 'absolute' (>= absoluteThreshold) or 'relative' (>= relativeThresholdPct AND current >= minAbsoluteForRelative). */
+  trigger:           z.enum(["absolute", "relative"]),
+  /** Latest release tag at emission time, if any — gives the LLM optional "version context" for the story angle. */
+  latestReleaseTag:  z.string().nullable().optional(),
+});
+export type StarTrendMetadata = z.infer<typeof StarTrendMetadataSchema>;
+
 // ── Drizzle table ─────────────────────────────────────────────────────────────
 
 export const topicBriefs = pgTable(
@@ -889,7 +919,7 @@ export const topicBriefs = pgTable(
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
 
     source: text("source").notNull().$type<
-      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery" | "release_detection"
+      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery" | "release_detection" | "star_trend"
     >(),
 
     // FK to content_gaps declared in migration SQL (avoids circular ordering within this file)
@@ -932,6 +962,8 @@ export const topicBriefs = pgTable(
     comparisonMetadata: jsonb("comparison_metadata").$type<ComparisonMetadata>(),
     /** Spec 64.20 follow-up A3 — release-detection brief metadata. */
     releaseMetadata:    jsonb("release_metadata").$type<ReleaseMetadata>(),
+    /** Spec 64.21 — star-trend story brief metadata. */
+    starTrendMetadata:  jsonb("star_trend_metadata").$type<StarTrendMetadata>(),
 
     // Spec 64.15 Phase C: precomputed Voyage-3 embedding (1024d). emit-brief.ts
     // (trend-discovery) writes this at brief-creation time so the planner doesn't
@@ -975,6 +1007,7 @@ export const TopicBriefInsertSchema = z
       "manual",
       "comparison_discovery", // Spec 62.3
       "release_detection",    // Spec 64.20 follow-up A3
+      "star_trend",           // Spec 64.21
     ]),
     gapId: z.string().uuid().nullable().optional(),
 
@@ -1020,6 +1053,7 @@ export const TopicBriefInsertSchema = z
     refreshMetadata:    RefreshMetadataSchema.nullable().optional(),
     comparisonMetadata: ComparisonMetadataSchema.nullable().optional(),
     releaseMetadata:    ReleaseMetadataSchema.nullable().optional(),
+    starTrendMetadata:  StarTrendMetadataSchema.nullable().optional(),
 
     // Spec 64.15 Phase C: precomputed Voyage-3 embedding for plan diversity.
     // Optional + nullable: emit-brief.ts (trend-discovery) populates this at
@@ -1033,7 +1067,8 @@ export const TopicBriefInsertSchema = z
     const hasRefresh    = data.refreshMetadata    != null;
     const hasComparison = data.comparisonMetadata != null;
     const hasRelease    = data.releaseMetadata    != null;
-    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0) + (hasRelease ? 1 : 0);
+    const hasStarTrend  = data.starTrendMetadata  != null;
+    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0) + (hasRelease ? 1 : 0) + (hasStarTrend ? 1 : 0);
 
     if (data.source === "manual") {
       if (total !== 0) {
@@ -1059,6 +1094,7 @@ export const TopicBriefInsertSchema = z
       refresh_detection:     hasRefresh,
       comparison_discovery:  hasComparison,
       release_detection:     hasRelease,
+      star_trend:            hasStarTrend,
     } as const;
 
     if (!expectedMap[data.source as keyof typeof expectedMap]) {
@@ -1068,6 +1104,7 @@ export const TopicBriefInsertSchema = z
         refresh_detection:    "refresh_metadata",
         comparison_discovery: "comparison_metadata",
         release_detection:    "release_metadata",
+        star_trend:           "star_trend_metadata",
       }[data.source as keyof typeof expectedMap];
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -1332,3 +1369,34 @@ export const ContentSourceInventoryPatchSchema = z.object({
 });
 
 export type ContentSourceInventoryPatchInput = z.infer<typeof ContentSourceInventoryPatchSchema>;
+
+// ─── inventory_star_history (Spec 64.21) ─────────────────────────────────────
+//
+// Time-series snapshot of star counts per inventory row. Migration 0110.
+// The github-inventory-refresh worker writes one row per successful refresh
+// (cadence: refresh_interval_hours per inventory, default 168h = weekly).
+// `detectStarTrend` reads via `queryStarsAgo(inventoryId, windowDays)` and
+// compares against `current.starsCount`. Pruned at end-of-tick to 90 days
+// retention.
+
+export const inventoryStarHistory = pgTable(
+  "inventory_star_history",
+  {
+    id:          uuid("id").primaryKey().defaultRandom(),
+    projectId:   uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+    inventoryId: uuid("inventory_id").notNull().references(() => contentSourceInventory.id, { onDelete: "cascade" }),
+    snapshotAt:  timestamp("snapshot_at", { withTimezone: true }).notNull().defaultNow(),
+    starsCount:  integer("stars_count").notNull(),
+    createdAt:   timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    inventorySnapshotIdx: index("inventory_star_history_inventory_snapshot_idx")
+      .on(t.inventoryId, sql`${t.snapshotAt} DESC`),
+    snapshotAtIdx: index("inventory_star_history_snapshot_at_idx").on(t.snapshotAt),
+    projectIdx:    index("inventory_star_history_project_idx").on(t.projectId),
+  }),
+);
+
+export type InventoryStarHistory    = typeof inventoryStarHistory.$inferSelect;
+export type NewInventoryStarHistory = typeof inventoryStarHistory.$inferInsert;
+
