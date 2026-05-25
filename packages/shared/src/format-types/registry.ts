@@ -1,11 +1,11 @@
 /**
- * Spec 65.1 — Format-Type registry (skeleton).
+ * Spec 65.1 + 65.4 — Format-Type registry.
  *
- * Per Marcel-Decision Q2: each `format_type` (e.g. "top-5-tools", "tool-of-the-
- * week") owns a Zod schema describing its `format_config` shape. The 65.4
- * Hook-Library + Brief-Generator populates this registry with concrete entries
- * for the v1 format-types; until then any unknown format_type is treated
- * permissively (pass-through validation).
+ * Per Marcel-Decision Q2 (65.1): each `format_type` (e.g. "top_n_comparison",
+ * "story_arc_clickbait") owns a Zod schema describing its `format_config`
+ * shape. Spec 65.4 populates this registry with the 5 v1 format-types via
+ * `Object.assign(FORMAT_TYPES, ...)` at module init; unknown format_types
+ * still hit the permissive fallback.
  *
  * Central registration enables:
  *   - Boundary validation at HTTP layer when creating/updating a
@@ -14,8 +14,15 @@
  *     to dispatch.
  *   - 65.6 Template-Registry can ask "which templates serve this format_type"
  *     via `FORMAT_TYPES[formatType].eligibleTemplates`.
+ *   - 65.5 Brief-Generator can gate Hook-Picker invocation via
+ *     `FORMAT_TYPES[formatType].needsHooks` (Family A=false, Family B=true).
  */
 import { z } from "zod";
+import { headToHeadDefinition } from "./head-to-head.ts";
+import { lifestyleListicleDefinition } from "./lifestyle-listicle.ts";
+import { opinionRecommendationDefinition } from "./opinion-recommendation.ts";
+import { storyArcClickbaitDefinition } from "./story-arc-clickbait.ts";
+import { topNComparisonDefinition } from "./top-n-comparison.ts";
 
 export type FormatTypeFamily = "A" | "B";
 
@@ -28,14 +35,47 @@ export interface FormatTypeDefinition {
   briefGenerator: string;
   /** Template-keys eligible to render this format_type. Populated in 65.6. */
   eligibleTemplates: string[];
+  /**
+   * Whether the brief-generator (65.5) should call the Hook-Picker for this
+   * format-type. Family A = false (data-driven headlines), Family B = true
+   * (hook-driven narratives). Spec 65.4 §4.7.
+   */
+  needsHooks: boolean;
+  /**
+   * End-slide template keys to append by default to renders of this format-
+   * type. Brief-generators (65.5) and template registry (65.6) read this when
+   * the per-definition `format_config` does not override the end-slide stack.
+   */
+  defaultEndSlides: string[];
 }
 
 /**
- * Mutable registry. Owned by 65.4 (Hook-Library) population path; 65.1 ships
- * the skeleton + permissive-fallback helpers so 65.2/65.3 can wire to it
- * without blocking on 65.4.
+ * Mutable registry — populated below at module init from the per-format-type
+ * definition files. The skeleton helpers (permissive fallback, test-only
+ * register/unregister) still apply to any unknown format_type.
  */
 export const FORMAT_TYPES: Record<string, FormatTypeDefinition> = {};
+
+Object.assign(FORMAT_TYPES, {
+  top_n_comparison: topNComparisonDefinition,
+  head_to_head: headToHeadDefinition,
+  story_arc_clickbait: storyArcClickbaitDefinition,
+  lifestyle_listicle: lifestyleListicleDefinition,
+  opinion_recommendation: opinionRecommendationDefinition,
+} satisfies Record<string, FormatTypeDefinition>);
+
+/**
+ * Stable string-literal union of the 5 v1 format-types. Callers that need to
+ * narrow to a known type (without losing the permissive fallback for unknown
+ * types) can use `FormatTypeKey`; the registry stays string-keyed for
+ * forward-compat with future v1.5/v2 additions.
+ */
+export type FormatTypeKey =
+  | "top_n_comparison"
+  | "head_to_head"
+  | "story_arc_clickbait"
+  | "lifestyle_listicle"
+  | "opinion_recommendation";
 
 /**
  * Resolve the Zod schema for a format_type. Returns a permissive

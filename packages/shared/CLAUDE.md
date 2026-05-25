@@ -37,6 +37,20 @@ Removed fields (DB-only, were never consumed by renderer):
 **Data migration:** `packages/db/migrations/scripts/0042-brand-tokens-schema-sync.ts`
 **Verification:** `bun run --cwd packages/db verify:brand-tokens-schema`
 
+## format-types (Spec 65.1 + 65.4)
+
+`@marketing-auto/shared/format-types` is the registry for recurring-content format-types (e.g. `top_n_comparison`, `story_arc_clickbait`). Adding a new format-type:
+
+1. Create `packages/shared/src/format-types/<format-name>.ts` exporting (a) a Zod `<formatName>ConfigSchema`, (b) a `<FormatName>Config` type inferred from it, (c) a `<formatName>Definition: FormatTypeDefinition` literal with `family` / `briefGenerator` / `eligibleTemplates` / `needsHooks` / `defaultEndSlides`.
+2. Import the definition in [`registry.ts`](src/format-types/registry.ts) and add it to the `Object.assign(FORMAT_TYPES, {...})` block — the registry is mutated at module init, NOT statically declared, so the `Record<string, …>` stays open for future additions.
+3. Add the file to the `export * from "./<format-name>.ts";` block in [`index.ts`](src/format-types/index.ts) so callers can import the strict schema directly.
+4. Extend `FormatTypeKey` in `registry.ts` with the new literal.
+5. Add per-format-type assertions to [`test/format-types/v1-definitions.test.ts`](../shared/test/format-types/v1-definitions.test.ts).
+
+`needsHooks: true` = brief-generators (65.5) call `pickHook()` from `apps/api/src/lib/hook-library/`. Family A formats stay `false` (data-driven). `defaultEndSlides` is consumed by 65.6 template registry + 65.5 brief-generators when the per-definition `format_config` does not override.
+
+`validateFormatConfig(formatType, config)` from the registry stays permissive (passthrough) for unknown format-types — strict Zod validation only kicks in once a type is registered. Useful while 65.5/65.8 brief-generator code is being written but the format-type isn't fully wired.
+
 ## Patterns
 
 **Adding new env vars:** always use `optionalStr(schema)` for optional fields that have format constraints (startsWith, email, length). Plain `.optional()` will fail when the var is set to `""` in the shell.

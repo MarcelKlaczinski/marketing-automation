@@ -68,6 +68,9 @@ export const COST_OPS = {
   // === Briefing ===
   BRIEFING_GENERATION: "briefing-generation",
 
+  // === Spec 65.4: Hook-Library top-1 picker (Haiku 4.5 jsonMode) ===
+  HOOK_PICK: "hook-pick",
+
   // === SMTP ===
   SMTP_MAGIC_LINK: "magic-link-email",
   SMTP_BRIEFING: "briefing-email",

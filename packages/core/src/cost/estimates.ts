@@ -38,6 +38,9 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
 
     [COST_OPS.BRIEFING_GENERATION]: 0.1,
 
+    // Spec 65.4 — Hook-Picker (Haiku 4.5 jsonMode, ~300 input + 100 output tokens).
+    [COST_OPS.HOOK_PICK]: 0.005,
+
     // Spec 49c: gap title suggestion (Claude Haiku, ~1000 tokens total)
     [COST_OPS.GAP_TITLE_SUGGEST]: 0.01,
 

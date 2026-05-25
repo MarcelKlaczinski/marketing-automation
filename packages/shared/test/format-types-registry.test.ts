@@ -1,8 +1,9 @@
 /**
- * Spec 65.1 — format-types registry skeleton unit tests.
+ * Spec 65.1 + 65.4 — format-types registry unit tests.
  *
- * The registry ships empty in 65.1 (populated in 65.4). These tests pin the
- * permissive-fallback contract + the test-only register/unregister helpers.
+ * Pins the permissive-fallback contract + the test-only register/unregister
+ * helpers shipped in 65.1, plus the populated-registry contract from 65.4
+ * (5 v1 format-types registered at module init).
  */
 import { afterEach, describe, expect, it } from "bun:test";
 import { z } from "zod";
@@ -14,13 +15,20 @@ import {
   validateFormatConfig,
 } from "../src/format-types/index.ts";
 
-describe("format-types registry skeleton (Spec 65.1)", () => {
+describe("format-types registry (Spec 65.1 skeleton + 65.4 population)", () => {
   afterEach(() => {
     __unregisterFormatTypeForTest("test-format");
   });
 
-  it("starts effectively empty (registry skeleton)", () => {
-    // Other test files may register types; assert the test-format isn't there.
+  it("has the 5 v1 format-types registered at module init (Spec 65.4)", () => {
+    expect(FORMAT_TYPES.top_n_comparison).toBeDefined();
+    expect(FORMAT_TYPES.head_to_head).toBeDefined();
+    expect(FORMAT_TYPES.story_arc_clickbait).toBeDefined();
+    expect(FORMAT_TYPES.lifestyle_listicle).toBeDefined();
+    expect(FORMAT_TYPES.opinion_recommendation).toBeDefined();
+  });
+
+  it("test-format is not in the registry between runs", () => {
     expect(FORMAT_TYPES["test-format"]).toBeUndefined();
   });
 
@@ -50,6 +58,8 @@ describe("format-types registry skeleton (Spec 65.1)", () => {
         configSchema: z.object({ count: z.number().int().min(1).max(10) }),
         briefGenerator: "fake.test.generator",
         eligibleTemplates: [],
+        needsHooks: false,
+        defaultEndSlides: [],
       });
       const ok = validateFormatConfig("test-format", { count: 5 });
       expect(ok.ok).toBe(true);
@@ -65,6 +75,8 @@ describe("format-types registry skeleton (Spec 65.1)", () => {
         configSchema: z.string(),
         briefGenerator: "noop",
         eligibleTemplates: [],
+        needsHooks: true,
+        defaultEndSlides: [],
       });
       expect(FORMAT_TYPES["test-format"]).toBeDefined();
       __unregisterFormatTypeForTest("test-format");

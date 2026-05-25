@@ -34,6 +34,15 @@ Rules:
 
 Canonical example: `src/lib/gap-service.ts` (Spec 49c) — DataForSEO keyword enrichment + Claude Haiku suggestion, called from two route handlers without duplicating logic.
 
+### Hook-Library lib (Spec 65.4)
+
+`src/lib/hook-library/` is the canonical home for Family-B narrative-hook lookup:
+
+- [`pick-hook.ts`](src/lib/hook-library/pick-hook.ts) `pickHook(input)` — loads up to 10 LRU-eligible hooks via `listLruEligibleHooks`, asks Haiku 4.5 + `jsonMode: true` to pick one by UUID with a reasoning sentence, falls back to first LRU on hallucination / LLM throw / Zod-parse-fail. Returns `null` only when no candidates exist. Marks the picked hook used via `markHookUsed`.
+- [`render-hook.ts`](src/lib/hook-library/render-hook.ts) `renderHook(pattern, vars)` — pure `{variable}` substitution. Throws `HookRenderError` on missing variable so a broken substitution fails loudly instead of leaking `"… wegen {tool}"` into a published slide.
+
+Cost-tracked under `COST_OPS.HOOK_PICK` (€0.005/call). Used by 65.5 brief-generators when `FORMAT_TYPES[formatType].needsHooks === true`. The hook-picker pattern (LRU candidates + LLM picks UUID + hallucination fallback to candidates[0]) is reusable for any future "LLM picks N of M from a curated pool" surface (template picker, persona picker, etc.).
+
 ## Endpoint Patterns
 - All endpoints use Zod-validated input via @hono/zod-validator
 - All responses follow `{ ok: true, data }` | `{ ok: false, error }` shape
