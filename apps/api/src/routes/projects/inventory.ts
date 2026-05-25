@@ -1,0 +1,254 @@
+// Spec 64.20: HTTP routes for `content_source_inventory` CRUD + refresh trigger.
+//
+// All routes are under `/api/projects/:slug/inventory` and require auth.
+// Mount via `app.route("/api/projects", inventoryRoutes)` in `server.ts`.
+
+import { zValidator } from "@hono/zod-validator";
+import {
+  ContentSourceInventoryPatchSchema,
+  countByObjectType,
+  createInventoryRow,
+  db,
+  eq,
+  getInventoryById,
+  hardDeleteInventoryRow,
+  INVENTORY_FETCH_STATUSES,
+  INVENTORY_OBJECT_TYPES,
+  listInventoryByProject,
+  patchInventoryRow,
+  projects,
+  type InventoryFetchStatus,
+  type InventoryObjectType,
+} from "@marketing-auto/db";
+import { createLogger } from "@marketing-auto/shared";
+import { Hono } from "hono";
+import { z } from "zod";
+import { requireAuth } from "../../middleware/auth.ts";
+import { getGithubInventoryQueue } from "../../workers/github-inventory-refresh.worker.ts";
+
+const log = createLogger("api:inventory-routes");
+
+export const inventoryRoutes = new Hono();
+inventoryRoutes.use(requireAuth);
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+async function loadProjectBySlug(slug: string) {
+  const [proj] = await db
+    .select({ id: projects.id, slug: projects.slug })
+    .from(projects)
+    .where(eq(projects.slug, slug))
+    .limit(1);
+  return proj ?? null;
+}
+
+/**
+ * Cross-tenant guard: confirm the inventory row belongs to the given project.
+ * Returns the row on match, null on mismatch / not-found.
+ */
+async function loadInventoryForProject(id: string, projectId: string) {
+  const row = await getInventoryById(id);
+  if (!row || row.projectId !== projectId) return null;
+  return row;
+}
+
+// ─── GET /:slug/inventory ───────────────────────────────────────────────────
+
+inventoryRoutes.get("/:slug/inventory", async (c) => {
+  const slug = c.req.param("slug");
+  const proj = await loadProjectBySlug(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const objectTypeParam = c.req.query("objectType");
+  const fetchStatusParam = c.req.query("fetchStatus");
+  const approvedOnlyParam = c.req.query("approvedOnly");
+
+  const objectType: InventoryObjectType | undefined =
+    objectTypeParam && (INVENTORY_OBJECT_TYPES as readonly string[]).includes(objectTypeParam)
+      ? (objectTypeParam as InventoryObjectType)
+      : undefined;
+  const fetchStatus: InventoryFetchStatus | undefined =
+    fetchStatusParam && (INVENTORY_FETCH_STATUSES as readonly string[]).includes(fetchStatusParam)
+      ? (fetchStatusParam as InventoryFetchStatus)
+      : undefined;
+
+  const rows = await listInventoryByProject({
+    projectId: proj.id,
+    ...(objectType !== undefined && { objectType }),
+    ...(fetchStatus !== undefined && { fetchStatus }),
+    approvedOnly: approvedOnlyParam !== "false",
+  });
+  const counts = await countByObjectType(proj.id);
+
+  return c.json({ ok: true, data: { items: rows, counts } });
+});
+
+// ─── POST /:slug/inventory — create row ─────────────────────────────────────
+
+// Body schema: same as the DB Zod schema MINUS server-managed fields.
+// Marcel-Seed inserts pre-approve via `approveOnCreate: true`; otherwise
+// rows land with `approved_at = NULL` (placeholder for V1.1 Auto-Discovery).
+const createBodySchema = z.object({
+  source: z.enum(["github"]).default("github"),
+  objectType: z.enum(INVENTORY_OBJECT_TYPES),
+  sourceIdentifier: z.string().min(1).max(255),
+  displayName: z.string().min(1).max(255),
+  description: z.string().max(2000).nullable().optional(),
+  homepageUrl: z.string().url().max(500).nullable().optional(),
+  refreshIntervalHours: z.number().int().min(1).max(8760).default(168),
+  articleId: z.string().uuid().nullable().optional(),
+  approveOnCreate: z.boolean().default(true),
+});
+
+inventoryRoutes.post(
+  "/:slug/inventory",
+  zValidator("json", createBodySchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const proj = await loadProjectBySlug(slug);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const body = c.req.valid("json");
+    const user = c.var.user;
+
+    try {
+      const row = await createInventoryRow({
+        projectId: proj.id,
+        source: body.source,
+        objectType: body.objectType,
+        sourceIdentifier: body.sourceIdentifier,
+        displayName: body.displayName,
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.homepageUrl !== undefined && { homepageUrl: body.homepageUrl }),
+        refreshIntervalHours: body.refreshIntervalHours,
+        ...(body.articleId !== undefined && { articleId: body.articleId }),
+        ...(body.approveOnCreate && {
+          approvedAt: new Date(),
+          approvedByUserId: user?.id ?? null,
+        }),
+      });
+      return c.json({ ok: true, data: row }, 201);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("collection=")) {
+        // Article-link rule violation from `assertArticleCollectionForTool`
+        return c.json({ ok: false, error: "article_collection_mismatch", message }, 422);
+      }
+      // Unique-constraint violation (duplicate source_identifier among approved rows)
+      if (message.includes("csi_project_source_identifier_approved_unique")) {
+        return c.json({ ok: false, error: "source_identifier_already_exists" }, 409);
+      }
+      log.error({ err, slug, body }, "createInventoryRow failed");
+      throw err;
+    }
+  },
+);
+
+// ─── PATCH /:slug/inventory/:id ─────────────────────────────────────────────
+
+inventoryRoutes.patch(
+  "/:slug/inventory/:id",
+  zValidator("json", ContentSourceInventoryPatchSchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const id = c.req.param("id");
+
+    const proj = await loadProjectBySlug(slug);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const row = await loadInventoryForProject(id, proj.id);
+    if (!row) return c.json({ ok: false, error: "inventory_row_not_found" }, 404);
+
+    const body = c.req.valid("json");
+    try {
+      const updated = await patchInventoryRow(id, body);
+      if (!updated) {
+        return c.json({ ok: true, data: row, noop: true });
+      }
+      return c.json({ ok: true, data: updated });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("collection=")) {
+        return c.json({ ok: false, error: "article_collection_mismatch", message }, 422);
+      }
+      log.error({ err, id, body }, "patchInventoryRow failed");
+      throw err;
+    }
+  },
+);
+
+// ─── DELETE /:slug/inventory/:id ────────────────────────────────────────────
+
+inventoryRoutes.delete("/:slug/inventory/:id", async (c) => {
+  const slug = c.req.param("slug");
+  const id = c.req.param("id");
+
+  const proj = await loadProjectBySlug(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const row = await loadInventoryForProject(id, proj.id);
+  if (!row) return c.json({ ok: false, error: "inventory_row_not_found" }, 404);
+
+  const deleted = await hardDeleteInventoryRow(id);
+  return c.json({ ok: true, data: { deleted } });
+});
+
+// ─── POST /:slug/inventory/refresh — bulk trigger ──────────────────────────
+
+const refreshBodySchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(100).optional(),
+});
+
+inventoryRoutes.post(
+  "/:slug/inventory/refresh",
+  async (c) => {
+    const slug = c.req.param("slug");
+    const proj = await loadProjectBySlug(slug);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    // Optional body — empty body means "refresh all due-now".
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parsed = refreshBodySchema.safeParse(rawBody);
+    const body = parsed.success ? parsed.data : {};
+
+    const queue = getGithubInventoryQueue();
+    const jobId = `inventory-refresh-${proj.id}-${Date.now()}`;
+    await queue.add(
+      body.ids?.length ? "refresh-manual" : "cron-triggered",
+      {
+        projectId: proj.id,
+        type: body.ids?.length ? "refresh-manual" : "cron-triggered",
+        ...(body.ids !== undefined && { ids: body.ids }),
+      },
+      { jobId, removeOnComplete: 50, removeOnFail: 50 },
+    );
+
+    return c.json({
+      ok: true,
+      data: { jobId, mode: body.ids?.length ? "manual" : "due-now" },
+    });
+  },
+);
+
+// ─── POST /:slug/inventory/:id/refresh — per-row trigger ──────────────────
+
+inventoryRoutes.post("/:slug/inventory/:id/refresh", async (c) => {
+  const slug = c.req.param("slug");
+  const id = c.req.param("id");
+
+  const proj = await loadProjectBySlug(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const row = await loadInventoryForProject(id, proj.id);
+  if (!row) return c.json({ ok: false, error: "inventory_row_not_found" }, 404);
+
+  const queue = getGithubInventoryQueue();
+  const jobId = `inventory-refresh-${proj.id}-${id}-${Date.now()}`;
+  await queue.add(
+    "refresh-manual",
+    { projectId: proj.id, type: "refresh-manual", ids: [id] },
+    { jobId, removeOnComplete: 50, removeOnFail: 50 },
+  );
+
+  return c.json({ ok: true, data: { jobId } });
+});

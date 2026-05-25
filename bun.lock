@@ -22,6 +22,7 @@
         "@marketing-auto/adapter-astro-sync": "workspace:*",
         "@marketing-auto/adapter-dataforseo": "workspace:*",
         "@marketing-auto/adapter-email": "workspace:*",
+        "@marketing-auto/adapter-github-inventory": "workspace:*",
         "@marketing-auto/adapter-hackernews": "workspace:*",
         "@marketing-auto/adapter-image-webp": "workspace:*",
         "@marketing-auto/adapter-nano-banana": "workspace:*",

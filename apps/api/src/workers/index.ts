@@ -62,6 +62,10 @@ import {
   seedComparisonDiscoveryCron,
   startComparisonDiscoveryWorker,
 } from "./comparison-discovery.worker.ts";
+import {
+  seedGithubInventoryRefreshCron,
+  startGithubInventoryRefreshWorker,
+} from "./github-inventory-refresh.worker.ts";
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
@@ -338,7 +342,8 @@ async function main() {
   const plannerWeeklyGenerationWorker = startPlannerWeeklyGenerationWorker();
   const planExecutionWorker = startPlanExecutionWorker();
   const comparisonDiscoveryWorker = startComparisonDiscoveryWorker();
-  // Spec 62.0a Section 4.5.3 + 62.7 + 63.3b: seed cron_state rows on startup
+  const githubInventoryRefreshWorker = startGithubInventoryRefreshWorker();
+  // Spec 62.0a Section 4.5.3 + 62.7 + 63.3b + 64.20: seed cron_state rows on startup
   // (idempotent). The orchestrator's next tick (within 60s) picks them up and
   // creates the BullMQ repeat job. Seed lives in code, not SQL migration,
   // because PostgreSQL forbids using a freshly-added enum value in the same
@@ -347,6 +352,7 @@ async function main() {
   await seedPlannerWeeklyGenerationCron();
   await seedComparisonDiscoveryCron();
   await seedTrendSynthesizerCron();
+  await seedGithubInventoryRefreshCron();
   // registerGapAutoApproverCron() is disabled — import from gap-auto-approver.ts to enable
   const schedulerWorker = await startScheduler();
 
@@ -373,6 +379,7 @@ async function main() {
     await plannerWeeklyGenerationWorker.close();
     await planExecutionWorker.close();
     await comparisonDiscoveryWorker.close();
+    await githubInventoryRefreshWorker.close();
     await schedulerWorker.close();
     await closePipelineInfrastructure();
     await releasePidLock();

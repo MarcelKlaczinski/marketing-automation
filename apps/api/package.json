@@ -54,6 +54,7 @@
     "@lobehub/icons-static-png": "^1.90.0",
     "@marketing-auto/adapter-anthropic": "workspace:*",
     "@marketing-auto/adapter-astro-sync": "workspace:*",
+    "@marketing-auto/adapter-github-inventory": "workspace:*",
     "@marketing-auto/adapter-hackernews": "workspace:*",
     "@marketing-auto/adapter-producthunt": "workspace:*",
     "@marketing-auto/adapter-reddit": "workspace:*",

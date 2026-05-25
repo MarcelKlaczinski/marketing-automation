@@ -10,6 +10,7 @@ import { STEP_PAUSE_CLEANUP_CRON_PATTERN } from "../workers/step-pause-cleanup.w
 import { PLANNER_WEEKLY_GENERATION_DEFAULT_PATTERN } from "../workers/planner-weekly-generation.worker.ts";
 import { COMPARISON_DISCOVERY_DEFAULT_PATTERN } from "../workers/comparison-discovery.worker.ts";
 import { TREND_SYNTHESIZER_DEFAULT_PATTERN } from "../workers/trend-synthesizer.ts";
+import { GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN } from "../workers/github-inventory-refresh.worker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -317,6 +318,19 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         jobType: "trends_synthesizer",
         isActive: false,
         cronPattern: TREND_SYNTHESIZER_DEFAULT_PATTERN,
+      })
+      .onConflictDoNothing();
+
+    // Spec 64.20: github_inventory_refresh — opt-in by data (cron is cheap
+    // when there are no rows), defaults `is_active: true` so newly-seeded
+    // inventory rows refresh on the next */15 tick without Marcel toggling.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "github_inventory_refresh",
+        isActive: true,
+        cronPattern: GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
 

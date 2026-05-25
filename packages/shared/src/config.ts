@@ -107,6 +107,12 @@ const envSchema = z.object({
   // mirroring 62.5.1/63.5/64.6b SSoT discipline so replays reproduce the same picks.
   PLAN_DIVERSITY_LOOKBACK_WEEKS: z.coerce.number().int().min(0).default(3),
 
+  // Spec 64.20: cron pattern for the GitHub-inventory refresh worker. Worker
+  // ticks every 15 min by default and scans `content_source_inventory` for rows
+  // whose `refresh_interval_hours` has elapsed. Per-row interval is the user-tunable
+  // knob; this env controls cron cadence.
+  INVENTORY_REFRESH_CRON_PATTERN: optionalStr(z.string().min(1).regex(/^[\d*\/,\-\s]+$/)),
+
   // Cloudflare R2 (Spec 12)
   R2_ACCOUNT_ID: optionalStr(z.string().min(1)),
   R2_ACCESS_KEY_ID: optionalStr(z.string().min(1)),
