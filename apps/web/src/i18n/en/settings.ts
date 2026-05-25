@@ -502,6 +502,26 @@ export default {
       positiveSumHint: "Positive weights sum: {sum} (default: 100).",
       reset: "Reset",
     },
+    // Spec 64.21
+    starTrendSection: {
+      title: "Star-Trend Stories",
+      description:
+        'GitHub repos in the inventory get an "X gained Yk stars this quarter" brief when either (a) absolute growth meets the absolute threshold OR (b) relative growth meets the relative threshold AND current-stars exceeds the floor. Pacing cap prevents spam. Leave knobs at default to use the hardcoded code defaults.',
+      absoluteThreshold: "Absolute threshold (stars)",
+      absoluteThresholdHint: "Default 5000. Minimum growth for the absolute trigger.",
+      relativeThresholdPct: "Relative threshold (%)",
+      relativeThresholdPctHint: "Default 50%. Minimum growth for the relative trigger.",
+      minAbsoluteForRelative: "Floor for relative trigger",
+      minAbsoluteForRelativeHint:
+        "Default 500. Repo must exceed this star count for the relative trigger to fire (prevents 50→100-star spam).",
+      weeklyCap: "Max briefs/week",
+      weeklyCapHint: "Default 3. Set to 0 to disable star-trend briefs entirely.",
+      windowDays: "Comparison window (days)",
+      windowDaysHint: "Default 30. The prior snapshot is loaded N days backwards.",
+      offHint:
+        "Weekly cap = 0: star-trend briefs are entirely disabled. Snapshots continue to be collected.",
+      reset: "Reset",
+    },
     daysOfWeek: {
       "0": "Sunday",
       "1": "Monday",

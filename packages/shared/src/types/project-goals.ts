@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { trendScoreWeightsSchema } from "./project-config.ts";
+import { starTrendConfigSchema, trendScoreWeightsSchema } from "./project-config.ts";
 
 /**
  * Spec 62.2: content-type discriminator for project_goals rows.
@@ -109,5 +109,9 @@ export const projectPlannerConfigSchema = z.object({
   // Stored as JSONB on project_planner_config (migration 0104). Partial —
   // unset knobs fall back to score.ts W constant. `null` clears the column.
   trendScoreWeights: trendScoreWeightsSchema.nullable().optional(),
+  // Spec 64.21: per-project override for star-trend detection knobs.
+  // Stored as JSONB on project_planner_config (migration 0111). Partial —
+  // unset knobs fall back to DEFAULT_STAR_TREND_CONFIG. `null` clears.
+  starTrendConfig: starTrendConfigSchema.nullable().optional(),
 });
 export type ProjectPlannerConfigInput = z.infer<typeof projectPlannerConfigSchema>;

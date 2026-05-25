@@ -511,6 +511,109 @@
       </p>
     </section>
 
+    <!-- Spec 64.21: per-project star-trend detection knobs -->
+    <section class="form-card">
+      <header class="section-header">
+        <h2 class="section-title">{{ $t("settings.planner.starTrendSection.title") as string }}</h2>
+        <button
+          v-if="starTrendConfigDirty"
+          type="button"
+          class="btn-reset"
+          @click="resetStarTrendConfig"
+        >
+          {{ $t("settings.planner.starTrendSection.reset") as string }}
+        </button>
+      </header>
+      <p class="section-description">
+        {{ $t("settings.planner.starTrendSection.description") as string }}
+      </p>
+
+      <div class="trend-score-grid">
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.starTrendSection.absoluteThreshold") as string }}
+          </span>
+          <input
+            v-model.number="config.starTrendConfig.absoluteThreshold"
+            type="number"
+            min="1"
+            step="100"
+            class="input input-narrow"
+          />
+          <span class="field-hint-inline">
+            {{ $t("settings.planner.starTrendSection.absoluteThresholdHint") as string }}
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.starTrendSection.relativeThresholdPct") as string }}
+          </span>
+          <input
+            v-model.number="config.starTrendConfig.relativeThresholdPct"
+            type="number"
+            min="1"
+            max="10000"
+            step="5"
+            class="input input-narrow"
+          />
+          <span class="field-hint-inline">
+            {{ $t("settings.planner.starTrendSection.relativeThresholdPctHint") as string }}
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.starTrendSection.minAbsoluteForRelative") as string }}
+          </span>
+          <input
+            v-model.number="config.starTrendConfig.minAbsoluteForRelative"
+            type="number"
+            min="0"
+            step="50"
+            class="input input-narrow"
+          />
+          <span class="field-hint-inline">
+            {{ $t("settings.planner.starTrendSection.minAbsoluteForRelativeHint") as string }}
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.starTrendSection.weeklyCap") as string }}
+          </span>
+          <input
+            v-model.number="config.starTrendConfig.weeklyCap"
+            type="number"
+            min="0"
+            max="50"
+            step="1"
+            class="input input-narrow"
+          />
+          <span class="field-hint-inline">
+            {{ $t("settings.planner.starTrendSection.weeklyCapHint") as string }}
+          </span>
+        </label>
+        <label class="field">
+          <span class="field-label">
+            {{ $t("settings.planner.starTrendSection.windowDays") as string }}
+          </span>
+          <input
+            v-model.number="config.starTrendConfig.windowDays"
+            type="number"
+            min="1"
+            max="365"
+            step="1"
+            class="input input-narrow"
+          />
+          <span class="field-hint-inline">
+            {{ $t("settings.planner.starTrendSection.windowDaysHint") as string }}
+          </span>
+        </label>
+      </div>
+
+      <p v-if="starTrendOff" class="field-hint banner-warn">
+        {{ $t("settings.planner.starTrendSection.offHint") as string }}
+      </p>
+    </section>
+
     <div class="actions">
       <button
         type="button"
@@ -570,6 +673,25 @@ const DEFAULT_TREND_SCORE_WEIGHTS: TrendScoreWeights = {
   coverage: 40,
 };
 
+// Spec 64.21 — mirror of `ResolvedStarTrendConfig` from `@marketing-auto/shared`.
+// Same web-can't-import-workspace-types constraint as `TrendScoreWeights` above.
+// Keep in lockstep with `packages/shared/src/types/project-config.ts`.
+interface StarTrendConfig {
+  absoluteThreshold: number;
+  relativeThresholdPct: number;
+  minAbsoluteForRelative: number;
+  weeklyCap: number;
+  windowDays: number;
+}
+
+const DEFAULT_STAR_TREND_CONFIG: StarTrendConfig = {
+  absoluteThreshold:      5_000,
+  relativeThresholdPct:   50,
+  minAbsoluteForRelative: 500,
+  weeklyCap:              3,
+  windowDays:             30,
+};
+
 interface ConfigState {
   weeklyBudgetEur: number;
   topNSignalsAllowedOverage: number;
@@ -595,6 +717,9 @@ interface ConfigState {
   // knob diverges from `DEFAULT_TREND_SCORE_WEIGHTS`; otherwise we send `null`
   // to clear the DB column (avoid persisting copies of the defaults).
   trendScoreWeights: TrendScoreWeights;
+  // Spec 64.21: per-project star-trend detection knobs. Same "all-defaults → null"
+  // contract as `trendScoreWeights` above.
+  starTrendConfig: StarTrendConfig;
 }
 
 interface FetchedGoal {
@@ -629,6 +754,8 @@ interface FetchedConfig {
   diversityMalusWeight?: string | number;
   // Spec 64.19 / Phase D: per-project trend-score weights (Partial<...> | null).
   trendScoreWeights?: Partial<TrendScoreWeights> | null;
+  // Spec 64.21: per-project star-trend config (Partial<...> | null).
+  starTrendConfig?: Partial<StarTrendConfig> | null;
 }
 
 interface ValidationIssue {
@@ -679,6 +806,8 @@ export default defineComponent({
       // Spec 64.19 / Phase D: start with hardcoded defaults; reload() overlays
       // the per-project partial override from the DB if any.
       trendScoreWeights: { ...DEFAULT_TREND_SCORE_WEIGHTS },
+      // Spec 64.21: same pattern as trendScoreWeights.
+      starTrendConfig: { ...DEFAULT_STAR_TREND_CONFIG },
     } as ConfigState,
     perTypeInputs: {
       cluster: "",
@@ -789,6 +918,22 @@ export default defineComponent({
         w.coverage !== DEFAULT_TREND_SCORE_WEIGHTS.coverage
       );
     },
+    // Spec 64.21 — same dirty-check pattern as trendScoreWeightsDirty.
+    starTrendConfigDirty(): boolean {
+      const c = this.config.starTrendConfig;
+      return (
+        c.absoluteThreshold      !== DEFAULT_STAR_TREND_CONFIG.absoluteThreshold ||
+        c.relativeThresholdPct   !== DEFAULT_STAR_TREND_CONFIG.relativeThresholdPct ||
+        c.minAbsoluteForRelative !== DEFAULT_STAR_TREND_CONFIG.minAbsoluteForRelative ||
+        c.weeklyCap              !== DEFAULT_STAR_TREND_CONFIG.weeklyCap ||
+        c.windowDays             !== DEFAULT_STAR_TREND_CONFIG.windowDays
+      );
+    },
+    // weeklyCap=0 disables star-trend brief emission entirely (parallel to
+    // diversityOff: malusWeight=0 turns the diversity modifier off).
+    starTrendOff(): boolean {
+      return !this.config.starTrendConfig.weeklyCap || this.config.starTrendConfig.weeklyCap <= 0;
+    },
     trendSynthCronHintText(): string {
       const hourUtc = this.formatHourUtc(this.config.trendSynthCronHourUtc);
       const { label: hourLocal, tz } = this.formatHourLocal(this.config.trendSynthCronHourUtc);
@@ -882,6 +1027,11 @@ export default defineComponent({
             ...DEFAULT_TREND_SCORE_WEIGHTS,
             ...(config.trendScoreWeights ?? {}),
           };
+          // Spec 64.21: same overlay pattern for star-trend config.
+          this.config.starTrendConfig = {
+            ...DEFAULT_STAR_TREND_CONFIG,
+            ...(config.starTrendConfig ?? {}),
+          };
         }
         await this.runValidation();
       } catch (err) {
@@ -940,6 +1090,30 @@ export default defineComponent({
     },
     resetTrendScoreWeights() {
       this.config.trendScoreWeights = { ...DEFAULT_TREND_SCORE_WEIGHTS };
+    },
+    // Spec 64.21 — mirror of `buildTrendScoreWeightsPayload`. Returns the
+    // partial override (knobs that diverge from defaults) OR `null` when every
+    // knob matches the default. NULL = use code defaults; non-NULL = pinned
+    // override. Same "future default-change in detect.ts auto-applies" benefit.
+    buildStarTrendConfigPayload(): Partial<StarTrendConfig> | null {
+      const c = this.config.starTrendConfig;
+      const partial: Partial<StarTrendConfig> = {};
+      const keys = [
+        "absoluteThreshold",
+        "relativeThresholdPct",
+        "minAbsoluteForRelative",
+        "weeklyCap",
+        "windowDays",
+      ] as const;
+      for (const k of keys) {
+        if (c[k] !== DEFAULT_STAR_TREND_CONFIG[k]) {
+          partial[k] = c[k];
+        }
+      }
+      return Object.keys(partial).length === 0 ? null : partial;
+    },
+    resetStarTrendConfig() {
+      this.config.starTrendConfig = { ...DEFAULT_STAR_TREND_CONFIG };
     },
     async saveAll() {
       this.saving = true;
@@ -1001,6 +1175,9 @@ export default defineComponent({
             // all six match the hardcoded defaults send `null` to clear the
             // column. Reduces DB bloat from copies of the defaults.
             trendScoreWeights: this.buildTrendScoreWeightsPayload(),
+            // Spec 64.21: same "all-defaults → null" optimisation for star-trend
+            // config. NULL column = use code defaults from detect.ts.
+            starTrendConfig: this.buildStarTrendConfigPayload(),
           }),
         ]);
 
@@ -1291,9 +1468,17 @@ export default defineComponent({
 /* Spec 64.19 / Phase D — six trend-score weight knobs as a compact grid. */
 .trend-score-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.field-hint-inline {
+  display: block;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .section-header {

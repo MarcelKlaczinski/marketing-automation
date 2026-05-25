@@ -209,6 +209,12 @@ projectGoalsRoutes.put(
       ...(body.trendScoreWeights !== undefined
         ? { trendScoreWeights: body.trendScoreWeights }
         : {}),
+      // Spec 64.21: per-project star-trend config override. Same null/undefined
+      // contract as trendScoreWeights — `null` clears the JSONB column to fall
+      // back to DEFAULT_STAR_TREND_CONFIG; `undefined` preserves existing.
+      ...(body.starTrendConfig !== undefined
+        ? { starTrendConfig: body.starTrendConfig }
+        : {}),
     });
 
     log.info(

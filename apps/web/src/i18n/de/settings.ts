@@ -503,6 +503,26 @@ export default {
       positiveSumHint: "Positive Gewichte Summe: {sum} (Standard: 100).",
       reset: "Zurücksetzen",
     },
+    // Spec 64.21
+    starTrendSection: {
+      title: "Star-Trend-Stories",
+      description:
+        'GitHub-Repos im Inventory bekommen einen "X gained Yk stars this quarter"-Brief sobald (a) das absolute Wachstum die absolute Schwelle erreicht ODER (b) das relative Wachstum die relative Schwelle erreicht UND die Current-Stars über dem Floor liegen. Pacing-Cap verhindert Spam. Leer lassen = harter Default.',
+      absoluteThreshold: "Absolute Schwelle (Stars)",
+      absoluteThresholdHint: "Default 5000. Mindest-Wachstum für absolute Trigger.",
+      relativeThresholdPct: "Relative Schwelle (%)",
+      relativeThresholdPctHint: "Default 50%. Mindest-Wachstum für relative Trigger.",
+      minAbsoluteForRelative: "Floor für relative Trigger",
+      minAbsoluteForRelativeHint:
+        "Default 500. Repo muss diese Stars überschreiten damit relativer Trigger feuert (verhindert 50→100-Stars-Spam).",
+      weeklyCap: "Max Briefs/Woche",
+      weeklyCapHint: "Default 3. Auf 0 setzen um Star-Trend-Briefs komplett zu deaktivieren.",
+      windowDays: "Vergleichsfenster (Tage)",
+      windowDaysHint: "Default 30. Prior-Snapshot wird N Tage rückwirkend geladen.",
+      offHint:
+        "Weekly-Cap = 0: Star-Trend-Briefs sind komplett deaktiviert. Snapshots werden weiter gesammelt.",
+      reset: "Zurücksetzen",
+    },
     daysOfWeek: {
       "0": "Sonntag",
       "1": "Montag",
