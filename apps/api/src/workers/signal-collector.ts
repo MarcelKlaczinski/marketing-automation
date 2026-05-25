@@ -1,7 +1,15 @@
 import { Queue, Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
 import { z } from "zod";
-import { db, externalSignals, projects, type NewExternalSignal } from "@marketing-auto/db";
+import {
+  db,
+  externalSignals,
+  markCronRunFailed,
+  markCronRunSucceeded,
+  projects,
+  type CronJobType,
+  type NewExternalSignal,
+} from "@marketing-auto/db";
 import { loadActiveConfig } from "@marketing-auto/pipelines";
 import { RawSignalSchema, type RawSignal } from "@marketing-auto/pipelines";
 import { createLogger, getEnv } from "@marketing-auto/shared";
@@ -84,39 +92,31 @@ export function startSignalCollectorWorker() {
         return;
       }
 
-      // Per-project Reddit cron dispatched by cron-orchestrator
-      if (name.startsWith("signal_collector_reddit:")) {
-        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
-        await handleCollectAdapter(projectId, "reddit");
-        return;
-      }
-
-      // Per-project GitHub cron dispatched by cron-orchestrator
-      if (name.startsWith("signal_collector_github:")) {
-        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
-        await handleCollectAdapter(projectId, "github");
-        return;
-      }
-
-      // Per-project HackerNews cron dispatched by cron-orchestrator
-      if (name.startsWith("signal_collector_hackernews:")) {
-        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
-        await handleCollectAdapter(projectId, "hackernews");
-        return;
-      }
-
-      // Per-project ProductHunt cron dispatched by cron-orchestrator
-      if (name.startsWith("signal_collector_producthunt:")) {
-        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
-        await handleCollectAdapter(projectId, "producthunt");
-        return;
-      }
-
-      // Per-project Vendor-RSS cron dispatched by cron-orchestrator
-      if (name.startsWith("signal_collector_vendor_rss:")) {
-        const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
-        await handleCollectAdapter(projectId, "vendor_rss");
-        return;
+      // Spec 62.7-followup — cron-orchestrated paths record cron_state.lastRun*.
+      // Manual `collect-adapter` (above) skips recording because it isn't a cron tick.
+      const cronAdapterMap: Array<[string, "reddit" | "github" | "hackernews" | "producthunt" | "vendor_rss", CronJobType]> = [
+        ["signal_collector_reddit:",      "reddit",      "signal_collector_reddit"],
+        ["signal_collector_github:",      "github",      "signal_collector_github"],
+        ["signal_collector_hackernews:",  "hackernews",  "signal_collector_hackernews"],
+        ["signal_collector_producthunt:", "producthunt", "signal_collector_producthunt"],
+        ["signal_collector_vendor_rss:",  "vendor_rss",  "signal_collector_vendor_rss"],
+      ];
+      for (const [prefix, adapter, jobType] of cronAdapterMap) {
+        if (name.startsWith(prefix)) {
+          const { projectId } = z.object({ projectId: z.string().uuid() }).parse(job.data);
+          try {
+            await handleCollectAdapter(projectId, adapter);
+            await markCronRunSucceeded({ projectId, jobType });
+          } catch (err) {
+            await markCronRunFailed({
+              projectId,
+              jobType,
+              errorMessage: err instanceof Error ? err.message : String(err),
+            });
+            throw err;
+          }
+          return;
+        }
       }
 
       throw new Error(`Unknown signal-collector job name: ${name}`);

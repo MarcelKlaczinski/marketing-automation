@@ -9,6 +9,8 @@ import {
   inArray,
   isNull,
   articles,
+  markCronRunFailed,
+  markCronRunSucceeded,
   projects,
   refreshDismissed,
   refreshSuggestions,
@@ -205,11 +207,22 @@ export function startRefreshDetectorWorker() {
     async (job: Job) => {
       const { projectId } = detectJobSchema.parse(job.data);
       log.info({ projectId }, "Running refresh detection");
-      const result = await detectStaleArticles(projectId);
-      log.info(
-        { projectId, candidateCount: result.candidateCount, persistedCount: result.persistedCount },
-        "Refresh detection complete",
-      );
+      try {
+        const result = await detectStaleArticles(projectId);
+        log.info(
+          { projectId, candidateCount: result.candidateCount, persistedCount: result.persistedCount },
+          "Refresh detection complete",
+        );
+        // Spec 62.7-followup — record cron_state.lastRun*.
+        await markCronRunSucceeded({ projectId, jobType: "refresh_detector" });
+      } catch (err) {
+        await markCronRunFailed({
+          projectId,
+          jobType: "refresh_detector",
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      }
     },
     { connection: getConnection(), concurrency: 2 }
   );

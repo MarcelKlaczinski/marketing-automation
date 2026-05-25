@@ -22,6 +22,8 @@ import {
   cronState,
   db,
   externalSignals,
+  markCronRunFailed,
+  markCronRunSucceeded,
   topicBriefs,
   projects,
   and,
@@ -127,6 +129,24 @@ export async function seedTrendSynthesizerCron(): Promise<void> {
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 async function handleSynthesizeProject(projectId: string): Promise<void> {
+  // Spec 62.7-followup — wrap the body in try/catch so cron_state.lastRun*
+  // gets recorded regardless of which branch (no-config / no-sources /
+  // success / failure) finishes.
+  try {
+    await runSynthesisTick(projectId);
+    await markCronRunSucceeded({ projectId, jobType: "trends_synthesizer" });
+  } catch (err) {
+    log.error({ projectId, err: err instanceof Error ? err.message : String(err) }, "Trend-synthesizer tick failed");
+    await markCronRunFailed({
+      projectId,
+      jobType: "trends_synthesizer",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+}
+
+async function runSynthesisTick(projectId: string): Promise<void> {
   // Janitor: stamp signals older than 14 days that were never processed
   const cutoff = new Date(Date.now() - 14 * 86_400_000);
   const expired = await db

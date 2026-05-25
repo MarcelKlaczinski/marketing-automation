@@ -6,7 +6,7 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 import { z } from "zod";
 import {
-  db, eq, and, isNull, isNotNull, lt, or, articles, refreshSuggestions, projects,
+  db, eq, and, isNull, isNotNull, lt, or, articles, markCronRunFailed, markCronRunSucceeded, refreshSuggestions, projects,
 } from "@marketing-auto/db";
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS, estimateCostEur } from "@marketing-auto/core/cost";
@@ -60,47 +60,64 @@ export function startArticleQualityAnalysisWorker(): Worker<ArticleQualityAnalys
       const cronResult = cronJobSchema.safeParse(job.data);
       if (cronResult.success) {
         const { projectId } = cronResult.data;
-        const [project] = await db
-          .select({ id: projects.id, slug: projects.slug })
-          .from(projects)
-          .where(eq(projects.id, projectId))
-          .limit(1);
-        if (!project) return { articleId: "", recommendation: "no-action" as const, suggestionId: null };
+        try {
+          const [project] = await db
+            .select({ id: projects.id, slug: projects.slug })
+            .from(projects)
+            .where(eq(projects.id, projectId))
+            .limit(1);
+          if (!project) {
+            // Project gone — record success (we ran, found no work) so the
+            // Settings UI doesn't show stale "—".
+            await markCronRunSucceeded({ projectId, jobType: "quality_analysis" });
+            return { articleId: "", recommendation: "no-action" as const, suggestionId: null };
+          }
 
-        const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+          const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
 
-        const due = await db
-          .select({ id: articles.id })
-          .from(articles)
-          .leftJoin(
-            refreshSuggestions,
-            and(
-              eq(refreshSuggestions.articleId, articles.id),
-              eq(refreshSuggestions.source, "quality")
+          const due = await db
+            .select({ id: articles.id })
+            .from(articles)
+            .leftJoin(
+              refreshSuggestions,
+              and(
+                eq(refreshSuggestions.articleId, articles.id),
+                eq(refreshSuggestions.source, "quality")
+              )
             )
-          )
-          .where(and(
-            eq(articles.projectId, projectId),
-            eq(articles.status, "published"),
-            isNotNull(articles.lastRefreshedAt),
-            lt(articles.lastRefreshedAt, thirtyDaysAgo),
-            or(
-              isNull(refreshSuggestions.id),
-              lt(refreshSuggestions.generatedAt, sevenDaysAgo),
-            ),
-          ))
-          .limit(CRON_BATCH_SIZE);
+            .where(and(
+              eq(articles.projectId, projectId),
+              eq(articles.status, "published"),
+              isNotNull(articles.lastRefreshedAt),
+              lt(articles.lastRefreshedAt, thirtyDaysAgo),
+              or(
+                isNull(refreshSuggestions.id),
+                lt(refreshSuggestions.generatedAt, sevenDaysAgo),
+              ),
+            ))
+            .limit(CRON_BATCH_SIZE);
 
-        const queue = getArticleQualityAnalysisQueue();
-        for (const a of due) {
-          await queue.add("analyze", { articleId: a.id, projectId, projectSlug: project.slug }, {
-            jobId: `quality-cron-${a.id}`,
+          const queue = getArticleQualityAnalysisQueue();
+          for (const a of due) {
+            await queue.add("analyze", { articleId: a.id, projectId, projectSlug: project.slug }, {
+              jobId: `quality-cron-${a.id}`,
+            });
+          }
+
+          log.info({ projectId, count: due.length }, "Quality analysis cron enqueued per-article jobs");
+          // Spec 62.7-followup — record cron_state.lastRun* for the cron tick.
+          // Per-article jobs themselves don't record (they aren't cron ticks).
+          await markCronRunSucceeded({ projectId, jobType: "quality_analysis" });
+          return { articleId: "", recommendation: "no-action" as const, suggestionId: null };
+        } catch (err) {
+          await markCronRunFailed({
+            projectId,
+            jobType: "quality_analysis",
+            errorMessage: err instanceof Error ? err.message : String(err),
           });
+          throw err;
         }
-
-        log.info({ projectId, count: due.length }, "Quality analysis cron enqueued per-article jobs");
-        return { articleId: "", recommendation: "no-action" as const, suggestionId: null };
       }
 
       const data = articleJobSchema.parse(job.data) as ArticleQualityAnalysisPerArticleData;

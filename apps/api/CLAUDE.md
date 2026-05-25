@@ -100,6 +100,36 @@ Three rules:
 - Always wrap external calls in cost-tracker decorator
 - Always log structured (pino, JSON output)
 
+### Cron-state observability writes (Spec 62.7-followup / 64.21-d)
+
+Every cron-orchestrated worker MUST record `cron_state.lastRun*` exactly once per tick via `markCronRunSucceeded` / `markCronRunFailed` from [`packages/db/src/helpers/cron-state-write.ts`](../../packages/db/src/helpers/cron-state-write.ts). The 3 columns existed since migration 0076 but went un-written until Marcel noticed the "Letzter Lauf: —" in the Settings UI.
+
+**Canonical wiring pattern** (used by all 9 cron-orchestrated workers as of 2026-05-25):
+
+```typescript
+async function handleSomeCronTick(projectId: string): Promise<void> {
+  try {
+    await doTheWork(projectId);                                    // your tick body
+    await markCronRunSucceeded({ projectId, jobType: "your_job" }); // typed against CronJobType enum
+  } catch (err) {
+    await markCronRunFailed({
+      projectId,
+      jobType: "your_job",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    throw err; // re-throw so BullMQ surfaces the failed job too
+  }
+}
+```
+
+**"Success" semantically means "tick reached its terminal state without throwing", NOT "tick produced new data"**. This deliberately includes no-op ticks (no due rows), guard-blocked ticks (cost-limit / pause), dedup paths (PlanAlreadyExistsError), and partial-fetcher failures inside an otherwise-completed tick. The intent: the UI's "Letzter Lauf" timestamp shows when the cron last ran, not when it last produced output.
+
+**Don't call from manual one-off jobs that aren't cron ticks** (e.g. signal-collector's `collect-adapter` job name handles both cron + manual paths — only the cron branch records). Otherwise a manual fire overwrites the cron timestamp with a context that isn't visible in Settings.
+
+**One worker — `comparison-discovery` — intentionally does NOT re-throw** after `markCronRunFailed`. Documented inline at the catch site. The rationale: discovery only writes pending briefs that Marcel reviews, so a missed tick is harmless, and the `cron_state.lastRunStatus='failed'` + warning log already give observability. Don't copy this without a similar rationale.
+
+**Adding a new cron-orchestrated worker?** Wire all 5 sites per Memory D124 (enum widening migration + Drizzle enum + `getQueueForJobType` switch + `allQueues` + `isCronOrchestrated` startsWith) PLUS this `markCronRun*` call pair in the handler body. The pattern is the 6th coordination point — TypeScript catches missed enum casts via `CronJobType` re-derivation but doesn't catch a missed mark call.
+
 ### Time-series + threshold detection in cron-driven workers (Spec 64.21)
 
 Pattern for any cron-driven worker that needs to compare current state against history (star-counts, fork-counts, response-time percentiles, ad-spend daily totals, etc.):

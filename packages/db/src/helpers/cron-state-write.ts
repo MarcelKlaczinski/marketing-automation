@@ -9,13 +9,40 @@
  *
  * The (`projectId`, `jobType`) tuple uniquely identifies a cron_state row via
  * the unique constraint declared in `packages/db/src/schema/cron.ts`. If no
- * matching row exists (e.g. cron not yet seeded for a new project), the
- * UPDATE is a no-op — same posture as the existing seed helpers.
+ * matching row exists (e.g. cron not yet seeded for a new project, or the
+ * worker fires for an unscoped manual trigger), the UPDATE is a no-op — same
+ * posture as the existing seed helpers.
  *
- * Worker contract: call ONE of `markCronRunSucceeded` / `markCronRunFailed`
- * exactly once per tick, regardless of how the tick was triggered (cron or
- * manual "Run Now" button). Idempotent — re-calling within the same tick
- * overwrites the timestamp, which is fine.
+ * **Worker contract:**
+ *
+ * - Call ONE of `markCronRunSucceeded` / `markCronRunFailed` exactly once per
+ *   tick, regardless of how the tick was triggered (cron or manual "Run Now"
+ *   button). Idempotent — re-calling within the same tick overwrites the
+ *   timestamp, which is fine.
+ *
+ * - "Success" semantically means "the cron tick reached its terminal state
+ *   without throwing", NOT "the cron did productive work". This deliberately
+ *   includes:
+ *     • no-op ticks (e.g. inventory-refresh found no due rows)
+ *     • guard-blocked ticks (e.g. planner-weekly-generation hit a cost-limit
+ *       or pause guard — the cron did its job, the gate is intentional)
+ *     • dedup paths (e.g. PlanAlreadyExistsError — the cron correctly
+ *       recognised the work was already done)
+ *     • partial-fetcher failures inside a tick (e.g. one of several signal
+ *       sources threw but the tick continued and persisted what it could)
+ *   This matches Marcel's UX intent: "Letzter Lauf" should show the latest
+ *   timestamp the cron actually fired, not just the latest one where new
+ *   data was produced.
+ *
+ * - "Failed" is reserved for catastrophic exceptions that abort the tick.
+ *   Most workers re-throw after `markCronRunFailed` so BullMQ also marks the
+ *   job as failed in its dashboard. `comparison-discovery` is the one
+ *   intentional exception (see its inline comment for the rationale).
+ *
+ * - Manual one-off enqueues that aren't cron ticks (e.g. signal-collector's
+ *   `collect-adapter` job name) MUST NOT call these helpers — they'd
+ *   overwrite the legitimate cron timestamp with a manual fire that wasn't
+ *   visible in the Settings UI.
  */
 
 import { and, eq } from "drizzle-orm";

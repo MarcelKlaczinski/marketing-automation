@@ -12,7 +12,14 @@
 import { Queue, Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
 import { z } from "zod";
-import { cronState, db, projects, reapStuckSubsteps } from "@marketing-auto/db";
+import {
+  cronState,
+  db,
+  markCronRunFailed,
+  markCronRunSucceeded,
+  projects,
+  reapStuckSubsteps,
+} from "@marketing-auto/db";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 
 const log = createLogger("step-pause-cleanup");
@@ -80,15 +87,37 @@ export function startStepPauseCleanupWorker() {
     async (job: Job) => {
       const parsed = jobSchema.parse(job.data);
       const cutoff = new Date(Date.now() - STUCK_CUTOFF_MS);
-      const reaped = await reapStuckSubsteps(cutoff);
-      log.info(
-        {
-          reaped,
-          cutoff: cutoff.toISOString(),
-          ...(parsed.projectId !== undefined ? { triggeredFor: parsed.projectId } : {}),
-        },
-        reaped > 0 ? "Reaped stuck substep rows" : "No stuck substeps to reap"
-      );
+      try {
+        const reaped = await reapStuckSubsteps(cutoff);
+        log.info(
+          {
+            reaped,
+            cutoff: cutoff.toISOString(),
+            ...(parsed.projectId !== undefined ? { triggeredFor: parsed.projectId } : {}),
+          },
+          reaped > 0 ? "Reaped stuck substep rows" : "No stuck substeps to reap"
+        );
+        // Spec 62.7-followup — record cron_state.lastRun*. Reap is global (no
+        // project filter), but cron_state is keyed by (project_id, jobType).
+        // Record for the project that triggered this tick when known;
+        // skip if the fire was unscoped (very rare — only happens for legacy
+        // adhoc enqueues without projectId).
+        if (parsed.projectId !== undefined) {
+          await markCronRunSucceeded({
+            projectId: parsed.projectId,
+            jobType: "step_pause_cleanup",
+          });
+        }
+      } catch (err) {
+        if (parsed.projectId !== undefined) {
+          await markCronRunFailed({
+            projectId: parsed.projectId,
+            jobType: "step_pause_cleanup",
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+        }
+        throw err;
+      }
     },
     { connection: getConnection(), concurrency: 1 }
   );

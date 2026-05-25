@@ -21,6 +21,8 @@ import {
   cronState,
   db,
   eq,
+  markCronRunFailed,
+  markCronRunSucceeded,
   projects,
 } from "@marketing-auto/db";
 import { discoverComparisonPairs } from "@marketing-auto/planner";
@@ -121,10 +123,28 @@ async function handleComparisonDiscovery(projectId: string): Promise<void> {
       },
       "Comparison-discovery cron tick completed",
     );
+    // Spec 62.7-followup — record success for the Settings UI.
+    await markCronRunSucceeded({
+      projectId: proj.id,
+      jobType: "comparison_discovery",
+    });
   } catch (err: unknown) {
     // Don't rethrow — the BullMQ job is `attempts: 1`, so re-throwing would
     // mark the fire as failed (with no retry) and add nothing actionable.
+    // Note: this diverges from the other cron-orchestrated workers (trend-
+    // synthesizer, signal-collector, quality-analysis, refresh-detector,
+    // github-inventory-*) which DO rethrow after `markCronRunFailed` so
+    // BullMQ surfaces a failed job in the dashboard. comparison-discovery
+    // is intentionally quieter because (a) discovery only writes pending
+    // briefs that Marcel reviews, so a missed tick is harmless, and (b)
+    // the cron_state.lastRunStatus='failed' + the warning log already give
+    // Marcel-side observability.
     log.error({ err, projectId: proj.id, slug: proj.slug }, "Comparison-discovery cron tick failed");
+    await markCronRunFailed({
+      projectId: proj.id,
+      jobType: "comparison_discovery",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 

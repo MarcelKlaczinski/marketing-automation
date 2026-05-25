@@ -25,6 +25,8 @@ import {
   cronState,
   db,
   eq,
+  markCronRunFailed,
+  markCronRunSucceeded,
   PlanAlreadyExistsError,
   projects,
 } from "@marketing-auto/db";
@@ -144,6 +146,9 @@ async function handlePlannerWeeklyGeneration(projectId: string): Promise<void> {
         { projectId: proj.id, slug: proj.slug, planKey, blocked: result.error },
         "Planner cron tick blocked by guard",
       );
+      // Cron RAN but was blocked by a guard (pause / cost-limit / dedup).
+      // Record as success — the cron did its job; the gate is intentional.
+      await markCronRunSucceeded({ projectId: proj.id, jobType: "planner_weekly_generation" });
       return;
     }
     log.info(
@@ -158,18 +163,28 @@ async function handlePlannerWeeklyGeneration(projectId: string): Promise<void> {
         ? "Planner cron tick deduped — plan already in flight for next week"
         : "Planner cron tick triggered PlanWeekPipeline",
     );
+    // Spec 62.7-followup — Settings UI "Letzter Lauf" reflects the most
+    // recent successful enqueue (incl. dedupes).
+    await markCronRunSucceeded({ projectId: proj.id, jobType: "planner_weekly_generation" });
   } catch (err: unknown) {
     if (err instanceof PlanAlreadyExistsError) {
       log.info(
         { projectId: proj.id, slug: proj.slug, planKey, existingPlanId: err.existingPlanId },
         "Planner cron tick — plan already exists for next week, skipping",
       );
+      // Plan already exists — cron did its job, no new enqueue needed.
+      await markCronRunSucceeded({ projectId: proj.id, jobType: "planner_weekly_generation" });
       return;
     }
     // Don't rethrow — the BullMQ job is `attempts: 1`, so re-throwing would
     // mark this fire as failed (with no retry). Logging here is enough; the
     // user-facing Quarantine view picks up failed pipeline_runs separately.
     log.error({ err, projectId: proj.id, slug: proj.slug, planKey }, "Planner cron tick failed");
+    await markCronRunFailed({
+      projectId: proj.id,
+      jobType: "planner_weekly_generation",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
