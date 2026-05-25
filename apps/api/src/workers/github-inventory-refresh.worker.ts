@@ -31,14 +31,16 @@ import {
   type ContentSourceInventory,
 } from "@marketing-auto/db";
 import {
-  fetchFullRepoMetadata,
+  fetchFullRepoMetadata as defaultFetchFullRepoMetadata,
   GitHubRateLimitError,
-  detectSkill,
+  detectSkill as defaultDetectSkill,
   parseSourceIdentifier,
+  type DetectSkillResult,
+  type FetchFullRepoMetadataResult,
   type GitHubCredentials,
 } from "@marketing-auto/adapter-github-inventory";
 import { createLogger, getEnv } from "@marketing-auto/shared";
-import { readAdapterCreds } from "../lib/system-service.ts";
+import { readAdapterCreds as defaultReadAdapterCreds } from "../lib/system-service.ts";
 
 const log = createLogger("github-inventory-refresh");
 
@@ -120,6 +122,35 @@ export async function seedGithubInventoryRefreshCron(): Promise<void> {
   );
 }
 
+// ─── DI seam for testability ────────────────────────────────────────────────
+
+/**
+ * Injectable dependencies for the tick handler. Default values are the
+ * production implementations; tests inject fakes to keep the worker offline
+ * and the GitHub adapter untouched. Pattern 121 (Pattern from Spec 64.10
+ * cleanup-orphan-heroes + Spec 64.15 backfill scripts).
+ */
+export interface InventoryRefreshDeps {
+  /** Vault read for the GitHub PAT. Default: `readAdapterCreds('github')`. */
+  readCreds: (service: string) => Promise<Record<string, string>>;
+  /** Compose 2 GitHub-API calls into the typed metadata bucket. */
+  fetchFullRepoMetadata: (
+    fullName: string,
+    creds: GitHubCredentials,
+  ) => Promise<FetchFullRepoMetadataResult>;
+  /** SKILL.md detection for skill-typed rows. */
+  detectSkill: (
+    sourceIdentifier: string,
+    creds: GitHubCredentials,
+  ) => Promise<DetectSkillResult>;
+}
+
+const defaultDeps: InventoryRefreshDeps = {
+  readCreds: defaultReadAdapterCreds,
+  fetchFullRepoMetadata: defaultFetchFullRepoMetadata,
+  detectSkill: defaultDetectSkill,
+};
+
 // ─── Per-row refresh ─────────────────────────────────────────────────────────
 
 /**
@@ -133,6 +164,7 @@ export async function seedGithubInventoryRefreshCron(): Promise<void> {
 async function refreshOne(
   row: ContentSourceInventory,
   creds: GitHubCredentials,
+  deps: InventoryRefreshDeps,
 ): Promise<{ continueBatch: boolean }> {
   const claimed = await markInventoryFetching(row.id);
   if (!claimed) {
@@ -143,11 +175,11 @@ async function refreshOne(
 
   try {
     const { fullName, subdir } = parseSourceIdentifier(row.sourceIdentifier);
-    const { metadata } = await fetchFullRepoMetadata(fullName, creds);
+    const { metadata } = await deps.fetchFullRepoMetadata(fullName, creds);
 
     // For skill rows, attempt to fetch SKILL.md frontmatter.
     if (row.objectType === "skill") {
-      const skill = await detectSkill(row.sourceIdentifier, creds);
+      const skill = await deps.detectSkill(row.sourceIdentifier, creds);
       if (skill.frontmatter) {
         metadata.skillFrontmatter = skill.frontmatter;
       } else {
@@ -189,11 +221,16 @@ async function refreshOne(
  * - `cron-triggered`: walks all due rows for the project, up to BATCH_SIZE.
  * - `refresh-manual` (with ids[]): refreshes the explicit set (ignoring interval).
  */
-async function handleInventoryRefresh(input: z.infer<typeof jobSchema>): Promise<void> {
+export async function handleInventoryRefresh(
+  input: z.infer<typeof jobSchema>,
+  depsOverride?: Partial<InventoryRefreshDeps>,
+): Promise<void> {
+  const deps: InventoryRefreshDeps = { ...defaultDeps, ...depsOverride };
+
   // PAT from vault — shared `service='github'` key with signal-collector (Spec 59.1b).
   let pat: string;
   try {
-    const creds = await readAdapterCreds("github");
+    const creds = await deps.readCreds("github");
     if (!creds.personal_access_token) {
       log.warn({}, "GitHub PAT not configured in vault — skipping tick");
       return;
@@ -231,7 +268,7 @@ async function handleInventoryRefresh(input: z.infer<typeof jobSchema>): Promise
 
   for (const row of rows) {
     attempted += 1;
-    const result = await refreshOne(row, githubCreds);
+    const result = await refreshOne(row, githubCreds, deps);
     if (!result.continueBatch) {
       rateLimited = true;
       break;
