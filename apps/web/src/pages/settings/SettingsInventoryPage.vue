@@ -217,10 +217,11 @@
 
 <script lang="ts">
 import { defineComponent } from "vue";
-import {
-  useInventory,
-  type InventoryGithubMetadata,
-  type InventoryRow,
+import { apiDelete, apiGet, apiPatch, apiPost } from "src/lib/api";
+import type {
+  InventoryGithubMetadata,
+  InventoryListResponse,
+  InventoryRow,
 } from "src/composables/useInventory";
 
 interface EditForm {
@@ -239,58 +240,33 @@ const EMPTY_FORM: EditForm = {
   refreshIntervalHours: 168,
 };
 
+// Direct apiGet + watcher pattern per apps/web/CLAUDE.md DO-NOT rule:
+// "DO NOT use TanStack Query when the queryKey depends on a reactive value
+// that lives in data() — setup() runs before data() and cannot receive
+// reactive data() values." The previous version called useInventory()
+// inside a computed property which re-subscribed TanStack Query on every
+// reactive cycle, producing infinite loading.
 export default defineComponent({
   name: "SettingsInventoryPage",
 
-  setup() {
-    return {};
-  },
-
   data: () => ({
+    items: [] as InventoryRow[],
+    counts: { tool: 0, skill: 0 } as { tool: number; skill: number },
     objectTypeFilter: null as "tool" | "skill" | null,
     fetchStatusFilter: null as "pending" | "fetching" | "ok" | "error" | null,
+    listLoading: false,
+    refreshAllPending: false,
+    savePending: false,
     dialogOpen: false,
     editTarget: null as InventoryRow | null,
     form: { ...EMPTY_FORM },
     refreshingId: null as string | null,
+    pollTimerId: 0,
   }),
 
   computed: {
     projectSlug(): string {
       return this.$route.params.slug as string;
-    },
-
-    inventory() {
-      // useInventory is a Composition-API composable; calling it inside a
-      // computed gives us reactive access to its mutations + query. Since the
-      // slug is stable for this route, plain string-form is fine.
-      return useInventory(this.projectSlug, {
-        ...(this.objectTypeFilter !== null && { objectType: this.objectTypeFilter }),
-        ...(this.fetchStatusFilter !== null && { fetchStatus: this.fetchStatusFilter }),
-      });
-    },
-
-    items(): InventoryRow[] {
-      return this.inventory.listQuery.data.value?.items ?? [];
-    },
-
-    counts(): { tool: number; skill: number } {
-      return this.inventory.listQuery.data.value?.counts ?? { tool: 0, skill: 0 };
-    },
-
-    listLoading(): boolean {
-      return this.inventory.listQuery.isLoading.value && !this.inventory.listQuery.data.value;
-    },
-
-    refreshAllPending(): boolean {
-      return this.inventory.refreshAllMutation.isPending.value;
-    },
-
-    savePending(): boolean {
-      return (
-        this.inventory.createMutation.isPending.value ||
-        this.inventory.patchMutation.isPending.value
-      );
     },
 
     objectTypeOptions() {
@@ -314,7 +290,55 @@ export default defineComponent({
     },
   },
 
+  watch: {
+    objectTypeFilter() {
+      void this.fetchList();
+    },
+    fetchStatusFilter() {
+      void this.fetchList();
+    },
+  },
+
+  mounted() {
+    void this.fetchList();
+    // Surface cron-driven status changes within 15 seconds without re-subscribing
+    // TanStack queries on every reactive cycle. setInterval — not setTimeout —
+    // because the page is long-lived; cleared in beforeUnmount.
+    this.pollTimerId = window.setInterval(() => {
+      void this.fetchList();
+    }, 15_000);
+  },
+
+  beforeUnmount() {
+    if (this.pollTimerId) {
+      window.clearInterval(this.pollTimerId);
+      this.pollTimerId = 0;
+    }
+  },
+
   methods: {
+    async fetchList() {
+      this.listLoading = this.items.length === 0; // only show spinner on first load
+      try {
+        const params = new URLSearchParams();
+        if (this.objectTypeFilter) params.set("objectType", this.objectTypeFilter);
+        if (this.fetchStatusFilter) params.set("fetchStatus", this.fetchStatusFilter);
+        const qs = params.toString();
+        const data = await apiGet<InventoryListResponse>(
+          `/projects/${this.projectSlug}/inventory${qs ? `?${qs}` : ""}`,
+        );
+        this.items = data.items;
+        this.counts = data.counts;
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "list_failed",
+        });
+      } finally {
+        this.listLoading = false;
+      }
+    },
+
     starsOf(row: InventoryRow): string {
       // Pending/error rows have `{}` runtime even though the column type asserts
       // populated. Gate on fetchStatus to avoid reading undefined fields.
@@ -368,25 +392,27 @@ export default defineComponent({
     },
 
     async onSave() {
+      this.savePending = true;
       try {
         if (this.editTarget) {
-          await this.inventory.patchMutation.mutateAsync({
-            id: this.editTarget.id,
-            input: {
+          await apiPatch<InventoryRow>(
+            `/projects/${this.projectSlug}/inventory/${this.editTarget.id}`,
+            {
               displayName: this.form.displayName,
               description: this.form.description || null,
               refreshIntervalHours: this.form.refreshIntervalHours,
             },
-          });
+          );
         } else {
           if (!this.form.sourceIdentifier.trim() || !this.form.displayName.trim()) {
             this.$q.notify({
               type: "negative",
               message: this.$t("settings.inventory.errors.required") as string,
             });
+            this.savePending = false;
             return;
           }
-          await this.inventory.createMutation.mutateAsync({
+          await apiPost<InventoryRow>(`/projects/${this.projectSlug}/inventory`, {
             objectType: this.form.objectType,
             sourceIdentifier: this.form.sourceIdentifier.trim(),
             displayName: this.form.displayName.trim(),
@@ -399,11 +425,14 @@ export default defineComponent({
           type: "positive",
           message: this.$t("settings.inventory.savedSuccess") as string,
         });
+        await this.fetchList();
       } catch (err) {
         this.$q.notify({
           type: "negative",
           message: err instanceof Error ? err.message : "save_failed",
         });
+      } finally {
+        this.savePending = false;
       }
     },
 
@@ -419,11 +448,14 @@ export default defineComponent({
         persistent: true,
       }).onOk(async () => {
         try {
-          await this.inventory.deleteMutation.mutateAsync(row.id);
+          await apiDelete<{ deleted: boolean }>(
+            `/projects/${this.projectSlug}/inventory/${row.id}`,
+          );
           this.$q.notify({
             type: "positive",
             message: this.$t("settings.inventory.deletedSuccess") as string,
           });
+          await this.fetchList();
         } catch (err) {
           this.$q.notify({
             type: "negative",
@@ -436,7 +468,10 @@ export default defineComponent({
     async onRefreshRow(id: string) {
       this.refreshingId = id;
       try {
-        await this.inventory.refreshRowMutation.mutateAsync(id);
+        await apiPost<{ jobId: string }>(
+          `/projects/${this.projectSlug}/inventory/${id}/refresh`,
+          {},
+        );
         this.$q.notify({
           type: "positive",
           message: this.$t("settings.inventory.refreshEnqueued") as string,
@@ -452,8 +487,12 @@ export default defineComponent({
     },
 
     async onRefreshAll() {
+      this.refreshAllPending = true;
       try {
-        await this.inventory.refreshAllMutation.mutateAsync(undefined);
+        await apiPost<{ jobId: string; mode: string }>(
+          `/projects/${this.projectSlug}/inventory/refresh`,
+          {},
+        );
         this.$q.notify({
           type: "positive",
           message: this.$t("settings.inventory.refreshAllEnqueued") as string,
@@ -463,6 +502,8 @@ export default defineComponent({
           type: "negative",
           message: err instanceof Error ? err.message : "refresh_failed",
         });
+      } finally {
+        this.refreshAllPending = false;
       }
     },
   },
