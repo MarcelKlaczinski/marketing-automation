@@ -7,8 +7,10 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "bun:test";
 import {
+  and,
   articles,
   contentSourceInventory,
+  cronState,
   db,
   eq,
   projects,
@@ -105,6 +107,28 @@ afterEach(async () => {
   await db
     .delete(contentSourceInventory)
     .where(eq(contentSourceInventory.projectId, otherProjectId));
+  // A2 T2: prune any cron_state rows left by the cron-status tests so the next
+  // test sees clean defaults from the GET endpoint.
+  await db
+    .delete(cronState)
+    .where(
+      and(
+        eq(cronState.projectId, projectId),
+        // Both job types we touch in tests below:
+        // - github_inventory_refresh
+        // - github_inventory_discovery
+        // The eq() check serves as a noop guard if the seed never ran.
+        eq(cronState.jobType, "github_inventory_discovery"),
+      ),
+    );
+  await db
+    .delete(cronState)
+    .where(
+      and(
+        eq(cronState.projectId, projectId),
+        eq(cronState.jobType, "github_inventory_refresh"),
+      ),
+    );
 });
 
 afterAll(async () => {
@@ -389,5 +413,237 @@ describe("POST /api/projects/:slug/inventory/refresh", () => {
     );
     const body = (await refreshRes.json()) as { data: { mode: string } };
     expect(body.data.mode).toBe("manual");
+  });
+});
+
+// ─── A2 Tranche 2 — bulk approve/reject + cron-status ──────────────────────
+
+describe("POST /api/projects/:slug/inventory/discovery/approve", () => {
+  it("flips approved_at on unapproved rows and reports counts", async () => {
+    // Seed an unapproved candidate (approveOnCreate:false) + an already-approved row.
+    const unapproved = await app.fetch(
+      authed(`/api/projects/${slug}/inventory`, {
+        method: "POST",
+        body: JSON.stringify({
+          objectType: "tool",
+          sourceIdentifier: "bulk/unapproved",
+          displayName: "Unapproved",
+          approveOnCreate: false,
+        }),
+      }),
+    );
+    const { data: u } = (await unapproved.json()) as {
+      data: typeof contentSourceInventory.$inferSelect;
+    };
+    const approvedRes = await app.fetch(
+      authed(`/api/projects/${slug}/inventory`, {
+        method: "POST",
+        body: JSON.stringify({
+          objectType: "tool",
+          sourceIdentifier: "bulk/approved",
+          displayName: "Already-Approved",
+        }),
+      }),
+    );
+    const { data: a } = (await approvedRes.json()) as {
+      data: typeof contentSourceInventory.$inferSelect;
+    };
+    expect(u.approvedAt).toBeNull();
+    expect(a.approvedAt).not.toBeNull();
+
+    // Throw in a UUID that doesn't exist so we exercise notFound counting too.
+    const ghostId = crypto.randomUUID();
+
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/inventory/discovery/approve`, {
+        method: "POST",
+        body: JSON.stringify({ ids: [u.id, a.id, ghostId] }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { approved: number; alreadyApproved: number; notFound: number };
+    };
+    expect(body.data).toEqual({ approved: 1, alreadyApproved: 1, notFound: 1 });
+
+    // Verify the unapproved row is now approved (no GET /:id endpoint — query DB).
+    const refreshed = await db
+      .select({
+        approvedAt: contentSourceInventory.approvedAt,
+        approvedByUserId: contentSourceInventory.approvedByUserId,
+      })
+      .from(contentSourceInventory)
+      .where(eq(contentSourceInventory.id, u.id));
+    expect(refreshed.length).toBe(1);
+    expect(refreshed[0]?.approvedAt).not.toBeNull();
+    expect(refreshed[0]?.approvedByUserId).toBe(userId);
+  });
+
+  it("ignores cross-tenant IDs (counted as notFound, not approved)", async () => {
+    // Create an unapproved row in the OTHER project.
+    const otherRes = await app.fetch(
+      authed(`/api/projects/${otherSlug}/inventory`, {
+        method: "POST",
+        body: JSON.stringify({
+          objectType: "tool",
+          sourceIdentifier: "cross/tenant-approve",
+          displayName: "Cross-tenant",
+          approveOnCreate: false,
+        }),
+      }),
+    );
+    const { data: cross } = (await otherRes.json()) as {
+      data: typeof contentSourceInventory.$inferSelect;
+    };
+
+    // Approve via THIS project's slug — must be a no-op.
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/inventory/discovery/approve`, {
+        method: "POST",
+        body: JSON.stringify({ ids: [cross.id] }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { approved: number; alreadyApproved: number; notFound: number };
+    };
+    expect(body.data).toEqual({ approved: 0, alreadyApproved: 0, notFound: 1 });
+
+    // Verify the row in the OTHER project is still unapproved (direct DB
+    // query — no GET /:id endpoint exists).
+    const otherRows = await db
+      .select({ approvedAt: contentSourceInventory.approvedAt })
+      .from(contentSourceInventory)
+      .where(eq(contentSourceInventory.id, cross.id));
+    expect(otherRows.length).toBe(1);
+    expect(otherRows[0]?.approvedAt).toBeNull();
+  });
+});
+
+describe("POST /api/projects/:slug/inventory/discovery/reject", () => {
+  it("hard-deletes unapproved rows and skips approved ones", async () => {
+    const unapprovedRes = await app.fetch(
+      authed(`/api/projects/${slug}/inventory`, {
+        method: "POST",
+        body: JSON.stringify({
+          objectType: "tool",
+          sourceIdentifier: "reject/pending",
+          displayName: "Will be rejected",
+          approveOnCreate: false,
+        }),
+      }),
+    );
+    const { data: u } = (await unapprovedRes.json()) as {
+      data: typeof contentSourceInventory.$inferSelect;
+    };
+    const approvedRes = await app.fetch(
+      authed(`/api/projects/${slug}/inventory`, {
+        method: "POST",
+        body: JSON.stringify({
+          objectType: "tool",
+          sourceIdentifier: "reject/approved",
+          displayName: "Survives reject",
+        }),
+      }),
+    );
+    const { data: a } = (await approvedRes.json()) as {
+      data: typeof contentSourceInventory.$inferSelect;
+    };
+
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/inventory/discovery/reject`, {
+        method: "POST",
+        body: JSON.stringify({ ids: [u.id, a.id] }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { rejected: number; skipped: number };
+    };
+    expect(body.data).toEqual({ rejected: 1, skipped: 1 });
+
+    // No GET /:id endpoint exists, so verify state via direct DB query:
+    // unapproved row was hard-deleted; approved row survives untouched.
+    const remaining = await db
+      .select({ id: contentSourceInventory.id })
+      .from(contentSourceInventory)
+      .where(eq(contentSourceInventory.projectId, projectId));
+    const remainingIds = remaining.map((r) => r.id);
+    expect(remainingIds).not.toContain(u.id);
+    expect(remainingIds).toContain(a.id);
+  });
+});
+
+describe("GET /api/projects/:slug/inventory/cron-status", () => {
+  it("returns defaults when no cron_state rows exist", async () => {
+    const res = await app.fetch(authed(`/api/projects/${slug}/inventory/cron-status`));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: {
+        refresh: { isActive: boolean; cronPattern: string; lastRunAt: string | null };
+        discovery: { isActive: boolean; cronPattern: string; lastRunAt: string | null };
+      };
+    };
+    // Defaults: refresh ON (matches GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN),
+    // discovery OFF (matches GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN).
+    expect(body.data.refresh.isActive).toBe(true);
+    expect(body.data.refresh.cronPattern).toBeTruthy();
+    expect(body.data.refresh.lastRunAt).toBeNull();
+    expect(body.data.discovery.isActive).toBe(false);
+    expect(body.data.discovery.cronPattern).toBeTruthy();
+    expect(body.data.discovery.lastRunAt).toBeNull();
+  });
+});
+
+describe("PATCH /api/projects/:slug/inventory/cron-status", () => {
+  it("toggles discovery cron on and persists to cron_state", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/inventory/cron-status`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          jobType: "github_inventory_discovery",
+          isActive: true,
+        }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      data: { jobType: string; isActive: boolean; cronPattern: string };
+    };
+    expect(body.data.isActive).toBe(true);
+    expect(body.data.jobType).toBe("github_inventory_discovery");
+
+    // Verify GET now reports the new state.
+    const after = await app.fetch(authed(`/api/projects/${slug}/inventory/cron-status`));
+    const afterBody = (await after.json()) as {
+      data: { discovery: { isActive: boolean } };
+    };
+    expect(afterBody.data.discovery.isActive).toBe(true);
+
+    // Verify the cron_state row landed.
+    const rows = await db
+      .select()
+      .from(cronState)
+      .where(
+        and(
+          eq(cronState.projectId, projectId),
+          eq(cronState.jobType, "github_inventory_discovery"),
+        ),
+      );
+    expect(rows.length).toBe(1);
+    expect(rows[0]?.isActive).toBe(true);
+  });
+
+  it("rejects unknown jobType (400)", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/inventory/cron-status`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          jobType: "bogus_job_type",
+          isActive: true,
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
   });
 });

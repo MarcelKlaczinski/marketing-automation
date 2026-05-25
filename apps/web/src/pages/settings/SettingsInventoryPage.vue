@@ -3,6 +3,53 @@
     <h1 class="page-title">{{ $t("settings.inventory.title") as string }}</h1>
     <p class="page-description">{{ $t("settings.inventory.description") as string }}</p>
 
+    <!-- A2 T2: Cron control section -->
+    <section class="cron-section">
+      <h2 class="section-heading">{{ $t("settings.inventory.cron.title") as string }}</h2>
+      <div class="cron-cards">
+        <div
+          v-for="kind in cronKinds"
+          :key="kind"
+          class="cron-card"
+        >
+          <div class="cron-card-header">
+            <div>
+              <div class="cron-card-title">{{ $t(`settings.inventory.cron.${kind}.label`) as string }}</div>
+              <div class="cron-card-desc">{{ $t(`settings.inventory.cron.${kind}.description`) as string }}</div>
+            </div>
+            <q-toggle
+              :model-value="cronEnabled(kind)"
+              dark
+              color="primary"
+              :disable="cronToggling === kind"
+              @update:model-value="(v: boolean) => onToggleCron(kind, v)"
+            />
+          </div>
+          <div class="cron-card-meta">
+            <div class="cron-meta-row">
+              <span class="cron-meta-label">{{ $t("settings.inventory.cron.pattern") as string }}:</span>
+              <code class="cron-meta-value">{{ cronPattern(kind) }}</code>
+            </div>
+            <div class="cron-meta-row">
+              <span class="cron-meta-label">{{ $t("settings.inventory.cron.lastRun") as string }}:</span>
+              <span class="cron-meta-value">{{ formatRelative(cronLastRunAt(kind)) }}</span>
+            </div>
+          </div>
+          <div class="cron-card-actions">
+            <q-btn
+              dense
+              flat
+              icon="play_arrow"
+              color="primary"
+              :loading="cronRunning === kind"
+              :label="$t('settings.inventory.cron.runNow') as string"
+              @click="onRunNow(kind)"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Top bar -->
     <div class="inventory-toolbar">
       <div class="counts">
@@ -12,8 +59,22 @@
         <span class="count-pill">
           <strong>{{ counts.skill }}</strong> {{ $t("settings.inventory.counts.skills") as string }}
         </span>
+        <span v-if="pendingApprovalCount > 0" class="count-pill count-pill-warning">
+          <strong>{{ pendingApprovalCount }}</strong> {{ $t("settings.inventory.counts.pendingApproval") as string }}
+        </span>
       </div>
       <div class="toolbar-actions">
+        <q-select
+          v-model="approvalStatusFilter"
+          :options="approvalStatusOptions"
+          :label="$t('settings.inventory.filters.approvalStatus') as string"
+          dense
+          outlined
+          dark
+          emit-value
+          map-options
+          class="filter-select"
+        />
         <q-select
           v-model="objectTypeFilter"
           :options="objectTypeOptions"
@@ -55,6 +116,36 @@
       </div>
     </div>
 
+    <!-- A2 T2: Bulk-action bar (only when ≥1 row selected) -->
+    <div v-if="selectedIds.size > 0" class="bulk-action-bar">
+      <div class="bulk-action-count">
+        {{ $t("settings.inventory.bulk.selectedCount", { n: selectedIds.size }, selectedIds.size) as string }}
+      </div>
+      <div class="bulk-action-buttons">
+        <q-btn
+          flat
+          dense
+          :label="$t('settings.inventory.bulk.clearSelection') as string"
+          @click="clearSelection"
+        />
+        <q-btn
+          color="positive"
+          icon="check"
+          :loading="bulkBusy"
+          :label="$t('settings.inventory.bulk.approveSelected') as string"
+          @click="onBulkApprove"
+        />
+        <q-btn
+          color="negative"
+          icon="block"
+          outline
+          :loading="bulkBusy"
+          :label="$t('settings.inventory.bulk.rejectSelected') as string"
+          @click="onBulkReject"
+        />
+      </div>
+    </div>
+
     <!-- Loading + empty states -->
     <div v-if="listLoading" class="state-message">{{ $t("common.loading") as string }}</div>
     <div v-else-if="!items.length" class="state-message">
@@ -66,6 +157,15 @@
       <table class="inventory-table">
         <thead>
           <tr>
+            <th v-if="showSelectionColumn" class="col-select">
+              <q-checkbox
+                :model-value="headerCheckboxState"
+                indeterminate-value="indeterminate"
+                dark
+                dense
+                @update:model-value="onToggleSelectAll"
+              />
+            </th>
             <th>{{ $t("settings.inventory.cols.displayName") as string }}</th>
             <th>{{ $t("settings.inventory.cols.type") as string }}</th>
             <th>{{ $t("settings.inventory.cols.sourceIdentifier") as string }}</th>
@@ -78,8 +178,26 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="row in items" :key="row.id">
-            <td class="cell-name">{{ row.displayName }}</td>
+          <tr
+            v-for="row in items"
+            :key="row.id"
+            :class="{ 'row-pending-approval': row.approvedAt === null }"
+          >
+            <td v-if="showSelectionColumn" class="col-select">
+              <q-checkbox
+                v-if="row.approvedAt === null"
+                :model-value="selectedIds.has(row.id)"
+                dark
+                dense
+                @update:model-value="(v: boolean) => onToggleSelect(row.id, v)"
+              />
+            </td>
+            <td class="cell-name">
+              {{ row.displayName }}
+              <span v-if="row.approvedAt === null" class="pending-pill">
+                {{ $t("settings.inventory.cols.pendingApprovalShort") as string }}
+              </span>
+            </td>
             <td>
               <span class="type-badge" :class="`type-${row.objectType}`">
                 {{ $t(`settings.inventory.objectType.${row.objectType}`) as string }}
@@ -97,6 +215,19 @@
             <td>{{ formatRelative(row.lastFetchedAt) }}</td>
             <td>{{ formatInterval(row.refreshIntervalHours) }}</td>
             <td class="col-actions">
+              <q-btn
+                v-if="row.approvedAt === null"
+                flat
+                round
+                dense
+                icon="check"
+                size="sm"
+                color="positive"
+                :loading="approvingId === row.id"
+                @click="onApproveRow(row.id)"
+              >
+                <q-tooltip>{{ $t("settings.inventory.actions.approve") as string }}</q-tooltip>
+              </q-btn>
               <q-btn
                 flat
                 round
@@ -240,6 +371,37 @@ const EMPTY_FORM: EditForm = {
   refreshIntervalHours: 168,
 };
 
+// A2 Tranche 2: inventory cron-status shape mirrors the API route response
+// in `apps/api/src/routes/projects/inventory.ts` GET /:slug/inventory/cron-status.
+interface InventoryCronEntry {
+  isActive: boolean;
+  cronPattern: string;
+  lastRunAt: string | null;
+  lastRunStatus: string | null;
+  lastRunError: string | null;
+  nextRunAt: string | null;
+}
+interface InventoryCronStatus {
+  refresh:   InventoryCronEntry;
+  discovery: InventoryCronEntry;
+}
+type InventoryCronKind = "refresh" | "discovery";
+const INVENTORY_JOB_TYPE_BY_KIND: Record<InventoryCronKind, string> = {
+  refresh:   "github_inventory_refresh",
+  discovery: "github_inventory_discovery",
+};
+
+function defaultCronEntry(pattern: string): InventoryCronEntry {
+  return {
+    isActive: false,
+    cronPattern: pattern,
+    lastRunAt: null,
+    lastRunStatus: null,
+    lastRunError: null,
+    nextRunAt: null,
+  };
+}
+
 // Direct apiGet + watcher pattern per apps/web/CLAUDE.md DO-NOT rule:
 // "DO NOT use TanStack Query when the queryKey depends on a reactive value
 // that lives in data() — setup() runs before data() and cannot receive
@@ -254,6 +416,9 @@ export default defineComponent({
     counts: { tool: 0, skill: 0 } as { tool: number; skill: number },
     objectTypeFilter: null as "tool" | "skill" | null,
     fetchStatusFilter: null as "pending" | "fetching" | "ok" | "error" | null,
+    /** A2 T2: approval-status filter. 'all' shows both; 'approved' only approved;
+     *  'pending' only unapproved (Auto-Discovery candidates). */
+    approvalStatusFilter: "all" as "all" | "approved" | "pending",
     listLoading: false,
     refreshAllPending: false,
     savePending: false,
@@ -261,7 +426,20 @@ export default defineComponent({
     editTarget: null as InventoryRow | null,
     form: { ...EMPTY_FORM },
     refreshingId: null as string | null,
+    approvingId: null as string | null,
     pollTimerId: 0,
+    /** A2 T2: bulk-selected row IDs. Replaced with a new Set on every
+     *  mutation so Vue reactivity catches the change (Set.add/.delete are
+     *  not tracked by the reactive proxy). */
+    selectedIds: new Set<string>(),
+    bulkBusy: false,
+    /** A2 T2: cron control state. */
+    cronStatus: {
+      refresh:   defaultCronEntry("*/15 * * * *"),
+      discovery: defaultCronEntry("0 4 * * 0"),
+    } as InventoryCronStatus,
+    cronToggling: null as "refresh" | "discovery" | null,
+    cronRunning: null as "refresh" | "discovery" | null,
   }),
 
   computed: {
@@ -288,24 +466,63 @@ export default defineComponent({
         { label: this.$t("settings.inventory.fetchStatus.error") as string, value: "error" },
       ];
     },
+
+    approvalStatusOptions() {
+      return [
+        { label: this.$t("settings.inventory.filters.approvalStatusAll") as string, value: "all" },
+        { label: this.$t("settings.inventory.filters.approvalStatusApproved") as string, value: "approved" },
+        { label: this.$t("settings.inventory.filters.approvalStatusPending") as string, value: "pending" },
+      ];
+    },
+
+    cronKinds(): InventoryCronKind[] {
+      return ["refresh", "discovery"];
+    },
+
+    /** Show the selection column only when filter narrows to pending — keeps the
+     *  table uncluttered in the default approved-only view. */
+    showSelectionColumn(): boolean {
+      return this.approvalStatusFilter === "pending" || this.approvalStatusFilter === "all";
+    },
+
+    pendingApprovalCount(): number {
+      return this.items.filter((r) => r.approvedAt === null).length;
+    },
+
+    headerCheckboxState(): boolean | "indeterminate" {
+      const eligible = this.items.filter((r) => r.approvedAt === null);
+      if (eligible.length === 0) return false;
+      const selectedCount = eligible.filter((r) => this.selectedIds.has(r.id)).length;
+      if (selectedCount === 0) return false;
+      if (selectedCount === eligible.length) return true;
+      return "indeterminate";
+    },
   },
 
   watch: {
     objectTypeFilter() {
+      this.clearSelection();
       void this.fetchList();
     },
     fetchStatusFilter() {
+      this.clearSelection();
+      void this.fetchList();
+    },
+    approvalStatusFilter() {
+      this.clearSelection();
       void this.fetchList();
     },
   },
 
   mounted() {
     void this.fetchList();
+    void this.fetchCronStatus();
     // Surface cron-driven status changes within 15 seconds without re-subscribing
     // TanStack queries on every reactive cycle. setInterval — not setTimeout —
     // because the page is long-lived; cleared in beforeUnmount.
     this.pollTimerId = window.setInterval(() => {
       void this.fetchList();
+      void this.fetchCronStatus();
     }, 15_000);
   },
 
@@ -323,11 +540,21 @@ export default defineComponent({
         const params = new URLSearchParams();
         if (this.objectTypeFilter) params.set("objectType", this.objectTypeFilter);
         if (this.fetchStatusFilter) params.set("fetchStatus", this.fetchStatusFilter);
+        // A2 T2: approval-status filter — `all` and `pending` need to include
+        // unapproved rows; the backend default approvedOnly=true would hide them.
+        if (this.approvalStatusFilter !== "approved") {
+          params.set("approvedOnly", "false");
+        }
         const qs = params.toString();
         const data = await apiGet<InventoryListResponse>(
           `/projects/${this.projectSlug}/inventory${qs ? `?${qs}` : ""}`,
         );
-        this.items = data.items;
+        let items = data.items;
+        // Client-side filter for `pending` (backend has no native pending-only)
+        if (this.approvalStatusFilter === "pending") {
+          items = items.filter((r) => r.approvedAt === null);
+        }
+        this.items = items;
         this.counts = data.counts;
       } catch (err) {
         this.$q.notify({
@@ -337,6 +564,197 @@ export default defineComponent({
       } finally {
         this.listLoading = false;
       }
+    },
+
+    async fetchCronStatus() {
+      try {
+        const data = await apiGet<InventoryCronStatus>(
+          `/projects/${this.projectSlug}/inventory/cron-status`,
+        );
+        this.cronStatus = data;
+      } catch (err) {
+        // Non-blocking — keep defaults visible if the endpoint fails.
+        // Surfaces as the "Never run" indicator since lastRunAt stays null.
+        // biome-ignore lint/suspicious/noConsoleLog: dev-only diagnostic; UI keeps working
+        if (err instanceof Error && import.meta.env.DEV) console.warn("cron-status fetch:", err.message);
+      }
+    },
+
+    cronEnabled(kind: InventoryCronKind): boolean {
+      return this.cronStatus[kind].isActive;
+    },
+    cronPattern(kind: InventoryCronKind): string {
+      return this.cronStatus[kind].cronPattern;
+    },
+    cronLastRunAt(kind: InventoryCronKind): string | null {
+      return this.cronStatus[kind].lastRunAt;
+    },
+
+    async onToggleCron(kind: InventoryCronKind, isActive: boolean) {
+      this.cronToggling = kind;
+      try {
+        await apiPatch(
+          `/projects/${this.projectSlug}/inventory/cron-status`,
+          {
+            jobType: INVENTORY_JOB_TYPE_BY_KIND[kind],
+            isActive,
+          },
+        );
+        // Optimistic update — refetch in background to sync any server-side
+        // pattern adjustments
+        this.cronStatus[kind].isActive = isActive;
+        void this.fetchCronStatus();
+        this.$q.notify({
+          type: "positive",
+          message: this.$t(
+            isActive ? "settings.inventory.cron.enabled" : "settings.inventory.cron.disabled",
+          ) as string,
+        });
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "cron_toggle_failed",
+        });
+      } finally {
+        this.cronToggling = null;
+      }
+    },
+
+    async onRunNow(kind: InventoryCronKind) {
+      this.cronRunning = kind;
+      try {
+        const path =
+          kind === "refresh"
+            ? `/projects/${this.projectSlug}/inventory/refresh`
+            : `/projects/${this.projectSlug}/inventory/discovery/run`;
+        await apiPost<{ jobId: string }>(path, {});
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("settings.inventory.cron.runEnqueued") as string,
+        });
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "run_failed",
+        });
+      } finally {
+        this.cronRunning = null;
+      }
+    },
+
+    // ─── Selection + bulk actions ────────────────────────────────────────
+
+    onToggleSelect(id: string, selected: boolean | "indeterminate") {
+      const next = new Set(this.selectedIds);
+      if (selected === true) next.add(id);
+      else next.delete(id);
+      this.selectedIds = next;
+    },
+
+    onToggleSelectAll(value: boolean | "indeterminate") {
+      const wantSelected = value === true;
+      const next = new Set<string>();
+      if (wantSelected) {
+        for (const r of this.items) {
+          if (r.approvedAt === null) next.add(r.id);
+        }
+      }
+      this.selectedIds = next;
+    },
+
+    clearSelection() {
+      this.selectedIds = new Set<string>();
+    },
+
+    async onApproveRow(id: string) {
+      this.approvingId = id;
+      try {
+        await apiPost(`/projects/${this.projectSlug}/inventory/${id}/approve`, {});
+        this.$q.notify({
+          type: "positive",
+          message: this.$t("settings.inventory.bulk.approvedSingleSuccess") as string,
+        });
+        await this.fetchList();
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "approve_failed",
+        });
+      } finally {
+        this.approvingId = null;
+      }
+    },
+
+    async onBulkApprove() {
+      if (this.selectedIds.size === 0) return;
+      this.bulkBusy = true;
+      try {
+        const result = await apiPost<{
+          approved: number;
+          alreadyApproved: number;
+          notFound: number;
+        }>(`/projects/${this.projectSlug}/inventory/discovery/approve`, {
+          ids: Array.from(this.selectedIds),
+        });
+        this.$q.notify({
+          type: "positive",
+          message: this.$t(
+            "settings.inventory.bulk.approvedSuccess",
+            { n: result.approved },
+            result.approved,
+          ) as string,
+        });
+        this.clearSelection();
+        await this.fetchList();
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: err instanceof Error ? err.message : "bulk_approve_failed",
+        });
+      } finally {
+        this.bulkBusy = false;
+      }
+    },
+
+    onBulkReject() {
+      if (this.selectedIds.size === 0) return;
+      this.$q.dialog({
+        title: this.$t("settings.inventory.bulk.rejectConfirmTitle") as string,
+        message: this.$t(
+          "settings.inventory.bulk.rejectConfirmMessage",
+          { n: this.selectedIds.size },
+          this.selectedIds.size,
+        ) as string,
+        cancel: { flat: true, color: "white" },
+        ok: { color: "negative", label: this.$t("settings.inventory.bulk.rejectConfirmOk") as string },
+        dark: true,
+        persistent: true,
+      }).onOk(async () => {
+        this.bulkBusy = true;
+        try {
+          const result = await apiPost<{ rejected: number; skipped: number }>(
+            `/projects/${this.projectSlug}/inventory/discovery/reject`,
+            { ids: Array.from(this.selectedIds) },
+          );
+          this.$q.notify({
+            type: "positive",
+            message: this.$t(
+              "settings.inventory.bulk.rejectedSuccess",
+              { n: result.rejected },
+              result.rejected,
+            ) as string,
+          });
+          this.clearSelection();
+          await this.fetchList();
+        } catch (err) {
+          this.$q.notify({
+            type: "negative",
+            message: err instanceof Error ? err.message : "bulk_reject_failed",
+          });
+        } finally {
+          this.bulkBusy = false;
+        }
+      });
     },
 
     starsOf(row: InventoryRow): string {
@@ -671,5 +1089,138 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* ─── A2 Tranche 2: cron control + bulk-action + approval styling ────────── */
+
+.section-heading {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cron-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cron-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 12px;
+}
+
+.cron-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cron-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.cron-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cron-card-desc {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.cron-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.cron-meta-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.cron-meta-label {
+  color: var(--text-tertiary);
+  min-width: 64px;
+}
+
+.cron-meta-value {
+  color: var(--text-secondary);
+  font-family: var(--font-family-mono, monospace);
+  font-size: 11px;
+}
+
+.cron-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.count-pill-warning {
+  background: rgba(250, 204, 21, 0.18);
+  color: rgb(253, 224, 71);
+}
+
+.bulk-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(96, 165, 250, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.32);
+  border-radius: var(--radius-md);
+}
+
+.bulk-action-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.bulk-action-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.col-select {
+  width: 40px;
+  text-align: center;
+  padding: 4px 8px !important;
+}
+
+.row-pending-approval {
+  background: rgba(250, 204, 21, 0.04);
+}
+
+.pending-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(250, 204, 21, 0.18);
+  color: rgb(253, 224, 71);
 }
 </style>

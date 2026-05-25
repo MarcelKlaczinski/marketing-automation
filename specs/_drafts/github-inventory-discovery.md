@@ -672,4 +672,50 @@ Spec H3 (= 64.20?) — GitHub Tool-Inventory V1
 
 ---
 
+## 16. Implementation Log
+
+### Day 9 — A2 Tranche 2 (full UI for Auto-Discovery)
+
+Closes the deferred Tranche 2 of A2: cron toggle + Run-Now + bulk approve/reject directly in [SettingsInventoryPage.vue](../../apps/web/src/pages/settings/SettingsInventoryPage.vue) — no separate page, no detour through Cmd+K.
+
+**Backend** ([apps/api/src/routes/projects/inventory.ts](../../apps/api/src/routes/projects/inventory.ts)):
+- `POST /:slug/inventory/discovery/approve` — bulk approve with `bulkIdsSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(200) })`. Returns `{approved, alreadyApproved, notFound}`. **Snapshot `alreadyApproved` BEFORE the UPDATE** — querying after counts the freshly-flipped rows as "already approved" too (caught by tests).
+- `POST /:slug/inventory/discovery/reject` — hard-delete unapproved rows in scope. Approved rows are skipped (different intent — Marcel softDeletes those via the existing DELETE route).
+- `GET /:slug/inventory/cron-status` — returns BOTH refresh + discovery cron entries (`{isActive, cronPattern, lastRunAt, lastRunStatus, lastRunError, nextRunAt}` for each) so the SettingsPage can render the two cards in one section.
+- `PATCH /:slug/inventory/cron-status` — upserts `cron_state` for the requested `jobType` + fires `syncCronJobs()` in background (non-blocking; orchestrator's next 1-minute tick is the fallback).
+- **Route ordering** matters: both `cron-status` (2-segment) AND `discovery/{approve,reject}` (3-segment with `:id/approve` competitor) had to be registered BEFORE the corresponding `:id` wildcard routes. Hono's trie router can't disambiguate 2 routes with identical structural shape (`/:id` vs `/cron-status`) by registration order alone — see Memory D45.
+
+**Frontend** ([SettingsInventoryPage.vue](../../apps/web/src/pages/settings/SettingsInventoryPage.vue)):
+- **Cron-control section** at top: 2 cards (refresh + discovery), each with `q-toggle` + last-run timestamp + "Run now" button that POSTs to the existing `/inventory/refresh` (refresh) / `/inventory/discovery/run` (discovery) endpoints.
+- **Approval-status filter** dropdown (all/approved/pending). When set to `all` or `pending`, the list also returns unapproved rows (backend default is `approvedOnly=true`).
+- **Bulk-action bar** (visible when `selectedIds.size > 0`): "Approve selected" / "Reject selected" / "Clear selection". Reject opens a confirm dialog.
+- **Selection column** with header checkbox (boolean | "indeterminate") + per-row checkbox shown only for unapproved rows.
+- **Per-row green Approve icon** for unapproved rows (one-click approve via existing `POST /:id/approve` endpoint).
+- **Pending-pill** on row name + `count-pill-warning` in toolbar showing the pending count.
+- **Set-mutation pattern**: `selectedIds = new Set(...)` per mutation so Vue's reactive proxy catches the change.
+- **Cron-status poll** every 15s alongside the list poll; both clear `selectedIds` when filters change.
+
+**i18n** (DE + EN) under `settings.inventory.{bulk,cron,filters,counts,cols,actions}.*`.
+
+**Styling** — new section/card/pill/bulk-bar CSS in scoped block at the bottom of the page.
+
+**Tests** ([apps/api/test/routes/inventory.test.ts](../../apps/api/test/routes/inventory.test.ts)) — 6 new cases added (17 total in the file):
+1. Bulk approve flips counts correctly for unapproved + already-approved + ghost UUID (3-way mix).
+2. Bulk approve ignores cross-tenant IDs (counted as notFound, no leak across tenants).
+3. Bulk reject hard-deletes unapproved + skips approved.
+4. GET cron-status returns defaults when no `cron_state` rows exist (refresh ON, discovery OFF).
+5. PATCH cron-status toggles discovery cron on and persists.
+6. PATCH cron-status rejects unknown `jobType` (400 from Zod).
+
+Verified at runtime: `bun --filter @marketing-auto/api typecheck` clean across the workspace; 17/17 inventory route tests grün; pre-existing 1 unrelated failure in `handleInventoryRefresh — short-circuits the batch on GitHubRateLimitError` carries through from Day 8.
+
+### §10 Deviations log (A2 T2)
+
+- **`alreadyApproved` count timing** — spec/sketch implied "after UPDATE" query; reality requires snapshot-before, otherwise the just-flipped rows inflate the count by 1 per request.
+- **Route ordering** — the 2-segment `:id` vs literal-name conflict ALWAYS happens at the Hono trie level for both PATCH and POST; both cron-status (PATCH/GET) and discovery/{approve,reject} (POST) had to move above their wildcard siblings. Pattern matches Memory D45 / "register specific named paths before wildcard params" — extended now to the 3-segment case where the trailing literal is identical (`/:id/approve` vs `/discovery/approve`).
+- **No GET /:slug/inventory/:id** endpoint exists — tests verify single-row state via direct `db.select()` queries against `contentSourceInventory`, not via HTTP GET. The PATCH route's `loadInventoryForProject` already serves as the read-by-id surface for the page-level CRUD.
+- **`import.meta.env.DEV` over `$q.platform.is.dev`** — `$q.platform` is a `Platform` object without a `dev` property; Vite's `import.meta.env.DEV` is the canonical way to gate dev-only diagnostic logs.
+
+
+
 *Discovery erstellt 2026-05-24. Pending Marcel-Decisions vor Spec-Schreiben: Q1-Q10 (§11). Default-Recommendation: Option C (5d) + Schema α + Angles A+B + Theme 65 Spec read first.*

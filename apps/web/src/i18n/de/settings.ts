@@ -544,10 +544,15 @@ export default {
     counts: {
       tools: "Tools",
       skills: "Skills",
+      pendingApproval: "warten auf Freigabe",
     },
     filters: {
       objectType: "Typ",
       fetchStatus: "Status",
+      approvalStatus: "Freigabe",
+      approvalStatusAll: "Alle",
+      approvalStatusApproved: "Freigegeben",
+      approvalStatusPending: "Wartet auf Freigabe",
     },
     objectType: {
       tool: "Tool",
@@ -569,6 +574,7 @@ export default {
       lastFetched: "Zuletzt geholt",
       interval: "Intervall",
       actions: "Aktionen",
+      pendingApprovalShort: "Wartet",
     },
     refreshAll: "Alle fälligen aktualisieren",
     addRow: "Neue Zeile",
@@ -579,6 +585,39 @@ export default {
       refresh: "Jetzt aktualisieren",
       edit: "Bearbeiten",
       delete: "Löschen",
+      approve: "Freigeben",
+    },
+    bulk: {
+      selectedCount: "{n} ausgewählt | {n} ausgewählt",
+      approveSelected: "Auswahl freigeben",
+      rejectSelected: "Auswahl ablehnen",
+      clearSelection: "Auswahl löschen",
+      approvedSuccess: "{n} Eintrag freigegeben. | {n} Einträge freigegeben.",
+      rejectedSuccess: "{n} Eintrag abgelehnt. | {n} Einträge abgelehnt.",
+      approvedSingleSuccess: "Eintrag freigegeben.",
+      rejectConfirmTitle: "Einträge ablehnen?",
+      rejectConfirmMessage:
+        '{n} unfreigegebener Eintrag wird endgültig gelöscht. Diese Aktion ist nicht umkehrbar. | {n} unfreigegebene Einträge werden endgültig gelöscht. Diese Aktion ist nicht umkehrbar.',
+      rejectConfirmOk: "Ablehnen",
+    },
+    cron: {
+      title: "Cron-Steuerung",
+      pattern: "Cron-Pattern",
+      lastRun: "Letzter Lauf",
+      runNow: "Jetzt ausführen",
+      runEnqueued: "Lauf in die Warteschlange gestellt.",
+      enabled: "Cron aktiviert.",
+      disabled: "Cron deaktiviert.",
+      refresh: {
+        label: "Metadaten-Refresh",
+        description:
+          "Holt aktuelle GitHub-Metadaten (Stars, Releases) für fällige Zeilen. Läuft alle 15 Minuten und prüft das individuelle Refresh-Intervall pro Zeile.",
+      },
+      discovery: {
+        label: "Auto-Discovery",
+        description:
+          "Sucht wöchentlich neue Tools + Skills via GitHub-Search-API und Awesome-Lists. Kandidaten landen unfreigegeben in der Liste und können einzeln oder in Bulk freigegeben werden.",
+      },
     },
     createTitle: "Inventory-Eintrag anlegen",
     editTitle: "Inventory-Eintrag bearbeiten",

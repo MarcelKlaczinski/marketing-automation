@@ -543,10 +543,15 @@ export default {
     counts: {
       tools: "Tools",
       skills: "Skills",
+      pendingApproval: "awaiting approval",
     },
     filters: {
       objectType: "Type",
       fetchStatus: "Status",
+      approvalStatus: "Approval",
+      approvalStatusAll: "All",
+      approvalStatusApproved: "Approved",
+      approvalStatusPending: "Pending approval",
     },
     objectType: {
       tool: "Tool",
@@ -568,6 +573,7 @@ export default {
       lastFetched: "Last fetched",
       interval: "Interval",
       actions: "Actions",
+      pendingApprovalShort: "Pending",
     },
     refreshAll: "Refresh all due rows",
     addRow: "Add row",
@@ -578,6 +584,39 @@ export default {
       refresh: "Refresh now",
       edit: "Edit",
       delete: "Delete",
+      approve: "Approve",
+    },
+    bulk: {
+      selectedCount: "{n} selected | {n} selected",
+      approveSelected: "Approve selected",
+      rejectSelected: "Reject selected",
+      clearSelection: "Clear selection",
+      approvedSuccess: "{n} entry approved. | {n} entries approved.",
+      rejectedSuccess: "{n} entry rejected. | {n} entries rejected.",
+      approvedSingleSuccess: "Entry approved.",
+      rejectConfirmTitle: "Reject entries?",
+      rejectConfirmMessage:
+        "{n} unapproved entry will be permanently deleted. This cannot be undone. | {n} unapproved entries will be permanently deleted. This cannot be undone.",
+      rejectConfirmOk: "Reject",
+    },
+    cron: {
+      title: "Cron control",
+      pattern: "Cron pattern",
+      lastRun: "Last run",
+      runNow: "Run now",
+      runEnqueued: "Run enqueued.",
+      enabled: "Cron enabled.",
+      disabled: "Cron disabled.",
+      refresh: {
+        label: "Metadata refresh",
+        description:
+          "Fetches current GitHub metadata (stars, releases) for due rows. Runs every 15 minutes and respects each row's individual refresh interval.",
+      },
+      discovery: {
+        label: "Auto-discovery",
+        description:
+          "Weekly scan for new tools + skills via GitHub Search API and awesome-lists. Candidates land unapproved in the list and can be approved individually or in bulk.",
+      },
     },
     createTitle: "Add inventory entry",
     editTitle: "Edit inventory entry",

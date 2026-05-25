@@ -10,12 +10,15 @@ import {
   ContentSourceInventoryPatchSchema,
   countByObjectType,
   createInventoryRow,
+  cronState,
   db,
   eq,
   getInventoryById,
   hardDeleteInventoryRow,
+  inArray,
   INVENTORY_FETCH_STATUSES,
   INVENTORY_OBJECT_TYPES,
+  isNotNull,
   isNull,
   listInventoryByProject,
   patchInventoryRow,
@@ -27,8 +30,15 @@ import { createLogger } from "@marketing-auto/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
-import { getGithubInventoryQueue } from "../../workers/github-inventory-refresh.worker.ts";
-import { getGithubInventoryDiscoveryQueue } from "../../workers/github-inventory-discovery.worker.ts";
+import {
+  getGithubInventoryQueue,
+  GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN,
+} from "../../workers/github-inventory-refresh.worker.ts";
+import {
+  getGithubInventoryDiscoveryQueue,
+  GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN,
+} from "../../workers/github-inventory-discovery.worker.ts";
+import { syncCronJobs } from "../../workers/cron-orchestrator.ts";
 
 const log = createLogger("api:inventory-routes");
 
@@ -145,6 +155,113 @@ inventoryRoutes.post(
       log.error({ err, slug, body }, "createInventoryRow failed");
       throw err;
     }
+  },
+);
+
+// ─── A2 Tranche 2 — cron-status read + toggle ──────────────────────────────
+//
+// Registered BEFORE `/:slug/inventory/:id` so Hono's trie router matches
+// "/cron-status" as a literal segment instead of `:id="cron-status"` (the
+// 2-segment-after-inventory case where the trie router cannot disambiguate
+// from registration order alone — see root CLAUDE.md "Specific named paths
+// before wildcard params").
+
+type InventoryJobType = "github_inventory_refresh" | "github_inventory_discovery";
+const INVENTORY_JOB_TYPES_MUTABLE: InventoryJobType[] = [
+  "github_inventory_refresh",
+  "github_inventory_discovery",
+];
+
+function defaultPatternFor(jobType: InventoryJobType): string {
+  return jobType === "github_inventory_refresh"
+    ? GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN
+    : GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN;
+}
+
+// GET /:slug/inventory/cron-status — returns BOTH refresh + discovery
+//   crons in a single response (matches the SettingsPage UI pattern that
+//   shows both in one section).
+inventoryRoutes.get("/:slug/inventory/cron-status", async (c) => {
+  const slug = c.req.param("slug");
+  const proj = await loadProjectBySlug(slug);
+  if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+  const rows = await db
+    .select()
+    .from(cronState)
+    .where(
+      and(
+        eq(cronState.projectId, proj.id),
+        inArray(cronState.jobType, INVENTORY_JOB_TYPES_MUTABLE),
+      ),
+    );
+  const byType = Object.fromEntries(rows.map((r) => [r.jobType, r]));
+
+  const format = (jobType: InventoryJobType) => {
+    const row = byType[jobType];
+    return {
+      isActive:      row?.isActive ?? (jobType === "github_inventory_refresh"),
+      cronPattern:   row?.cronPattern ?? defaultPatternFor(jobType),
+      lastRunAt:     row?.lastRunAt?.toISOString() ?? null,
+      lastRunStatus: row?.lastRunStatus ?? null,
+      lastRunError:  row?.lastRunError ?? null,
+      nextRunAt:     row?.nextRunAt?.toISOString() ?? null,
+    };
+  };
+
+  return c.json({
+    ok: true,
+    data: {
+      refresh:   format("github_inventory_refresh"),
+      discovery: format("github_inventory_discovery"),
+    },
+  });
+});
+
+const patchCronStatusSchema = z.object({
+  jobType:     z.enum(["github_inventory_refresh", "github_inventory_discovery"]),
+  isActive:    z.boolean(),
+  cronPattern: z.string().regex(/^[\d*\/,\-\s]+$/).optional(),
+});
+
+// PATCH /:slug/inventory/cron-status — upserts the cron_state row and
+//   fires syncCronJobs() in background so the orchestrator picks up the
+//   change immediately rather than at the next 1-minute tick.
+inventoryRoutes.patch(
+  "/:slug/inventory/cron-status",
+  zValidator("json", patchCronStatusSchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const proj = await loadProjectBySlug(slug);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const body = c.req.valid("json");
+    const cronPattern = body.cronPattern ?? defaultPatternFor(body.jobType);
+
+    await db
+      .insert(cronState)
+      .values({
+        projectId:   proj.id,
+        jobType:     body.jobType,
+        isActive:    body.isActive,
+        cronPattern,
+      })
+      .onConflictDoUpdate({
+        target: [cronState.projectId, cronState.jobType],
+        set: {
+          isActive: body.isActive,
+          cronPattern,
+          updatedAt: new Date(),
+        },
+      });
+
+    // Background sync — don't block the response. Failure is non-fatal: the
+    // orchestrator's next 1-minute tick will pick up the change anyway.
+    syncCronJobs().catch((err) => {
+      log.warn({ err, slug, jobType: body.jobType }, "Background cron sync failed after PATCH");
+    });
+
+    return c.json({ ok: true, data: { jobType: body.jobType, isActive: body.isActive, cronPattern } });
   },
 );
 
@@ -278,6 +395,113 @@ inventoryRoutes.post("/:slug/inventory/discovery/run", async (c) => {
   return c.json({ ok: true, data: { jobId } });
 });
 
+// ─── A2 Tranche 2 — bulk approve / reject ──────────────────────────────────
+//
+// Registered BEFORE `/:slug/inventory/:id/approve` so Hono's trie router
+// matches "/discovery/approve" as two literal segments instead of
+// `:id="discovery"`. Same registration-order constraint as cron-status above.
+
+const bulkIdsSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(200),
+});
+
+// POST /:slug/inventory/discovery/approve — flip approved_at on N rows.
+//   Only matches rows scoped to this project + currently unapproved.
+//   Returns counts of {approved, alreadyApproved, notFound}.
+inventoryRoutes.post(
+  "/:slug/inventory/discovery/approve",
+  zValidator("json", bulkIdsSchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const proj = await loadProjectBySlug(slug);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const { ids } = c.req.valid("json");
+    const user = c.var.user;
+
+    // Snapshot which rows in scope are already approved BEFORE the UPDATE —
+    // querying after would include the rows the UPDATE just flipped, double-
+    // counting them.
+    const alreadyApprovedRows = await db
+      .select({ id: contentSourceInventory.id })
+      .from(contentSourceInventory)
+      .where(
+        and(
+          eq(contentSourceInventory.projectId, proj.id),
+          inArray(contentSourceInventory.id, ids),
+          isNotNull(contentSourceInventory.approvedAt),
+        ),
+      );
+
+    // Update only rows that belong to this project + still unapproved.
+    const updated = await db
+      .update(contentSourceInventory)
+      .set({
+        approvedAt:       new Date(),
+        approvedByUserId: user?.id ?? null,
+        updatedAt:        new Date(),
+      })
+      .where(
+        and(
+          eq(contentSourceInventory.projectId, proj.id),
+          inArray(contentSourceInventory.id, ids),
+          isNull(contentSourceInventory.approvedAt),
+        ),
+      )
+      .returning({ id: contentSourceInventory.id });
+
+    const approved = updated.length;
+    const alreadyApproved = alreadyApprovedRows.length;
+    const notFound = ids.length - approved - alreadyApproved;
+
+    log.info(
+      { slug, requested: ids.length, approved, alreadyApproved, notFound },
+      "Bulk approve completed",
+    );
+
+    return c.json({
+      ok: true,
+      data: { approved, alreadyApproved, notFound },
+    });
+  },
+);
+
+// POST /:slug/inventory/discovery/reject — hard-delete unapproved rows.
+//   Approved rows are skipped (Marcel must softDelete those via the main
+//   DELETE route instead — different intent).
+inventoryRoutes.post(
+  "/:slug/inventory/discovery/reject",
+  zValidator("json", bulkIdsSchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const proj = await loadProjectBySlug(slug);
+    if (!proj) return c.json({ ok: false, error: "project_not_found" }, 404);
+
+    const { ids } = c.req.valid("json");
+
+    const deleted = await db
+      .delete(contentSourceInventory)
+      .where(
+        and(
+          eq(contentSourceInventory.projectId, proj.id),
+          inArray(contentSourceInventory.id, ids),
+          isNull(contentSourceInventory.approvedAt),
+        ),
+      )
+      .returning({ id: contentSourceInventory.id });
+
+    log.info(
+      { slug, requested: ids.length, deleted: deleted.length },
+      "Bulk reject completed",
+    );
+
+    return c.json({
+      ok: true,
+      data: { rejected: deleted.length, skipped: ids.length - deleted.length },
+    });
+  },
+);
+
 // POST /:slug/inventory/:id/approve — flip approved_at on a discovery
 //   candidate (an unapproved row from Auto-Discovery). Sets approved_at = NOW
 //   and approved_by_user_id = current user. Idempotent — re-approving a
@@ -319,3 +543,5 @@ inventoryRoutes.post("/:slug/inventory/:id/approve", async (c) => {
 
   return c.json({ ok: true, data: rows[0] ?? row });
 });
+
+
