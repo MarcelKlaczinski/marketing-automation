@@ -1,5 +1,5 @@
 import { createLogger, getEnv } from "@marketing-auto/shared";
-import { bootstrapTemplates } from "@marketing-auto/social/templates";
+import { bootstrapAndSyncTemplates } from "./lib/template-registry-sync.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -47,7 +47,10 @@ import { planRoutes } from "./routes/projects/plans.ts";
 const env = getEnv();
 const log = createLogger("api");
 
-bootstrapTemplates();
+// Spec 65.0 Day 1-2: bootstrap the in-memory registry AND sync metadata to
+// the `templates` table so the planner/UI can list available templates from
+// the DB. Idempotent and DB-failure-tolerant (see `bootstrapAndSyncTemplates`).
+await bootstrapAndSyncTemplates();
 
 const app = new Hono();
 

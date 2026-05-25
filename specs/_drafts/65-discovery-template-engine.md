@@ -673,3 +673,51 @@ Spec 65.0 — Template Engine (Pre-Theme-65 Foundation)
 ---
 
 *Discovery erstellt 2026-05-25. Pending Marcel-Decisions Q1-Q10 (§13). Default-Recommendation: alle defaults akzeptieren → Spec 65.0 schreiben.*
+
+---
+
+## 17. Implementation Status
+
+### Day 1-2 (2026-05-25, in-progress arc)
+
+**Landed:**
+
+- DB migration [`0112_templates.sql`](../../packages/db/drizzle/0112_templates.sql) — new `templates` table + 2 snapshot columns on `articles`
+- Drizzle schema [`packages/db/src/schema/templates.ts`](../../packages/db/src/schema/templates.ts) with `Template` / `NewTemplate` type exports
+- `articles.template_key` / `articles.template_version` mapped as `templateKey` / `templateVersion` in [`packages/db/src/schema/content.ts`](../../packages/db/src/schema/content.ts) — the snapshot fields aren't populated yet (render pipeline still needs touching; deferred per spec §8.2)
+- Write helpers [`packages/db/src/helpers/templates-write.ts`](../../packages/db/src/helpers/templates-write.ts) — `upsertTemplate`, `deactivateMissingTemplates`, `syncTemplatesBatch`, `incrementTemplateUsage`
+- Read helpers [`packages/db/src/helpers/templates-read.ts`](../../packages/db/src/helpers/templates-read.ts) — `getTemplate` (project-scoped > global fallback), `listActiveTemplates`, `listActiveGlobalTemplates`
+- Bootstrap-sync orchestrator [`apps/api/src/lib/template-registry-sync.ts`](../../apps/api/src/lib/template-registry-sync.ts) — `bootstrapAndSyncTemplates()` + `kebabToCamelKey` + `relativeDefinitionPath` pure helpers. DB-failure-tolerant.
+- Server startup [`apps/api/src/server.ts`](../../apps/api/src/server.ts) — `bootstrapTemplates()` → `await bootstrapAndSyncTemplates()`
+- Tests: [`packages/db/test/templates.test.ts`](../../packages/db/test/templates.test.ts) (13 cases) + [`apps/api/test/lib/template-registry-sync.test.ts`](../../apps/api/test/lib/template-registry-sync.test.ts) (6 cases). All green. Workspace typecheck 0 errors across 26 packages.
+
+**Deviations from spec narrative:**
+
+- Spec §4.1 listed `format_types[]` as the only DB-side mirror of the LLM-facing metadata. The migration also captures `output_format`, `compatible_channels[]`, `generation_class`, `display_name`, `description`, `default_slide_count`, `estimated_cost_usd` — frozen at sync-time so the planner can read template metadata without dynamic-importing the TSX module. The watcher (Day 3) will keep these in sync on file-change.
+- Spec §4.1 used pre-shipped `CREATE UNIQUE INDEX ... WHERE is_active = true` syntax. Drizzle's `uniqueIndex().where(sql\`${t.isActive} = TRUE\`)` produces the equivalent SQL — partial-unique semantics preserved (Memory D108 same-predicate-as-targetWhere rule applies when a future helper needs `onConflictDoUpdate`).
+- Spec §4.1 implied an `onConflictDoUpdate` path for upsert. The actual implementation uses SELECT-then-INSERT/UPDATE inside `db.transaction()` because Drizzle's composite-key `onConflictDoUpdate` is awkward with a nullable `project_id` discriminator (NULL doesn't match `eq(...)`). Memory D125 / Pattern from `persistPairs()` (Spec 62.3).
+- Spec §10 implied per-template directory layout (`packages/social/src/templates/<key>/definition.ts`). The current registry uses the flat layout (`definitions/<camelKey>.ts`). The bootstrap-sync uses convention-based filepath lookup via `kebabToCamelKey()`. Day 3 watcher will need to handle both layouts during migration.
+- Spec §4.2 fields landed as `templateKey` / `templateVersion` (TS) → `template_key` / `template_version` (DB columns). Property name matches existing convention; the spec text didn't disambiguate from `social_posts.templateKey`, but a Drizzle table property and a different table's same-named property don't conflict structurally.
+
+**Marcel-decisions used (defaults from §13):**
+
+- Q1: Project-scoped templates default — implemented as `project_id` nullable column (NULL = global, UUID = scoped). Memory D5 multi-tenant exception documented inline.
+- Q3: Hot-reload in production — bootstrap-sync now fires on every API startup (idempotent UPSERT + deactivate-missing sweep). Day 3 watcher will make it reactive.
+- Q4: Watcher in API-process — bootstrap-sync currently lives in `apps/api`. Day 3 watcher will live alongside it.
+- Q5: Malformed template-file handling — bootstrap-sync's `buildSpecsFromInMemoryRegistry()` catches per-template read errors, logs warn, and skips the row (registry stays usable).
+
+**Pending Marcel-Decision sites for Day 3+:**
+
+- Q2 (preview modal vs page) — Day 5
+- Q6 (auto-fill data source) — Day 5
+- Q7 (cache preview renders) — Day 4
+- Q8 (soft vs hard disable) — Day 6
+- Q10 (LRU ownership) — Spec 65.6
+
+**Open observations from /review-task:**
+
+- The bootstrap-sync writes 5 rows on every cold start (~50ms). When the watcher lands (Day 3), warm-restart syncs should be no-ops (all `unchanged` per the file-hash equality check). Worth verifying live once watcher is in.
+
+### Day 3+ (not yet started)
+
+— filesystem watcher, Remotion bundle re-call, multi-process cache invalidation via Redis pub/sub.

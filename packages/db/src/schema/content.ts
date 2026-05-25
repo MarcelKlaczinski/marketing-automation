@@ -349,6 +349,15 @@ export const articles = pgTable(
     // but project-config.ts is loaded after content.ts in schema/index.ts ordering)
     projectConfigVersionId: uuid("project_config_version_id"),
 
+    // Spec 65.0: snapshot of the template key + version used to render this
+    // article's social posts (Marcel-Decision §8 "current wins"). Distinct
+    // from social_posts.template_key (which tracks per-post template choice)
+    // — this column records the most-recent render template at the article
+    // level for refresh + diagnostics. Both nullable: articles without social
+    // posts stay NULL.
+    templateKey: text("template_key"),
+    templateVersion: text("template_version"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
