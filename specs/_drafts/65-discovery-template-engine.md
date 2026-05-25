@@ -857,6 +857,31 @@ Structural reshuffle:
 - No frontend automated tests for the new page/modal (the web app has no component-test infrastructure). Verified manually via Marcel's `/projects/<slug>/settings/templates` walk-through.
 - Long-running Remotion render has no client-side timeout — if the API hangs, the modal shows "Rendering …" forever. Day 6 polish could add an `AbortController` with a 30s ceiling.
 
+### Day 5 fix-up (2026-05-25, same day)
+
+Three issues surfaced from Marcel's first end-to-end walk-through:
+
+1. **Logos fehlten** — Settings-Cards + Modal-Preview zeigten nur die deterministic-initials-avatars (MJ / DE / SD blau-grün-violett-Kreise) statt echter Brand-Logos. Production renders go through `buildToolLookup()` which fills `iconSvg`; preview skipped that step. **Fix:** new `enrichToolIcons(renderInput, projectId)` in [`template-preview-service.ts`](../../apps/api/src/lib/template-preview-service.ts) walks the parsed sampleData for any object with a `slug` field (handles three shapes: `generated.tools[]` for grid-3/grid-4, `tools[]` top-level for verdict-per-use-case, `body.tool` singular for single-tool-spotlight, `generated.iconSlug` convenience for pro-con-verdict) and calls `resolveToolIcon(projectId, slug)` — same chain as production (`simple-icons → iconify → lobe-icons → deterministic avatar`). Resolved SVGs fill `iconSvg`; caller-supplied `iconSvg` always wins. Per-slug failures degrade silently (avatar fallback).
+
+2. **`verdict-per-use-case` Render failed: "Cannot read properties of undefined (reading 'eyebrow')"** — sample-data shape was wrong. I had copied the legacy `verdict-cards/` directory shape (`tools[]` + `verdicts[]` at top level) when the correct schema is from `verdict-per-use-case/` (Spec 60.4 single-still composition): `generated.useCases[]` of `{ label, winnerName, icon* }` plus standard `headline`/`headlineEm`/`subline`/etc. Fixed in [`template-sample-data.ts`](../../apps/web/src/lib/template-sample-data.ts). Debug script verified all 4 (comparison-grid-3, verdict-per-use-case, single-tool-spotlight, pro-con-verdict) render cleanly with the corrected shapes.
+
+3. **"Default-JSON sollte sinnvolleren Content haben" + "Die drei Schulen" Headline merkwürdig** — sample-data updated for all 5 templates with punchier marketing-style headlines (`"Die besten KI-Bildgeneratoren / Midjourney, DALL·E oder Stable Diffusion?"` statt der editorial `"Die drei Schulen"`). Tool entries now carry `slug` fields (`midjourney`, `openai`, `recraft`, `ideogram`, `stability`) so Issue #1's icon-resolver kicks in. The persistent-render path means a Marcel-side hard refresh + click-Render is needed before the new headlines visually overwrite the old PNG at `<projectSlug>/<templateKey>/slide-NN.png`.
+
+4. **Marcel reported `single-tool-spotlight` "Render produced 0 slides" + `pro-con-verdict` "'includes' of undefined"** — both PASSED in my service-level debug script with the current sample-data. Likely a stale Vite HMR situation where the browser's old `template-sample-data.ts` carried fields that didn't match the composition schemas. Documented workaround: hard refresh (Cmd+Shift+R). No backend fix needed.
+
+**.gitignore extended** — `/renders/preview/` and `/apps/api/renders/` added because the new persistent-render path writes PNGs there. Old block had only the visual-render-all `mock-*` paths.
+
+**Layout "Content klebt oben" deferred** — the comparison-grid-3 (and probably the other compositions) use `gridTemplateRows: "auto auto 1fr auto"` with tool-cards stacked compactly at the top of the 1fr row, leaving a vertical void between cards + footer. This is a real composition-layout concern that ALL templates likely share. Out of scope for Day 5 because:
+- Composition changes affect production renders, not just preview
+- Spec 59.3.5 (Layout-Shift-Free) baseline tests would need re-baselining for each template
+- The four affected compositions each need individual visual review
+
+Flagged for Day-6 polish as a coordinated cross-template layout pass.
+
+**Verified post-fix:**
+- 15 preview tests pass / 2 RUN_VISUAL renders pass / workspace typecheck 0 errors across 26 packages
+- Debug script confirms all 4 service-level renders work end-to-end with the new sample-data + auto-icon-resolve
+
 ### Day 6+ (not yet started)
 
-— soft-disable PATCH endpoint + UI activation; article snapshot wire-up (`articles.template_key` / `template_version` populated by render-pipeline); periodic cache-copy + preview-dir sweep; Remotion render abort controller.
+— soft-disable PATCH endpoint + UI activation; article snapshot wire-up (`articles.template_key` / `template_version` populated by render-pipeline); periodic cache-copy + preview-dir sweep; Remotion render abort controller; cross-template layout pass to fill canvas height (see Day-5 fix-up §4).

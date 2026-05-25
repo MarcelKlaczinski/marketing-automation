@@ -84,3 +84,10 @@ apps/api/uploads/
 
 # tmp/ for local backups, worker logs, etc.
 /tmp/
+
+# Spec 65.0 Day 5 — template-preview persistent slides at
+# `<cwd>/renders/preview/<projectSlug>/<templateKey>/slide-NN.png`. Same
+# for /apps/api/renders/preview when API runs from its own cwd. Local
+# artifacts only; never commit.
+/renders/preview/
+/apps/api/renders/

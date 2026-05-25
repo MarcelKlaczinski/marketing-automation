@@ -27,6 +27,7 @@ import { templateRegistry } from "@marketing-auto/social/templates";
 import type { Locale, Theme, TemplateKey } from "@marketing-auto/social/templates";
 import { db, eq, getTemplate, projects } from "@marketing-auto/db";
 import { getBrandTokens } from "./brand-asset-service.ts";
+import { resolveToolIcon, type ResolvedIcon } from "./icon-resolver.ts";
 
 const log = createLogger("template-preview-service");
 
@@ -177,6 +178,14 @@ export async function previewTemplate(
     brandTokens,
   };
 
+  // 5b. Spec 65.0 Day 5 fix — match production: auto-resolve real tool
+  //     logos for any `tools[]` array (or singular `tool`) with a `slug`.
+  //     Production renders call `buildToolLookup()` inside `buildInput()`
+  //     to hydrate `iconSvg` via the simple-icons → iconify → lobe-icons
+  //     chain. Preview bypasses `buildInput()` (no Article DB row), so we
+  //     run the same resolver here. Caller-supplied `iconSvg` always wins.
+  await enrichToolIcons(renderInput, input.projectId);
+
   // 6. Render.
   const sessionId = `${input.projectSlug}/${input.templateKey}`;
   const startedAt = Date.now();
@@ -237,6 +246,106 @@ export async function previewTemplate(
     renderDurationMs,
     renderedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Spec 65.0 Day 5 — walk the render input and resolve real tool logos for
+ * any object with a `slug` field via the same production icon-resolver
+ * chain (`resolveToolIcon` → simple-icons / iconify / lobe-icons /
+ * deterministic avatar). Mutates `renderInput` in place. Caller-supplied
+ * `iconSvg` always takes precedence; only adds it when missing.
+ *
+ * Handles three shapes that occur across the 5 V1 templates:
+ *   - `generated.tools[]` (comparison-grid-3/4)
+ *   - `tools[]` at top level (verdict-per-use-case)
+ *   - `body.tool` singular (single-tool-spotlight)
+ *
+ * pro-con-verdict doesn't carry a tools array (single tool's icon comes
+ * via `generated.iconInitials` + `generated.iconHue`); we resolve that
+ * too when `generated.iconSlug` is set as a convenience field.
+ */
+async function enrichToolIcons(
+  renderInput: Record<string, unknown>,
+  projectId: string,
+): Promise<void> {
+  // Collect every (slug, applyResolved) pair we need to process; dedup
+  // slugs so we only hit the resolver once per unique tool.
+  type Apply = (resolved: ResolvedIcon) => void;
+  const work = new Map<string, Apply[]>();
+  const addWork = (slug: string, apply: Apply): void => {
+    const arr = work.get(slug) ?? [];
+    arr.push(apply);
+    work.set(slug, arr);
+  };
+
+  const visitToolLike = (toolObj: Record<string, unknown>): void => {
+    if (typeof toolObj.iconSvg === "string" && toolObj.iconSvg.length > 0) return;
+    const slug = typeof toolObj.slug === "string" ? toolObj.slug : null;
+    if (!slug) return;
+    addWork(slug, (resolved) => {
+      if (resolved.type === "svg") {
+        toolObj.iconSvg = resolved.svg;
+      } else if (resolved.type === "avatar") {
+        // Only overwrite avatar fields if caller didn't already set them.
+        if (typeof toolObj.iconInitials !== "string") toolObj.iconInitials = resolved.initials;
+        if (typeof toolObj.iconHue !== "number") toolObj.iconHue = resolved.hue;
+      }
+    });
+  };
+
+  // generated.tools[] (comparison-grid-3 / comparison-grid-4)
+  const generated = renderInput.generated;
+  if (typeof generated === "object" && generated !== null) {
+    const gen = generated as Record<string, unknown>;
+    const tools = gen.tools;
+    if (Array.isArray(tools)) {
+      for (const t of tools) {
+        if (typeof t === "object" && t !== null) visitToolLike(t as Record<string, unknown>);
+      }
+    }
+    // pro-con-verdict: single-tool convenience — `generated.iconSlug` →
+    // resolves to `generated.iconSvg` so the composition can use it.
+    if (typeof gen.iconSlug === "string" && typeof gen.iconSvg !== "string") {
+      addWork(gen.iconSlug, (resolved) => {
+        if (resolved.type === "svg") gen.iconSvg = resolved.svg;
+        else {
+          if (typeof gen.iconInitials !== "string") gen.iconInitials = resolved.initials;
+          if (typeof gen.iconHue !== "number") gen.iconHue = resolved.hue;
+        }
+      });
+    }
+  }
+
+  // tools[] top-level (verdict-per-use-case)
+  if (Array.isArray(renderInput.tools)) {
+    for (const t of renderInput.tools) {
+      if (typeof t === "object" && t !== null) visitToolLike(t as Record<string, unknown>);
+    }
+  }
+
+  // body.tool singular (single-tool-spotlight)
+  const body = renderInput.body;
+  if (typeof body === "object" && body !== null) {
+    const tool = (body as Record<string, unknown>).tool;
+    if (typeof tool === "object" && tool !== null) {
+      visitToolLike(tool as Record<string, unknown>);
+    }
+  }
+
+  if (work.size === 0) return;
+
+  // Resolve in parallel; per-slug failures degrade silently (the deterministic
+  // avatar fallback is good enough for preview).
+  await Promise.all(
+    [...work.entries()].map(async ([slug, applies]) => {
+      try {
+        const resolved = await resolveToolIcon(projectId, slug);
+        for (const apply of applies) apply(resolved);
+      } catch (err) {
+        log.warn({ err, slug }, "Preview tool-icon resolution failed");
+      }
+    }),
+  );
 }
 
 /**

@@ -7,6 +7,12 @@
 // harness); duplicated here because `apps/web` cannot import from
 // `@marketing-auto/*` workspace packages.
 //
+// Tool objects carry a `slug` field which the backend preview-service
+// uses to auto-resolve real logos via simple-icons → iconify → lobe-icons
+// → deterministic-avatar (same chain production buildToolLookup uses).
+// Zod will strip the slug after resolution since it's not in the
+// composition's input schema — that's intentional.
+//
 // When a template's composition schema changes, the corresponding example
 // must be updated here. Adding a new template = add a new entry; templates
 // without an entry hide the "Auto-fill" button rather than break.
@@ -23,40 +29,43 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
       headline: "Welcher KI-Bildgenerator",
       headlineEm: "gewinnt 2026?",
       subline:
-        "Vier Modelle, dieselben 12 Prompts, drei Wochen Test — hier ist das Ergebnis.",
-      eyebrow: "Vergleich · 4 Tools",
+        "Vier Modelle, dieselben 12 Prompts, drei Wochen Test — das ist das Ergebnis.",
+      eyebrow: "Vergleich · 4 Bildgeneratoren",
       slideNum: "01 / 04",
-      ctaLine1: "Mehr Tool-Tests",
-      ctaLine2: "auf toolwiki.ai",
+      ctaLine1: "Vollständiger Test",
+      ctaLine2: "toolwiki.ai/bilder",
       dateLabel: "Mai 2026",
       tools: [
         {
+          slug: "midjourney",
           name: "Midjourney",
           verdictStrong: "Premium-Ästhetik",
           verdictRest: "out-of-the-box, ideal für Hero-Visuals.",
           score: 92,
           scoreTier: "hi",
-          priceLabel: "ab 10 €",
+          priceLabel: "ab 10 $/Mo",
           isWinner: true,
           winnerFlagText: "Testsieger",
           iconInitials: "MJ",
           iconHue: 220,
         },
         {
-          name: "Flux 1.2 Pro",
-          verdictStrong: "Stärkster Photorealismus",
-          verdictRest: "mit fairer API-Pricing.",
+          slug: "openai",
+          name: "DALL·E 4",
+          verdictStrong: "Beste Prompt-Adhärenz",
+          verdictRest: "liefert genau was du beschreibst.",
           score: 88,
           scoreTier: "hi",
-          priceLabel: "ab 0,05 €",
+          priceLabel: "ab 20 $/Mo",
           isWinner: false,
-          iconInitials: "FX",
-          iconHue: 260,
+          iconInitials: "DE",
+          iconHue: 160,
         },
         {
+          slug: "recraft",
           name: "Recraft V3",
           verdictStrong: "Vektor-Export",
-          verdictRest: "direkt aus der Box, ideal für Design-Teams.",
+          verdictRest: "direkt aus der Box — ideal für Design-Teams.",
           score: 84,
           scoreTier: "mid",
           priceLabel: "ab 0 €",
@@ -65,9 +74,10 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
           iconHue: 180,
         },
         {
+          slug: "ideogram",
           name: "Ideogram 2.0",
-          verdictStrong: "Beste Typografie",
-          verdictRest: "für Text-im-Bild-Motive.",
+          verdictStrong: "Stärkste Typografie",
+          verdictRest: "wenn Text im Bild lesbar bleiben muss.",
           score: 80,
           scoreTier: "mid",
           priceLabel: "ab 0 €",
@@ -85,17 +95,18 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
     locale: "de",
     theme: "dark",
     generated: {
-      headline: "Die",
-      headlineEm: "drei Schulen",
+      headline: "Die besten",
+      headlineEm: "KI-Bildgeneratoren",
       subline:
-        "Ästhetik, Prompt-Adhärenz oder Kontrolle — jedes Tool steht für eine andere Philosophie.",
-      eyebrow: "Vergleich · 3 Top-Modelle",
+        "Midjourney, DALL·E oder Stable Diffusion? Drei Modelle, eine klare Empfehlung pro Use-Case.",
+      eyebrow: "Vergleich · 3 Top-Tools",
       slideNum: "01 / 01",
       ctaLine1: "Workflow-Empfehlungen →",
       ctaLine2: "toolwiki.ai/bilder",
       dateLabel: "Stand 05/2026 · toolwiki.ai/bilder",
       tools: [
         {
+          slug: "midjourney",
           name: "Midjourney v7",
           meta: "Premium-Ästhetik · web + Discord",
           score: 92,
@@ -113,6 +124,7 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
           iconHue: 220,
         },
         {
+          slug: "openai",
           name: "DALL·E 4",
           meta: "Prompt-Adhärenz · via ChatGPT",
           score: 81,
@@ -126,6 +138,7 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
           iconHue: 160,
         },
         {
+          slug: "stability",
           name: "Stable Diffusion",
           meta: "Maximale Kontrolle · ComfyUI",
           score: 74,
@@ -149,49 +162,31 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
   },
 
   // ── verdict-per-use-case ──────────────────────────────────────────────
+  // Single-still composition (Spec 60.4) — uses `verdict-per-use-case/`
+  // directory (NOT the legacy `verdict-cards/`). Shape is
+  // { generated: { headline, ..., useCases: 5-7 of {label, winnerName, icon*} } }
   "verdict-per-use-case": {
-    theme: "dark",
-    locale: "de",
     slideIndex: 0,
-    websiteUrl: "toolwiki.ai",
-    instagramHandle: "@toolwiki.ai",
-    articleSlug: "recraft-vs-ideogram",
-    tools: [
-      { slug: "recraft", name: "Recraft", iconInitials: "RC", iconHue: 220 },
-      { slug: "ideogram", name: "Ideogram", iconInitials: "ID", iconHue: 280 },
-    ],
-    verdicts: [
-      {
-        useCase: "Logo-Design für Brand-Identität",
-        winner: "recraft",
-        reason:
-          "Vektor-Export und Brand-Konsistenz sind hier entscheidend — Recraft liefert beide aus der Box.",
-      },
-      {
-        useCase: "Text im Bild (z.B. Poster, Meme)",
-        winner: "ideogram",
-        reason:
-          "Ideograms Typografie-Kontrolle ist klar überlegen. Weniger Halluzinationen bei Buchstaben.",
-      },
-      {
-        useCase: "Social-Media-Posts",
-        winner: "recraft",
-        reason:
-          "Mehr vorgefertigte Formate, bessere Pixel-Kontrolle für Quadrat-Zuschnitte.",
-      },
-      {
-        useCase: "Produktbilder (Freisteller)",
-        winner: "recraft",
-        reason:
-          "Sauberere Hintergrundremovals, konsistentere Objektisolation bei komplexen Formen.",
-      },
-      {
-        useCase: "Poster-Design & Kampagnen",
-        winner: "ideogram",
-        reason:
-          "Stärkere Kombination aus Illustration und Schrift, besonders bei mehrsprachigen Motiven.",
-      },
-    ],
+    locale: "de",
+    theme: "dark",
+    generated: {
+      headline: "Welches Tool",
+      headlineEm: "gewinnt wann?",
+      subline:
+        "Fünf Use-Cases im direkten Vergleich — pro Aufgabe einen klaren Sieger ohne Diplomatie.",
+      eyebrow: "Use-Case-Verdict",
+      slideNum: "01 / 01",
+      ctaLine1: "Vollständiger Test →",
+      ctaLine2: "toolwiki.ai/bilder",
+      dateLabel: "Stand 05/2026 · toolwiki.ai/bilder",
+      useCases: [
+        { label: "Logo-Design", winnerName: "Recraft", iconInitials: "RC", iconHue: 220 },
+        { label: "Text im Bild", winnerName: "Ideogram", iconInitials: "ID", iconHue: 280 },
+        { label: "Social-Posts", winnerName: "Recraft", iconInitials: "RC", iconHue: 220 },
+        { label: "Produktbilder", winnerName: "Recraft", iconInitials: "RC", iconHue: 220 },
+        { label: "Poster & Kampagnen", winnerName: "Ideogram", iconInitials: "ID", iconHue: 280 },
+      ],
+    },
   },
 
   // ── single-tool-spotlight ─────────────────────────────────────────────
@@ -207,7 +202,13 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
       headerNum: "Test 04/2026 · 50k+ Generierungen",
       slideIndex: 1,
       slideTotal: 3,
-      tool: { logo: "", name: "Midjourney", version: "v7 · Premium-Ästhetik", isLive: true },
+      tool: {
+        slug: "midjourney",
+        logo: "",
+        name: "Midjourney",
+        version: "v7 · Premium-Ästhetik",
+        isLive: true,
+      },
       verdictQuote: "Für Hero-Visuals und Mood-Boards 2026 immer noch ungeschlagen.",
       score: 92,
       scoreLabel: "Top Aesthetic",
@@ -237,11 +238,15 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
   },
 
   // ── pro-con-verdict ───────────────────────────────────────────────────
+  // Uses `generated.iconSlug` — preview-service auto-resolves it to
+  // `generated.iconSvg` via the same chain. iconInitials/iconHue stay as
+  // fallback if the resolution misses.
   "pro-con-verdict": {
     theme: "dark",
     locale: "de",
     slideIndex: 0,
     generated: {
+      iconSlug: "midjourney",
       toolName: "Midjourney v7",
       toolCategory: "KI-Bildgenerator",
       iconInitials: "MJ",
