@@ -792,6 +792,27 @@
       "when": 1789000000000,
       "tag": "0112_templates",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1789100000000,
+      "tag": "0113_recurring_content_system_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1789200000000,
+      "tag": "0114_topic_briefs_recurring_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1789300000000,
+      "tag": "0115_recurring_content_seed_default_personas",
+      "breakpoints": true
     }
   ]
 }

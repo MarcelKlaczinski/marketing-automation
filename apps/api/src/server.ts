@@ -8,6 +8,7 @@ import {
 import { startTemplateWatcher } from "./lib/template-watcher.ts";
 import { cleanupLegacyPreviewSessions } from "./lib/template-preview-service.ts";
 import { templatePreviewRoutes } from "./routes/projects/templates.ts";
+import { startTemplateUsageLogPruneCron } from "./workers/template-usage-log-prune.cron.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -93,6 +94,13 @@ setInterval(() => {
     () => undefined,
   );
 }, PERIODIC_SWEEP_MS).unref();
+
+// Spec 65.1: daily auto-prune for `template_usage_log` — caps each
+// recurring_content_definitions row at 50 entries (Marcel-Decision Q3).
+// Single-instance per Memory D24 cron-based-coordinator pattern: start ONLY
+// in the API process here, never inside `apps/api/src/workers/index.ts`
+// (would multi-run when the worker fleet scales).
+startTemplateUsageLogPruneCron();
 
 const app = new Hono();
 

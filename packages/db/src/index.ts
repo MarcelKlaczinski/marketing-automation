@@ -25,3 +25,18 @@ export * from "./helpers/inventory-star-history-write.ts";
 export * from "./helpers/cron-state-write.ts";
 export * from "./helpers/templates-read.ts";
 export * from "./helpers/templates-write.ts";
+// Spec 65.1 — Theme 65 DB foundation helpers
+export * from "./helpers/recurring-content-definitions-read.ts";
+export * from "./helpers/recurring-content-definitions-write.ts";
+export * from "./helpers/hook-templates-read.ts";
+export * from "./helpers/hook-templates-write.ts";
+export * from "./helpers/tool-brand-assets-read.ts";
+export * from "./helpers/tool-brand-assets-write.ts";
+export * from "./helpers/tool-persona-scores-read.ts";
+export * from "./helpers/tool-persona-scores-write.ts";
+export * from "./helpers/end-slide-definitions-read.ts";
+export * from "./helpers/end-slide-definitions-write.ts";
+export * from "./helpers/engagement-resources-read.ts";
+export * from "./helpers/engagement-resources-write.ts";
+export * from "./helpers/template-usage-log-read.ts";
+export * from "./helpers/template-usage-log-write.ts";

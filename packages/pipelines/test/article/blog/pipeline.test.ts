@@ -46,6 +46,7 @@ function makeBrief(overrides: Partial<TopicBrief> & { projectId: string }): Omit
     comparisonMetadata: null,
     releaseMetadata: null,
     starTrendMetadata: null,
+    recurringMetadata: null,
     routedArticleId: null,
     routedCornerstoneSpecId: null,
     routedClusterId: null,

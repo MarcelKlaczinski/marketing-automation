@@ -919,6 +919,28 @@ export const StarTrendMetadataSchema = z.object({
 });
 export type StarTrendMetadata = z.infer<typeof StarTrendMetadataSchema>;
 
+// ── RecurringMetadata (Spec 65.1) ─────────────────────────────────────────────
+// Typed bucket for the recurring-content-system briefs emitted by 65.5
+// (Brief-Generator + Cron). Populates when a `recurring_content_definitions`
+// row's `next_run_at` fires. Spec 65.5 owns the `source` enum widening
+// (recurring) + superRefine extension; 65.1 only adds the column shape +
+// schema. Until then `recurring_metadata` exists as a forward-compat field
+// that callers can populate via Drizzle's `$type<>()` on the column.
+
+export const RecurringMetadataSchema = z.object({
+  /** UUID of the recurring_content_definitions row that triggered emission. */
+  definitionId:    z.string().uuid(),
+  /** Monotonic counter — 1st, 2nd, 3rd run of this definition (for rotation/freshness). */
+  runNumber:       z.number().int().min(1),
+  /** Tool IDs from previous runs — picker uses this to bias toward fresh tools. */
+  previousToolIds: z.array(z.string().uuid()).optional(),
+  /** Mirrors recurring_content_definitions.format_type at emission time (frozen). */
+  formatType:      z.string(),
+  /** Mirrors recurring_content_definitions.format_config at emission time (frozen). */
+  formatConfig:    z.record(z.string(), z.unknown()),
+});
+export type RecurringMetadata = z.infer<typeof RecurringMetadataSchema>;
+
 // ── Drizzle table ─────────────────────────────────────────────────────────────
 
 export const topicBriefs = pgTable(
@@ -973,6 +995,8 @@ export const topicBriefs = pgTable(
     releaseMetadata:    jsonb("release_metadata").$type<ReleaseMetadata>(),
     /** Spec 64.21 — star-trend story brief metadata. */
     starTrendMetadata:  jsonb("star_trend_metadata").$type<StarTrendMetadata>(),
+    /** Spec 65.1 — recurring content system brief metadata (populated by 65.5). */
+    recurringMetadata:  jsonb("recurring_metadata").$type<RecurringMetadata>(),
 
     // Spec 64.15 Phase C: precomputed Voyage-3 embedding (1024d). emit-brief.ts
     // (trend-discovery) writes this at brief-creation time so the planner doesn't
@@ -1063,6 +1087,16 @@ export const TopicBriefInsertSchema = z
     comparisonMetadata: ComparisonMetadataSchema.nullable().optional(),
     releaseMetadata:    ReleaseMetadataSchema.nullable().optional(),
     starTrendMetadata:  StarTrendMetadataSchema.nullable().optional(),
+    /**
+     * Spec 65.1 — recurring content system bucket. Forward-compat field; 65.5
+     * widens the `source` enum + superRefine to validate
+     * `source='recurring' ⇔ recurringMetadata != null`. Today's superRefine
+     * leaves it untouched (the field stays orthogonal to the 6 existing source-
+     * specific buckets — `total !== 1` check would block it once source 'recurring'
+     * lands, so 65.5 MUST extend both the source enum AND the validation map
+     * in the same commit).
+     */
+    recurringMetadata:  RecurringMetadataSchema.nullable().optional(),
 
     // Spec 64.15 Phase C: precomputed Voyage-3 embedding for plan diversity.
     // Optional + nullable: emit-brief.ts (trend-discovery) populates this at

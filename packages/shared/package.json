@@ -9,7 +9,9 @@
     "./result": "./src/result.ts",
     "./logger": "./src/logger.ts",
     "./hero-variants": "./src/hero-variants.ts",
-    "./brand-tokens": "./src/brand-tokens/index.ts"
+    "./brand-tokens": "./src/brand-tokens/index.ts",
+    "./recurring-content": "./src/recurring-content/index.ts",
+    "./format-types": "./src/format-types/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

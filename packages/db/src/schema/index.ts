@@ -14,4 +14,12 @@ export * from "./social-overrides.ts";
 export * from "./batch.ts";
 export * from "./categories.ts";
 export * from "./templates.ts";
+// Spec 65.1 — Theme 65 DB foundation
+export * from "./recurring-content-definitions.ts";
+export * from "./hook-templates.ts";
+export * from "./tool-brand-assets.ts";
+export * from "./tool-persona-scores.ts";
+export * from "./end-slide-definitions.ts";
+export * from "./engagement-resources.ts";
+export * from "./template-usage-log.ts";
 // contentGaps exported via content.ts

@@ -7,3 +7,6 @@ export * from "./types/prompt.ts";
 export * from "./types/project-goals.ts";
 export * from "./types/weekly-plan.ts";
 export * from "./types/project-config.ts";
+// Spec 65.1 — Theme 65 foundation
+export * from "./recurring-content/index.ts";
+export * from "./format-types/index.ts";
