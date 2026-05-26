@@ -24,7 +24,12 @@ export interface NotifyRecurringBriefSkippedInput {
   projectId: string;
   definitionId: string;
   definitionName: string;
-  reason: "brand-assets-missing" | "insufficient-tools" | "no-hook" | "inactive-definition";
+  reason:
+    | "brand-assets-missing"
+    | "insufficient-tools"
+    | "no-hook"
+    | "inactive-definition"
+    | "no-end-slide-eligible";
   missingToolIds?: string[];
   detail?: string;
 }
@@ -37,6 +42,8 @@ const REASON_LABEL: Record<NotifyRecurringBriefSkippedInput["reason"], string> =
   "insufficient-tools": "Tool pool too small for the Top-N selection",
   "no-hook": "No hooks registered for (formatType, locale) in the library",
   "inactive-definition": "Definition was deactivated",
+  "no-end-slide-eligible":
+    "No active end_slide_definitions match the format-type defaults — seed the end-slide library before next run",
 };
 
 export async function notifyRecurringBriefSkipped(

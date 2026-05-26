@@ -12,6 +12,9 @@ export default {
     "signal-sources": "Signal-Quellen",
     planner: "Planner-Ziele",
     inventory: "GitHub-Inventory",
+    "recurring-content": "Recurring Content",
+    hooks: "Hook-Bibliothek",
+    "end-slides": "End-Slides",
   },
 
   project: {

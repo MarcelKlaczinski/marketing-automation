@@ -162,6 +162,29 @@ const routes = [
             name: "settings-templates",
             component: () => import("src/pages/settings/SettingsTemplatesPage.vue"),
           },
+          {
+            path: "recurring-content",
+            name: "settings-recurring-content",
+            component: () =>
+              import("src/pages/settings/SettingsRecurringDefinitionsPage.vue"),
+          },
+          {
+            path: "recurring-content/:id",
+            name: "settings-recurring-content-detail",
+            component: () =>
+              import("src/pages/settings/SettingsRecurringDefinitionDetailPage.vue"),
+          },
+          {
+            path: "hooks",
+            name: "settings-hooks",
+            component: () => import("src/pages/settings/SettingsHookLibraryPage.vue"),
+          },
+          {
+            path: "end-slides",
+            name: "settings-end-slides",
+            component: () =>
+              import("src/pages/settings/SettingsEndSlideDefinitionsPage.vue"),
+          },
           // Redirect bare /settings to /settings/project. The "settings"
           // name lives here so `router.push({ name: "settings" })` reaches
           // the default sub-page.

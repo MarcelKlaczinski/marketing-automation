@@ -15,7 +15,12 @@ import {
   BrandAssetsMissingError,
   ensureBrandAssetsAvailable,
 } from "./shared/check-brand-assets.ts";
+import { buildDryRunPreview } from "./shared/dry-run-preview.ts";
 import { persistRecurringBrief } from "./shared/persist-brief.ts";
+import {
+  NoEligibleEndSlidesError,
+  selectEndSlideForRecurringBrief,
+} from "./shared/select-end-slide.ts";
 import { selectTemplateForRecurringBrief } from "./shared/select-template.ts";
 import {
   articleToResolvedTool,
@@ -77,6 +82,25 @@ export async function generateHeadToHeadBrief(
   if (ctx.pipelineRunId !== undefined) templateInput.pipelineRunId = ctx.pipelineRunId;
   const selectedTemplate = await selectTemplateForRecurringBrief(templateInput);
 
+  // 3a. Select end-slide (Spec 65.9). Skip cleanly on no-eligible-end-slides
+  //     so a missing seed doesn't crash the cron loop.
+  let selectedEndSlide: Awaited<ReturnType<typeof selectEndSlideForRecurringBrief>>;
+  try {
+    selectedEndSlide = await selectEndSlideForRecurringBrief({
+      definition: ctx.definition,
+      projectId: ctx.projectId,
+    });
+  } catch (err) {
+    if (err instanceof NoEligibleEndSlidesError) {
+      return {
+        status: "skipped",
+        reason: "no-end-slide-eligible",
+        detail: err.message,
+      };
+    }
+    throw err;
+  }
+
   // 4. Brief text.
   const [a, b] = resolvedTools;
   if (!a || !b) {
@@ -103,10 +127,21 @@ export async function generateHeadToHeadBrief(
     ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
   });
 
-  // 5. Log template usage + persist.
+  // 5. Dry-run short-circuit (Spec 65.11).
+  if (ctx.dryRun) {
+    return buildDryRunPreview({
+      toolIds,
+      selectedTemplate,
+      selectedEndSlide,
+      brief: { topicTitle: brief.topicTitle, briefText: brief.briefText },
+    });
+  }
+
+  // 6. Log template usage + persist.
   await logTemplateUsage({
     recurringDefinitionId: ctx.definition.id,
     templateKey: selectedTemplate.templateKey,
+    endSlideType: selectedEndSlide.endSlideType,
   });
 
   const persisted = await persistRecurringBrief({
@@ -117,6 +152,7 @@ export async function generateHeadToHeadBrief(
     toolIds,
     locale: ctx.language,
     selectedTemplate,
+    selectedEndSlide,
     runNumber: ctx.runNumber,
     ...(ctx.previousRunToolIds && { previousToolIds: ctx.previousRunToolIds }),
   });

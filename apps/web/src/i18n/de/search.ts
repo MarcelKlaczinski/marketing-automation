@@ -24,4 +24,10 @@ export default {
   actionInventorySubtitle: "Stabile Repo-Metadaten für Tools und Skills pflegen",
   actionToolBrandAssets: "Tool-Logos & Farben",
   actionToolBrandAssetsSubtitle: "Logos auflösen und Markenfarben pro Tool pflegen",
+  actionRecurringContent: "Recurring Content",
+  actionRecurringContentSubtitle: "Wiederkehrende Carousel-Rhythmen verwalten",
+  actionHookLibrary: "Hook-Bibliothek",
+  actionHookLibrarySubtitle: "Familie-B Hook-Muster bearbeiten",
+  actionEndSlides: "End-Slides",
+  actionEndSlidesSubtitle: "End-Slide-Definitionen für Carousels pflegen",
 };

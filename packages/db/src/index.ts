@@ -40,3 +40,4 @@ export * from "./helpers/engagement-resources-read.ts";
 export * from "./helpers/engagement-resources-write.ts";
 export * from "./helpers/template-usage-log-read.ts";
 export * from "./helpers/template-usage-log-write.ts";
+export * from "./helpers/topic-briefs-read.ts";

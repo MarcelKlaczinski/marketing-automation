@@ -9,7 +9,9 @@
     "./templates": "./src/templates/index.ts",
     "./templates/overrides": "./src/templates/overrides/index.ts",
     "./lib": "./src/lib/index.ts",
-    "./brand-tokens": "./src/brand-tokens/index.ts"
+    "./brand-tokens": "./src/brand-tokens/index.ts",
+    "./end-slide-components": "./src/end-slide-components/index.ts",
+    "./end-slide-components/types": "./src/end-slide-components/types.ts"
   },
   "scripts": {
     "studio": "remotion studio src/index.tsx",

@@ -848,6 +848,13 @@
       "when": 1789800000000,
       "tag": "0120_topic_briefs_recurring_source",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1789900000000,
+      "tag": "0121_end_slide_definitions_seed",
+      "breakpoints": true
     }
   ]
 }

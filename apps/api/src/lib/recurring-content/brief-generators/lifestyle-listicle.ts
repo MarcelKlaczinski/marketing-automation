@@ -17,8 +17,13 @@ import {
   BrandAssetsMissingError,
   ensureBrandAssetsAvailable,
 } from "./shared/check-brand-assets.ts";
+import { buildDryRunPreview } from "./shared/dry-run-preview.ts";
 import { pickToolsForBrief } from "./shared/pick-tools.ts";
 import { persistRecurringBrief } from "./shared/persist-brief.ts";
+import {
+  NoEligibleEndSlidesError,
+  selectEndSlideForRecurringBrief,
+} from "./shared/select-end-slide.ts";
 import { selectTemplateForRecurringBrief } from "./shared/select-template.ts";
 import {
   articleToResolvedTool,
@@ -140,6 +145,24 @@ export async function generateLifestyleListicleBrief(
   if (ctx.pipelineRunId !== undefined) templateInput.pipelineRunId = ctx.pipelineRunId;
   const selectedTemplate = await selectTemplateForRecurringBrief(templateInput);
 
+  // 4a. Select end-slide (Spec 65.9). Skip cleanly on no-eligible-end-slides.
+  let selectedEndSlide: Awaited<ReturnType<typeof selectEndSlideForRecurringBrief>>;
+  try {
+    selectedEndSlide = await selectEndSlideForRecurringBrief({
+      definition: ctx.definition,
+      projectId: ctx.projectId,
+    });
+  } catch (err) {
+    if (err instanceof NoEligibleEndSlidesError) {
+      return {
+        status: "skipped",
+        reason: "no-end-slide-eligible",
+        detail: err.message,
+      };
+    }
+    throw err;
+  }
+
   // 5. Brief text.
   const formatNarrative = `${config.itemCount}-item lifestyle listicle for "${config.lifeArea}" featuring multiple AI tools.`;
   const contextBlock = [
@@ -164,10 +187,22 @@ export async function generateLifestyleListicleBrief(
     ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
   });
 
-  // 6. Log + persist.
+  // 6. Dry-run short-circuit (Spec 65.11).
+  if (ctx.dryRun) {
+    return buildDryRunPreview({
+      toolIds: picked.toolIds,
+      selectedTemplate,
+      selectedEndSlide,
+      brief: { topicTitle: brief.topicTitle, briefText: brief.briefText },
+      hookData,
+    });
+  }
+
+  // 7. Log + persist.
   await logTemplateUsage({
     recurringDefinitionId: ctx.definition.id,
     templateKey: selectedTemplate.templateKey,
+    endSlideType: selectedEndSlide.endSlideType,
   });
 
   const persisted = await persistRecurringBrief({
@@ -178,6 +213,7 @@ export async function generateLifestyleListicleBrief(
     toolIds: picked.toolIds,
     locale: ctx.language,
     selectedTemplate,
+    selectedEndSlide,
     hookData,
     runNumber: ctx.runNumber,
     ...(ctx.previousRunToolIds && { previousToolIds: ctx.previousRunToolIds }),

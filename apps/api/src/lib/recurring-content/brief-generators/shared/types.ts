@@ -23,6 +23,18 @@ export interface BriefGenContext<TConfig = Record<string, unknown>> {
   runNumber: number;
   /** Threaded into Anthropic calls for cost-attribution. */
   pipelineRunId?: string;
+  /**
+   * Spec 65.11 dry-run flag.
+   *
+   * When `true`, the generator runs every LLM call (tool curation, template
+   * rank, hook pick, brief-text build) so the preview reflects what a real
+   * run would produce — but skips `persistRecurringBrief` and
+   * `logTemplateUsage`. Returns the `"dry-run-preview"` result variant.
+   *
+   * Dry-run costs the same as a real run (LLM calls are real). The Settings
+   * UI caps invocations per project per day.
+   */
+  dryRun?: boolean;
 }
 
 export type GeneratedBriefResult =
@@ -37,10 +49,36 @@ export type GeneratedBriefResult =
     }
   | {
       status: "skipped";
-      reason: "brand-assets-missing" | "insufficient-tools" | "no-hook" | "inactive-definition";
+      reason:
+        | "brand-assets-missing"
+        | "insufficient-tools"
+        | "no-hook"
+        | "inactive-definition"
+        | "no-end-slide-eligible";
       missingToolIds?: string[];
       /** Free-text diagnostic for the audit log. */
       detail?: string;
+    }
+  | {
+      /**
+       * Spec 65.11 — Dry-run preview. Same shape as `persisted` minus the
+       * brief row (no INSERT happened). Surfaces template / end-slide / hook
+       * picks and the generated brief-text so Marcel can sanity-check a
+       * definition before flipping it active.
+       */
+      status: "dry-run-preview";
+      toolIds: string[];
+      templateKey: string;
+      templateSelectedVia: "fixed" | "lru" | "llm-rank";
+      templateReasoning?: string;
+      endSlide: {
+        endSlideDefinitionId: string;
+        endSlideType: string;
+        name: string;
+        selectedVia: "lru-within-pool" | "format-type-default";
+      };
+      hookData?: { hookId: string; pattern: string; rendered: string };
+      preview: { topicTitle: string; briefText: string };
     };
 
 /**

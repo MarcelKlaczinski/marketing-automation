@@ -55,6 +55,9 @@ import { articleStandaloneRoutes } from "./routes/projects/articles-standalone.t
 import { promptVersionsRoutes } from "./routes/prompt-versions.ts";
 import { projectGoalsRoutes } from "./routes/project-goals.ts";
 import { planRoutes } from "./routes/projects/plans.ts";
+import { recurringContentDefinitionsRoutes } from "./routes/projects/recurring-content-definitions.ts";
+import { hooksRoutes } from "./routes/projects/hooks.ts";
+import { endSlidesRoutes } from "./routes/projects/end-slides.ts";
 
 const env = getEnv();
 const log = createLogger("api");
@@ -190,6 +193,9 @@ app.route("/api/projects", personaScoringRoutes);
 app.route("/api/projects", signalsRefreshRoutes);
 app.route("/api/projects", planRoutes);
 app.route("/api/projects", comparisonDiscoveryRoutes);
+app.route("/api/projects", recurringContentDefinitionsRoutes);
+app.route("/api/projects", hooksRoutes);
+app.route("/api/projects", endSlidesRoutes);
 
 app.notFound((c) => c.json({ ok: false, error: "Not Found" }, 404));
 

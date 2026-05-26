@@ -235,6 +235,25 @@ export default defineComponent({
           subtitle: this.$t("search.actionToolBrandAssetsSubtitle") as string,
           href: `/projects/${slug}/settings/tool-brand-assets`,
         },
+        // 65.11 Recurring content + hook library + end-slides
+        {
+          id: "action-recurring-content",
+          title: this.$t("search.actionRecurringContent") as string,
+          subtitle: this.$t("search.actionRecurringContentSubtitle") as string,
+          href: `/projects/${slug}/settings/recurring-content`,
+        },
+        {
+          id: "action-hook-library",
+          title: this.$t("search.actionHookLibrary") as string,
+          subtitle: this.$t("search.actionHookLibrarySubtitle") as string,
+          href: `/projects/${slug}/settings/hooks`,
+        },
+        {
+          id: "action-end-slides",
+          title: this.$t("search.actionEndSlides") as string,
+          subtitle: this.$t("search.actionEndSlidesSubtitle") as string,
+          href: `/projects/${slug}/settings/end-slides`,
+        },
       ];
     },
   },

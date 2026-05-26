@@ -43,6 +43,9 @@ export default defineComponent({
         { key: "signal-sources" },
         { key: "planner" },
         { key: "inventory" },
+        { key: "recurring-content" },
+        { key: "hooks" },
+        { key: "end-slides" },
       ];
     },
   },

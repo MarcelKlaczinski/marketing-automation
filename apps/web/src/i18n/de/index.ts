@@ -34,6 +34,7 @@ import refresh from "./refresh";
 import pausedRuns from "./pausedRuns";
 import planner from "./planner";
 import runs from "./runs";
+import recurringContent from "./recurringContent";
 
 export default {
   app,
@@ -72,4 +73,5 @@ export default {
   pausedRuns,
   planner,
   runs,
+  recurringContent,
 };

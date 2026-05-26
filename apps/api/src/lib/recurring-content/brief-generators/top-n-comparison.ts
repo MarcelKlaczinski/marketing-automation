@@ -14,8 +14,13 @@ import {
   BrandAssetsMissingError,
   ensureBrandAssetsAvailable,
 } from "./shared/check-brand-assets.ts";
+import { buildDryRunPreview } from "./shared/dry-run-preview.ts";
 import { pickToolsForBrief } from "./shared/pick-tools.ts";
 import { persistRecurringBrief } from "./shared/persist-brief.ts";
+import {
+  NoEligibleEndSlidesError,
+  selectEndSlideForRecurringBrief,
+} from "./shared/select-end-slide.ts";
 import { selectTemplateForRecurringBrief } from "./shared/select-template.ts";
 import {
   articleToResolvedTool,
@@ -89,6 +94,29 @@ export async function generateTopNComparisonBrief(
   if (ctx.pipelineRunId !== undefined) templateInput.pipelineRunId = ctx.pipelineRunId;
   const selectedTemplate = await selectTemplateForRecurringBrief(templateInput);
 
+  // 4a. Select end-slide (Spec 65.9) — independent of template choice; reads
+  //     definition.endSlidePool first, falls back to format-type defaults.
+  //     Throws NoEligibleEndSlidesError when the project hasn't seeded any
+  //     active end_slide_definitions matching the format-type defaults —
+  //     surface as a skip so the worker advances next_run_at and Marcel gets
+  //     a notification instead of an infinite-retry loop.
+  let selectedEndSlide: Awaited<ReturnType<typeof selectEndSlideForRecurringBrief>>;
+  try {
+    selectedEndSlide = await selectEndSlideForRecurringBrief({
+      definition: ctx.definition,
+      projectId: ctx.projectId,
+    });
+  } catch (err) {
+    if (err instanceof NoEligibleEndSlidesError) {
+      return {
+        status: "skipped",
+        reason: "no-end-slide-eligible",
+        detail: err.message,
+      };
+    }
+    throw err;
+  }
+
   // 5. Build brief text.
   const formatNarrative = `Top ${config.topN} tools in the "${config.categorySlug ?? "general AI"}" category.`;
   const contextBlock = [
@@ -111,14 +139,26 @@ export async function generateTopNComparisonBrief(
     ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
   });
 
-  // 6. Log template usage (LRU bookkeeping) — fire-and-forget pattern is
+  // 6. Dry-run short-circuit (Spec 65.11) — every LLM call already ran;
+  //    skip LRU bookkeeping + persist + return preview.
+  if (ctx.dryRun) {
+    return buildDryRunPreview({
+      toolIds: picked.toolIds,
+      selectedTemplate,
+      selectedEndSlide,
+      brief: { topicTitle: brief.topicTitle, briefText: brief.briefText },
+    });
+  }
+
+  // 7. Log template usage (LRU bookkeeping) — fire-and-forget pattern is
   //    fine; missing log entries degrade gracefully to FIFO order.
   await logTemplateUsage({
     recurringDefinitionId: ctx.definition.id,
     templateKey: selectedTemplate.templateKey,
+    endSlideType: selectedEndSlide.endSlideType,
   });
 
-  // 7. Persist.
+  // 8. Persist.
   const persisted = await persistRecurringBrief({
     projectId: ctx.projectId,
     definition: ctx.definition,
@@ -127,6 +167,7 @@ export async function generateTopNComparisonBrief(
     toolIds: picked.toolIds,
     locale: ctx.language,
     selectedTemplate,
+    selectedEndSlide,
     runNumber: ctx.runNumber,
     ...(ctx.previousRunToolIds && { previousToolIds: ctx.previousRunToolIds }),
   });

@@ -24,4 +24,10 @@ export default {
   actionInventorySubtitle: "Track stable repo metadata for tools and skills",
   actionToolBrandAssets: "Tool logos & colors",
   actionToolBrandAssetsSubtitle: "Resolve logos and curate brand colors per tool",
+  actionRecurringContent: "Recurring Content",
+  actionRecurringContentSubtitle: "Manage recurring carousel rhythms",
+  actionHookLibrary: "Hook library",
+  actionHookLibrarySubtitle: "Edit Family-B hook patterns",
+  actionEndSlides: "End-slides",
+  actionEndSlidesSubtitle: "Curate end-slide definitions for carousels",
 };

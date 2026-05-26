@@ -33,6 +33,20 @@ export interface PersistRecurringBriefInput {
     selectedVia: "fixed" | "lru" | "llm-rank";
     reasoning?: string;
   };
+  /**
+   * End-slide pick (Spec 65.9) — frozen into recurringMetadata.formatConfig so
+   * the 65.7 renderer reads the same `{ type, config }` shape it would have
+   * gotten from a fresh selector call at render time. Optional for back-compat
+   * with any caller that may not yet have wired the selector (skipped on
+   * Spec-65.5-only paths until 65.7 templates land).
+   */
+  selectedEndSlide?: {
+    endSlideDefinitionId: string;
+    endSlideType: string;
+    config: Record<string, unknown>;
+    name: string;
+    selectedVia: "lru-within-pool" | "format-type-default";
+  };
   /** Family B only — picked hook + render result. */
   hookData?: { hookId: string; pattern: string; rendered: string };
   runNumber: number;
@@ -54,6 +68,15 @@ export async function persistRecurringBrief(
     selectedTemplateVia: input.selectedTemplate.selectedVia,
     ...(input.selectedTemplate.reasoning && {
       selectedTemplateReasoning: input.selectedTemplate.reasoning,
+    }),
+    ...(input.selectedEndSlide && {
+      selectedEndSlide: {
+        endSlideDefinitionId: input.selectedEndSlide.endSlideDefinitionId,
+        type: input.selectedEndSlide.endSlideType,
+        config: input.selectedEndSlide.config,
+        name: input.selectedEndSlide.name,
+        selectedVia: input.selectedEndSlide.selectedVia,
+      },
     }),
     ...(input.hookData && { hookData: input.hookData }),
     toolIds: input.toolIds,

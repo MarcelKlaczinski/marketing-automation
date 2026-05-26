@@ -52,6 +52,12 @@ const LOCK_TTL_SECONDS = 300;
 const jobSchema = z.object({
   definitionId: z.string().uuid(),
   projectId: z.string().uuid(),
+  /**
+   * Spec 65.11 — when true, the worker skips `markRecurringDefinitionRun`
+   * so the schedule isn't consumed by an out-of-band manual fire. Used by
+   * the "Run Now" button on the Settings UI definition detail page.
+   */
+  forceImmediate: z.boolean().optional(),
 });
 export type RecurringBriefGeneratorJobData = z.infer<typeof jobSchema>;
 
@@ -88,12 +94,18 @@ export function getRecurringBriefGeneratorQueue(): Queue {
 export async function enqueueRecurringBriefGenerator(input: {
   definitionId: string;
   projectId: string;
+  /** Spec 65.11 — when true, the worker skips `markRecurringDefinitionRun`. */
+  forceImmediate?: boolean;
 }): Promise<{ jobId: string }> {
   const queue = getRecurringBriefGeneratorQueue();
   const jobId = `recurring-${input.definitionId}-${Date.now()}`;
   await queue.add(
     "generate",
-    { definitionId: input.definitionId, projectId: input.projectId },
+    {
+      definitionId: input.definitionId,
+      projectId: input.projectId,
+      ...(input.forceImmediate !== undefined && { forceImmediate: input.forceImmediate }),
+    },
     { jobId },
   );
   return { jobId };
@@ -215,7 +227,7 @@ export async function handleRecurringBriefGenerator(
         },
         "recurring-brief-generator: brief persisted",
       );
-    } else {
+    } else if (result.status === "skipped") {
       log.warn(
         {
           definitionId: definition.id,
@@ -234,18 +246,40 @@ export async function handleRecurringBriefGenerator(
       if (result.missingToolIds) notifyInput.missingToolIds = result.missingToolIds;
       if (result.detail) notifyInput.detail = result.detail;
       await notifyRecurringBriefSkipped(notifyInput);
+    } else {
+      // `dry-run-preview` is structurally unreachable here — the BullMQ worker
+      // never sets `ctx.dryRun = true` (dry-runs go through the synchronous
+      // `runDryRunForDefinition` entry point). Log defensively in case a
+      // future generator refactor leaks the variant through.
+      log.error(
+        { definitionId: definition.id, status: result.status },
+        "recurring-brief-generator: unexpected dry-run-preview from BullMQ path",
+      );
     }
 
     // Advance next_run_at + last_run_at regardless of outcome. Skipped briefs
     // still consume the slot — a missing-asset skip shouldn't fire again in
     // 30 seconds (Marcel-Decision §0 — admin reviews the notification + fixes
     // the asset, then waits for the next interval).
-    const nextRun = computeNextRun(definition.frequency, new Date());
-    await markRecurringDefinitionRun(definition.id, { newNextRunAt: nextRun });
+    //
+    // Spec 65.11 — `forceImmediate` (Run-Now from Settings UI) DOES persist
+    // the brief but doesn't advance `next_run_at`. The next scheduled tick
+    // still fires on schedule. Without this gate, the manual fire would
+    // skip the next regular run entirely.
+    if (!data.forceImmediate) {
+      const nextRun = computeNextRun(definition.frequency, new Date());
+      await markRecurringDefinitionRun(definition.id, { newNextRunAt: nextRun });
+    } else {
+      log.info(
+        { definitionId: definition.id },
+        "recurring-brief-generator: forceImmediate=true, skipping next_run_at advance",
+      );
+    }
 
-    return result.status === "persisted"
-      ? { status: "ran" }
-      : { status: "skipped", reason: result.reason };
+    if (result.status === "persisted") return { status: "ran" };
+    if (result.status === "skipped") return { status: "skipped", reason: result.reason };
+    // Unreachable from the BullMQ path (see defensive log above).
+    return { status: "skipped", reason: "unexpected-dry-run-preview" };
   } finally {
     await releaseRedisLock(lockKey, token);
   }
@@ -321,6 +355,52 @@ async function resolveProjectLanguage(projectId: string): Promise<"de" | "en"> {
   const first = row?.targetLocales?.[0];
   if (typeof first === "string" && first.toLowerCase().startsWith("en")) return "en";
   return "de";
+}
+
+// ─── Dry-run entry (synchronous, bypasses BullMQ) ────────────────────────────
+
+/**
+ * Spec 65.11 — Synchronous dry-run for the Settings UI "Test mit Dry-Run"
+ * button. Runs the same dispatch path as `handleRecurringBriefGenerator` but
+ * with `ctx.dryRun = true` so each generator short-circuits before
+ * `persistRecurringBrief` / `logTemplateUsage`. Returns the preview directly
+ * to the HTTP caller. Cost-tracked under the normal Anthropic operation
+ * budgets — every LLM call is real.
+ *
+ * No Redis-lock (a dry-run can race a real run harmlessly — neither writes
+ * to template_usage_log + neither flips next_run_at), no next-run advance,
+ * no skip-notification dispatch (the UI surfaces the skip reason directly).
+ */
+export async function runDryRunForDefinition(input: {
+  definitionId: string;
+  projectId: string;
+}): Promise<GeneratedBriefResult> {
+  const definition = await getRecurringDefinition(input.definitionId);
+  if (!definition) {
+    return { status: "skipped", reason: "inactive-definition", detail: "Definition not found" };
+  }
+  if (definition.projectId !== input.projectId) {
+    return {
+      status: "skipped",
+      reason: "inactive-definition",
+      detail: "Project mismatch — multi-tenant guard",
+    };
+  }
+
+  const runNumber = await computeNextRunNumber(definition.id);
+  const previousRunToolIds = await loadPreviousRunToolIds(definition.id);
+  const language = await resolveProjectLanguage(definition.projectId);
+
+  const briefCtx: BriefGenContext = {
+    definition,
+    config: definition.formatConfig ?? {},
+    projectId: definition.projectId,
+    language,
+    runNumber,
+    dryRun: true,
+  };
+  if (previousRunToolIds) briefCtx.previousRunToolIds = previousRunToolIds;
+  return await dispatchBriefGenerator(briefCtx);
 }
 
 // ─── Worker entry ────────────────────────────────────────────────────────────
