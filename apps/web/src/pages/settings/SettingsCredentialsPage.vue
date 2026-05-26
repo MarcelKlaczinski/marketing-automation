@@ -121,7 +121,15 @@ export default defineComponent({
       {
         id: "unsplash",
         name: "Unsplash",
-        keys: [{ key: "access_key", labelKey: "settings.credentials.keys.accessKey" }],
+        // Unsplash developer portal exposes three fields per Application.
+        // Only `access_key` is required for our read-only public Search API
+        // (Client-ID auth); `application_id` + `secret_key` are stored for
+        // potential future OAuth (uploads / user actions). See Spec 65.8.
+        keys: [
+          { key: "application_id", labelKey: "settings.credentials.keys.applicationId" },
+          { key: "access_key", labelKey: "settings.credentials.keys.accessKey" },
+          { key: "secret_key", labelKey: "settings.credentials.keys.secretKey" },
+        ],
       },
       {
         id: "pixabay",

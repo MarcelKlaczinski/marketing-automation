@@ -75,7 +75,12 @@ export async function getAllAdapterStatuses() {
     getAdapterStatus("reddit", ["client_id", "client_secret", "user_agent"]),
     getAdapterStatus("github", ["personal_access_token"]),
     getAdapterStatus("pexels", ["api_key"]),
-    getAdapterStatus("unsplash", ["access_key"]),
+    // Spec 65.8 — Unsplash developer portal exposes 3 fields per Application.
+    // All 3 are stored in the vault for future OAuth use; only `access_key` is
+    // actually used by the read-only Search API (Client-ID auth). Marking all
+    // 3 as required for `configured: true` matches what Marcel sees in the
+    // portal — partial entry would look "saved but not ready".
+    getAdapterStatus("unsplash", ["application_id", "access_key", "secret_key"]),
     getAdapterStatus("pixabay", ["api_key"]),
   ]);
   return {

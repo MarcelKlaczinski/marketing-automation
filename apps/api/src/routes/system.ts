@@ -246,6 +246,11 @@ async function runVerifyByAdapter(
       if (!creds.api_key) return { ok: false, message: "API key not set" };
       return verifyPexels({ apiKey: creds.api_key });
     case "unsplash":
+      // Spec 65.8: only `access_key` is used by the read-only Search API
+      // (Client-ID auth); `application_id` + `secret_key` are stored for
+      // potential future OAuth. Verify gates on access_key alone — the
+      // configured-badge in getAllAdapterStatuses requires all 3, so a
+      // partial vault state surfaces in the UI before this code path runs.
       if (!creds.access_key) return { ok: false, message: "Access key not set" };
       return verifyUnsplash({ accessKey: creds.access_key });
     case "pixabay":
