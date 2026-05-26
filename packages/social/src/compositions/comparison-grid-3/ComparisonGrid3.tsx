@@ -3,9 +3,9 @@ import { AbsoluteFill } from "remotion";
 import "./loadFonts.ts"; // Side-effect: registers Inter Variable with Remotion
 import { CompareHeaderSlide } from "./slides/CompareHeaderSlide.tsx";
 import { CoverSlide } from "./slides/CoverSlide.tsx";
-import { EndSlide } from "./slides/EndSlide.tsx";
 import { ToolSlide } from "./slides/ToolSlide.tsx";
 import { VerdictSlide } from "./slides/VerdictSlide.tsx";
+import { RenderEndSlide } from "../_shared/family-a/RenderEndSlide.tsx";
 import type { ComparisonGrid3Input } from "./types.ts";
 
 /**
@@ -98,17 +98,18 @@ export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
     );
   }
 
-  // Slide 6 — End
+  // Slide 6 — End (Spec 65.10: HostSlide when endSlideData present, else legacy EndSlide)
   if (slideIndex === 3 + props.tools.length) {
     return (
-      <EndSlide
-        content={props.end}
+      <RenderEndSlide
+        end={props.end}
         eyebrow={props.cover.eyebrow}
         theme={props.theme}
         locale={props.locale}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
-        {...(brandTokens !== undefined && { brandTokens })}
+        brandTokens={brandTokens}
+        endSlideData={props.endSlideData}
       />
     );
   }

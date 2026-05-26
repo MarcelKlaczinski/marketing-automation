@@ -98,6 +98,16 @@ export default {
     sync: "Sync",
   },
 
+  reRender: {
+    button: "Re-Render",
+    dialogTitle: "Karussell erneut rendern?",
+    dialogMessage:
+      "Re-Render kostet ca. €0,10 (Cover- und Verdict-LLM). Die bestehenden Slide-Bilder werden überschrieben.",
+    dialogConfirm: "Re-Render starten",
+    success: "Re-Render gestartet — neue Slides erscheinen in ca. 30-60s.",
+    error: "Re-Render konnte nicht gestartet werden.",
+  },
+
   bodyEditor: {
     words: "Wörter",
     chars: "Zeichen",

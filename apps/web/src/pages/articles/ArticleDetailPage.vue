@@ -25,10 +25,18 @@
       >
         {{ article.translationSibling.locale?.toUpperCase() ?? '?' }}
       </button>
-      <GlassButton variant="secondary" size="sm" @click="onRefresh">
+      <GlassButton
+        v-if="canReRender"
+        variant="secondary"
+        size="sm"
+        @click="onReRender"
+      >
+        {{ $t("articles.reRender.button") as string }}
+      </GlassButton>
+      <GlassButton v-if="!isRecurringContent" variant="secondary" size="sm" @click="onRefresh">
         {{ $t("articles.detailActions.refresh") as string }}
       </GlassButton>
-      <GlassButton variant="primary" size="sm" @click="onSync">
+      <GlassButton v-if="!isRecurringContent" variant="primary" size="sm" @click="onSync">
         {{ $t("articles.detailActions.sync") as string }}
       </GlassButton>
     </template>
@@ -198,6 +206,14 @@ export default defineComponent({
         { key: "social", label: this.$t("articles.detailTabs.social") as string },
       ];
     },
+    isRecurringContent(): boolean {
+      return this.article?.collection === "recurring_content";
+    },
+    canReRender(): boolean {
+      if (!this.isRecurringContent) return false;
+      const status = this.article?.status;
+      return status === "published" || status === "failed" || status === "generating";
+    },
   },
 
   methods: {
@@ -244,6 +260,33 @@ export default defineComponent({
       } catch {
         // error handled by api.ts
       }
+    },
+    onReRender(): void {
+      // Spec 65.10: confirmation dialog because re-rendering re-pays the
+      // ~€0.10 LLM cost (cover headline + verdict reasoning per template).
+      this.$q.dialog({
+        title: this.$t("articles.reRender.dialogTitle") as string,
+        message: this.$t("articles.reRender.dialogMessage") as string,
+        cancel: { flat: true, color: "white" },
+        ok: { label: this.$t("articles.reRender.dialogConfirm") as string, color: "primary" },
+        dark: true,
+      }).onOk(async () => {
+        try {
+          await apiPost(`/articles/${this.articleId}/re-render`);
+          this.$q.notify({
+            type: "positive",
+            message: this.$t("articles.reRender.success") as string,
+          });
+          void this.queryClient.invalidateQueries({
+            queryKey: ["article", this.articleId],
+          });
+        } catch (err) {
+          this.$q.notify({
+            type: "negative",
+            message: err instanceof Error ? err.message : this.$t("articles.reRender.error") as string,
+          });
+        }
+      });
     },
   },
 });

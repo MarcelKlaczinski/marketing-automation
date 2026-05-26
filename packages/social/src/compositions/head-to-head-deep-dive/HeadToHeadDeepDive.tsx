@@ -2,9 +2,9 @@ import React from "react";
 import { AbsoluteFill } from "remotion";
 import "./loadFonts.ts";
 import { CoverSlide } from "../comparison-grid-3/slides/CoverSlide.tsx";
-import { EndSlide } from "../comparison-grid-3/slides/EndSlide.tsx";
 import { ToolSlide } from "../comparison-grid-3/slides/ToolSlide.tsx";
 import { VerdictSlide } from "../comparison-grid-3/slides/VerdictSlide.tsx";
+import { RenderEndSlide } from "../_shared/family-a/RenderEndSlide.tsx";
 import { PricingCompareSlide } from "./slides/PricingCompareSlide.tsx";
 import { UseCaseCompareSlide } from "./slides/UseCaseCompareSlide.tsx";
 import type { FamilyATool } from "../_shared/family-a/types.ts";
@@ -191,14 +191,15 @@ export const HeadToHeadDeepDive: React.FC<HeadToHeadDeepDiveInput> = (props) => 
 
   if (slideIndex === 8) {
     return (
-      <EndSlide
-        content={props.end}
+      <RenderEndSlide
+        end={props.end}
         eyebrow={props.cover.eyebrow}
         theme={props.theme}
         locale={props.locale}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
-        {...(brandTokens !== undefined && { brandTokens })}
+        brandTokens={brandTokens}
+        endSlideData={props.endSlideData}
       />
     );
   }

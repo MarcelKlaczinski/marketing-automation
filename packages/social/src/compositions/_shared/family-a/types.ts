@@ -138,6 +138,18 @@ export const familyACommonInputSchema = z.object({
   locale: z.enum(["de", "en"]).default("de"),
   /** Loosely-typed at the boundary; resolved via `resolveBrandTokens()` in each slide. */
   brandTokens: z.record(z.unknown()).optional(),
+  /**
+   * Spec 65.10 — Optional pluggable end-slide. When present, replaces the
+   * inline `FamilyAEnd` slide with a `<HostSlide>` dispatch from Spec 65.9.
+   * Recurring-content briefs (Spec 65.5) freeze this into
+   * `recurringMetadata.formatConfig.selectedEndSlide`; the social-image
+   * pipeline threads it into the composition's `renderInput` snapshot.
+   *
+   * Loosely-typed at the schema boundary because Zod's discriminated-union
+   * validation lives in `end-slide-components/types.ts`. Each composition
+   * narrows via `endSlideDataSchema.safeParse(...)` at render time.
+   */
+  endSlideData: z.record(z.unknown()).optional(),
 });
 
 export type FamilyACommonInput = z.infer<typeof familyACommonInputSchema>;

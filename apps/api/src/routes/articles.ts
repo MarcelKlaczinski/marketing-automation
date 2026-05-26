@@ -19,6 +19,7 @@ import { suggestFrontmatterFields } from "../lib/frontmatter-service.ts";
 import { detectDivergence } from "../lib/divergence.ts";
 import {
   enqueueRefreshPipeline,
+  enqueueSocialImagePipeline,
   enqueueTranslationPipeline,
   findSibling,
 } from "@marketing-auto/pipelines";
@@ -1768,6 +1769,98 @@ articleRoutes.post("/:id/extend-schema", async (c) => {
     enqueue: enqueueSchemaExtensionPipeline,
   });
   log.info({ articleId: id, ...result }, "Schema extension triggered via HTTP");
+  return triggerResultToResponse(c, result);
+});
+
+// ─── re-render (Spec 65.10 recurring-content carousels) ──────────────────────
+
+articleRoutes.post("/:id/re-render", async (c) => {
+  const id = c.req.param("id");
+  const [article] = await db
+    .select({
+      id: articles.id,
+      projectId: articles.projectId,
+      collection: articles.collection,
+      status: articles.status,
+      locale: articles.locale,
+      domainExtras: articles.domainExtras,
+    })
+    .from(articles)
+    .where(eq(articles.id, id))
+    .limit(1);
+  if (!article) return c.json({ ok: false, error: "Article not found" }, 404);
+
+  if (article.collection !== "recurring_content") {
+    return c.json(
+      {
+        ok: false,
+        error: "Re-render is only supported for recurring-content articles.",
+        skipped: "non-recurring-collection",
+      },
+      422
+    );
+  }
+
+  const eligibleStatuses: Array<typeof article.status> = ["published", "failed", "generating"];
+  if (!eligibleStatuses.includes(article.status)) {
+    return c.json(
+      {
+        ok: false,
+        error: `Cannot re-render article in status '${article.status}'. Wait until it reaches 'published' / 'failed' / 'generating'.`,
+      },
+      422
+    );
+  }
+
+  // Extract templateKey from the frozen formatConfig so the same template is
+  // re-used on re-render (Marcel would intentionally select a different one
+  // via UI override in a future spec — V1 keeps the original choice).
+  const extras = (article.domainExtras as Record<string, unknown>)?.recurring;
+  const formatConfig =
+    extras && typeof extras === "object" && extras !== null
+      ? ((extras as Record<string, unknown>).formatConfig as Record<string, unknown> | undefined)
+      : undefined;
+  const rawTemplateKey = formatConfig?.selectedTemplateKey;
+  const templateKey = typeof rawTemplateKey === "string" ? rawTemplateKey : null;
+  const locale = article.locale === "en" ? "en-US" : "de-DE";
+
+  const result = await triggerWithPreRunId({
+    pipelineName: "article:social-image",
+    projectId: article.projectId,
+    // Spec 58.2: re-render uses a timestamp-based uniqueKey so BullMQ doesn't
+    // dedupe against the prior successful job. The article-level idempotency
+    // is the user's confirm dialog.
+    uniqueKey: { field: "articleId", value: `${article.id}:${Date.now()}` },
+    costEstimate: { service: "anthropic", estimatedCostEur: 0.028 },
+    extraInput: {
+      articleId: article.id,
+      ...(templateKey ? { templateKey } : {}),
+      locales: [locale],
+    },
+    enqueue: (input) =>
+      enqueueSocialImagePipeline({
+        articleId: article.id,
+        projectId: article.projectId,
+        theme: "dark",
+        variant: "stunning",
+        locales: [locale],
+        ...(templateKey ? { templateKey } : {}),
+        ...(input.preRunId ? { preRunId: input.preRunId as string } : {}),
+      }),
+  });
+
+  // Only flip article status to 'generating' AFTER the trigger guards
+  // (project-pause, cost gate, idempotency) have all passed. A guard rejection
+  // returns an error result with NO downstream job enqueued — flipping
+  // pre-trigger would leave the article stuck in 'generating' forever.
+  if (!("error" in result)) {
+    await db
+      .update(articles)
+      .set({ status: "generating", updatedAt: new Date() })
+      .where(eq(articles.id, article.id));
+  }
+
+  log.info({ articleId: id, templateKey, locale, ...result }, "Recurring article re-render triggered");
   return triggerResultToResponse(c, result);
 });
 

@@ -10,6 +10,7 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 import { z } from "zod";
 import { getSocialRenderQueue, type SocialRenderJobData, type SocialRenderJobResult } from "@marketing-auto/pipelines/social-render-queue";
+import { syncRecurringArticleStatus } from "../lib/recurring-content/sync-article-status.ts";
 
 const log = createLogger("workers:social-render");
 
@@ -278,6 +279,7 @@ export function startSocialRenderWorker(): Worker<SocialRenderJobData, SocialRen
   // Spec 64.11 Fix B: completion + failure notifications. Listener is async +
   // fire-and-forget — failures are swallowed inside notifyPipelineCompletion so
   // a notification miss never escalates into a job retry.
+  // Spec 65.10: also sync recurring-content article status on the same event.
   worker.on("completed", (job, result) => {
     void notifyPipelineCompletion({
       pipelineName: "social-render",
@@ -287,6 +289,12 @@ export function startSocialRenderWorker(): Worker<SocialRenderJobData, SocialRen
       socialPostId: result.socialPostId ?? job.data.socialPostId,
       status: "success",
     });
+    void syncRecurringArticleStatus({
+      articleId: job.data.articleId,
+      outcome: "success",
+    }).catch((err) =>
+      log.warn({ err, articleId: job.data.articleId }, "syncRecurringArticleStatus(success) failed"),
+    );
   });
   worker.on("failed", (job, error) => {
     if (!job) return; // BullMQ permits undefined here (rare: pre-job error)
@@ -299,6 +307,12 @@ export function startSocialRenderWorker(): Worker<SocialRenderJobData, SocialRen
       status: "failed",
       errorMessage: error.message,
     });
+    void syncRecurringArticleStatus({
+      articleId: job.data.articleId,
+      outcome: "failed",
+    }).catch((err) =>
+      log.warn({ err, articleId: job.data.articleId }, "syncRecurringArticleStatus(failed) failed"),
+    );
   });
 
   return worker;

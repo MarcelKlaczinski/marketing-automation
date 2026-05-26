@@ -258,6 +258,92 @@ describe("brief-service approveBrief dispatch (Spec 63.6)", () => {
     expect(result).toEqual({ kind: "plan_queued" });
   });
 
+  // ─── Spec 65.10 — recurring-content briefs ────────────────────────────────
+  // Recurring briefs land directly as plan_pending with clusterAction='standalone'
+  // and clusterId=null. The legacy cluster-gate would 409 every approval — the
+  // recurring path bypasses it.
+
+  async function insertRecurringBrief(): Promise<typeof topicBriefs.$inferSelect> {
+    const [brief] = await db
+      .insert(topicBriefs)
+      .values({
+        projectId,
+        source: "recurring",
+        topicTitle: "5 KI-Tools für Marketing 2026",
+        primaryKeyword: "ki marketing tools",
+        secondaryKeywords: [],
+        clusterAction: "standalone",
+        locale: "de",
+        approvalStatus: "plan_pending",
+        recurringMetadata: {
+          definitionId: "11111111-1111-1111-1111-111111111111",
+          runNumber: 1,
+          previousToolIds: [],
+          formatType: "top-n-comparison",
+          formatConfig: {
+            outputTargets: { social: true },
+            selectedTemplateKey: "comparison-grid-3",
+            selectedTemplateVia: "lru" as const,
+            toolIds: [],
+          },
+        },
+      })
+      .returning();
+    createdBriefIds.push(brief!.id);
+    return brief!;
+  }
+
+  it("Spec 65.10: dispatch='plan' on recurring brief returns plan_queued (already plan_pending)", async () => {
+    const brief = await insertRecurringBrief();
+
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+    expect(result).toEqual({ kind: "plan_queued" });
+
+    const [reloaded] = await db
+      .select()
+      .from(topicBriefs)
+      .where(eq(topicBriefs.id, brief.id))
+      .limit(1);
+    expect(reloaded?.approvalStatus).toBe("plan_pending");
+    // No article should have been created on plan-dispatch.
+    expect(reloaded?.routedArticleId).toBeNull();
+  });
+
+  it("Spec 65.10: recurring brief cross-project guard returns skipped", async () => {
+    const brief = await insertRecurringBrief();
+
+    const result = await approveBrief(
+      brief.id,
+      { id: "00000000-0000-0000-0000-000000000000" },
+      "plan",
+    );
+    expect(result).toEqual({ kind: "skipped", reason: "not_found_or_not_pending" });
+
+    const [reloaded] = await db
+      .select()
+      .from(topicBriefs)
+      .where(eq(topicBriefs.id, brief.id))
+      .limit(1);
+    expect(reloaded?.approvalStatus).toBe("plan_pending"); // unchanged
+  });
+
+  it("Spec 65.10: recurring brief does NOT inherit the cluster-assignment-required gate", async () => {
+    // Without the Spec 65.10 gate-bypass, this brief (clusterAction='standalone',
+    // clusterId=null) would have returned 'cluster_assignment_required' under
+    // the legacy non-recurring path. Verify the recurring path lets it through.
+    const brief = await insertRecurringBrief();
+
+    const result = await approveBrief(brief.id, { id: projectId }, "plan");
+    expect(result).toEqual({ kind: "plan_queued" });
+    expect((result as { kind: string }).kind).not.toBe("cluster_assignment_required");
+  });
+
+  // Note: dispatch='immediate' on recurring is NOT tested here because it
+  // calls `triggerWithPreRunId` → DB INSERT into `pipeline_runs` + BullMQ
+  // enqueue (same exclusion as Spec 63.6 dispatch='immediate' tests, see
+  // the file-header comment lines 6-10). The brief→article INSERT side is
+  // covered by `create-article.test.ts`.
+
   it("dispatch='immediate' on append_to_existing without cluster fails", async () => {
     const brief = await insertPendingBrief({
       source: "gap_analysis",

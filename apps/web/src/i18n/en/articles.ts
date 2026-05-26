@@ -400,6 +400,16 @@ export default {
     sync: "Sync",
   },
 
+  reRender: {
+    button: "Re-render",
+    dialogTitle: "Re-render carousel?",
+    dialogMessage:
+      "Re-rendering costs ~€0.10 (cover + verdict LLM). Existing slide images will be overwritten.",
+    dialogConfirm: "Start re-render",
+    success: "Re-render started — new slides will appear in ~30-60s.",
+    error: "Could not start re-render.",
+  },
+
   bodyEditor: {
     words: "words",
     chars: "chars",

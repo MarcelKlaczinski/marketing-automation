@@ -1031,6 +1031,18 @@ export class RenderSlidesStep extends BaseStep<
     const templateKey = (input.templateKeyOverride ?? null) ??
       (input.resolvedTools.length === 3 ? "comparison-grid-3" : "comparison-grid-4");
 
+    // Spec 65.10: pull the frozen end-slide selection from
+    // `articles.domain_extras.recurring.formatConfig.selectedEndSlide`
+    // (populated by 65.5 brief-generators via 65.9 selector). Non-recurring
+    // articles never have this key — `endSlideData` stays undefined and the
+    // composition renders the legacy inline EndSlide.
+    const [articleRow] = await db
+      .select({ domainExtras: articles.domainExtras })
+      .from(articles)
+      .where(eq(articles.id, input.articleId))
+      .limit(1);
+    const endSlideData = extractEndSlideDataFromDomainExtras(articleRow?.domainExtras);
+
     // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
     const { getOverrideSchema, mergeOverrides, isOverrideTemplateKey } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
     const overrideRow = await fetchTemplateOverrides(input.projectId, templateKey);
@@ -1058,6 +1070,8 @@ export class RenderSlidesStep extends BaseStep<
       // The worker reads this snapshot directly and passes it to renderComparisonGrid4().
       // List-carousel fields (coverEyebrow, resolvedTools, etc.) are not stored or needed.
       if (isGrid4) {
+        // Spec 65.10: comparison-grid-4 is a single-still template with no
+        // end-slide of its own (1 slide only) — endSlideData does not apply.
         const renderInput: Record<string, unknown> = {
           slideIndex: 0,
           locale: localePrefix === "en" ? "en" : "de",
@@ -1176,6 +1190,9 @@ export class RenderSlidesStep extends BaseStep<
 
       // Build renderInput snapshot — persisted in content JSONB so re-render can
       // reconstruct SocialRenderJobData without re-running pipeline steps.
+      // Spec 65.10: when endSlideData is present (recurring-content articles),
+      // it's stamped into the snapshot so the worker forwards it to the
+      // Family-A composition's RenderEndSlide opt-in switch.
       const renderInput: SocialPostRenderInput = {
         templateKey,
         locale: loc.locale,
@@ -1195,7 +1212,13 @@ export class RenderSlidesStep extends BaseStep<
         ...(localeCoverSubhead !== undefined && { coverSubhead: localeCoverSubhead }),
         ...(isDeLocale && input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
         ...(isDeLocale && input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
-      };
+        ...(endSlideData !== null && { endSlideData }),
+        // Cast justified: `endSlideData` is a Spec 65.10 addition to the
+        // renderInput shape that isn't yet in the `SocialPostRenderInput`
+        // TypeScript type. The JSONB column accepts the extra key at runtime,
+        // and `familyACommonInputSchema.endSlideData` is the downstream
+        // narrowing surface. Widening the canonical type is a follow-up.
+      } as SocialPostRenderInput;
 
       const [post] = await db
         .insert(socialPosts)
@@ -1240,4 +1263,34 @@ export class RenderSlidesStep extends BaseStep<
 
     return { socialPosts: results };
   }
+}
+
+/**
+ * Spec 65.10 — Extract `endSlideData` from `articles.domain_extras`.
+ *
+ * Recurring-content articles (Spec 65.5 + `createRecurringContentArticle`)
+ * carry the frozen end-slide selection under
+ * `domainExtras.recurring.formatConfig.selectedEndSlide` with shape
+ * `{ endSlideDefinitionId, type, config, name, selectedVia }`. The downstream
+ * `<HostSlide>` component needs only `{ type, config }` — we reshape here.
+ *
+ * Returns `null` for non-recurring articles, malformed payloads, or any
+ * shape that doesn't carry both `type` and `config`. The composition then
+ * falls through to the legacy inline EndSlide.
+ */
+function extractEndSlideDataFromDomainExtras(
+  domainExtras: unknown,
+): { type: string; config: Record<string, unknown> } | null {
+  if (typeof domainExtras !== "object" || domainExtras === null) return null;
+  const extras = domainExtras as Record<string, unknown>;
+  const recurring = extras.recurring;
+  if (typeof recurring !== "object" || recurring === null) return null;
+  const formatConfig = (recurring as Record<string, unknown>).formatConfig;
+  if (typeof formatConfig !== "object" || formatConfig === null) return null;
+  const selected = (formatConfig as Record<string, unknown>).selectedEndSlide;
+  if (typeof selected !== "object" || selected === null) return null;
+  const obj = selected as Record<string, unknown>;
+  if (typeof obj.type !== "string") return null;
+  if (typeof obj.config !== "object" || obj.config === null) return null;
+  return { type: obj.type, config: obj.config as Record<string, unknown> };
 }
