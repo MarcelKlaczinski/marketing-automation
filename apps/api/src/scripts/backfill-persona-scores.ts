@@ -26,11 +26,13 @@ import { parseArgs } from "node:util";
 import {
   and,
   articles,
+  costLogs,
   db,
   eq,
   gte,
   inArray,
   projects,
+  sql,
   toolPersonaScores,
 } from "@marketing-auto/db";
 import {
@@ -38,6 +40,7 @@ import {
   type DefaultPersona,
   createLogger,
 } from "@marketing-auto/shared";
+import { COST_OPS } from "@marketing-auto/core/cost";
 import {
   type ScoreToolForPersonasInput,
   type ScoreToolResult,
@@ -88,6 +91,11 @@ export interface BackfillPersonaScoresSummary {
   scoresWritten: number;
   errors: Array<{ toolId: string; error: string }>;
   dryRun: boolean;
+  /**
+   * Real cost in EUR aggregated from cost_logs WHERE operation='persona-score'
+   * AND created_at >= run-start. 0 for dry-run (no LLM calls fired).
+   */
+  totalCostEur: number;
 }
 
 /**
@@ -211,6 +219,7 @@ export async function backfillPersonaScores(
     scoresWritten: 0,
     errors: [],
     dryRun: !opts.apply,
+    totalCostEur: 0,
   };
 
   if (!opts.apply) {
@@ -218,6 +227,7 @@ export async function backfillPersonaScores(
     return summary;
   }
 
+  const runStartedAt = new Date();
   const batchSize = opts.batchSize ?? DEFAULT_BATCH_SIZE;
   for (let i = 0; i < limited.length; i += batchSize) {
     const batch = limited.slice(i, i + batchSize);
@@ -244,6 +254,24 @@ export async function backfillPersonaScores(
       }
     }
   }
+
+  // Aggregate real cost from cost_logs (source of truth — uses actual Anthropic
+  // input/output tokens, not the €0.01 estimate). The scoreToolFn is injectable
+  // for tests, so we can't trust the adapter being touched at all; the cost_logs
+  // SELECT is the canonical post-hoc audit.
+  const costRows = await db
+    .select({
+      total: sql<string>`COALESCE(SUM(${costLogs.costEur}), 0)::text`,
+    })
+    .from(costLogs)
+    .where(
+      and(
+        eq(costLogs.projectId, project.id),
+        eq(costLogs.operation, COST_OPS.PERSONA_SCORE),
+        gte(costLogs.createdAt, runStartedAt)
+      )
+    );
+  summary.totalCostEur = parseFloat(costRows[0]?.total ?? "0");
 
   log.info(summary, "backfill complete");
   return summary;

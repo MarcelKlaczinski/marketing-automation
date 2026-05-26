@@ -15,13 +15,18 @@ export const DEFAULT_PERSONAS = [
   "beginners",
   "students",
   "parents",
-  "seniors",
   "solopreneurs",
   "marketers",
   "developers",
   "designers",
   "teachers",
   "creators",
+  "writers",
+  "translators",
+  "musicians",
+  "craftsmen",
+  "consultants",
+  "researchers",
 ] as const;
 
 export type DefaultPersona = (typeof DEFAULT_PERSONAS)[number];
@@ -42,8 +47,6 @@ export const PERSONA_DEFINITIONS: Record<DefaultPersona, string> = {
     "Pupils and university students using AI for learning, research, essays, and homework.",
   parents:
     "Parents using AI for family organisation, kids' activities, household planning, and everyday admin.",
-  seniors:
-    "Older people using AI for communication, hobbies, and simple tasks — accessibility and gentle learning curve matter.",
   solopreneurs:
     "Freelancers and solo founders using AI as a productivity multiplier across writing, admin, sales, and ops.",
   marketers:
@@ -56,4 +59,16 @@ export const PERSONA_DEFINITIONS: Record<DefaultPersona, string> = {
     "Teachers and educators using AI for lesson prep, materials, feedback, and student-engagement ideas.",
   creators:
     "Content creators (video, audio, text) using AI for production, editing, scripting, and asset enrichment.",
+  writers:
+    "Authors, copywriters, and journalists using AI for drafting, editing, research, and style refinement.",
+  translators:
+    "Professional translators and localisation specialists using AI for translation drafts, glossaries, terminology checks, and post-editing of MT output.",
+  musicians:
+    "Musicians, producers, and DJs using AI for sound design, stem separation, mixing assistance, cover art, lyrics, and release promotion.",
+  craftsmen:
+    "Tradespeople and craftsmen (electricians, plumbers, carpenters, etc.) using AI for quote drafting, customer communication, documentation, photo-based estimating, and admin paperwork.",
+  consultants:
+    "Independent consultants and advisors using AI for research synthesis, slide preparation, client deliverables, and proposal writing.",
+  researchers:
+    "Academic and industry researchers using AI for literature reviews, data analysis, paper drafting, and structured note-taking.",
 };

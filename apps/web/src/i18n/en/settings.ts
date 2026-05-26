@@ -750,7 +750,7 @@ export default {
     backfill: {
       cardTitle: "Run backfill",
       cardHint:
-        "Scores every tool with missing or stale persona-rows. One LLM call per tool (Haiku 4.5, ~€0.01/tool, ~€1.10 for 108 tools).",
+        "Scores every tool with missing or stale persona-rows (primary locale only — DE/EN siblings share the same score). One LLM call per tool, all personas in one batch (Haiku 4.5, ~€0.01/tool).",
       dryRun: "Dry-run (no LLM calls)",
       apply: "Start backfill now",
       force: "Force: re-score every tool",
@@ -760,6 +760,7 @@ export default {
       running: "Backfill running …",
       successDry: "Dry-run complete. {n} tools are candidates.",
       successApply: "Backfill finished. {written} scores written for {processed} tools.",
+      actualCost: "Actual LLM cost: €{cost} (real, from cost_logs).",
       partialErrors: "{errors} per-tool errors — see logs.",
       failed: "Backfill failed.",
     },

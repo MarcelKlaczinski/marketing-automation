@@ -99,6 +99,9 @@
                 processed: lastResult.totalProcessed,
               }) as string
             }}
+            <span class="cost-suffix">
+              {{ $t("settings.personaScoring.backfill.actualCost", { cost: lastResult.totalCostEur.toFixed(4) }) as string }}
+            </span>
             <span v-if="lastResult.errors.length > 0" class="error-suffix">
               {{ $t("settings.personaScoring.backfill.partialErrors", { errors: lastResult.errors.length }) as string }}
             </span>
@@ -130,6 +133,7 @@ interface BackfillResult {
   scoresWritten: number;
   errors: Array<{ toolId: string; error: string }>;
   dryRun: boolean;
+  totalCostEur: number;
 }
 
 export default defineComponent({
@@ -387,6 +391,12 @@ export default defineComponent({
 .state-banner.result {
   background: oklch(35% 0.10 145 / 20%);
   border-color: oklch(60% 0.15 145);
+}
+.cost-suffix {
+  display: block;
+  margin-top: 4px;
+  color: oklch(75% 0.08 220);
+  font-variant-numeric: tabular-nums;
 }
 .error-suffix {
   display: block;

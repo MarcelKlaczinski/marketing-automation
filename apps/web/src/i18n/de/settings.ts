@@ -751,7 +751,7 @@ export default {
     backfill: {
       cardTitle: "Backfill ausführen",
       cardHint:
-        "Berechnet Persona-Scores für alle Tools, die unvollständige oder fehlende Scores haben. Ein LLM-Call pro Tool (Haiku 4.5, ~€0.01/Tool, ~€1.10 für 108 Tools).",
+        "Berechnet Persona-Scores für alle Tools (Primary-Locale only — DE/EN-Sibling teilen denselben Score), die unvollständige oder fehlende Scores haben. Ein LLM-Call pro Tool, alle Personas in einem Batch (Haiku 4.5, ~€0.01/Tool).",
       dryRun: "Trockenlauf (kein LLM-Call)",
       apply: "Backfill jetzt starten",
       force: "Force: alle Tools neu scoren",
@@ -761,6 +761,7 @@ export default {
       running: "Backfill läuft …",
       successDry: "Trockenlauf abgeschlossen. {n} Tools sind Kandidaten.",
       successApply: "Backfill fertig. {written} Scores für {processed} Tools geschrieben.",
+      actualCost: "Tatsächliche LLM-Kosten: €{cost} (real, aus cost_logs).",
       partialErrors: "{errors} Fehler bei einzelnen Tools — siehe Logs.",
       failed: "Backfill fehlgeschlagen.",
     },
