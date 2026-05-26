@@ -1137,6 +1137,50 @@ The `article:social-image` pipeline contains a `StageFamilyBImagesStep` between 
 
 **Dep direction**: this step depends on `@marketing-auto/social/photographic` (the leaf subsystem under `packages/social/src/photographic/`). The acyclic exception (`pipelines → social`) is the same one documented in `social/CLAUDE.md` Photographic-subsystem section — `social/photographic` only imports adapters + shared, never reaches back into pipelines. The existing `social/templates → pipelines/icon-resolver` lazy dynamic-import stays intact via the package-leaf shape (icon-resolver has no Anthropic dep).
 
+## Family-B render dispatch (Spec 65.8 Day-5-followup)
+
+End-to-end wiring of Family-B carousels (`story-arc-clickbait` / `lifestyle-listicle` / `opinion-recommendation`) through `RenderSlidesStep` + `social-render.worker.ts`. The data plumbing landed in Day 5 (StageFamilyBImagesStep + photographic cache + caption attribution); Day-5-followup adds the actual snapshot construction + worker dispatch.
+
+**Canonical helper:** `buildFamilyBRenderInput(args, deps?)` in [packages/pipelines/src/article/social-image/family-b-render.ts](packages/pipelines/src/article/social-image/family-b-render.ts). Loads the template definition from the registry, calls `template.buildInput(article, discovery)` to derive the `*Context` shape, invokes `template.generateContent(article, ctx, locale, llmCaller)` to produce hookOutput + caption + hashtags + narrative (Spec 60.1 `_<key>Extra` extension pattern), reads cached photographic backgrounds from `domain_extras.familyBImages[]`, reads frozen end-slide data from `domain_extras.recurring.formatConfig.selectedEndSlide`, and assembles a per-template `compositionInput` snapshot matching each template's Zod input schema.
+
+**Discriminated snapshot shape** persisted at `social_posts.content.renderInput`:
+
+```ts
+type FamilyBRenderSnapshot = {
+  kind: "family-b";       // discriminator — worker branches on this
+  templateKey: "story-arc-clickbait" | "lifestyle-listicle" | "opinion-recommendation";
+  locale: "de" | "en";
+  theme: "dark" | "light";
+  slideTotal: number;     // 7 for story-arc, 6 for the other two
+  compositionInput: Record<string, unknown>;  // per-template input schema
+};
+```
+
+The worker reads `compositionInput`, spreads fresh `brandTokens` + `overrides` from job-data, and dispatches to the matching `render-server.ts` function. The narrative LLM call (~€0.05) runs in `RenderSlidesStep` (NOT the worker) so the snapshot is fully self-contained — same posture as `GenerateComparisonGrid4Step` (Spec 60.2) for the grid-4 single-still path.
+
+**DI seam** (`FamilyBRenderDeps`):
+- `loadTemplate(key)` defaults to `templateRegistry.getById(key)`. Test stubs return a synthetic `TemplateDefinition`.
+- `llmCaller(system, user)` defaults to `anthropic.messages()` wrapped per-projectId for cost-log attribution (Sonnet 4.6, `SOCIAL_HOOK_GENERATION` op, €0.05 budget gate, soft-fail returns null). Test stubs ignore projectId entirely.
+
+**RenderSlidesStep branch order (Spec 65.8 Day-5-followup):**
+```
+isFamilyB → ... → INSERT social_posts + enqueue render job
+  (else) isGrid4 → ... → INSERT social_posts + enqueue render job
+  (else) default → list-carousel renderInput → INSERT social_posts + enqueue render job
+```
+The Family-B branch sits FIRST because the templateKey is the most specific discriminator. Pre-loop loads `article + (optional) discovery + staged-images` ONCE; per-locale loop pays one narrative LLM call per locale.
+
+**Empty-discovery synthesizer** — `buildEmptyDiscovery(articleId)` (at the bottom of [steps.ts](packages/pipelines/src/article/social-image/steps.ts)) returns a structurally-complete `ArticleDiscovery` with NULL/empty fields when the article has no discovery row (typical for recurring-content articles). Family-B templates' `buildInput()` only reads `article`, never `discovery`, so this stub is safe. If `articleDiscovery` schema evolves, this synthesizer silently goes out of sync — keep it in mind when adding columns to the table.
+
+**Worker dispatch** ([apps/api/src/workers/social-render.worker.ts](apps/api/src/workers/social-render.worker.ts)):
+- `FAMILY_B_TEMPLATE_KEYS` set fires BEFORE the grid-4 / grid-3 / verdict / single-tool-spotlight / pro-con branches.
+- Reads `social_posts.content.renderInput`, asserts `kind === "family-b"`, spreads `compositionInput` + `brandTokens` + `overrides`, dispatches to `renderStoryArcClickbait` / `renderLifestyleListicle` / `renderOpinionRecommendation`.
+- Same R2-upload + status-flip flow as the existing comparison-grid paths.
+
+**Known limitation — duplication risk:** `buildFamilyBRenderInput` rebuilds the composition input from `(buildInput-result + generatedContent)` here AND each template's `render()` rebuilds the same shape internally. The duplication is documented inline. If a template adds a new field to its `render()` composition input, the helper goes out of sync. A future refactor could collapse the duplication by having the worker call `template.render(context)` directly — but that requires aligning `writeSlides` (local-disk paths) with the worker's R2 upload contract. For now, both pre-existing comparison-grid templates and Family-B follow the snapshot-pattern with this duplication risk.
+
+**Spec 65.7 worker-dispatch gap (flagged, NOT fixed in Day-5-followup):** `comparison-grid-5` / `head-to-head-vs` / `head-to-head-deep-dive` have `renderComparisonGrid5` / `renderHeadToHeadVs` / `renderHeadToHeadDeepDive` functions in `render-server.ts` but no `social-render.worker.ts` if-branch. They'd throw `Unknown templateKey: comparison-grid-5` at render time today. Fix shape is identical to the existing `comparison-grid-3` branch (multi-slide snapshot pattern). Owner: Spec 65.7 follow-up.
+
 ## Icon-source resolver chain (Spec 65.2 follow-up)
 
 `packages/pipelines/src/_lib/resolve-tool-icon.ts` walks three adapters before falling back to a deterministic HSL avatar:

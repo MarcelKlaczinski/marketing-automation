@@ -264,6 +264,20 @@ The helper:
 
 `notifyPipelineCompletion` (and `notifyStepPaused`) coalesce by `(type, metadata->>'pipelineRunId')` across **all** users. Real-DB tests that use static run IDs (`"run-success-1"`) collide with prior test runs whose tenant owners weren't cleaned up by CASCADE (because their projects survived). The second run silently no-ops and assertions on `rows.length === 1` fail with `Received: 0`. Always stamp test `pipelineRunId` values with `Date.now() + random` so each invocation is unique. See `apps/api/test/workers/lib/pipeline-notification.test.ts` for the canonical pattern.
 
+### social-render worker template dispatch (Spec 65.8 Day-5-followup)
+
+`apps/api/src/workers/social-render.worker.ts` `renderSlidesViaRemotion()` dispatches by `templateKey`. The if-chain order:
+
+1. **`FAMILY_B_TEMPLATE_KEYS`** (Spec 65.8 Day-5-followup) — `story-arc-clickbait` / `lifestyle-listicle` / `opinion-recommendation`. Reads `social_posts.content.renderInput` and asserts the discriminated `kind: "family-b"` shape (see `packages/pipelines/CLAUDE.md` "Family-B render dispatch" section). Spreads `compositionInput` + fresh `brandTokens` + `overrides` from job-data, dispatches to `renderStoryArcClickbait` / `renderLifestyleListicle` / `renderOpinionRecommendation` from `@marketing-auto/social/render-server`.
+2. **`comparison-grid-4`** (Spec 60.2) — single-still grid, snapshot-pattern with the `ComparisonGrid4Input` shape.
+3. **`comparison-grid-3`** (Spec 60.3 + 65.7 multi-slide) — multi-slide carousel, snapshot-pattern with the `ComparisonGrid3Input` shape.
+4. **`verdict-per-use-case` / `single-tool-spotlight` / `pro-con-verdict`** (Spec 60.1 + 60.4 + 60.5) — single-still or 3-slide templates, all using the snapshot-pattern.
+5. **Default** — `throw new Error('Unknown templateKey: ${templateKey}')`.
+
+**Pre-existing gap (Spec 65.7, NOT wired):** `comparison-grid-5` / `head-to-head-vs` / `head-to-head-deep-dive` have `renderComparisonGrid5` / `renderHeadToHeadVs` / `renderHeadToHeadDeepDive` functions in `render-server.ts` but no if-branch here. They'd throw `Unknown templateKey` at render time today. Fix shape is identical to the `comparison-grid-3` branch (multi-slide snapshot pattern). Owner: Spec 65.7 follow-up.
+
+**Adding a new template branch:** (1) widen the `renderServer` dynamic-import type signature at the top, (2) add an `else if (templateKey === "<new-key>")` branch BEFORE the catch-all, (3) read `social_posts.content.renderInput` for the snapshot, (4) spread `brandTokens` + `overrides` from job-data, (5) call the matching render function. The snapshot must already be persisted at INSERT time by the matching `RenderSlidesStep` branch — never reconstruct it from job-data alone (re-renders must use the persisted snapshot, NOT job-data).
+
 ## Worker-Restart bei Pipeline-Code-Änderungen
 
 **Wann nötig**: Jede Änderung an Files unter
