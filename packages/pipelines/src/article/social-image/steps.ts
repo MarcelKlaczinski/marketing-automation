@@ -3,13 +3,17 @@ import { COST_OPS, buildHashtagInstructions, deriveContentType } from "@marketin
 import { enqueueSocialRenderJob, type SocialRenderJobData } from "../../engine/social-render-queue.ts";
 import {
   articles,
+  articleDiscovery,
   db,
   fetchTemplateOverrides,
   markTemplateOverrideUsed,
   projects,
   socialPosts,
+  type ArticleDiscovery,
   type SocialPostRenderInput,
 } from "@marketing-auto/db";
+import { buildFamilyBRenderInput } from "./family-b-render.ts";
+import { isFamilyBTemplate } from "./stage-family-b-images.step.ts";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -1068,6 +1072,47 @@ export class RenderSlidesStep extends BaseStep<
 
     const results: Array<z.infer<typeof socialPostResultSchema>> = [];
     const isGrid4 = templateKey === "comparison-grid-4" && input.comparisonGrid4Generated != null;
+    const isFamilyB = isFamilyBTemplate(templateKey);
+
+    // Spec 65.8 Day-5-followup — Family-B narrative + image data: load the
+    // article row + (optional) discovery row ONCE before the per-locale loop.
+    // Both are needed by `buildFamilyBRenderInput` to thread the article into
+    // `template.buildInput` + the narrative-LLM call. For non-Family-B
+    // templates this read is skipped (Grid-4 + list-carousel paths build
+    // their snapshot from `input.*` fields directly).
+    let familyBArticle: typeof articles.$inferSelect | null = null;
+    let familyBDiscovery: ArticleDiscovery | null = null;
+    let familyBImagesFromExtras: Array<{ slideIndex: number; cdnUrl: string; photographer?: string | null }> = [];
+    if (isFamilyB) {
+      const [articleRow2] = await db
+        .select()
+        .from(articles)
+        .where(eq(articles.id, input.articleId))
+        .limit(1);
+      familyBArticle = articleRow2 ?? null;
+      // Discovery is optional — recurring-content articles often don't have one.
+      const [discoveryRow] = await db
+        .select()
+        .from(articleDiscovery)
+        .where(eq(articleDiscovery.articleId, input.articleId))
+        .limit(1);
+      familyBDiscovery = discoveryRow ?? null;
+      // Read staged photographic backgrounds populated by StageFamilyBImagesStep.
+      const extras = (articleRow2?.domainExtras as { familyBImages?: unknown } | null | undefined)?.familyBImages;
+      if (Array.isArray(extras)) {
+        familyBImagesFromExtras = extras
+          .filter((e): e is { slideIndex: number; r2Url?: string; cdnUrl?: string; license?: { photographer?: string | null } } =>
+            typeof e === "object" && e !== null && typeof (e as { slideIndex?: unknown }).slideIndex === "number",
+          )
+          .map((e) => ({
+            slideIndex: e.slideIndex,
+            // Cache entries store both `r2Url` (canonical) and may carry `cdnUrl` for legacy.
+            cdnUrl: typeof e.r2Url === "string" ? e.r2Url : (e.cdnUrl ?? ""),
+            ...(e.license?.photographer !== undefined && { photographer: e.license.photographer }),
+          }))
+          .filter((entry) => entry.cdnUrl.length > 0);
+      }
+    }
 
     for (const loc of input.perLocaleOutputs) {
       const localePrefix = (loc.locale.split("-")[0] ?? "de").split("_")[0] ?? "de";
@@ -1079,6 +1124,103 @@ export class RenderSlidesStep extends BaseStep<
       const effectiveCaption = captionAttributionSuffix
         ? `${loc.caption}\n\n${captionAttributionSuffix}`
         : loc.caption;
+
+      // ─── Family-B (Spec 65.8 Day-5-followup): narrative-LLM + photographic ─────
+      // Per-locale narrative call (~€0.05 per locale). Builds a Family-B-shaped
+      // renderInput snapshot via `family-b-render.ts` and persists. The worker
+      // reads the snapshot's `kind: "family-b"` discriminator and dispatches
+      // to `renderStoryArcClickbait` / `renderLifestyleListicle` /
+      // `renderOpinionRecommendation`.
+      if (isFamilyB) {
+        if (familyBArticle === null) {
+          throw new Error(`Family-B render: article ${input.articleId} not found in DB`);
+        }
+        // Synthesize a minimal ArticleDiscovery when none exists — Family-B
+        // templates' `buildInput()` only read the article, not discovery.
+        const effectiveDiscovery: ArticleDiscovery = familyBDiscovery ?? buildEmptyDiscovery(familyBArticle.id);
+        const familyBLocale: "de" | "en" = localePrefix === "en" ? "en" : "de";
+
+        const familyBResult = await buildFamilyBRenderInput({
+          templateKey,
+          article: familyBArticle,
+          discovery: effectiveDiscovery,
+          locale: familyBLocale,
+          theme: input.theme,
+          brandTokens: input.brandTokens as Record<string, unknown>,
+          stagedImages: familyBImagesFromExtras,
+          ...(endSlideData !== null && { endSlideData }),
+        });
+
+        // Caption from generateContent — append attribution suffix per-locale.
+        const familyBCaption = captionAttributionSuffix
+          ? `${familyBResult.caption}\n\n${captionAttributionSuffix}`
+          : familyBResult.caption;
+
+        const [post] = await db
+          .insert(socialPosts)
+          .values({
+            projectId: input.projectId,
+            articleId: input.articleId,
+            platform: "instagram",
+            format: "carousel",
+            status: "draft",
+            theme: input.theme,
+            locale: loc.locale,
+            templateKey,
+            totalSlides: familyBResult.slideTotal,
+            content: {
+              kind: "carousel",
+              slides: [],
+              caption: familyBCaption,
+              hashtags: familyBResult.hashtags,
+              // Cast justified: `FamilyBRenderSnapshot` carries
+              // `kind: "family-b"` + `compositionInput` + `slideTotal` — a
+              // shape the canonical `SocialPostRenderInput` type doesn't
+              // yet declare (canonical type widening is a follow-up). JSONB
+              // accepts the extra keys at runtime; the worker discriminates
+              // on `renderInput.kind` before narrowing.
+              renderInput: familyBResult.renderInput as unknown as SocialPostRenderInput,
+            },
+            renderStatus: "pending",
+            generatedAt: new Date(),
+          })
+          .returning({ id: socialPosts.id });
+
+        if (!post) throw new Error(`Failed to insert Family-B social post for locale ${loc.locale}`);
+
+        // Worker reads the full snapshot from DB; fill the legacy required
+        // cover/end fields with empty strings (same pattern as comparison-grid-4).
+        const jobData: SocialRenderJobData = {
+          socialPostId: post.id,
+          projectId: input.projectId,
+          articleId: input.articleId,
+          brandTokens: input.brandTokens,
+          overrides: resolvedOverrides,
+          templateKey,
+          locale: loc.locale,
+          theme: input.theme,
+          variant: input.variant,
+          articleTitle: localeTitle,
+          articleSlug: localeSibling?.slug ?? input.articleSlug,
+          projectSlug: input.projectSlug,
+          articleUrl: localeSibling?.articleUrl ?? input.articleUrl,
+          // List-carousel fields unused by Family-B worker path
+          resolvedTools: [],
+          coverEyebrow: "",
+          coverHeadlineLead: "",
+          coverHeadlineHighlight: "",
+          endHeadline: "",
+          endHeadlineHighlight: "",
+        };
+
+        const renderJobId = await enqueueSocialRenderJob(jobData);
+        ctx.log.info(
+          { socialPostId: post.id, renderJobId, locale: loc.locale, templateKey, slideTotal: familyBResult.slideTotal },
+          "Family-B social post created + render job enqueued",
+        );
+        results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: familyBCaption, hashtags: familyBResult.hashtags });
+        continue;
+      }
 
       // ─── comparison-grid-4: snapshot is ComparisonGrid4Input-shaped (Spec 60.2) ─
       // The worker reads this snapshot directly and passes it to renderComparisonGrid4().
@@ -1336,4 +1478,46 @@ async function resolveCaptionAttribution(domainExtras: unknown): Promise<string 
   const parsed = familyBImagesArraySchema.safeParse(rawImages);
   if (!parsed.success || parsed.data.length === 0) return null;
   return buildCaptionAttribution(parsed.data);
+}
+
+/**
+ * Spec 65.8 Day-5-followup — synthesize a minimal `ArticleDiscovery` row when
+ * an article doesn't have one. Family-B templates' `buildInput()` only reads
+ * the `article` argument, never the discovery row, so any structurally
+ * complete-but-empty row satisfies the signature. Recurring-content articles
+ * (the only producers of Family-B briefs today) generally don't have a
+ * discovery row populated yet.
+ */
+function buildEmptyDiscovery(articleId: string): ArticleDiscovery {
+  const now = new Date();
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    articleId,
+    wordCount: null,
+    imageCount: null,
+    headerCountH2: null,
+    headerCountH3: null,
+    headerSlugs: null,
+    paragraphCount: null,
+    linkCountInternal: null,
+    linkCountExternal: null,
+    codeBlockCount: null,
+    tableCount: null,
+    listCountUl: null,
+    listCountOl: null,
+    hasAffiliateLinks: null,
+    referencedTools: null,
+    containerFormHint: null,
+    completenessScore: null,
+    estimatedAngles: null,
+    contentHooks: {},
+    suggestedTemplates: [],
+    narrativeArc: null,
+    estimatedCarousels: null,
+    contentHash: null,
+    enrichmentRunAt: null,
+    enrichmentMode: null,
+    createdAt: now,
+    updatedAt: now,
+  };
 }

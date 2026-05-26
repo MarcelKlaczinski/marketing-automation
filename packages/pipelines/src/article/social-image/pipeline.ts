@@ -75,17 +75,31 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
     new RenderSlidesStep(),
   ];
 
-  // Spec 60.6: inject templateKeyOverride from pipeline input into the generate-caption → render-slides transition
+  /**
+   * Spec 60.6 / Spec 65.8 Day-5-followup — inject `templateKeyOverride` from
+   * `pipelineInput.templateKey` at every transition where the field isn't
+   * already set on the previous step's output. Originally (60.6) the bridge
+   * only fired at `generate-caption → render-slides`, but after Spec 65.8
+   * inserted `stage-family-b-images` between them the transition shape
+   * changed to `stage-family-b-images → render-slides` and the narrow check
+   * silently stopped firing — `templateKeyOverride` only reached RenderSlides
+   * by accident via `.passthrough()` from earlier-set outputs. The general
+   * form injects at first opportunity and lets passthrough carry it forward,
+   * so adding new intermediate steps (Family-B narrative LLM step, etc.) is
+   * forward-compatible.
+   */
   override bridge(
-    fromStep: { name: string },
-    toStep: { name: string },
+    _fromStep: { name: string },
+    _toStep: { name: string },
     output: unknown,
     pipelineInput: PipelineInput,
   ): unknown {
-    if (fromStep.name === "generate-caption" && toStep.name === "render-slides" && pipelineInput.templateKey != null) {
-      return { ...(output as Record<string, unknown>), templateKeyOverride: pipelineInput.templateKey };
-    }
-    return output;
+    if (pipelineInput.templateKey == null) return output;
+    if (typeof output !== "object" || output === null) return output;
+    const out = output as Record<string, unknown>;
+    // Already propagated → pass-through. First missing site → inject.
+    if (out.templateKeyOverride != null) return output;
+    return { ...out, templateKeyOverride: pipelineInput.templateKey };
   }
 
   override async afterComplete(output: PipelineOutput, _input: PipelineInput, _runId: string): Promise<void> {

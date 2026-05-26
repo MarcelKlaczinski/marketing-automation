@@ -56,11 +56,63 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
     renderVerdictPerUseCase: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderSingleToolSpotlight: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderProConVerdict: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    // Spec 65.8 Day-5-followup — Family-B carousel render functions.
+    renderStoryArcClickbait: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderLifestyleListicle: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderOpinionRecommendation: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   };
+
+  // Spec 65.8 Day-5-followup — Family-B templates have their own snapshot shape
+  // (kind: "family-b" discriminator on `social_posts.content.renderInput`)
+  // because the composition input carries hook + narrative + per-slide images,
+  // NOT the list-carousel resolvedTools field. Branch fires for the 3 Family-B
+  // templates and reads the full compositionInput from DB.
+  const FAMILY_B_TEMPLATE_KEYS = new Set([
+    "story-arc-clickbait",
+    "lifestyle-listicle",
+    "opinion-recommendation",
+  ]);
 
   let slides: Buffer[];
 
-  if (templateKey === "comparison-grid-4") {
+  if (FAMILY_B_TEMPLATE_KEYS.has(templateKey)) {
+    // Spec 65.8 Day-5-followup — Family-B carousels. The snapshot persisted by
+    // RenderSlidesStep has shape `{ kind: "family-b", templateKey, locale,
+    // theme, slideTotal, compositionInput }`. Spread `compositionInput` plus
+    // fresh `brandTokens` + `overrides` from job-data into the composition's
+    // input schema.
+    const [post] = await db
+      .select({ content: socialPosts.content })
+      .from(socialPosts)
+      .where(eq(socialPosts.id, data.socialPostId));
+
+    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
+    const snapshot = contentRecord?.renderInput as
+      | { kind?: string; templateKey?: string; compositionInput?: Record<string, unknown> }
+      | undefined;
+    if (!snapshot || snapshot.kind !== "family-b" || !snapshot.compositionInput) {
+      throw new Error(
+        `No Family-B renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: ${templateKey})`,
+      );
+    }
+
+    const fullInput: Record<string, unknown> = {
+      ...snapshot.compositionInput,
+      brandTokens: data.brandTokens,
+      overrides: data.overrides,
+    };
+
+    let result: { slides: Buffer[]; sequenceCount: number };
+    if (templateKey === "story-arc-clickbait") {
+      result = await renderServer.renderStoryArcClickbait(fullInput);
+    } else if (templateKey === "lifestyle-listicle") {
+      result = await renderServer.renderLifestyleListicle(fullInput);
+    } else {
+      // opinion-recommendation
+      result = await renderServer.renderOpinionRecommendation(fullInput);
+    }
+    slides = result.slides;
+  } else if (templateKey === "comparison-grid-4") {
     // comparison-grid-4 uses the renderInput snapshot pattern (Spec 60.2).
     // The full ComparisonGrid4Input was stored in social_posts.content.renderInput at INSERT time.
     const [post] = await db
