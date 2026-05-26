@@ -139,6 +139,12 @@ const DEFAULT_DEPS: StageFamilyBImagesDeps = {
 export class StageFamilyBImagesStep extends BaseStep<StageInput, StageOutput> {
   readonly name = "stage-family-b-images";
   readonly inputSchema = InputSchema;
+  // Cast justification: `OutputSchema` uses `.passthrough()` + `.extend({...})`
+  // on top of an `.passthrough()` base, so Zod's inferred type carries
+  // `[k: string]: unknown` index signatures while `StageOutput` (via
+  // `z.infer<typeof OutputSchema>`) is the same shape with stricter narrowing.
+  // The cast resolves the structural variance mismatch under
+  // `exactOptionalPropertyTypes` (same pattern as 4+ other pipeline steps).
   readonly outputSchema = OutputSchema as z.ZodType<StageOutput>;
 
   // Worst-case budget gate (per-call upper bound — ~4 image slides × €0.06).
