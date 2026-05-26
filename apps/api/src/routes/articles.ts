@@ -1774,8 +1774,24 @@ articleRoutes.post("/:id/extend-schema", async (c) => {
 
 // ─── re-render (Spec 65.10 recurring-content carousels) ──────────────────────
 
+/**
+ * Spec 65.8 Day 5 — re-render endpoint accepts `refreshImages` flag.
+ * When true, clears `articles.domain_extras.familyBImages[]` BEFORE re-enqueuing
+ * so the `StageFamilyBImagesStep` re-stages fresh provider candidates instead
+ * of reusing the cached selections. Default false: re-renders reuse cached
+ * Family-B image picks (consistent visuals, zero extra €).
+ */
+const ReRenderBodySchema = z.object({
+  refreshImages: z.boolean().optional().default(false),
+});
+
 articleRoutes.post("/:id/re-render", async (c) => {
   const id = c.req.param("id");
+  // Body is optional (legacy callers post empty body); guard against malformed JSON.
+  const rawBody = await c.req.json().catch(() => ({}));
+  const bodyParsed = ReRenderBodySchema.safeParse(rawBody);
+  const refreshImages = bodyParsed.success ? bodyParsed.data.refreshImages : false;
+
   const [article] = await db
     .select({
       id: articles.id,
@@ -1810,6 +1826,20 @@ articleRoutes.post("/:id/re-render", async (c) => {
       },
       422
     );
+  }
+
+  // Spec 65.8 Day 5: when refreshImages is set, clear familyBImages from the
+  // jsonb BEFORE the trigger so the photographic step re-stages fresh on
+  // re-render. Surgical update (jsonb_set with null path) preserves sibling
+  // keys (recurring.*, etc.). Runs even if guard rejects downstream — the
+  // user asked to refresh, and the next manual re-trigger would benefit.
+  if (refreshImages) {
+    await db
+      .update(articles)
+      .set({
+        domainExtras: sql`${articles.domainExtras} - 'familyBImages'`,
+      })
+      .where(eq(articles.id, article.id));
   }
 
   // Extract templateKey from the frozen formatConfig so the same template is
@@ -1860,7 +1890,10 @@ articleRoutes.post("/:id/re-render", async (c) => {
       .where(eq(articles.id, article.id));
   }
 
-  log.info({ articleId: id, templateKey, locale, ...result }, "Recurring article re-render triggered");
+  log.info(
+    { articleId: id, templateKey, locale, refreshImages, ...result },
+    "Recurring article re-render triggered",
+  );
   return triggerResultToResponse(c, result);
 });
 

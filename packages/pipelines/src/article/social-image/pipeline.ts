@@ -9,6 +9,7 @@ import {
   RenderSlidesStep,
   ResolveAssetsStep,
 } from "./steps.ts";
+import { StageFamilyBImagesStep } from "./stage-family-b-images.step.ts";
 
 const log = createLogger("pipelines:social-image");
 
@@ -66,6 +67,11 @@ export class SocialImagePipeline extends Pipeline<PipelineInput, PipelineOutput>
     new ResolveAssetsStep(),
     new GenerateComparisonGrid4Step(),
     new GenerateCaptionStep(),
+    // Spec 65.8 Day 5: Family-B photographic-pipeline. Pass-through for
+    // non-Family-B templates (zero cost, no I/O); for the 3 Family-B
+    // templates, populates `articles.domain_extras.familyBImages[]` with
+    // R2-staged WebP URLs + license metadata before RenderSlidesStep.
+    new StageFamilyBImagesStep(),
     new RenderSlidesStep(),
   ];
 

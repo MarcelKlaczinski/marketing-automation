@@ -1043,6 +1043,15 @@ export class RenderSlidesStep extends BaseStep<
       .limit(1);
     const endSlideData = extractEndSlideDataFromDomainExtras(articleRow?.domainExtras);
 
+    // Spec 65.8 Day 5 — caption-attribution: when StageFamilyBImagesStep
+    // staged Unsplash images, append "📸 Photos: <photographer> on Unsplash"
+    // suffix to every per-locale caption before INSERT. Reads from the
+    // freshly-persisted `domain_extras.familyBImages[]` (Pattern 119 license
+    // metadata from the photographic adapter). For non-Family-B templates +
+    // gradient-only Family-B renders the suffix is null → captions stay
+    // unchanged.
+    const captionAttributionSuffix = await resolveCaptionAttribution(articleRow?.domainExtras);
+
     // Resolve project-scoped overrides (falls through to schema defaults if no row exists)
     const { getOverrideSchema, mergeOverrides, isOverrideTemplateKey } = await import("../../../../social/src/templates/overrides/index.ts") as typeof import("../../../../social/src/templates/overrides/index.ts");
     const overrideRow = await fetchTemplateOverrides(input.projectId, templateKey);
@@ -1065,6 +1074,11 @@ export class RenderSlidesStep extends BaseStep<
       const localeSibling = input.localeArticles?.[localePrefix];
       const isDeLocale = loc.locale.startsWith("de");
       const localeTitle = localeSibling?.title ?? input.articleTitle;
+      // Spec 65.8 Day 5 — append license-attribution suffix per locale
+      // (currently locale-agnostic — Unsplash credit reads the same in DE+EN).
+      const effectiveCaption = captionAttributionSuffix
+        ? `${loc.caption}\n\n${captionAttributionSuffix}`
+        : loc.caption;
 
       // ─── comparison-grid-4: snapshot is ComparisonGrid4Input-shaped (Spec 60.2) ─
       // The worker reads this snapshot directly and passes it to renderComparisonGrid4().
@@ -1094,7 +1108,7 @@ export class RenderSlidesStep extends BaseStep<
             content: {
               kind: "carousel",
               slides: [],
-              caption: loc.caption,
+              caption: effectiveCaption,
               hashtags: loc.hashtags,
               // comparison-grid-4 renderInput is ComparisonGrid4Input-shaped; JSONB column accepts any shape.
               // biome-ignore lint/suspicious/noExplicitAny: intentional shape mismatch — worker reads as Record<string, unknown>
@@ -1134,7 +1148,7 @@ export class RenderSlidesStep extends BaseStep<
 
         const renderJobId = await enqueueSocialRenderJob(jobData);
         ctx.log.info({ socialPostId: post.id, renderJobId, locale: loc.locale, templateKey }, "Social post created + render job enqueued");
-        results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: loc.caption, hashtags: loc.hashtags });
+        results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: effectiveCaption, hashtags: loc.hashtags });
         continue;
       }
 
@@ -1235,7 +1249,7 @@ export class RenderSlidesStep extends BaseStep<
           content: {
             kind: "carousel",
             slides: [],
-            caption: loc.caption,
+            caption: effectiveCaption,
             hashtags: loc.hashtags,
             renderInput,
             ...(loc.warnings ? { warnings: loc.warnings } : {}),
@@ -1258,7 +1272,7 @@ export class RenderSlidesStep extends BaseStep<
 
       const renderJobId = await enqueueSocialRenderJob(jobData);
       ctx.log.info({ socialPostId: post.id, renderJobId, locale: loc.locale }, "Social post created + render job enqueued");
-      results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: loc.caption, hashtags: loc.hashtags });
+      results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: effectiveCaption, hashtags: loc.hashtags });
     }
 
     return { socialPosts: results };
@@ -1293,4 +1307,33 @@ function extractEndSlideDataFromDomainExtras(
   if (typeof obj.type !== "string") return null;
   if (typeof obj.config !== "object" || obj.config === null) return null;
   return { type: obj.type, config: obj.config as Record<string, unknown> };
+}
+
+/**
+ * Spec 65.8 Day 5 — resolve caption-attribution suffix from staged Family-B
+ * images. When `articles.domain_extras.familyBImages[]` contains entries
+ * with Unsplash provider + photographer credit, returns a "📸 Photos:
+ * <name> on Unsplash" suffix string (per Unsplash TOS). Pexels credits are
+ * folded in optionally. Pixabay is skipped (license doesn't require it).
+ *
+ * Returns null when no attribution is needed — non-Family-B templates +
+ * gradient-only renders + all-Pixabay carousels all skip the append.
+ *
+ * Lazy dynamic-import of `@marketing-auto/social/photographic` mirrors the
+ * `toolLookup.ts` pattern for cross-package boundary respect (Memory D7 +
+ * social/CLAUDE.md "dep-direction exception" note for the photographic
+ * subsystem).
+ */
+async function resolveCaptionAttribution(domainExtras: unknown): Promise<string | null> {
+  if (typeof domainExtras !== "object" || domainExtras === null) return null;
+  const extras = domainExtras as Record<string, unknown>;
+  const rawImages = extras.familyBImages;
+  if (!Array.isArray(rawImages) || rawImages.length === 0) return null;
+
+  const { buildCaptionAttribution, familyBImagesArraySchema } = await import(
+    "@marketing-auto/social/photographic"
+  );
+  const parsed = familyBImagesArraySchema.safeParse(rawImages);
+  if (!parsed.success || parsed.data.length === 0) return null;
+  return buildCaptionAttribution(parsed.data);
 }
