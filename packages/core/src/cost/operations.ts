@@ -130,6 +130,14 @@ export const COST_OPS = {
   RECURRING_TOOLS_CURATE:   "recurring-tools-curate",   // Haiku: pick top-N from a category candidate pool
   RECURRING_TEMPLATE_RANK:  "recurring-template-rank",  // Haiku: 3-Layer template-selector LLM-rank
   RECURRING_BRIEF_BUILD:    "recurring-brief-build",    // Sonnet: free-text brief body for downstream article/social
+
+  // === Spec 65.8: Family B photographic-pipeline ===
+  // Per Family-B render: 3-4 image slides × 1 Haiku query-keywords call + 1
+  // Sonnet vision-pick call. Image providers (Pexels/Unsplash/Pixabay) are
+  // free-tier and deliberately not cost-tracked (same posture as Reddit /
+  // ProductHunt / HackerNews — cost-tracker enforces budget on paid APIs only).
+  IMAGE_QUERY_KEYWORDS:     "image-query-keywords",     // Haiku: 3 query strings per slide from hook + beat context
+  IMAGE_VISION_PICK:        "image-vision-pick",        // Sonnet vision: pick best candidate by thumbnail array
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

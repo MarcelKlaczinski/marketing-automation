@@ -92,6 +92,18 @@ The `raw` field in `MessagesResult` always has `{` prepended when `jsonMode: tru
 
 **`jsonMode: true` requires assistant prefill support.** `claude-sonnet-4-6` returns HTTP 400 `"This model does not support assistant message prefill"` when `jsonMode: true` is passed. For steps using this model that need JSON output, omit `jsonMode` and extract JSON manually from `response.raw` (use `raw.indexOf("{")` / `raw.lastIndexOf("}")`). Instruct the model via `systemSuffix: "Respond with only a valid JSON object. No markdown, no explanation."` and include an inline JSON skeleton in the user message.
 
+## Vision-blocks (Spec 65.8)
+
+The adapter accepts optional `userImages: UserImageAttachment[]` for vision-capable models. When present, the user message becomes multi-part content: image blocks BEFORE the text block (Anthropic's recommended order — images give context the text then asks about).
+
+Two source types:
+- `{ type: "url", url: "https://..." }` — provider CDN URL; media-type inferred server-side
+- `{ type: "base64", mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: "..." }` — inline base64
+
+**Cache is disabled** when `userImages` is set (`isCacheable` returns false). Vision picks are non-deterministic and provider URLs rotate — replay would mislead. WebSearch calls have the same exclusion for the same staleness reason.
+
+**Use Sonnet 4.6 + manual JSON extraction**, NOT `jsonMode: true`. Sonnet rejects assistant prefill. Pattern: `systemSuffix: "Respond with only a valid JSON object. No markdown fences, no prose preamble."` + extract from `result.raw` via `indexOf("{")` / `lastIndexOf("}")`. Canonical example: `packages/pipelines/src/article/social-image/photographic/pick-image-llm.ts`.
+
 ## Common Mistakes
 
 - DO NOT pass system as a string — must be the array of TextBlockParam (the adapter handles this; if you ever shortcut around the adapter, remember this)

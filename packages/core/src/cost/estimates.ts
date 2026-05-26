@@ -88,6 +88,15 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // brief-build: Sonnet, ~2k input (tool/hook/context) + ~800 output —
     // free-text body for downstream article/social pipelines
     [COST_OPS.RECURRING_BRIEF_BUILD]:   0.05,
+
+    // === Spec 65.8: Family B photographic-pipeline ===
+    // query-keywords: Haiku, ~300 input (hook + narrative beat) + ~100 output
+    // (3 query strings). ~3-4 calls per render → ~€0.04-0.06 total.
+    [COST_OPS.IMAGE_QUERY_KEYWORDS]:    0.015,
+    // vision-pick: Sonnet vision, ~10 thumbnails (~10k input-token equivalent)
+    // + ~100 output (selectedIndex + reasoning). ~3-4 calls per render →
+    // ~€0.10-0.15 total. Per-call upper bound is ~€0.04.
+    [COST_OPS.IMAGE_VISION_PICK]:       0.04,
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,

@@ -234,6 +234,7 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
       cachedPrefixLen: input.systemPrefix.length,
       suffixLen: input.systemSuffix.length,
       userMessageLen: input.userMessage.length,
+      userImageCount: input.userImages?.length ?? 0,
       jsonMode: input.jsonMode ?? false,
       webSearch: input.webSearch?.enabled ?? false,
     },
@@ -247,11 +248,30 @@ export async function messages(input: MessagesInput): Promise<MessagesResult> {
     estimatedCostEur: input.estimatedCostEur,
     fn: async () => {
       try {
+        // Spec 65.8 — Build multi-part user content when image attachments are
+        // present. Image blocks come BEFORE the text block per Anthropic's
+        // recommended vision-prompt structure (images give context the text
+        // then asks about).
+        const userContent: Anthropic.Messages.MessageParam["content"] =
+          input.userImages !== undefined && input.userImages.length > 0
+            ? [
+                ...input.userImages.map<Anthropic.Messages.ImageBlockParam>((img) =>
+                  img.type === "url"
+                    ? { type: "image", source: { type: "url", url: img.url } }
+                    : {
+                        type: "image",
+                        source: { type: "base64", media_type: img.mediaType, data: img.data },
+                      },
+                ),
+                { type: "text", text: input.userMessage },
+              ]
+            : input.userMessage;
+
         // Prefill the assistant response with "{" when JSON is expected.
         // The model cannot insert a code fence before a character it has already
         // "said", which eliminates ```json wrapping and produces bare JSON every time.
         const messagesTurn: Anthropic.Messages.MessageParam[] = [
-          { role: "user", content: input.userMessage },
+          { role: "user", content: userContent },
           ...(input.jsonMode ? [{ role: "assistant" as const, content: "{" }] : []),
         ];
 

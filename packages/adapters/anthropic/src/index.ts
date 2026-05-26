@@ -7,6 +7,7 @@ export {
   type AnthropicWebSearch,
   type MessagesInput,
   type MessagesResult,
+  type UserImageAttachment,
   type CacheStats,
   JsonParseError,
   AnthropicClientError,

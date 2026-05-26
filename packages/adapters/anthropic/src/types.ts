@@ -23,6 +23,22 @@ export type AnthropicWebSearch =
     }
   | { enabled: false };
 
+/**
+ * Spec 65.8 — Image attachments for vision-capable Sonnet calls.
+ *
+ * Anthropic vision API accepts URL-based and base64-inline image sources.
+ * `media_type` is required for base64 inputs (the wire format needs it);
+ * URL sources have it inferred server-side.
+ *
+ * Vision-bearing calls are NEVER fixture-cached: image inputs are highly
+ * context-dependent (provider URLs rotate, content can change) and the
+ * non-determinism of vision picks makes replay misleading. `isCacheable`
+ * returns false when `userImages !== undefined`.
+ */
+export type UserImageAttachment =
+  | { type: "url"; url: string }
+  | { type: "base64"; mediaType: "image/jpeg" | "image/png" | "image/gif" | "image/webp"; data: string };
+
 export type MessagesInput = {
   projectId: string;
   pipelineRunId?: string;
@@ -40,6 +56,14 @@ export type MessagesInput = {
   systemSuffix: string;
 
   userMessage: string;
+
+  /**
+   * Optional image attachments for vision-capable models (Sonnet 4.6+,
+   * Opus 4.7). When set, the adapter constructs a multi-part user message
+   * with image content blocks placed BEFORE the text block. Disables the
+   * dev-mode fixture cache for this call. Spec 65.8.
+   */
+  userImages?: UserImageAttachment[];
 
   maxTokens?: number;
   temperature?: number;

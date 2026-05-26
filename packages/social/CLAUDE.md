@@ -261,10 +261,12 @@ The `emoji` prop was removed in Spec 52a. The component never renders emoji.
 
 **Cache-key strategy**: rather than asking `convertImageToWebp` for a deterministic R2 key (it always generates a UUID), let the adapter pick the UUID and remember the resulting key in `articles.domain_extras.familyBImages[]` jsonb indexed by `slideIndex`. Re-renders look up the array first; cache-miss triggers a fresh provider search + LLM-pick + stage.
 
-**Day-2+ surface (not yet landed)**:
-- `generate-query-keywords.ts` — Haiku batch-call producing 3 query strings per slide from hook context + narrative beat.
-- `pick-image-llm.ts` — Sonnet vision-call picks the best candidate by `selectedIndex` from a thumbnail array.
-- Top-level orchestrator `getImagesForSlides(article, slides)` chains everything: lookup cache → query-keywords → parallel-search → vision-pick → stage → merge into the article's `familyBImages` array.
+**Day-2 surface (LLM helpers + orchestrator) lives in `packages/pipelines/src/article/social-image/photographic/`** — NOT in this package. Reason: the helpers call `anthropic.messages()` via `@marketing-auto/adapter-anthropic`, which has no business being a transitive dep of `social` (templates render synchronously inside Remotion and must not pull LLM deps). The orchestrator imports from `@marketing-auto/social/photographic` (this package's leaf subsystem, no upward edges) for providers + license-tracker + R2 stage-cache. **Dep-direction exception**: `pipelines → social/photographic` is added as a workspace dep (single-direction, static); the runtime graph stays acyclic because `social/photographic` only imports from adapters + shared. The existing `social/templates → pipelines/icon-resolver` lazy dynamic-import stays intact.
+
+**Day-2+ surface that lives elsewhere**:
+- `pipelines/src/article/social-image/photographic/generate-query-keywords.ts` — Haiku 4.5 + jsonMode + Zod soft-fail to text-derived defaults.
+- `pipelines/src/article/social-image/photographic/pick-image-llm.ts` — Sonnet 4.6 vision-pick via `userImages: [...]` content blocks (Spec 65.8 adapter extension). Manual JSON extraction from `result.raw` because Sonnet rejects assistant prefill. Caps candidates at 10 to keep vision-token cost predictable.
+- `pipelines/src/article/social-image/photographic/orchestrator.ts` — `getImagesForSlides(input)` chains cache-lookup → query-keywords → parallel-search → vision-pick → R2-stage per slide. Soft-fails ONE slide on any step failure (gradient fallback at render).
 
 **Provider credentials live in the vault** (Spec 64.20 pattern). Service names: `pexels` / `unsplash` / `pixabay`. Required keys: `api_key` / `access_key` / `api_key`. Marcel enters them via `/settings/credentials`; the verify button per provider runs `verifyPexels/Unsplash/Pixabay` from each adapter package against a known search query. Boot-time smoke check: `bun --filter @marketing-auto/api verify-image-providers` exits 0 when all 3 verify.
 

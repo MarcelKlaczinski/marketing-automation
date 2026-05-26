@@ -54,9 +54,16 @@ export function fixturePath(cacheKey: string): string {
   return join(FIXTURES_DIR, `${cacheKey}.json`);
 }
 
-/** Whether a call is eligible for caching. WebSearch calls are never cached (stale results). */
+/**
+ * Whether a call is eligible for caching. Two paths exclude themselves:
+ *   - WebSearch calls: results go stale.
+ *   - Vision calls (`userImages` present, Spec 65.8): non-deterministic pick
+ *     decisions + provider URLs rotate, replay would mislead.
+ */
 export function isCacheable(input: MessagesInput): boolean {
-  return !(input.webSearch?.enabled === true);
+  if (input.webSearch?.enabled === true) return false;
+  if (input.userImages !== undefined && input.userImages.length > 0) return false;
+  return true;
 }
 
 /**
