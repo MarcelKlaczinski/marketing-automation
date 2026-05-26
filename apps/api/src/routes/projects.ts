@@ -12,6 +12,7 @@ import { COMPARISON_DISCOVERY_DEFAULT_PATTERN } from "../workers/comparison-disc
 import { TREND_SYNTHESIZER_DEFAULT_PATTERN } from "../workers/trend-synthesizer.ts";
 import { GITHUB_INVENTORY_REFRESH_DEFAULT_PATTERN } from "../workers/github-inventory-refresh.worker.ts";
 import { GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN } from "../workers/github-inventory-discovery.worker.ts";
+import { TOOL_DATA_REFRESH_DEFAULT_PATTERN } from "../workers/tool-data-refresh.worker.ts";
 import { triggerWithPreRunId } from "./_lib/trigger-helpers.ts";
 import { suggestGapTitle } from "../lib/gap-service.ts";
 import { startChain, resumeChain, cancelChain, isBlogEligible } from "../lib/chain-orchestrator.ts";
@@ -345,6 +346,19 @@ projectRoutes.post("/", zValidator("json", createProjectSchema), async (c) => {
         jobType: "github_inventory_discovery",
         isActive: false,
         cronPattern: GITHUB_INVENTORY_DISCOVERY_DEFAULT_PATTERN,
+      })
+      .onConflictDoNothing();
+
+    // Spec 65.3: tool_data_refresh — OFF by default. Marcel opts in when the
+    // tool catalogue is stable enough to benefit from automated freshness
+    // checks. Every 6h tick refreshes up to 5 stale tools.
+    await db
+      .insert(cronState)
+      .values({
+        projectId: created.id,
+        jobType: "tool_data_refresh",
+        isActive: false,
+        cronPattern: TOOL_DATA_REFRESH_DEFAULT_PATTERN,
       })
       .onConflictDoNothing();
 

@@ -38,6 +38,7 @@
     "backfill-imported-heroes": "bun --env-file ../../.env src/scripts/backfill-imported-heroes.ts",
     "backfill-brief-embeddings": "bun --env-file ../../.env src/scripts/backfill-brief-embeddings.ts",
     "backfill-tool-brand-assets": "bun --env-file ../../.env src/scripts/backfill-tool-brand-assets.ts",
+    "backfill-persona-scores": "bun --env-file ../../.env src/scripts/backfill-persona-scores.ts",
     "import-tool-brand-asset": "bun --env-file ../../.env src/scripts/import-tool-brand-asset.ts",
     "prune-rejected-topic-candidates": "bun --env-file ../../.env src/scripts/prune-rejected-topic-candidates.ts",
     "consolidate-article-categories": "bun --env-file ../../.env src/scripts/consolidate-article-categories.ts",

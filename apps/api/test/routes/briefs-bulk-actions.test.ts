@@ -260,25 +260,34 @@ describe("POST /api/projects/:slug/briefs/bulk-approve (Spec 64.17)", () => {
   // full-suite parallel load the per-call latency rises and the 5s Bun default
   // is too tight. Passes well under 2s in isolation — only flakes when run
   // alongside other test files contending for the connection pool.
-  it("briefIds.length = 500 of unknown UUIDs → 202 with 0 processed (no-op)", { timeout: 15_000 }, async () => {
-    const ids = Array.from({ length: 500 }, () => crypto.randomUUID());
+  //
+  // Bun's `it()` signature accepts the timeout as the THIRD positional argument
+  // (`it(label, fn, timeoutMs)`), not as a Vitest-style `{timeout}` options
+  // object — the latter is a typecheck error (`'timeout' does not exist in
+  // type '(done: ...) => void | Promise<unknown>'`).
+  it(
+    "briefIds.length = 500 of unknown UUIDs → 202 with 0 processed (no-op)",
+    async () => {
+      const ids = Array.from({ length: 500 }, () => crypto.randomUUID());
 
-    const res = await app.fetch(
-      authed(`/api/projects/${slug}/briefs/bulk-approve`, {
-        method: "POST",
-        body: JSON.stringify({ briefIds: ids, dispatch: "plan" }),
-      }),
-    );
+      const res = await app.fetch(
+        authed(`/api/projects/${slug}/briefs/bulk-approve`, {
+          method: "POST",
+          body: JSON.stringify({ briefIds: ids, dispatch: "plan" }),
+        }),
+      );
 
-    expect(res.status).toBe(202);
-    const body = (await res.json()) as {
-      ok: boolean;
-      data: { planQueuedCount: number; skippedCount: number };
-    };
-    expect(body.data.planQueuedCount).toBe(0);
-    // All 500 are unknown → each returns skipped(not_found_or_not_pending)
-    expect(body.data.skippedCount).toBe(500);
-  });
+      expect(res.status).toBe(202);
+      const body = (await res.json()) as {
+        ok: boolean;
+        data: { planQueuedCount: number; skippedCount: number };
+      };
+      expect(body.data.planQueuedCount).toBe(0);
+      // All 500 are unknown → each returns skipped(not_found_or_not_pending)
+      expect(body.data.skippedCount).toBe(500);
+    },
+    15_000,
+  );
 });
 
 describe("POST /api/projects/:slug/briefs/bulk-dismiss (Spec 64.17)", () => {

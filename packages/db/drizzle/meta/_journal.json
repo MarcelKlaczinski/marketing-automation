@@ -834,6 +834,13 @@
       "when": 1789600000000,
       "tag": "0118_tool_brand_assets_wordmark",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1789700000000,
+      "tag": "0119_persona_scoring_and_tool_refresh",
+      "breakpoints": true
     }
   ]
 }

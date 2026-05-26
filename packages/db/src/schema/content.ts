@@ -336,6 +336,12 @@ export const articles = pgTable(
     // Spec E.1a: tracks when article body was last meaningfully refreshed (≠ updatedAt)
     lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
 
+    // Spec 65.3: per-tool freshness audit for the tool-data-refresh worker.
+    // Distinct from `refreshMetadata` (Spec 54.10, article content/SEO refresh)
+    // — this column captures pricing/feature/material-change deltas detected
+    // by the cron + LLM-extract path. NULL = tool was never refreshed.
+    toolDataRefreshMetadata: jsonb("tool_data_refresh_metadata").$type<ToolDataRefreshMetadata>(),
+
     // Spec 59.2: set by translation pipeline on target article after each sync completes
     lastSyncedFromSiblingAt: timestamp("last_synced_from_sibling_at", { withTimezone: true }),
     // Spec 59.2: set by PATCH /articles/:id and POST /articles/:id/body (user edits only, NOT pipelines)
@@ -845,6 +851,45 @@ export const RefreshMetadataSchema = z.object({
   }),
 });
 export type RefreshMetadata = z.infer<typeof RefreshMetadataSchema>;
+
+// ── ToolDataRefreshMetadata (Spec 65.3) ───────────────────────────────────────
+// Written by the tool-data-refresh worker after each successful run. Captures
+// the LLM-extracted pricing/feature fingerprint at the time of the refresh +
+// material-change flag so the admin notification + persona-score-invalidation
+// have an audit trail.
+//
+// `lastSources` are the URLs the LLM cited via Anthropic web-search. Stored
+// for forensic verification when Marcel asks "where did that pricing come
+// from?". Capped at 5 URLs to bound the jsonb size.
+//
+// `historyTrimmedAt` exists so a future cleanup-script can crop the
+// `recentRefreshes` ring buffer when it grows past N entries (V1 keeps the
+// last 5 refresh events).
+export const ToolDataRefreshMetadataSchema = z.object({
+  /** ISO timestamp of the latest refresh tick (success or skip). Mirrors articles.last_refreshed_at on success. */
+  lastRefreshedAt: z.string().datetime(),
+  /** True if the latest tick found a material change (pricing-tier added/removed, free-tier flip, etc.). */
+  lastMaterialChange: z.boolean(),
+  /** One-line summary of the last material change (e.g. "Pricing-tier 'Pro' added at €29"). NULL when no change. */
+  lastChangeSummary: z.string().nullable(),
+  /** Up to 5 source URLs the LLM cited via Anthropic web-search. */
+  lastSources: z.array(z.string().url()).max(5),
+  /** Pricing fingerprint at this refresh — hash of the extracted pricing object for cheap drift-detection on next run. */
+  pricingFingerprint: z.string().nullable(),
+  /** Feature fingerprint at this refresh. */
+  featureFingerprint: z.string().nullable(),
+  /** Ring buffer of recent refresh events (last 5). Newest entry first. */
+  recentRefreshes: z
+    .array(
+      z.object({
+        at: z.string().datetime(),
+        materialChange: z.boolean(),
+        summary: z.string().nullable(),
+      })
+    )
+    .max(5),
+});
+export type ToolDataRefreshMetadata = z.infer<typeof ToolDataRefreshMetadataSchema>;
 
 // Spec 62.3: comparison-pair candidates discovered by discoverComparisonPairs().
 // Tool slugs are canonicalized: toolASlug < toolBSlug alphabetically. The partial

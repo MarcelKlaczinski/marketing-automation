@@ -43,6 +43,34 @@ Canonical example: `src/lib/gap-service.ts` (Spec 49c) — DataForSEO keyword en
 
 Cost-tracked under `COST_OPS.HOOK_PICK` (€0.005/call). Used by 65.5 brief-generators when `FORMAT_TYPES[formatType].needsHooks === true`. The hook-picker pattern (LRU candidates + LLM picks UUID + hallucination fallback to candidates[0]) is reusable for any future "LLM picks N of M from a curated pool" surface (template picker, persona picker, etc.).
 
+### Persona-Scoring lib (Spec 65.3 Part A)
+
+`src/lib/persona-scoring/` is the canonical home for tool↔persona suitability scoring consumed by 65.5 brief-generators when a brief surface requires persona-targeted tool selection:
+
+- [`score-tool-for-personas.ts`](src/lib/persona-scoring/score-tool-for-personas.ts) `scoreToolForPersonas({projectId, toolId, personas?})` — ONE Haiku 4.5 + `jsonMode: true` call per tool, scoring ALL listed personas in one batch (default = `DEFAULT_PERSONAS`, all 10). Zod-validates the LLM output, filters hallucinated persona slugs, soft-fails (`source: "skipped" | "failed"`) instead of throwing so a batch can continue with the remaining tools.
+- [`pick-persona-scored-tools.ts`](src/lib/persona-scoring/pick-persona-scored-tools.ts) `pickPersonaScoredTools({projectId, persona, toolIds, minScore?, maxInlineScores?})` — lazy-fetch helper for brief-generators. Returns fresh-window scores (<180 days per Marcel-Decision §3.4), inline-triggers `scoreToolForPersonas` for missing/stale tools up to `maxInlineScores` (default 5) with 3-way bounded concurrency, ranks by `(score DESC, scoredAt DESC, toolId ASC)`. The inline batch always scores ALL personas per tool so sibling-persona requests hit the cache.
+- [`invalidate-persona-scores.ts`](src/lib/persona-scoring/invalidate-persona-scores.ts) `invalidatePersonaScoresForTool({toolId, reason})` — deletes EVERY persona-score row for a tool across ALL projects (Marcel-Decision §10 cascade). Called by the tool-data-refresh worker on material-change detection. The next brief-generator pass for any project will lazy-re-score against the freshly-extracted facts.
+
+**Cost-tracked under `COST_OPS.PERSONA_SCORE`** (€0.01/call, ~€1.10 for a 108-tool Toolwiki backfill). The all-personas-per-tool batch shape (Option α from Discovery §3.1) is the canonical choice for any future "score N attributes per item" surface — coherence across attributes within one context window beats per-attribute isolation, and Haiku's output cap (~150-200 tokens for 10 personas × ~60-char reasoning) is comfortable.
+
+**Backfill script** [`scripts/backfill-persona-scores.ts`](src/scripts/backfill-persona-scores.ts) — project-scoped (Memory D23 enforcement), dry-run default, `--force` re-score path, `--limit` cap. DI seam `scoreToolFn` keeps tests offline. Settings UI surface at [`SettingsPersonaScoringPage.vue`](../../apps/web/src/pages/settings/SettingsPersonaScoringPage.vue) — stats card + per-persona fresh-coverage progress + backfill controls.
+
+### Tool-Data-Refresh worker (Spec 65.3 Part B)
+
+`src/lib/tool-data-refresh/` is the canonical home for the cron-driven freshness pipeline that detects pricing / feature changes on tool-articles and cascades persona-score invalidation:
+
+- [`select-stale-tools.ts`](src/lib/tool-data-refresh/select-stale-tools.ts) `selectStaleTools({projectId, locale, staleThresholdDays, limit})` — staleness scan with `NULL-first` ordering (never-refreshed beats once-fresh-now-old). Always uses `sql\`${col} ASC NULLS FIRST\`` + `asc(t.id)` tiebreaker (PostgreSQL ASC defaults to NULLS LAST — see root CLAUDE.md DO-NOT).
+- [`extract-tool-data.ts`](src/lib/tool-data-refresh/extract-tool-data.ts) `extractToolData({toolId, toolName, toolWebsite, currentSnapshot})` — single Anthropic call with `webSearch: {enabled: true, maxUses: 3}` + `jsonMode: true`. Returns a Zod-validated `ToolDataExtract` with `materialChangeJudgment.isMaterial` boolean from LLM-as-judge (no Tavily/Serper adapter needed — the Anthropic adapter has built-in web-search since Spec 64+; never-cached because results go stale).
+- [`compute-diff.ts`](src/lib/tool-data-refresh/compute-diff.ts) `computeToolDataDiff({extract, priorPricingFingerprint?, priorFeatureFingerprint?})` — pure helper (no DB), computes pricing/feature fingerprints (SHA-256 truncated to 16 chars) for next-tick short-circuit detection. The material-change flag is canonical from the LLM; fingerprint diffs are observability-only.
+- [`apply-changes.ts`](src/lib/tool-data-refresh/apply-changes.ts) `applyToolDataChanges({toolId, extract, diff, priorMetadata?})` — writes the audit blob into `articles.tool_data_refresh_metadata` (Pattern 143 typed jsonb, distinct from Spec 54.10 `refresh_metadata` for article-content refresh), advances `articles.last_refreshed_at`, additively writes the extract under `domain_extras.toolDataRefresh` via `jsonb_set` (preserves Marcel-owned sibling keys). On material change, cascades to `invalidatePersonaScoresForTool`. Conservative: NEVER overwrites `tool_pricing` / `tool_price_from` directly — those are Astro-imported, Marcel-owned.
+- [`notify-batch.ts`](src/lib/tool-data-refresh/notify-batch.ts) `notifyToolDataRefreshBatch({projectId, refreshedCount, materialChanges, ...})` — Memory D21 batched notification: ONE notification per tick to every `users.role='owner'` row, severity `critical` (Web Push) when material changes occurred, else `info` (SSE only). Kill-switch via `PIPELINE_NOTIFICATIONS_ENABLED=false`.
+
+**Worker** [`workers/tool-data-refresh.worker.ts`](src/workers/tool-data-refresh.worker.ts) — cron-orchestrated (`tool_data_refresh` enum widening + Memory-D124 seed pattern at worker startup + per-project INSERT in `routes/projects.ts`). Default OFF, pattern `0 */6 * * *`, 5 tools/tick. Per-tool try/catch so one failure never stops the tick. Uses the canonical `markCronRunSucceeded`/`markCronRunFailed` cron-state observability writes.
+
+**Cost-tracked under `COST_OPS.TOOL_DATA_REFRESH`** (€0.05/call — Anthropic web-search 3 queries + Haiku extract). Monthly: ~108 tools × 30-day cadence ≈ 3.6 refreshes/day × €0.05 ≈ €5.40/month.
+
+**HTTP routes** [`routes/projects/persona-scoring.ts`](src/routes/projects/persona-scoring.ts) — 3 endpoints under `/api/projects/:slug/persona-scoring/{stats,scores,backfill}`. Backfill runs synchronously (Marcel-Decision §3.3 lazy + opt-in trigger, not BullMQ V1) — endurance ~5 min for 108-tool Toolwiki. Future V1.1 could move it behind BullMQ if scale demands.
+
 ## Endpoint Patterns
 - All endpoints use Zod-validated input via @hono/zod-validator
 - All responses follow `{ ok: true, data }` | `{ ok: false, error }` shape
@@ -245,6 +273,7 @@ Worker wartet bis aktive Jobs draining sind — kann bis zu `lockDuration` dauer
 
 ## Tests
 - Run with `bun --filter @marketing-auto/api test`. The script `cd`s to repo root before invoking `bun test` so `.env` auto-loads — `server.ts` calls `getEnv()` at import, which would fail without it. Same recursion gotcha as `packages/db` / `packages/core`: don't run `bun run test` from inside the package.
+- **Custom timeout = 3rd positional arg, not Vitest options object.** Bun's `it()` / `test()` signature is `(label, fn, timeoutMs?)`. The Vitest-style `it(label, { timeout: 15_000 }, fn)` form is a typecheck error (`'timeout' does not exist in type '(done: ...) => void | Promise<unknown>'`) because Bun's types only have the function-shaped second argument. Use `it("label", async () => { … }, 15_000)`. Same applies to `test()`, `beforeAll()`, etc. Spec 65.3 follow-up cleared a stale Vitest-style form in [`test/routes/briefs-bulk-actions.test.ts`](test/routes/briefs-bulk-actions.test.ts).
 
 ## Auth Patterns (Spec 04 + 31)
 - Session middleware: `sessionLoader` (populates `c.var.user`) runs on `*`; `requireAuth` (enforces) runs on protected routes only

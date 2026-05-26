@@ -6,6 +6,7 @@ export default {
     "brand-tokens": "Brand Tokens",
     "brand-assets": "Brand Assets",
     "tool-brand-assets": "Tool Logos & Colors",
+    "persona-scoring": "Persona Scoring",
     templates: "Templates",
     credentials: "Credentials",
     "signal-sources": "Signal Sources",
@@ -727,6 +728,40 @@ export default {
       close: "Close",
       copyJson: "Copy JSON",
       copyJsonSuccess: "JSON copied to clipboard.",
+    },
+  },
+
+  personaScoring: {
+    title: "Persona Scoring",
+    description:
+      "LLM scores (0–10) per tool and persona. Used by the brief-generator (65.5) for persona-filtered tool selection. Lazy by default — the backfill is optional and scores all tools in one batch.",
+    loading: "Loading persona scores …",
+    loadError: "Stats could not be loaded.",
+    stats: {
+      totalTools: "Total tools",
+      complete: "Fully scored",
+      pending: "Incomplete",
+      freshWindow: "Fresh window {days}d",
+    },
+    backfill: {
+      cardTitle: "Run backfill",
+      cardHint:
+        "Scores every tool with missing or stale persona-rows. One LLM call per tool (Haiku 4.5, ~€0.01/tool, ~€1.10 for 108 tools).",
+      dryRun: "Dry-run (no LLM calls)",
+      apply: "Start backfill now",
+      force: "Force: re-score every tool",
+      forceHint: "Re-score even tools that already have fresh scores. Use after prompt changes.",
+      limitLabel: "Optional: tool limit",
+      limitHint: "Hard cap on the number of tools (test convenience). Empty = all.",
+      running: "Backfill running …",
+      successDry: "Dry-run complete. {n} tools are candidates.",
+      successApply: "Backfill finished. {written} scores written for {processed} tools.",
+      partialErrors: "{errors} per-tool errors — see logs.",
+      failed: "Backfill failed.",
+    },
+    perPersona: {
+      heading: "Fresh scores per persona",
+      column: "{count} of {total}",
     },
   },
 

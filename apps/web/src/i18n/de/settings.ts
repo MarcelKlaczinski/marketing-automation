@@ -6,6 +6,7 @@ export default {
     "brand-tokens": "Brand-Tokens",
     "brand-assets": "Brand-Assets",
     "tool-brand-assets": "Tool-Logos & Farben",
+    "persona-scoring": "Persona-Scoring",
     templates: "Templates",
     credentials: "Zugangsdaten",
     "signal-sources": "Signal-Quellen",
@@ -728,6 +729,40 @@ export default {
       close: "Schließen",
       copyJson: "JSON kopieren",
       copyJsonSuccess: "JSON in die Zwischenablage kopiert.",
+    },
+  },
+
+  personaScoring: {
+    title: "Persona-Scoring",
+    description:
+      "LLM-Scores (0–10) pro Tool und Persona. Wird vom Brief-Generator (65.5) für persona-gefilterte Tool-Listen genutzt. Lazy by default — der Backfill ist optional und scoret alle Tools auf einmal.",
+    loading: "Lade Persona-Scores …",
+    loadError: "Stats konnten nicht geladen werden.",
+    stats: {
+      totalTools: "Tools gesamt",
+      complete: "Komplett gescored",
+      pending: "Unvollständig",
+      freshWindow: "Frische bis {days} Tage",
+    },
+    backfill: {
+      cardTitle: "Backfill ausführen",
+      cardHint:
+        "Berechnet Persona-Scores für alle Tools, die unvollständige oder fehlende Scores haben. Ein LLM-Call pro Tool (Haiku 4.5, ~€0.01/Tool, ~€1.10 für 108 Tools).",
+      dryRun: "Trockenlauf (kein LLM-Call)",
+      apply: "Backfill jetzt starten",
+      force: "Force: alle Tools neu scoren",
+      forceHint: "Auch Tools mit frischen Scores neu berechnen. Nutze nach Prompt-Änderungen.",
+      limitLabel: "Optional: Tool-Limit",
+      limitHint: "Hard-Cap auf die Anzahl der Tools (Test-Convenience). Leer = alle.",
+      running: "Backfill läuft …",
+      successDry: "Trockenlauf abgeschlossen. {n} Tools sind Kandidaten.",
+      successApply: "Backfill fertig. {written} Scores für {processed} Tools geschrieben.",
+      partialErrors: "{errors} Fehler bei einzelnen Tools — siehe Logs.",
+      failed: "Backfill fehlgeschlagen.",
+    },
+    perPersona: {
+      heading: "Frische Scores pro Persona",
+      column: "{count} von {total}",
     },
   },
 

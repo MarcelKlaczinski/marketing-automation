@@ -15,6 +15,7 @@ export const cronJobTypeEnum = pgEnum("cron_job_type", [
   "comparison_discovery",  // Spec 63.3b — weekly discoverComparisonPairs() pre-plan-run
   "github_inventory_refresh",  // Spec 64.20 — refresh stable GitHub metadata for inventory rows
   "github_inventory_discovery",  // Spec 64.20 follow-up A2 — auto-discover candidate tools/skills via Search-API + awesome-lists
+  "tool_data_refresh",  // Spec 65.3 — periodic pricing/feature freshness check for tool articles
 ]);
 
 export const cronState = pgTable(

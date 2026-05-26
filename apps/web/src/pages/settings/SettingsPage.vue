@@ -37,6 +37,7 @@ export default defineComponent({
         { key: "brand-tokens" },
         { key: "brand-assets" },
         { key: "tool-brand-assets" },
+        { key: "persona-scoring" },
         { key: "templates" },
         { key: "credentials" },
         { key: "signal-sources" },

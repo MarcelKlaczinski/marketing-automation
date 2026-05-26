@@ -20,6 +20,7 @@ import { getPlannerWeeklyGenerationQueue } from "./planner-weekly-generation.wor
 import { getComparisonDiscoveryQueue } from "./comparison-discovery.worker.ts";
 import { getGithubInventoryQueue } from "./github-inventory-refresh.worker.ts";
 import { getGithubInventoryDiscoveryQueue } from "./github-inventory-discovery.worker.ts";
+import { getToolDataRefreshQueue } from "./tool-data-refresh.worker.ts";
 
 const log = createLogger("cron-orchestrator");
 
@@ -78,6 +79,7 @@ function getQueueForJobType(jobType: CronJobType): Queue {
   if (jobType === "comparison_discovery") return getComparisonDiscoveryQueue();
   if (jobType === "github_inventory_refresh") return getGithubInventoryQueue();
   if (jobType === "github_inventory_discovery") return getGithubInventoryDiscoveryQueue();
+  if (jobType === "tool_data_refresh") return getToolDataRefreshQueue();
   return getRefreshDetectorQueue();
 }
 
@@ -118,6 +120,7 @@ export async function syncCronJobs(): Promise<void> {
     getComparisonDiscoveryQueue(),
     getGithubInventoryQueue(),
     getGithubInventoryDiscoveryQueue(),
+    getToolDataRefreshQueue(),
   ];
 
   for (const queue of allQueues) {
@@ -136,7 +139,8 @@ export async function syncCronJobs(): Promise<void> {
         repeat.name.startsWith("planner_weekly_generation:") ||
         repeat.name.startsWith("comparison_discovery:") ||
         repeat.name.startsWith("github_inventory_refresh:") ||
-        repeat.name.startsWith("github_inventory_discovery:");
+        repeat.name.startsWith("github_inventory_discovery:") ||
+        repeat.name.startsWith("tool_data_refresh:");
       if (isCronOrchestrated && !desiredNames.has(repeat.name)) {
         await queue.removeRepeatableByKey(repeat.key);
         log.info({ name: repeat.name }, "Removed orphaned repeating job");

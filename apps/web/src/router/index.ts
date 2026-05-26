@@ -132,6 +132,12 @@ const routes = [
               import("src/pages/settings/SettingsToolBrandAssetsPage.vue"),
           },
           {
+            path: "persona-scoring",
+            name: "settings-persona-scoring",
+            component: () =>
+              import("src/pages/settings/SettingsPersonaScoringPage.vue"),
+          },
+          {
             path: "credentials",
             name: "settings-credentials",
             component: () => import("src/pages/settings/SettingsCredentialsPage.vue"),

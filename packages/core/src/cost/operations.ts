@@ -71,6 +71,14 @@ export const COST_OPS = {
   // === Spec 65.4: Hook-Library top-1 picker (Haiku 4.5 jsonMode) ===
   HOOK_PICK: "hook-pick",
 
+  // === Spec 65.3: Persona-scoring (Haiku 4.5 jsonMode, all-personas-per-tool batch) ===
+  PERSONA_SCORE: "persona-score",
+  // === Spec 65.3: Tool-data refresh via Anthropic web-search + LLM-extract ===
+  // Single COST_OPS slot covers the whole refresh tick (web-search +
+  // LLM-extract are billed in one Anthropic call). The estimate is set to
+  // cover the upper bound of web-search-augmented Haiku output (~€0.05).
+  TOOL_DATA_REFRESH: "tool-data-refresh",
+
   // === SMTP ===
   SMTP_MAGIC_LINK: "magic-link-email",
   SMTP_BRIEFING: "briefing-email",

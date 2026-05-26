@@ -41,6 +41,17 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // Spec 65.4 — Hook-Picker (Haiku 4.5 jsonMode, ~300 input + 100 output tokens).
     [COST_OPS.HOOK_PICK]: 0.005,
 
+    // Spec 65.3 — Persona-scoring (Haiku 4.5 jsonMode, all-personas-per-tool batch).
+    // ~1500 input tokens (tool description + 10 persona definitions) + ~600
+    // output tokens (10 scores × ~60 chars reasoning) per call. ~€0.01/call,
+    // ~€1.10 for the 108-tool Toolwiki backfill.
+    [COST_OPS.PERSONA_SCORE]: 0.01,
+    // Spec 65.3 — Tool-data refresh (Haiku 4.5 + Anthropic web-search tool).
+    // Worst-case: 3 search queries + ~3000 input tokens of search results +
+    // ~500 output tokens for the structured extract + material-change
+    // judgment. ~€0.05/call, ~€5.40/month at the 30-day staleness cadence.
+    [COST_OPS.TOOL_DATA_REFRESH]: 0.05,
+
     // Spec 49c: gap title suggestion (Claude Haiku, ~1000 tokens total)
     [COST_OPS.GAP_TITLE_SUGGEST]: 0.01,
 
