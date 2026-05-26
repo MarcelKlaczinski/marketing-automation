@@ -28,10 +28,13 @@
         "@marketing-auto/adapter-image-webp": "workspace:*",
         "@marketing-auto/adapter-nano-banana": "workspace:*",
         "@marketing-auto/adapter-pagespeed": "workspace:*",
+        "@marketing-auto/adapter-pexels": "workspace:*",
+        "@marketing-auto/adapter-pixabay": "workspace:*",
         "@marketing-auto/adapter-producthunt": "workspace:*",
         "@marketing-auto/adapter-reddit": "workspace:*",
         "@marketing-auto/adapter-replicate": "workspace:*",
         "@marketing-auto/adapter-storage": "workspace:*",
+        "@marketing-auto/adapter-unsplash": "workspace:*",
         "@marketing-auto/adapter-vendor-rss": "workspace:*",
         "@marketing-auto/content-schema": "workspace:*",
         "@marketing-auto/core": "workspace:*",
@@ -225,6 +228,22 @@
         "drizzle-orm": "^0.36.0",
       },
     },
+    "packages/adapters/pexels": {
+      "name": "@marketing-auto/adapter-pexels",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/shared": "workspace:*",
+        "zod": "^3.23.0",
+      },
+    },
+    "packages/adapters/pixabay": {
+      "name": "@marketing-auto/adapter-pixabay",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/shared": "workspace:*",
+        "zod": "^3.23.0",
+      },
+    },
     "packages/adapters/producthunt": {
       "name": "@marketing-auto/adapter-producthunt",
       "version": "0.1.0",
@@ -268,6 +287,14 @@
       "dependencies": {
         "@marketing-auto/core": "workspace:*",
         "@marketing-auto/shared": "workspace:*",
+      },
+    },
+    "packages/adapters/unsplash": {
+      "name": "@marketing-auto/adapter-unsplash",
+      "version": "0.1.0",
+      "dependencies": {
+        "@marketing-auto/shared": "workspace:*",
+        "zod": "^3.23.0",
       },
     },
     "packages/adapters/vendor-rss": {
@@ -389,6 +416,11 @@
       "version": "0.1.0",
       "dependencies": {
         "@lobehub/icons-static-png": "^1.90.0",
+        "@marketing-auto/adapter-image-webp": "workspace:*",
+        "@marketing-auto/adapter-pexels": "workspace:*",
+        "@marketing-auto/adapter-pixabay": "workspace:*",
+        "@marketing-auto/adapter-unsplash": "workspace:*",
+        "@marketing-auto/shared": "workspace:*",
         "@remotion/bundler": "^4.0.290",
         "@remotion/cli": "^4.0.290",
         "@remotion/google-fonts": "^4.0.460",
@@ -739,6 +771,10 @@
 
     "@marketing-auto/adapter-pagespeed": ["@marketing-auto/adapter-pagespeed@workspace:packages/adapters/pagespeed"],
 
+    "@marketing-auto/adapter-pexels": ["@marketing-auto/adapter-pexels@workspace:packages/adapters/pexels"],
+
+    "@marketing-auto/adapter-pixabay": ["@marketing-auto/adapter-pixabay@workspace:packages/adapters/pixabay"],
+
     "@marketing-auto/adapter-producthunt": ["@marketing-auto/adapter-producthunt@workspace:packages/adapters/producthunt"],
 
     "@marketing-auto/adapter-reddit": ["@marketing-auto/adapter-reddit@workspace:packages/adapters/reddit"],
@@ -746,6 +782,8 @@
     "@marketing-auto/adapter-replicate": ["@marketing-auto/adapter-replicate@workspace:packages/adapters/replicate"],
 
     "@marketing-auto/adapter-storage": ["@marketing-auto/adapter-storage@workspace:packages/adapters/storage"],
+
+    "@marketing-auto/adapter-unsplash": ["@marketing-auto/adapter-unsplash@workspace:packages/adapters/unsplash"],
 
     "@marketing-auto/adapter-vendor-rss": ["@marketing-auto/adapter-vendor-rss@workspace:packages/adapters/vendor-rss"],
 

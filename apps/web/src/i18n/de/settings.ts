@@ -202,6 +202,7 @@ export default {
       apiSecret: "API-Secret",
       apiToken: "API-Token",
       personalAccessToken: "Personal Access Token",
+      accessKey: "Access Key",
       clientId: "Client ID",
       clientSecret: "Client Secret",
       userAgent: "User Agent",

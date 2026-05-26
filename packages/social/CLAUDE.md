@@ -246,3 +246,26 @@ The `emoji` prop was removed in Spec 52a. The component never renders emoji.
 **Consumed by:**
 - 65.7 carousel templates: render `<HostSlide data={...} theme={...} locale={...} brandTokens={...} />` as their last frame.
 - 65.5 brief-generators: 65.9 selector (`apps/api/.../shared/select-end-slide.ts`) populates `recurringMetadata.formatConfig.selectedEndSlide` for the renderer to read.
+
+## Photographic subsystem (Spec 65.8 — in progress, Day 1 landed)
+
+`src/photographic/` is the cross-provider image-search + LLM-curation + R2 stage-cache layer that powers Family-B carousels' photographic backgrounds. Public subpath: `@marketing-auto/social/photographic`.
+
+**Day-1 surface (this commit)**:
+- `types.ts` — `ProviderSearchResult` cross-provider normalized shape + `License` Zod schema + `FamilyBImageEntry` (the jsonb row persisted at `articles.domain_extras.familyBImages[]`).
+- `providers/{pexels,unsplash,pixabay}.ts` — per-provider mappers wrapping the corresponding `@marketing-auto/adapter-{provider}` clients with `Promise.allSettled` so a single failed query doesn't drop the rest.
+- `providers/index.ts` — `searchAllProviders(creds, {queries, perQuery})` fan-out + `(provider, providerId)` dedup. Providers with null credentials are skipped silently — Marcel may disable one without redeploying.
+- `license-tracker.ts` — `requiresAttribution(provider)` predicate (Unsplash-only) + pure `buildCaptionAttribution(images)` that produces the "📸 Photos: …" suffix the Instagram caption-builder appends. Dedups by photographer+provider, skips Pixabay (license doesn't require credit), folds Pexels credits in optionally.
+- `r2-image-cache.ts` — `stageProviderImage()` routes provider bytes through `convertImageToWebp` (Pattern 119 — never `putObject` directly for images). Fires `triggerUnsplashDownload()` best-effort when the picked image came from Unsplash, per their API guidelines. Throws on conversion / network failure so callers can fall back to gradient slides (Risk §10 graceful-degradation).
+- `findCachedEntryForSlide(entries, slideIndex)` — pure lookup helper. Consumers (re-render endpoint, pipeline orchestrator) call this first to decide whether to re-stage.
+
+**Cache-key strategy**: rather than asking `convertImageToWebp` for a deterministic R2 key (it always generates a UUID), let the adapter pick the UUID and remember the resulting key in `articles.domain_extras.familyBImages[]` jsonb indexed by `slideIndex`. Re-renders look up the array first; cache-miss triggers a fresh provider search + LLM-pick + stage.
+
+**Day-2+ surface (not yet landed)**:
+- `generate-query-keywords.ts` — Haiku batch-call producing 3 query strings per slide from hook context + narrative beat.
+- `pick-image-llm.ts` — Sonnet vision-call picks the best candidate by `selectedIndex` from a thumbnail array.
+- Top-level orchestrator `getImagesForSlides(article, slides)` chains everything: lookup cache → query-keywords → parallel-search → vision-pick → stage → merge into the article's `familyBImages` array.
+
+**Provider credentials live in the vault** (Spec 64.20 pattern). Service names: `pexels` / `unsplash` / `pixabay`. Required keys: `api_key` / `access_key` / `api_key`. Marcel enters them via `/settings/credentials`; the verify button per provider runs `verifyPexels/Unsplash/Pixabay` from each adapter package against a known search query. Boot-time smoke check: `bun --filter @marketing-auto/api verify-image-providers` exits 0 when all 3 verify.
+
+**Free-tier API convention** — Pexels/Unsplash/Pixabay are free-tier providers, so the calls deliberately do NOT go through `cost-tracker`. This matches Reddit / ProductHunt / HackerNews / vendor-rss adapters; the cost-tracker exists for budget enforcement on paid APIs (Anthropic, Replicate, DataForSEO, Voyage, Nano Banana). Spec §4 budgets €0.00 for provider calls and ~€0.20-0.25 total per render comes entirely from the LLM steps (query-keywords + vision-pick + narrative).

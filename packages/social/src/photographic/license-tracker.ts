@@ -1,0 +1,60 @@
+/**
+ * Spec 65.8 — License-tracker.
+ *
+ * Pure helpers. The R2 stage-cache persists `License` alongside the image;
+ * the Instagram caption-builder consumes these to render attribution lines
+ * per spec §3.12 Option B (caption-only attribution).
+ *
+ * Attribution policy:
+ *   - Pexels: optional — credit is nice but not required by their license.
+ *   - Unsplash: REQUIRED by their TOS. "Photo by <name> on Unsplash".
+ *   - Pixabay: optional — Pixabay License explicitly permits use without
+ *     attribution.
+ */
+import type { FamilyBImageEntry, License, PhotographicProvider } from "./types.ts";
+
+export function licenseFromProvider(args: {
+  provider: PhotographicProvider;
+  photographer: string | null;
+  sourceUrl: string;
+}): License {
+  return {
+    provider: args.provider,
+    photographer: args.photographer,
+    sourceUrl: args.sourceUrl,
+  };
+}
+
+export function requiresAttribution(provider: PhotographicProvider): boolean {
+  return provider === "unsplash";
+}
+
+/**
+ * Build the per-platform caption-suffix listing attributions for any images
+ * whose license requires (or strongly recommends) credit. Returns null when
+ * no images need attribution (all-Pixabay carousels skip the line entirely).
+ *
+ * Format per Unsplash brand guidelines:
+ *   "📸 Photos: <name1> on Unsplash, <name2> on Unsplash"
+ *
+ * Pexels credits are folded in when present (their license doesn't require
+ * it but it's a nice gesture and matches what photographer-tagging tools
+ * expect from creators using their work).
+ */
+export function buildCaptionAttribution(images: FamilyBImageEntry[]): string | null {
+  const credits: string[] = [];
+  const seen = new Set<string>();
+  for (const img of images) {
+    const { license } = img;
+    if (license.provider === "pixabay") continue; // never required, never offered
+    if (!license.photographer) continue;
+    // Format: "<name> on <Provider>"
+    const providerLabel = license.provider === "unsplash" ? "Unsplash" : "Pexels";
+    const credit = `${license.photographer} on ${providerLabel}`;
+    if (seen.has(credit)) continue;
+    seen.add(credit);
+    credits.push(credit);
+  }
+  if (credits.length === 0) return null;
+  return `📸 Photos: ${credits.join(", ")}`;
+}

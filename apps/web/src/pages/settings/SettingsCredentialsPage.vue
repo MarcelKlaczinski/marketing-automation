@@ -113,6 +113,21 @@ export default defineComponent({
           { key: "personal_access_token", labelKey: "settings.credentials.keys.personalAccessToken" },
         ],
       },
+      {
+        id: "pexels",
+        name: "Pexels",
+        keys: [{ key: "api_key", labelKey: "settings.credentials.keys.apiKey" }],
+      },
+      {
+        id: "unsplash",
+        name: "Unsplash",
+        keys: [{ key: "access_key", labelKey: "settings.credentials.keys.accessKey" }],
+      },
+      {
+        id: "pixabay",
+        name: "Pixabay",
+        keys: [{ key: "api_key", labelKey: "settings.credentials.keys.apiKey" }],
+      },
     ],
   }),
 

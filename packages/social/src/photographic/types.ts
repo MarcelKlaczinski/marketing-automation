@@ -1,0 +1,94 @@
+/**
+ * Spec 65.8 — Cross-provider types for the photographic subsystem.
+ *
+ * Pexels / Unsplash / Pixabay each return their own shape. We normalize
+ * them via per-provider adapter functions into a single `ProviderSearchResult`
+ * the LLM-picker + R2-stage-cache consume.
+ *
+ * License-tracking is first-class because Unsplash requires attribution per
+ * their TOS. See spec §3.12 for the caption-attribution wire-up.
+ */
+import { z } from "zod";
+
+export const PHOTOGRAPHIC_PROVIDERS = ["pexels", "unsplash", "pixabay"] as const;
+
+export type PhotographicProvider = (typeof PHOTOGRAPHIC_PROVIDERS)[number];
+
+/**
+ * Normalized provider hit. Discriminated by `provider` so the license-tracker
+ * can branch on attribution requirements (unsplash mandatory, pexels optional,
+ * pixabay none).
+ */
+export interface ProviderSearchResult {
+  provider: PhotographicProvider;
+  /** Full-size image URL we stage to R2. */
+  imageUrl: string;
+  /** Thumbnail URL — fed to the Sonnet vision LLM-pick step. */
+  thumbnailUrl: string;
+  /** Pixel dimensions of `imageUrl`. */
+  width: number;
+  height: number;
+  /** Photographer name when known (Pexels + Unsplash). Null for Pixabay. */
+  photographer: string | null;
+  /** Canonical source URL — the photo's page on the provider. */
+  sourceUrl: string;
+  /** Provider's alt-text / description, when available. */
+  description: string | null;
+  /** Provider-specific opaque ID — used for dedup across parallel searches. */
+  providerId: string;
+  /**
+   * Unsplash-only: URL to hit on actual download to track usage per their
+   * API guidelines. Null for the other two providers.
+   */
+  unsplashDownloadLocationUrl?: string | null;
+}
+
+/**
+ * License metadata persisted alongside the staged image. The shape mirrors
+ * what Instagram caption-builder reads at distribution time:
+ *
+ *   - "pexels" → optional credit ("Photo: <photographer> on Pexels")
+ *   - "unsplash" → REQUIRED credit per TOS
+ *   - "pixabay" → no credit needed
+ */
+export const licenseSchema = z.object({
+  provider: z.enum(["pexels", "unsplash", "pixabay"]),
+  /** Photographer/creator name. Null for Pixabay; usually set for others. */
+  photographer: z.string().nullable(),
+  /**
+   * URL the credit should link to (the photo's page on the provider). Always
+   * present so attribution links work even after the canonical image is moved
+   * to R2.
+   */
+  sourceUrl: z.string().url(),
+});
+
+export type License = z.infer<typeof licenseSchema>;
+
+/**
+ * JSONB entry stored at `articles.domain_extras.familyBImages[]`. One entry
+ * per slide that actually got a photographic background; gradient-only slides
+ * (per spec §3.7 Option γ) are absent from the array.
+ *
+ * The (articleId, slideIndex) tuple acts as the cache key: re-render reads
+ * this array first, hits R2 only when no entry exists or `refreshImages` is
+ * requested.
+ */
+export const familyBImageEntrySchema = z.object({
+  slideIndex: z.number().int().min(0),
+  /** R2 key for the staged WebP (always WebP — Spec 64.6c Pattern 119). */
+  r2Key: z.string().min(1),
+  /** Public CDN URL for direct Remotion `<img>` consumption. */
+  r2Url: z.string().url(),
+  /** Forensic copy of the source bytes (set only when format conversion happened). */
+  originalR2Key: z.string().nullable(),
+  license: licenseSchema,
+  /** The query keyword that ultimately produced this image — for debugging. */
+  queryUsed: z.string().min(1).max(200),
+  /** ISO timestamp of when the image was staged. */
+  cachedAt: z.string().datetime(),
+});
+
+export type FamilyBImageEntry = z.infer<typeof familyBImageEntrySchema>;
+
+export const familyBImagesArraySchema = z.array(familyBImageEntrySchema);

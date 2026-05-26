@@ -41,7 +41,22 @@ export async function getAdapterStatus(
 }
 
 export async function getAllAdapterStatuses() {
-  const [anthropic, replicate, nanoBanana, r2, dataforseo, smtp, githubApp, producthunt, voyage, reddit, github] = await Promise.all([
+  const [
+    anthropic,
+    replicate,
+    nanoBanana,
+    r2,
+    dataforseo,
+    smtp,
+    githubApp,
+    producthunt,
+    voyage,
+    reddit,
+    github,
+    pexels,
+    unsplash,
+    pixabay,
+  ] = await Promise.all([
     getAdapterStatus("anthropic", ["api_key"]),
     getAdapterStatus("replicate", ["api_token"]),
     getAdapterStatus("nano-banana", ["api_key"]),
@@ -59,6 +74,9 @@ export async function getAllAdapterStatuses() {
     getAdapterStatus("voyage", ["api_key"]),
     getAdapterStatus("reddit", ["client_id", "client_secret", "user_agent"]),
     getAdapterStatus("github", ["personal_access_token"]),
+    getAdapterStatus("pexels", ["api_key"]),
+    getAdapterStatus("unsplash", ["access_key"]),
+    getAdapterStatus("pixabay", ["api_key"]),
   ]);
   return {
     anthropic,
@@ -72,6 +90,9 @@ export async function getAllAdapterStatuses() {
     voyage,
     reddit,
     github,
+    pexels,
+    unsplash,
+    pixabay,
   };
 }
 

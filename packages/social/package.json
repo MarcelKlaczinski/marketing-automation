@@ -11,7 +11,8 @@
     "./lib": "./src/lib/index.ts",
     "./brand-tokens": "./src/brand-tokens/index.ts",
     "./end-slide-components": "./src/end-slide-components/index.ts",
-    "./end-slide-components/types": "./src/end-slide-components/types.ts"
+    "./end-slide-components/types": "./src/end-slide-components/types.ts",
+    "./photographic": "./src/photographic/index.ts"
   },
   "scripts": {
     "studio": "remotion studio src/index.tsx",
@@ -22,6 +23,11 @@
   },
   "dependencies": {
     "@lobehub/icons-static-png": "^1.90.0",
+    "@marketing-auto/adapter-image-webp": "workspace:*",
+    "@marketing-auto/adapter-pexels": "workspace:*",
+    "@marketing-auto/adapter-pixabay": "workspace:*",
+    "@marketing-auto/adapter-unsplash": "workspace:*",
+    "@marketing-auto/shared": "workspace:*",
     "@remotion/bundler": "^4.0.290",
     "@remotion/cli": "^4.0.290",
     "@remotion/google-fonts": "^4.0.460",

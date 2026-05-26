@@ -22,11 +22,14 @@ import { verifyGitHubApp } from "@marketing-auto/adapter-astro-sync/verify";
 import { verifyDataForSeo } from "@marketing-auto/adapter-dataforseo/verify";
 import { verifySmtp } from "@marketing-auto/adapter-email/verify";
 import { verifyNanoBanana } from "@marketing-auto/adapter-nano-banana/verify";
+import { verifyPexels } from "@marketing-auto/adapter-pexels/verify";
+import { verifyPixabay } from "@marketing-auto/adapter-pixabay/verify";
 import { verifyProductHunt } from "@marketing-auto/adapter-producthunt/verify";
 import { verifyReplicate } from "@marketing-auto/adapter-replicate/verify";
 import { verifyReddit } from "@marketing-auto/adapter-reddit/verify";
 import { verifyGitHub } from "@marketing-auto/adapter-github-trending/verify";
 import { verifyR2 } from "@marketing-auto/adapter-storage/verify";
+import { verifyUnsplash } from "@marketing-auto/adapter-unsplash/verify";
 import { verifyVoyage } from "@marketing-auto/adapter-voyage/verify";
 
 export const systemRoutes = new Hono();
@@ -76,7 +79,7 @@ systemRoutes.get("/status", async (c) => {
 // Auth required — only logged-in users may write credentials.
 
 const credentialSchema = z.object({
-  service: z.enum(["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]),
+  service: z.enum(["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github", "pexels", "unsplash", "pixabay"]),
   key: z.string().min(1).max(100),
   value: z.string().min(1).max(10_000),
   metadata: z.record(z.unknown()).optional(),
@@ -121,7 +124,7 @@ systemRoutes.delete("/credentials/:service/:key", requireAuth, async (c) => {
 // ───── DELETE /api/system/credentials/:service ──────────────────────────────
 // Auth required — removes all credentials for a service and clears its verify status.
 
-const validServices = ["anthropic", "replicate", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"] as const;
+const validServices = ["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github", "pexels", "unsplash", "pixabay"] as const;
 
 systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
   const service = c.req.param("service");
@@ -138,7 +141,7 @@ systemRoutes.delete("/credentials/:service", requireAuth, async (c) => {
 // ───── POST /api/system/verify/:adapter ─────────────────────────────────────
 // Auth required — verifying runs a live network call against a configured credential.
 
-const adapterEnum = z.enum(["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github"]);
+const adapterEnum = z.enum(["anthropic", "replicate", "nano-banana", "r2", "dataforseo", "smtp", "github_app", "producthunt", "voyage", "reddit", "github", "pexels", "unsplash", "pixabay"]);
 
 systemRoutes.post("/verify/:adapter", requireAuth, async (c) => {
   const parsed = adapterEnum.safeParse(c.req.param("adapter"));
@@ -239,5 +242,14 @@ async function runVerifyByAdapter(
       if (!creds.personal_access_token)
         return { ok: false, message: "personal_access_token required" };
       return verifyGitHub({ personalAccessToken: creds.personal_access_token });
+    case "pexels":
+      if (!creds.api_key) return { ok: false, message: "API key not set" };
+      return verifyPexels({ apiKey: creds.api_key });
+    case "unsplash":
+      if (!creds.access_key) return { ok: false, message: "Access key not set" };
+      return verifyUnsplash({ accessKey: creds.access_key });
+    case "pixabay":
+      if (!creds.api_key) return { ok: false, message: "API key not set" };
+      return verifyPixabay({ apiKey: creds.api_key });
   }
 }
