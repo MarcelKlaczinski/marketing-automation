@@ -15,6 +15,9 @@ import type { SingleToolSpotlightInput } from "./src/compositions/single-tool-sp
 import type { ProConVerdictInput } from "./src/compositions/pro-con-verdict/types.ts";
 import type { ComparisonGrid4Input } from "./src/compositions/comparison-grid-4/types.ts";
 import type { ComparisonGrid3Input } from "./src/compositions/comparison-grid-3/types.ts";
+import type { ComparisonGrid5Input } from "./src/compositions/comparison-grid-5/types.ts";
+import type { HeadToHeadVsInput } from "./src/compositions/head-to-head-vs/types.ts";
+import type { HeadToHeadDeepDiveInput } from "./src/compositions/head-to-head-deep-dive/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -94,6 +97,47 @@ export async function renderListCarousel(input: ListCarouselInput): Promise<Rend
 
 export async function renderComparisonGrid(input: ListCarouselInput): Promise<RenderResult> {
   return renderComposition("ComparisonGrid", input);
+}
+
+/**
+ * Spec 65.7 — shared multi-slide renderer for Family A carousel templates.
+ * Renders `slideTotal` PNGs, looping the slideIndex prop without altering
+ * the dispatcher composition's other input fields.
+ */
+async function renderMultiSlideComposition(
+  compositionId: string,
+  input: Record<string, unknown> & { slideTotal: number },
+  totalSlides: number,
+  slug: string,
+): Promise<RenderResult> {
+  const serveUrl = await getBundle();
+  const compositions = await getCompositions(serveUrl);
+  const baseComposition = compositions.find((c) => c.id === compositionId);
+  if (!baseComposition) throw new Error(`${compositionId} composition not found in bundle`);
+
+  const outDir = resolve(tmpdir(), `social-render-${slug}-${Date.now()}`);
+  await mkdir(outDir, { recursive: true });
+
+  const slides: Buffer[] = [];
+  try {
+    for (let slideIndex = 0; slideIndex < totalSlides; slideIndex++) {
+      const outPath = resolve(outDir, `slide-${slideIndex}.png`);
+      const slideProps = { ...input, slideIndex } as Record<string, unknown>;
+      await renderStill({
+        composition: { ...baseComposition, props: slideProps },
+        serveUrl,
+        output: outPath,
+        frame: 0,
+        imageFormat: "png",
+      });
+      const buf = await readFile(outPath);
+      slides.push(buf);
+    }
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+
+  return { slides, sequenceCount: totalSlides };
 }
 
 export async function renderSingleToolSpotlight(input: SingleToolSpotlightInput): Promise<RenderResult> {
@@ -193,34 +237,23 @@ export async function renderComparisonGrid4(input: ComparisonGrid4Input): Promis
 }
 
 export async function renderComparisonGrid3(input: ComparisonGrid3Input): Promise<RenderResult> {
-  const serveUrl = await getBundle();
-  const compositions = await getCompositions(serveUrl);
-  const baseComposition = compositions.find((c) => c.id === "comparison-grid-3");
-  if (!baseComposition) throw new Error("comparison-grid-3 composition not found in bundle");
+  // Spec 65.7 — multi-slide carousel (7 slides). Replaces the pre-65.7 single-still.
+  return renderMultiSlideComposition("comparison-grid-3", input, input.slideTotal, "cg3");
+}
 
-  const outDir = resolve(tmpdir(), `social-render-cg3-${Date.now()}`);
-  await mkdir(outDir, { recursive: true });
+export async function renderComparisonGrid5(input: ComparisonGrid5Input): Promise<RenderResult> {
+  // Spec 65.7 — multi-slide carousel (9 slides).
+  return renderMultiSlideComposition("comparison-grid-5", input, input.slideTotal, "cg5");
+}
 
-  const slides: Buffer[] = [];
-  try {
-    const outPath = resolve(outDir, "slide-0.png");
-    const slideProps = { ...input, slideIndex: 0 } as Record<string, unknown>;
+export async function renderHeadToHeadVs(input: HeadToHeadVsInput): Promise<RenderResult> {
+  // Spec 65.7 — 2-tool head-to-head carousel (6 slides).
+  return renderMultiSlideComposition("head-to-head-vs", input, input.slideTotal, "h2hvs");
+}
 
-    await renderStill({
-      composition: { ...baseComposition, props: slideProps },
-      serveUrl,
-      output: outPath,
-      frame: 0,
-      imageFormat: "png",
-    });
-
-    const buf = await readFile(outPath);
-    slides.push(buf);
-  } finally {
-    await rm(outDir, { recursive: true, force: true });
-  }
-
-  return { slides, sequenceCount: 1 };
+export async function renderHeadToHeadDeepDive(input: HeadToHeadDeepDiveInput): Promise<RenderResult> {
+  // Spec 65.7 — 2-tool deep-dive carousel (9 slides).
+  return renderMultiSlideComposition("head-to-head-deep-dive", input, input.slideTotal, "h2hdd");
 }
 
 export async function renderVerdictPerUseCase(input: VerdictPerUseCaseInput): Promise<RenderResult> {

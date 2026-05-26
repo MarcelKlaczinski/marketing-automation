@@ -1,31 +1,24 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
-import "./loadFonts.ts"; // Side-effect: registers Inter Variable with Remotion
-import { CompareHeaderSlide } from "./slides/CompareHeaderSlide.tsx";
-import { CoverSlide } from "./slides/CoverSlide.tsx";
-import { EndSlide } from "./slides/EndSlide.tsx";
-import { ToolSlide } from "./slides/ToolSlide.tsx";
-import { VerdictSlide } from "./slides/VerdictSlide.tsx";
-import type { ComparisonGrid3Input } from "./types.ts";
+import "./loadFonts.ts";
+import { CompareHeaderSlide } from "../comparison-grid-3/slides/CompareHeaderSlide.tsx";
+import { CoverSlide } from "../comparison-grid-3/slides/CoverSlide.tsx";
+import { EndSlide } from "../comparison-grid-3/slides/EndSlide.tsx";
+import { ToolSlide } from "../comparison-grid-3/slides/ToolSlide.tsx";
+import { VerdictSlide } from "../comparison-grid-3/slides/VerdictSlide.tsx";
+import type { ComparisonGrid5Input } from "./types.ts";
 
 /**
- * Spec 65.7 — `comparison-grid-3` multi-slide carousel dispatcher.
+ * Spec 65.7 — `comparison-grid-5` multi-slide carousel dispatcher.
  *
- * 7-slide anatomy:
- *   0 — Cover
- *   1 — Compare-Header
- *   2 — Tool slide #1 (rank 1 — winner shown first)
- *   3 — Tool slide #2
- *   4 — Tool slide #3
- *   5 — Verdict
- *   6 — End
+ * 9-slide anatomy. Slide components are reused from `comparison-grid-3` —
+ * the only delta is `tools.length === 5` and `slideTotal === 9`.
  */
-export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
+export const ComparisonGrid5: React.FC<ComparisonGrid5Input> = (props) => {
   const slideIndex = props.slideIndex;
   const slideTotal = props.slideTotal;
   const brandTokens = props.brandTokens;
 
-  // Slide 0 — Cover
   if (slideIndex === 0) {
     return (
       <CoverSlide
@@ -42,7 +35,6 @@ export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
     );
   }
 
-  // Slide 1 — Compare-Header
   if (slideIndex === 1) {
     return (
       <CompareHeaderSlide
@@ -59,7 +51,6 @@ export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
     );
   }
 
-  // Slides 2..4 — Tool slides
   const toolIndex = slideIndex - 2;
   if (toolIndex >= 0 && toolIndex < props.tools.length) {
     const tool = props.tools[toolIndex];
@@ -82,7 +73,6 @@ export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
     }
   }
 
-  // Slide 5 — Verdict
   if (slideIndex === 2 + props.tools.length) {
     return (
       <VerdictSlide
@@ -98,7 +88,6 @@ export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
     );
   }
 
-  // Slide 6 — End
   if (slideIndex === 3 + props.tools.length) {
     return (
       <EndSlide
@@ -113,6 +102,5 @@ export const ComparisonGrid3: React.FC<ComparisonGrid3Input> = (props) => {
     );
   }
 
-  // Fallback for out-of-range slideIndex
   return <AbsoluteFill style={{ background: "#050507" }} />;
 };

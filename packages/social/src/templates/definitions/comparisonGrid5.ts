@@ -1,17 +1,10 @@
 /**
- * Spec 65.7 — `comparison-grid-3` MULTI-SLIDE carousel template (REPLACES single-still).
+ * Spec 65.7 — `comparison-grid-5` MULTI-SLIDE carousel template (NEW).
  *
- * 7-slide anatomy: Cover → Compare-Header → 3 Tools → Verdict → End.
+ * 9-slide anatomy: Cover → Compare-Header → 5 Tools → Verdict → End.
  *
- * Data sourcing:
- *   - Tool slugs + ranking come from `articles.domainExtras.tools[]` (set during
- *     Astro import or 65.5 brief-generator handoff).
- *   - Brand-color + icon resolution via `buildToolLookup()` (lobe-icons →
- *     simple-icons → iconify → avatar chain + `tool_brand_assets` cache).
- *   - LLM-generated cover headline + verdict reasoning via `generateContent()`
- *     using the `_grid3Extra` extension pattern (Spec 60.1 convention).
- *   - Static fallbacks for cover/verdict text when LLM data is absent — every
- *     render path produces a valid slide.
+ * Mirrors `comparison-grid-3` exactly except for `tools.length === 5` and
+ * `slideTotal === 9`. All slide components are reused from grid-3.
  */
 import { z } from "zod";
 import type { ContentBounds, GeneratedContent, TemplateDefinition } from "../types.ts";
@@ -20,7 +13,7 @@ import type { ToolReference } from "../adapters/types.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import { validateAndReprompt } from "../validateGenerated.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
-import { COMPARISON_GRID_3_FIXTURES } from "./fixtures/comparisonGrid3.fixtures.ts";
+import { COMPARISON_GRID_5_FIXTURES } from "./fixtures/comparisonGrid5.fixtures.ts";
 import {
   buildFallbackCons,
   buildFallbackPros,
@@ -33,15 +26,15 @@ import {
   type FamilyATool,
 } from "../../compositions/_shared/family-a/types.ts";
 import {
-  comparisonGrid3Bounds as compositionBounds,
-  comparisonGrid3GeneratedSchema,
-  type ComparisonGrid3Generated,
-  type ComparisonGrid3Input,
-} from "../../compositions/comparison-grid-3/types.ts";
+  comparisonGrid5Bounds as compositionBounds,
+  comparisonGrid5GeneratedSchema,
+  type ComparisonGrid5Generated,
+  type ComparisonGrid5Input,
+} from "../../compositions/comparison-grid-5/types.ts";
 
-// ─── Grid3Context — buildInput → render contract ──────────────────────────────
+// ─── Grid5Context — buildInput → render contract ──────────────────────────────
 
-export interface Grid3RawTool {
+export interface Grid5RawTool {
   slug: string;
   name?: string;
   score?: number;
@@ -54,26 +47,21 @@ export interface Grid3RawTool {
   cons?: [string, string];
 }
 
-export interface Grid3Context {
-  /** Pre-resolved tools (icons + brand colors merged in). */
+export interface Grid5Context {
   tools: FamilyATool[];
-  /** Winner slug (one of tools[].slug). When absent, ranking defaults to score-desc. */
   winner?: string;
-  /** Cover category descriptor — e.g. "KI-Bild-Generatoren". */
   category?: string;
 }
 
-// ─── Bounds (re-exported for definition + REMOTION.md drift test) ─────────────
+export const comparisonGrid5Bounds: ContentBounds = compositionBounds as ContentBounds;
+export const comparisonGrid5DefinitionBounds: ContentBounds = compositionBounds as ContentBounds;
 
-export const comparisonGrid3Bounds: ContentBounds = compositionBounds as ContentBounds;
-export const comparisonGrid3DefinitionBounds: ContentBounds = compositionBounds as ContentBounds;
+export { comparisonGrid5GeneratedSchema };
+export type { ComparisonGrid5Generated };
 
-export { comparisonGrid3GeneratedSchema };
-export type { ComparisonGrid3Generated };
+// ─── LLM schema (identical to grid-3 except the prompt block mentions 5 tools) ─
 
-// ─── LLM schema (snake_case → camelCase via validateAndReprompt) ──────────────
-
-const grid3LlmResponseSchema = z.object({
+const grid5LlmResponseSchema = z.object({
   cover: z.object({
     headline_lead: z.string().min(4).max(28),
     headline_em: z.string().min(4).max(32),
@@ -96,25 +84,24 @@ const grid3LlmResponseSchema = z.object({
   hashtags: z.array(z.string().regex(/^#[^\s\-#]+$/u)).min(5).max(10),
 });
 
-type Grid3LlmResponse = z.infer<typeof grid3LlmResponseSchema>;
+type Grid5LlmResponse = z.infer<typeof grid5LlmResponseSchema>;
 
-interface Grid3Extra {
+interface Grid5Extra {
   cover: { headlineLead: string; headlineEm: string; subline: string };
   compareHeader: { title: string; criteria: string[] };
   verdict: { winnerSlug: string; reasoning: string };
   end: { headlineLead: string; headlineEm: string };
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const DEFAULT_BRAND_TOKENS = brandTokensSchema.parse({});
 const SLIDE_W = 1080;
 const SLIDE_H = 1350;
-const SLIDE_TOTAL = 7;
+const SLIDE_TOTAL = 9;
+const TOOL_COUNT = 5;
 
 // ─── Fallback builders (LLM-failure path) ─────────────────────────────────────
 
-function buildFallbackExtra(ctx: Grid3Context, locale: "de" | "en"): Grid3Extra {
+function buildFallbackExtra(ctx: Grid5Context, locale: "de" | "en"): Grid5Extra {
   const copy = localeCopy(locale);
   const cat = ctx.category ?? (locale === "de" ? "KI-Tools" : "AI tools");
   const winnerSlug = ctx.winner ?? ctx.tools[0]?.slug ?? "";
@@ -149,16 +136,12 @@ function buildFallbackExtra(ctx: Grid3Context, locale: "de" | "en"): Grid3Extra 
   };
 }
 
-function fallbackCaption(
-  tools: FamilyATool[],
-  locale: "de" | "en",
-  articleUrl: string,
-): string {
-  const names = tools.map((t) => t.name).join(" vs. ");
+function fallbackCaption(tools: FamilyATool[], locale: "de" | "en", articleUrl: string): string {
+  const names = tools.map((t) => t.name).join(", ");
   if (locale === "de") {
-    return `${names}: Drei Tools, ein ehrliches Fazit — welches passt zu deinem Workflow?\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ ${articleUrl}`;
+    return `${names}: Fünf Tools, ein ehrliches Fazit — welches passt zu deinem Workflow?\n\nSpeicher diesen Post für deine nächste Tool-Entscheidung.\n\n→ ${articleUrl}`;
   }
-  return `${names}: Three tools, one honest verdict — which fits your workflow?\n\nSave this post for your next tool decision.\n\n→ ${articleUrl}`;
+  return `${names}: Five tools, one honest verdict — which fits your workflow?\n\nSave this post for your next tool decision.\n\n→ ${articleUrl}`;
 }
 
 function fallbackHashtags(locale: "de" | "en"): string[] {
@@ -185,42 +168,41 @@ function fallbackHashtags(locale: "de" | "en"): string[] {
 }
 
 function buildFallbackGeneratedContent(
-  ctx: Grid3Context,
+  ctx: Grid5Context,
   locale: "de" | "en",
   slug: string,
 ): GeneratedContent {
   const extra = buildFallbackExtra(ctx, locale);
   return {
     hookOutput: {
-      text: locale === "de" ? "3 Tools, 1 ehrliches Fazit." : "3 tools, 1 honest verdict.",
+      text: locale === "de" ? "5 Tools, 1 ehrliches Fazit." : "5 tools, 1 honest verdict.",
       pattern: "negative_frame" as const,
     },
     // LLM-fallback path: brandTokens not available inside generateContent(), so
-    // emit the V1 single-tenant URL. The render() fallback below uses
-    // resolveArticleUrl() for multi-tenant safety. Matches single-tool-spotlight
-    // convention.
+    // emit the V1 single-tenant URL. The render() fallback uses
+    // resolveArticleUrl() for multi-tenant safety. Matches single-tool-spotlight.
     caption: fallbackCaption(ctx.tools, locale, `toolwiki.ai/${slug}`),
     hashtags: fallbackHashtags(locale),
-    _grid3Extra: extra,
+    _grid5Extra: extra,
   } as unknown as GeneratedContent;
 }
 
 // ─── Render-input assembly ────────────────────────────────────────────────────
 
 function buildCompositionInput(
-  ctx: Grid3Context,
-  extra: Grid3Extra,
+  ctx: Grid5Context,
+  extra: Grid5Extra,
   articleSlug: string,
   locale: "de" | "en",
   theme: "dark" | "light",
   brandTokens: unknown,
-): ComparisonGrid3Input {
+): ComparisonGrid5Input {
   const month = String(new Date().getMonth() + 1).padStart(2, "0");
   const year = new Date().getFullYear();
   const copy = localeCopy(locale);
   const articleUrl = resolveArticleUrl(brandTokens, articleSlug).slice(0, 48);
 
-  const tools = ctx.tools.slice(0, 3).map((t): FamilyATool => {
+  const tools = ctx.tools.slice(0, TOOL_COUNT).map((t): FamilyATool => {
     const { pricePrefix, priceAmount } = buildPriceComponents(t, locale);
     return {
       ...t,
@@ -232,13 +214,24 @@ function buildCompositionInput(
     };
   });
 
+  // Schema requires exactly 5 — pad if fewer, slice if more (eligibility guard
+  // catches < 5 before render).
+  while (tools.length < TOOL_COUNT) {
+    const last = tools[tools.length - 1];
+    if (!last) break;
+    tools.push({ ...last, slug: `${last.slug}-filler-${tools.length}` });
+  }
+  const fiveTools = tools.slice(0, TOOL_COUNT) as [
+    FamilyATool, FamilyATool, FamilyATool, FamilyATool, FamilyATool,
+  ];
+
   return {
     slideIndex: 0,
     slideTotal: SLIDE_TOTAL,
     theme,
     locale,
     cover: {
-      eyebrow: `${locale === "de" ? "Vergleich" : "Comparison"} · ${tools.length} ${
+      eyebrow: `${locale === "de" ? "Vergleich" : "Comparison"} · ${TOOL_COUNT} ${
         ctx.category ?? (locale === "de" ? "KI-Tools" : "AI tools")
       }`.slice(0, 36),
       headlineLead: extra.cover.headlineLead,
@@ -251,9 +244,9 @@ function buildCompositionInput(
       criteria: extra.compareHeader.criteria,
       ...(ctx.category !== undefined && { categoryBadge: ctx.category.slice(0, 28) }),
     },
-    tools,
+    tools: fiveTools,
     verdict: {
-      winnerToolSlug: extra.verdict.winnerSlug || tools[0]?.slug || "",
+      winnerToolSlug: extra.verdict.winnerSlug || fiveTools[0].slug,
       reasoning: extra.verdict.reasoning,
       eyebrow: copy.verdictEyebrow.slice(0, 32),
       ctaLine: copy.fullReview.slice(0, 28),
@@ -270,13 +263,13 @@ function buildCompositionInput(
 
 // ─── Template definition ──────────────────────────────────────────────────────
 
-export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
-  key: "comparison-grid-3",
-  displayName: "3-Tool-Vergleich (Carousel)",
+export const comparisonGrid5Template: TemplateDefinition<Grid5Context> = {
+  key: "comparison-grid-5",
+  displayName: "5-Tool-Vergleich (Carousel)",
   description:
-    "7-Slide-Karussell für einen 3-Tool-Vergleich: Cover, Vergleichskriterien, drei Tool-Karten, Sieger-Fazit, End-CTA.",
+    "9-Slide-Karussell für einen 5-Tool-Vergleich: Cover, Vergleichskriterien, fünf Tool-Karten, Sieger-Fazit, End-CTA.",
   defaultSlideCount: SLIDE_TOTAL,
-  estimatedCostUsd: 0.012, // LLM: cover headline + verdict reasoning + caption + hashtags
+  estimatedCostUsd: 0.014,
 
   outputFormat: "carousel",
   compatibleChannels: ["instagram", "tiktok"],
@@ -288,13 +281,11 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
     requiresLiveData: false,
   },
 
-  renderServerFn: "renderComparisonGrid3",
+  renderServerFn: "renderComparisonGrid5",
 
-  bounds: comparisonGrid3DefinitionBounds,
-  generatedSchema: comparisonGrid3GeneratedSchema,
+  bounds: comparisonGrid5DefinitionBounds,
+  generatedSchema: comparisonGrid5GeneratedSchema,
   slotMap: {},
-
-  // ── Eligibility ────────────────────────────────────────────────────────────
 
   eligibility: (article, _discovery) => {
     if (article.collection !== "comparisons") {
@@ -305,25 +296,22 @@ export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
       tools?: Array<{ slug?: string; score?: number }>;
     };
     const toolCount = extras.tools?.length ?? extras.toolSlugs?.length ?? 0;
-    if (toolCount < 3) {
+    if (toolCount < TOOL_COUNT) {
       return {
         eligible: false,
-        reason: "Benötigt mindestens 3 Tools",
-        requirements: ["domainExtras.tools.length >= 3"],
+        reason: `Benötigt mindestens ${TOOL_COUNT} Tools`,
+        requirements: [`domainExtras.tools.length >= ${TOOL_COUNT}`],
       };
     }
     return { eligible: true };
   },
 
-  // ── generateContent ────────────────────────────────────────────────────────
-
   generateContent: async (article, input, locale, llmCaller) => {
-    const ctx = input as Grid3Context;
+    const ctx = input as Grid5Context;
     const cat = ctx.category ?? (locale === "de" ? "KI-Tools" : "AI tools");
-
     const isDE = locale === "de";
     const localeDirective = isDE
-      ? "Output language: German (du-Form, B2B-konversationell). Sei prägnant — keine Drama-Phrasen wie 'Kampf um', 'Schlacht', 'Goldrausch'."
+      ? "Output language: German (du-Form, B2B-konversationell). Sei prägnant — keine Drama-Phrasen."
       : "Output language: English (concise, direct).";
 
     const toolBlock = ctx.tools
@@ -348,7 +336,7 @@ ${toolBlock}
 OUTPUT JSON — exactly these keys:
 {
   "cover": {
-    "headline_lead": "<lead phrase — e.g. 'Die 3 besten' / 'The top 3'>",
+    "headline_lead": "<lead phrase — e.g. 'Die 5 besten' / 'The top 5'>",
     "headline_em": "<accent phrase — typically the category, e.g. '${cat}'>",
     "subline": "<one-line summary, 40-160 chars>"
   },
@@ -375,7 +363,6 @@ CONSTRAINTS:
 - verdict.reasoning 40-220 chars
 - caption 20-1800 chars
 - hashtags 5-10 entries, no hyphens, no year tags
-- All German hashtags MUST start with German content keywords (#KITools, etc.)
 
 ${localeDirective}`;
 
@@ -386,7 +373,7 @@ ${localeDirective}`;
     const end = raw.lastIndexOf("}");
     if (start === -1 || end === -1) return buildFallbackGeneratedContent(ctx, locale, article.slug);
 
-    let parsed: Grid3LlmResponse;
+    let parsed: Grid5LlmResponse;
     try {
       const extracted = JSON.parse(raw.slice(start, end + 1)) as unknown;
       parsed = await validateAndReprompt(
@@ -404,19 +391,18 @@ ${localeDirective}`;
             return {};
           }
         },
-        { schema: grid3LlmResponseSchema, maxReprompts: 1, locale },
+        { schema: grid5LlmResponseSchema, maxReprompts: 1, locale },
       );
     } catch {
       return buildFallbackGeneratedContent(ctx, locale, article.slug);
     }
 
-    // Validate winner slug actually exists in tools[] — otherwise fall back to highest-score tool.
     const validSlugs = new Set(ctx.tools.map((t) => t.slug));
     const safeWinnerSlug = validSlugs.has(parsed.verdict.winner_slug)
       ? parsed.verdict.winner_slug
       : ([...ctx.tools].sort((a, b) => b.score - a.score)[0]?.slug ?? "");
 
-    const extra: Grid3Extra = {
+    const extra: Grid5Extra = {
       cover: {
         headlineLead: parsed.cover.headline_lead,
         headlineEm: parsed.cover.headline_em,
@@ -443,27 +429,25 @@ ${localeDirective}`;
       },
       caption: parsed.caption.slice(0, 1800),
       hashtags: parsed.hashtags,
-      _grid3Extra: extra,
+      _grid5Extra: extra,
     } as unknown as GeneratedContent;
   },
-
-  // ── buildInput ─────────────────────────────────────────────────────────────
 
   buildInput: async (article, _discovery) => {
     const extras = (article.domainExtras ?? {}) as {
       toolSlugs?: string[];
-      tools?: Grid3RawTool[];
+      tools?: Grid5RawTool[];
       winner?: string;
       category?: string;
     };
-    const rawTools: Grid3RawTool[] = extras.tools ?? [];
+    const rawTools: Grid5RawTool[] = extras.tools ?? [];
     const slugsForLookup = rawTools
       .map((t) => t.slug)
       .filter((s): s is string => typeof s === "string");
     const locale = (article.locale ?? "de") as "de" | "en";
     const toolLookup = await buildToolLookup(slugsForLookup, locale, article.projectId);
 
-    const tools: FamilyATool[] = rawTools.slice(0, 3).map((raw): FamilyATool => {
+    const tools: FamilyATool[] = rawTools.slice(0, TOOL_COUNT).map((raw): FamilyATool => {
       const resolved: ToolReference | undefined = toolLookup.get(raw.slug);
       const resolvedExtra = resolved as
         | (ToolReference & {
@@ -475,14 +459,12 @@ ${localeDirective}`;
         | undefined;
       const score = raw.score ?? 70;
       const meta = raw.meta ?? resolvedExtra?.primaryCategory ?? raw.slug;
-
       const tool: FamilyATool = {
         slug: raw.slug,
         name: (raw.name ?? resolved?.name ?? raw.slug).slice(0, 28),
         score,
         scoreTier: deriveScoreTier(score),
         meta: meta.slice(0, 48),
-        // Price components are filled in render-input assembly (locale-aware).
         pricePrefix: "",
         priceAmount: "",
         pros: raw.pros ?? buildFallbackPros(meta, locale),
@@ -491,7 +473,6 @@ ${localeDirective}`;
         ...(raw.pricingTier !== undefined && { pricingTier: raw.pricingTier }),
         ...(raw.priceFrom !== undefined && { priceFrom: raw.priceFrom }),
       };
-
       if (raw.winnerFlagText !== undefined) tool.winnerFlagText = raw.winnerFlagText;
       if (resolved?.iconSvg !== undefined) tool.iconSvg = resolved.iconSvg;
       if (resolved?.iconInitials !== undefined) tool.iconInitials = resolved.iconInitials;
@@ -501,42 +482,38 @@ ${localeDirective}`;
         tool.secondaryColor = resolvedExtra.secondaryColor;
       if (resolvedExtra?.tertiaryColor !== undefined)
         tool.tertiaryColor = resolvedExtra.tertiaryColor;
-
       return tool;
     });
 
-    const out: Grid3Context = { tools };
+    const out: Grid5Context = { tools };
     if (extras.winner !== undefined) out.winner = extras.winner;
     if (extras.category !== undefined) out.category = extras.category;
     return out;
   },
 
-  // ── render ─────────────────────────────────────────────────────────────────
-
   render: async (context) => {
     const { article, input, locale, theme } = context;
-    const ctx = input as Grid3Context;
+    const ctx = input as Grid5Context;
     const brandTokens = context.brandTokens ?? DEFAULT_BRAND_TOKENS;
 
-    // Extract LLM-extension data via `_grid3Extra` pattern (Spec 60.1).
     const withExtra = context.generatedContent as
-      | (GeneratedContent & { _grid3Extra?: Grid3Extra })
+      | (GeneratedContent & { _grid5Extra?: Grid5Extra })
       | undefined;
-    const extra = withExtra?._grid3Extra ?? buildFallbackExtra(ctx, locale);
+    const extra = withExtra?._grid5Extra ?? buildFallbackExtra(ctx, locale);
 
     const compositionInput = buildCompositionInput(ctx, extra, article.slug, locale, theme, brandTokens);
 
     const socialModule = (await import("../../../render-server.ts")) as unknown as {
-      renderComparisonGrid3: (
-        input: ComparisonGrid3Input,
+      renderComparisonGrid5: (
+        input: ComparisonGrid5Input,
       ) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     };
-    const { slides: buffers } = await socialModule.renderComparisonGrid3(compositionInput);
+    const { slides: buffers } = await socialModule.renderComparisonGrid5(compositionInput);
 
     const slideOutputs = await writeSlides(
       buffers,
       article.id,
-      "comparison-grid-3",
+      "comparison-grid-5",
       locale,
       theme,
       { width: SLIDE_W, height: SLIDE_H },
@@ -544,13 +521,11 @@ ${localeDirective}`;
 
     return {
       slides: slideOutputs,
-      caption:
-        context.generatedContent?.caption ??
-        fallbackCaption(ctx.tools, locale, resolveArticleUrl(brandTokens, article.slug)),
+      caption: context.generatedContent?.caption ?? fallbackCaption(ctx.tools, locale, resolveArticleUrl(brandTokens, article.slug)),
       hashtags: context.generatedContent?.hashtags ?? fallbackHashtags(locale),
-      metadata: { estimatedCostUsd: 0.012, templateKey: "comparison-grid-3" },
+      metadata: { estimatedCostUsd: 0.014, templateKey: "comparison-grid-5" },
     };
   },
 
-  mockFixtures: COMPARISON_GRID_3_FIXTURES,
+  mockFixtures: COMPARISON_GRID_5_FIXTURES,
 };

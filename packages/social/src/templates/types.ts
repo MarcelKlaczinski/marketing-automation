@@ -20,12 +20,15 @@ export interface GeneratedContent {
 export type TemplateKey =
   | "comparison-grid-4"
   | "comparison-grid-3"
+  | "comparison-grid-5"
   | "verdict-per-use-case"
   | "single-tool-spotlight"
   | "news-slide"
   | "concept-explainer-deck"
   | "price-comparison"
-  | "pro-con-verdict";
+  | "pro-con-verdict"
+  | "head-to-head-vs"
+  | "head-to-head-deep-dive";
 
 /**
  * Spec 65.0 Day 4 — name of the function exported by
@@ -40,9 +43,12 @@ export type TemplateKey =
 export type RenderServerFn =
   | "renderComparisonGrid4"
   | "renderComparisonGrid3"
+  | "renderComparisonGrid5"
   | "renderVerdictPerUseCase"
   | "renderSingleToolSpotlight"
-  | "renderProConVerdict";
+  | "renderProConVerdict"
+  | "renderHeadToHeadVs"
+  | "renderHeadToHeadDeepDive";
 
 export type Theme = "dark" | "light";
 export type Locale = "de" | "en";

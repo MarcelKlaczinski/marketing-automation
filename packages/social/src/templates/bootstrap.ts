@@ -1,9 +1,12 @@
 import { templateRegistry } from "./registry.ts";
 import { comparisonGrid4Template } from "./definitions/comparisonGrid4.ts";
 import { comparisonGrid3Template } from "./definitions/comparisonGrid3.ts";
+import { comparisonGrid5Template } from "./definitions/comparisonGrid5.ts";
 import { verdictPerUseCaseTemplate } from "./definitions/verdictPerUseCase.ts";
 import { singleToolSpotlightTemplate } from "./definitions/singleToolSpotlight.ts";
 import { proConVerdictTemplate } from "./definitions/proConVerdict.ts";
+import { headToHeadVsTemplate } from "./definitions/headToHeadVs.ts";
+import { headToHeadDeepDiveTemplate } from "./definitions/headToHeadDeepDive.ts";
 import type { TemplateDefinition } from "./types.ts";
 
 const REQUIRED_FIXTURE_KEYS = ["characteristic", "edge-min", "edge-max"] as const;
@@ -28,9 +31,12 @@ export function bootstrapTemplates(): void {
   const templates = [
     comparisonGrid4Template,
     comparisonGrid3Template,
+    comparisonGrid5Template,
     verdictPerUseCaseTemplate,
     singleToolSpotlightTemplate,
     proConVerdictTemplate,
+    headToHeadVsTemplate,
+    headToHeadDeepDiveTemplate,
   ] as unknown as TemplateDefinition<unknown>[];
 
   for (const t of templates) {

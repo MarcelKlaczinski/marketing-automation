@@ -1,8 +1,5 @@
 import { loadFont } from "@remotion/google-fonts/Inter";
 
-// Spec 65.7 — Family A multi-slide carousels.
-// Must be called at module scope so Remotion pre-loads before headless Chrome renders.
-// latin-ext required for German umlauts (ä ö ü ß Ä Ö Ü).
 export const { fontFamily: FONT_FAMILY_INTER } = loadFont("normal", {
   weights: ["400", "500", "600", "700", "800"],
   subsets: ["latin", "latin-ext"],

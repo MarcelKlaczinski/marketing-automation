@@ -57,19 +57,24 @@ For new visual-refreshed templates, look at `src/compositions/single-tool-spotli
 
 The `resolveBrandTokens(unknown) → BrandTokens` helper is at `src/lib/brand-tokens.ts` — use it at the top of every slide component to convert the loosely-typed `brandTokens?: unknown` from the input schema into a typed `BrandTokens` before passing to `deriveDsTokens`.
 
-## Template Inventory (as of Spec 60.4)
+## Template Inventory (as of Spec 65.7)
 
 | Key | Slides | Cover Signature | Eligible content |
 |-----|--------|-----------------|-----------------|
 | `comparison-grid-4` | **1 (single still)** | 4-up tool grid, top-right glow, 84px score | comparison articles, **exactly 4 tools**, `domainExtras.tools[].score` required |
-| `comparison-grid-3` | **1 (single still)** | 3-up auto-height card stack, bottom-left glow, 56px score, 2×2 pro/con bullets | comparison articles, **exactly 3 tools** (sliced in `buildInput`), `domainExtras.tools` required |
+| `comparison-grid-3` | **7 (carousel — Spec 65.7)** | Cover → Compare-Header → 3 Tools → Verdict → End | comparison articles, **≥3 tools**, `domainExtras.tools` |
+| `comparison-grid-5` | **9 (carousel — Spec 65.7)** | Cover → Compare-Header → 5 Tools → Verdict → End | comparison articles, **≥5 tools**, `domainExtras.tools` |
 | `verdict-per-use-case` | **1 (single still)** | 5–7 flat use-case rows, **top-left glow, accent-500** (only template), winner pill | comparison articles, ≥3 tools + ≥5 `domainExtras.useCaseVerdicts` |
 | `single-tool-spotlight` | 3 (cover/body/end) | hero cover + tool deep-dive body | tools collection, has pros/features |
 | `pro-con-verdict` | 5 (4 if `includeEndSlide=false`) | diagonal split-screen green/red | tools collection, `domainExtras.pros ≥ 3 AND cons ≥ 3` |
+| `head-to-head-vs` | **6 (carousel — Spec 65.7)** | Cover → Tool A → Tool B → Side-by-side compare → Verdict → End | comparison articles, **exactly 2 tools** |
+| `head-to-head-deep-dive` | **9 (carousel — Spec 65.7)** | Cover → A overview → A features → B overview → B features → Pricing → Use-cases → Verdict → End | comparison articles, **exactly 2 tools**, optional `extendedPros`/`extendedCons` |
+
+**Spec 65.7 Family A multi-slide carousels** (the four highlighted rows) — `comparison-grid-3` replaces the pre-65.7 single-still (single-still pattern is preserved by `comparison-grid-4`, which stays untouched). All four share slide components from `comparison-grid-3/slides/` (Cover, CompareHeader, Tool, Verdict, End); `head-to-head-vs` adds `SideBySideSlide` and `head-to-head-deep-dive` adds `PricingCompareSlide` + `UseCaseCompareSlide`. Bi-theme works via `deriveDsTokens(brandTokens, theme)` — there is no separate CSS-var system. Per-tool brand colors come from `tool_brand_assets` (Spec 65.2) via `FamilyATool.{primaryColor, secondaryColor, tertiaryColor}`. LLM cover-headline + verdict-reasoning travel via per-template `_<tplKey>Extra` extension payloads on `GeneratedContent` (Spec 60.1 pattern).
 
 **`pro-con-verdict` cover:** Two halves divided by a diagonal SVG clipPath — left half tinted with `prosColor` (default oklch green), right half with `consColor` (default oklch red). Tool name overlays the split at the bottom. This is the only template with a split-screen cover and is visually distinct from all others in the Instagram grid.
 
-**`comparison-grid-4`, `comparison-grid-3`, and `verdict-per-use-case` are all single-still templates** — one PNG per article, no dispatcher. Their render functions each call `renderStill()` once with `slideIndex: 0`. Workers read `content.renderInput` snapshot from DB (Spec 58.2 pattern) — NOT job data. Key visual deltas: grid-4 top-right glow + 84px score; grid-3 bottom-left glow + 56px score + 2×2 pro/con bullets; verdict-per-use-case top-left **accent** glow + flat row list (no cards, no scores).
+**Single-still vs carousel split:** `comparison-grid-4` and `verdict-per-use-case` stay single-still (one PNG, no dispatcher, `renderStill` once at `slideIndex: 0`). All four Family A templates from 65.7 are multi-slide carousels — their render-server functions loop `renderStill` across `slideTotal` PNGs via the shared `renderMultiSlideComposition` helper. Workers read `content.renderInput` snapshot from DB (Spec 58.2 pattern) regardless of single-still vs carousel.
 
 ## Variant History (Spec 57.1)
 
@@ -219,3 +224,25 @@ Render output path: `/renders/<articleId>/<templateKey>/<locale>-<theme>/slide-N
 The `emoji` prop was removed in Spec 52a. The component never renders emoji.
 
 **DS component visual isolation in tests (Spec 60.1)** — when writing baselines for individual DS components (`<DsGlow>`, `<DsTop>`, `<DsFoot>`), do not register them as standalone Remotion compositions in `src/index.tsx`. Instead, render each component-in-context: DsGlow via a body slide (glow most prominent), DsTop via a cover slide (header row dominant), DsFoot via an end slide (footer is sole focal element). This is the approved isolation pattern for DS component baseline testing — it ensures components are tested in realistic context rather than artificial harness compositions.
+
+## End-Slide Components (Spec 65.9)
+
+`src/end-slide-components/` is the V1 pluggable end-slide layer consumed by Theme 65 carousels as their final frame. Public subpath: `@marketing-auto/social/end-slide-components`.
+
+**7 v1 types** (see `EndSlideData` discriminated union + `END_SLIDE_TYPES` const in `types.ts`): `follow-cta`, `comment-to-get`, `link-in-bio`, `tag-friend`, `save-share-cta`, `swipe-up`, `quote-action`. Each has a per-type Zod schema collected in `END_SLIDE_CONFIG_SCHEMAS` for runtime validation of the loosely-typed `end_slide_definitions.config` jsonb column.
+
+**Component shape:**
+- `HostSlide.tsx` — discriminated-union dispatcher. Switches on `data.type` with an exhaustive `never`-check default branch: adding a new type without extending the switch is a compile-time error.
+- `shared/EndSlideBase.tsx` — themed `AbsoluteFill` with `DsGlow` corner (configurable corner + brand/accent tint). Uses a **render-prop children** pattern (`children: ReactNode | (tokens) => ReactNode`) so concrete slides receive the derived `DsTokens` without re-calling `deriveDsTokens`. The base owns `surface.base` / `ink.base` / `typography.fontFamily` so all 7 types share visual DNA.
+- 7 concrete slides (`FollowCtaSlide.tsx`, `CommentToGetSlide.tsx`, …) — each consumes `EndSlideBase` with its preset glow corner + color, then renders its config via the render-prop children.
+
+**Adding a new end-slide type** (V1.5+ — keep the surface narrow for V1):
+1. Extend `END_SLIDE_TYPES` tuple + add the per-type interface to `EndSlideData` union + add a Zod schema + register in `END_SLIDE_CONFIG_SCHEMAS`.
+2. Add the concrete `<Name>Slide.tsx` consuming `EndSlideBase`.
+3. Add a new `case` to `HostSlide` — TS catches the missing case via the `never`-check.
+4. Export from `index.ts` barrel.
+5. Seed at least one active row in a follow-up migration so projects can pick it via the LRU selector.
+
+**Consumed by:**
+- 65.7 carousel templates: render `<HostSlide data={...} theme={...} locale={...} brandTokens={...} />` as their last frame.
+- 65.5 brief-generators: 65.9 selector (`apps/api/.../shared/select-end-slide.ts`) populates `recurringMetadata.formatConfig.selectedEndSlide` for the renderer to read.

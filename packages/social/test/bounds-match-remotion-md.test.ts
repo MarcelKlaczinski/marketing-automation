@@ -104,37 +104,82 @@ describe("*Bounds match REMOTION.md field-length budgets", () => {
     });
   });
 
-  describe("comparison-grid-3 (Grid3Props)", () => {
+  describe("comparison-grid-3 (Spec 65.7 multi-slide carousel)", () => {
     const grid3 = extractSection(remotionMd, "comparison-grid-3");
+    const grid3Bounds = comparisonGrid3Bounds as {
+      cover: { subline: { min: number; max: number } };
+      compareHeader: { criteria: { each: { min: number; max: number } } };
+      tools: { count: number; pros: { each: { min: number; max: number } } };
+      verdict: { reasoning: { min: number; max: number } };
+    };
 
-    it("eyebrow min/max (tighter than grid-4)", () => {
-      const budget = parseFieldBudget(grid3, "eyebrow");
-      expect(budget).not.toBeNull();
-      expect(comparisonGrid3Bounds.eyebrow.min).toBe(budget!.min);
-      expect(comparisonGrid3Bounds.eyebrow.max).toBe(budget!.max);
+    it("REMOTION.md section is multi-slide (7 slides)", () => {
+      expect(grid3).toContain("MULTI-SLIDE");
+      expect(grid3).toContain("slideTotal: number;");
+      expect(grid3).toContain("Cover → Compare-Header → 3 Tools → Verdict → End");
     });
 
-    it("tools.meta min/max", () => {
+    it("cover.subline min/max", () => {
+      // REMOTION.md inline shape with subline budget
+      const match = grid3.match(/subline:\s+string;\s*\/\/\s*min\s+(\d+),\s+max\s+(\d+)/);
+      expect(match).toBeTruthy();
+      expect(grid3Bounds.cover.subline.min).toBe(Number(match![1]));
+      expect(grid3Bounds.cover.subline.max).toBe(Number(match![2]));
+    });
+
+    it("tools.length is exactly 3", () => {
+      expect(grid3Bounds.tools.count).toBe(3);
+      expect(grid3).toContain("EXACTLY 3 entries");
+    });
+
+    it("verdict.reasoning min/max", () => {
+      const match = grid3.match(/reasoning:\s+string;\s*\/\/\s*min\s+(\d+),\s+max\s+(\d+)/);
+      expect(match).toBeTruthy();
+      expect(grid3Bounds.verdict.reasoning.min).toBe(Number(match![1]));
+      expect(grid3Bounds.verdict.reasoning.max).toBe(Number(match![2]));
+    });
+
+    it("compare-header criteria each min/max", () => {
+      // "criteria: string[];        // 2-5 entries; each min 4, max 40"
       const match = grid3.match(
-        /meta:\s*string;\s*\/\/\s*min\s*(\d+),\s*max\s*(\d+)/,
+        /criteria:\s*string\[\];\s*\/\/\s*\d+[-–]\d+\s+entries;\s+each\s+min\s+(\d+),\s+max\s+(\d+)/,
       );
       expect(match).toBeTruthy();
-      expect(comparisonGrid3Bounds.tools.meta.min).toBe(Number(match![1]));
-      expect(comparisonGrid3Bounds.tools.meta.max).toBe(Number(match![2]));
+      expect(grid3Bounds.compareHeader.criteria.each.min).toBe(Number(match![1]));
+      expect(grid3Bounds.compareHeader.criteria.each.max).toBe(Number(match![2]));
     });
+  });
 
-    it("tools.bullets.pros each min/max", () => {
-      const match = grid3.match(
-        /pros:\s*string\[\];\s*\/\/\s*EXACTLY\s*\d+\s*entries;\s*each\s*min\s*(\d+),\s*max\s*(\d+)/,
-      );
-      expect(match).toBeTruthy();
-      expect(comparisonGrid3Bounds.tools.bullets.pros.each.min).toBe(Number(match![1]));
-      expect(comparisonGrid3Bounds.tools.bullets.pros.each.max).toBe(Number(match![2]));
+  describe("comparison-grid-5 (Spec 65.7 multi-slide carousel)", () => {
+    const grid5 = extractSection(remotionMd, "comparison-grid-5");
+
+    it("REMOTION.md section is multi-slide (9 slides)", () => {
+      expect(grid5).toContain("MULTI-SLIDE");
+      expect(grid5).toContain("slideTotal: 9");
+      expect(grid5).toContain("EXACTLY 5 entries");
     });
+  });
 
-    it("heroSub max for grid-3 is 160 (tighter than grid-4's 180)", () => {
-      expect(comparisonGrid3Bounds.heroSub.max).toBe(160);
-      expect(comparisonGrid4Bounds.heroSub.max).toBe(180);
+  describe("head-to-head-vs (Spec 65.7 head-to-head carousel)", () => {
+    const h2h = extractSection(remotionMd, "head-to-head-vs");
+
+    it("REMOTION.md section is 6 slides + side-by-side compare", () => {
+      expect(h2h).toContain("6 slides");
+      expect(h2h).toContain("EXACTLY 2 entries");
+      expect(h2h).toContain("EXACTLY 3 entries");
+      expect(h2h).toMatch(/winner:\s+'a' \| 'b' \| 'tie'/);
+    });
+  });
+
+  describe("head-to-head-deep-dive (Spec 65.7 deep-dive carousel)", () => {
+    const dd = extractSection(remotionMd, "head-to-head-deep-dive");
+
+    it("REMOTION.md section is 9 slides + pricing + use-case compare", () => {
+      expect(dd).toContain("9 slides");
+      expect(dd).toContain("Pricing-compare");
+      expect(dd).toContain("Use-case-compare");
+      expect(dd).toContain("EXACTLY 2 entries");
+      expect(dd).toContain("3-5 entries");
     });
   });
 
