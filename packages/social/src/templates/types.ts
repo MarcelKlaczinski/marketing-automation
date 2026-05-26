@@ -29,7 +29,9 @@ export type TemplateKey =
   | "pro-con-verdict"
   | "head-to-head-vs"
   | "head-to-head-deep-dive"
-  | "story-arc-clickbait";
+  | "story-arc-clickbait"
+  | "lifestyle-listicle"
+  | "opinion-recommendation";
 
 /**
  * Spec 65.0 Day 4 — name of the function exported by
@@ -50,7 +52,9 @@ export type RenderServerFn =
   | "renderProConVerdict"
   | "renderHeadToHeadVs"
   | "renderHeadToHeadDeepDive"
-  | "renderStoryArcClickbait";
+  | "renderStoryArcClickbait"
+  | "renderLifestyleListicle"
+  | "renderOpinionRecommendation";
 
 export type Theme = "dark" | "light";
 export type Locale = "de" | "en";

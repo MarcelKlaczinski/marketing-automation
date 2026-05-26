@@ -4,8 +4,10 @@
  * Hook-driven opinion piece advocating for one specific tool ("Warum jeder
  * {tool} Premium haben sollte"). Strongly affiliate-leaning; the brief-
  * generator (65.5) emphasises pricing/value-prop when `affiliateAngle` is
- * true. Templates: `opinion-recommendation-dramatic` /
- * `opinion-recommendation-minimal` (65.8).
+ * true. V1 (Spec 65.8 Day 4b) ships a single `opinion-recommendation`
+ * template; the 65.4-planned `-dramatic`/`-minimal` split is deferred
+ * until engagement data justifies it. `opinionStance` shifts the LLM's
+ * register inside the same composition.
  */
 import { z } from "zod";
 import type { FormatTypeDefinition } from "./registry.ts";
@@ -36,7 +38,7 @@ export const opinionRecommendationDefinition: FormatTypeDefinition = {
   family: "B",
   configSchema: opinionRecommendationConfigSchema,
   briefGenerator: "opinion-recommendation-brief-generator",
-  eligibleTemplates: ["opinion-recommendation-dramatic", "opinion-recommendation-minimal"],
+  eligibleTemplates: ["opinion-recommendation"],
   needsHooks: true,
   defaultEndSlides: ["link-in-bio", "tag-friend"],
 };

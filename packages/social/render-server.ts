@@ -19,6 +19,8 @@ import type { ComparisonGrid5Input } from "./src/compositions/comparison-grid-5/
 import type { HeadToHeadVsInput } from "./src/compositions/head-to-head-vs/types.ts";
 import type { HeadToHeadDeepDiveInput } from "./src/compositions/head-to-head-deep-dive/types.ts";
 import type { StoryArcClickbaitInput } from "./src/compositions/story-arc-clickbait/types.ts";
+import type { LifestyleListicleInput } from "./src/compositions/lifestyle-listicle/types.ts";
+import type { OpinionRecommendationInput } from "./src/compositions/opinion-recommendation/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -260,6 +262,16 @@ export async function renderHeadToHeadDeepDive(input: HeadToHeadDeepDiveInput): 
 export async function renderStoryArcClickbait(input: StoryArcClickbaitInput): Promise<RenderResult> {
   // Spec 65.8 — Family B 7-slide narrative carousel.
   return renderMultiSlideComposition("story-arc-clickbait", input, input.slideTotal, "sac");
+}
+
+export async function renderLifestyleListicle(input: LifestyleListicleInput): Promise<RenderResult> {
+  // Spec 65.8 — Family B 6-slide single-tool lifestyle listicle.
+  return renderMultiSlideComposition("lifestyle-listicle", input, input.slideTotal, "ll");
+}
+
+export async function renderOpinionRecommendation(input: OpinionRecommendationInput): Promise<RenderResult> {
+  // Spec 65.8 — Family B 6-slide opinion piece with concrete recommendation.
+  return renderMultiSlideComposition("opinion-recommendation", input, input.slideTotal, "or");
 }
 
 export async function renderVerdictPerUseCase(input: VerdictPerUseCaseInput): Promise<RenderResult> {

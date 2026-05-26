@@ -3,8 +3,12 @@
  *
  * Hook-driven life-area listicle ("5 Wege wie {tool} deinen {lifeArea}
  * verändert"). Brief-generator (65.5) picks N tools matching the filter,
- * the Hook-Picker selects an opener pattern, and the template
- * (`lifestyle-listicle-dramatic` / `lifestyle-listicle-minimal`, 65.8) renders.
+ * the Hook-Picker selects an opener pattern, and the template renders.
+ *
+ * V1 (Spec 65.8 Day 4a) ships a single `lifestyle-listicle` template that
+ * handles all tone variants via `format_config.itemCount` (3-10) and the
+ * brief-generator's chosen narrativeAngle. The 65.4-planned `-dramatic`/
+ * `-minimal` split is deferred until engagement data justifies it.
  */
 import { z } from "zod";
 import type { FormatTypeDefinition } from "./registry.ts";
@@ -32,7 +36,7 @@ export const lifestyleListicleDefinition: FormatTypeDefinition = {
   family: "B",
   configSchema: lifestyleListicleConfigSchema,
   briefGenerator: "lifestyle-listicle-brief-generator",
-  eligibleTemplates: ["lifestyle-listicle-dramatic", "lifestyle-listicle-minimal"],
+  eligibleTemplates: ["lifestyle-listicle"],
   needsHooks: true,
   defaultEndSlides: ["comment-to-get", "save-share-cta"],
 };

@@ -19,6 +19,10 @@ import { HeadToHeadDeepDive } from "./compositions/head-to-head-deep-dive/HeadTo
 import { headToHeadDeepDiveInputSchema } from "./compositions/head-to-head-deep-dive/types.ts";
 import { StoryArcClickbait } from "./compositions/story-arc-clickbait/StoryArcClickbait.tsx";
 import { storyArcClickbaitInputSchema } from "./compositions/story-arc-clickbait/types.ts";
+import { LifestyleListicle } from "./compositions/lifestyle-listicle/LifestyleListicle.tsx";
+import { lifestyleListicleInputSchema } from "./compositions/lifestyle-listicle/types.ts";
+import { OpinionRecommendation } from "./compositions/opinion-recommendation/OpinionRecommendation.tsx";
+import { opinionRecommendationInputSchema } from "./compositions/opinion-recommendation/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -499,6 +503,114 @@ export function RemotionRoot() {
             headlineEm: "ehrlich erzählt.",
             articleUrl: "toolwiki.ai/wie-texter-ki",
             ctaLine: "Vollständige Story →",
+          },
+          images: [],
+        })}
+      />
+      <Composition
+        id="lifestyle-listicle"
+        component={LifestyleListicle}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={lifestyleListicleInputSchema}
+        defaultProps={lifestyleListicleInputSchema.parse({
+          slideIndex: 0,
+          slideTotal: 6,
+          theme: "dark",
+          locale: "de",
+          hook: {
+            rendered: "3 Momente, in denen ChatGPT meinen Alltag verändert",
+            variables: { profession: "Texter", lifeArea: "Alltag" },
+          },
+          featuredTool: {
+            slug: "chatgpt",
+            name: "ChatGPT",
+            iconInitials: "GP",
+            iconHue: 160,
+          },
+          narrative: {
+            intro: {
+              beatName: "intro",
+              eyebrow: "Intro",
+              text: "Als Texter dachte ich, ChatGPT ist nur eine Spielerei für meinen Alltag — bis ich es 3 Wochen lang in jeden Tag eingebaut habe.",
+            },
+            item1: {
+              beatName: "item1",
+              eyebrow: "Morgens",
+              text: "Beim ersten Kaffee: ChatGPT drafted die wichtigsten 3 Tasks aus meinen Slack-Backlogs, während ich noch wach werde.",
+            },
+            item2: {
+              beatName: "item2",
+              eyebrow: "Im Job",
+              text: "Mittags am Schreibtisch: ChatGPT pairs mit mir beim Schreiben der Texte, die mich sonst den ganzen Nachmittag gekostet hätten.",
+            },
+            item3: {
+              beatName: "item3",
+              eyebrow: "Unerwartet",
+              text: "Was ich am wenigsten erwartet hätte: ChatGPT hilft mir beim Schreiben von Geburtstagstexten, die ich sonst tagelang prokrastiniere.",
+            },
+          },
+          end: {
+            headlineLead: "Mehr Lifestyle-KI",
+            headlineEm: "ehrlich erprobt.",
+            articleUrl: "toolwiki.ai/chatgpt-alltag",
+            ctaLine: "Mehr Geschichten →",
+          },
+          images: [],
+        })}
+      />
+      <Composition
+        id="opinion-recommendation"
+        component={OpinionRecommendation}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={opinionRecommendationInputSchema}
+        defaultProps={opinionRecommendationInputSchema.parse({
+          slideIndex: 0,
+          slideTotal: 6,
+          theme: "dark",
+          locale: "de",
+          hook: {
+            rendered: "Die meisten Texter benutzen ChatGPT falsch",
+            variables: { profession: "Texter", lifeArea: "Workflow" },
+          },
+          recommendedTool: {
+            slug: "claude",
+            name: "Claude",
+            iconInitials: "CL",
+            iconHue: 30,
+          },
+          narrative: {
+            hotTake: {
+              beatName: "hotTake",
+              eyebrow: "Hot-Take",
+              text: "Die meisten Texter benutzen ChatGPT wie eine Suchmaschine. Das ist genau das Problem.",
+            },
+            reasoning1: {
+              beatName: "reasoning1",
+              eyebrow: "Begründung 1",
+              text: "Eine Suche bringt dir Fragmente. Ein guter Prompt bringt dir strukturiertes Denken — wenn du das Tool nicht als Antwort-Maschine missbrauchst.",
+            },
+            reasoning2: {
+              beatName: "reasoning2",
+              eyebrow: "Begründung 2",
+              text: "Drei Wochen sind das Minimum, um deinen Workflow zu kalibrieren. Wer nach einer Woche aufgibt, hat das Werkzeug nie wirklich getestet.",
+            },
+            topPick: {
+              beatName: "topPick",
+              eyebrow: "Top-Pick",
+              text: "Meine Empfehlung: Claude — weil es dich zwingt, strukturiert zu denken, statt nur zu fragen.",
+            },
+          },
+          end: {
+            headlineLead: "Mehr Meinungen",
+            headlineEm: "ehrlich begründet.",
+            articleUrl: "toolwiki.ai/texter-chatgpt-falsch",
+            ctaLine: "Vollständige Analyse →",
           },
           images: [],
         })}
