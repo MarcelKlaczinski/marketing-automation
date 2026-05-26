@@ -71,6 +71,37 @@ Cost-tracked under `COST_OPS.HOOK_PICK` (€0.005/call). Used by 65.5 brief-gene
 
 **HTTP routes** [`routes/projects/persona-scoring.ts`](src/routes/projects/persona-scoring.ts) — 3 endpoints under `/api/projects/:slug/persona-scoring/{stats,scores,backfill}`. Backfill runs synchronously (Marcel-Decision §3.3 lazy + opt-in trigger, not BullMQ V1) — endurance ~5 min for 108-tool Toolwiki. Future V1.1 could move it behind BullMQ if scale demands.
 
+### Recurring-content brief-generator + cron coordinator (Spec 65.5)
+
+`src/lib/recurring-content/` is the canonical home for the end-to-end recurring-brief-generation pipeline that operationalises Theme 65 foundation (65.0-65.4). Cron-driven, BullMQ-consumed, output lands in `topic_briefs` with `source='recurring'` + `approval_status='plan_pending'`.
+
+**Cron coordinator** [`workers/recurring-content.cron.ts`](src/workers/recurring-content.cron.ts) — module-level `setInterval(15min)` started by `server.ts` ONLY (Memory D17 + D24 single-instance). Per tick: `listDueRecurringDefinitions({limit: 10})` → `enqueueRecurringBriefGenerator()` per row. Idempotent start; `.unref()` so the process can exit. Mirrors the `template-usage-log-prune.cron.ts` (Spec 65.1) shape.
+
+**BullMQ worker** [`workers/recurring-brief-generator.worker.ts`](src/workers/recurring-brief-generator.worker.ts) (`concurrency: 1`, `attempts: 1`) — consumes the cron-enqueued jobs. Per job:
+1. Acquires a per-`definitionId` **Redis lock** (5min TTL) via `SET NX EX` + a Lua release-if-owner script. The lock token is generated per-attempt; release uses `EVAL "if get == token then del"` so we never release a lock that has expired and been re-acquired by another process.
+2. Re-loads the definition (cron may have read a stale row); guards against `!isActive`, project mismatch, and missing rows.
+3. Resolves `language` from `projects.target_locales[0]` (BCP-47 → 2-letter), `runNumber` from prior persisted briefs, `previousRunToolIds` from the most recent prior brief's `recurringMetadata.formatConfig.toolIds`.
+4. Dispatches via `dispatchBriefGenerator` → format-type-specific generator under `lib/recurring-content/brief-generators/`.
+5. Advances `next_run_at` via `markRecurringDefinitionRun` regardless of outcome (skipped briefs still consume the slot — a brand-asset gap shouldn't fire again in 30 seconds; Marcel reviews the admin notification).
+
+**5 brief-generators** under [`lib/recurring-content/brief-generators/`](src/lib/recurring-content/brief-generators/) — flat functions, one file per format-type, all composing the same 4 shared helpers:
+
+- **`shared/pick-tools.ts`** — `pickToolsForBrief()`. Manual override path (when `format_config.manualToolIds` set, verifies project + collection then truncates to topN). LLM-curated path (oversample×4 → optional `pickPersonaScoredTools` reorder when `config.persona` set → Haiku 4.5 + jsonMode picks final N → hallucination fallback drops invalid UUIDs + top-ups from pool head). Cost-tracked under `COST_OPS.RECURRING_TOOLS_CURATE` (€0.005).
+- **`shared/check-brand-assets.ts`** — `ensureBrandAssetsAvailable()`. Throws `BrandAssetsMissingError` with the list of tools missing `logo_url` (uses 65.2 `listToolsWithBrandAssets`). Brief-generators catch and return `status: "skipped", reason: "brand-assets-missing"` so the worker can dispatch an admin notification (`notify-skipped.ts`, Memory D21 fan-out per `users.role='owner'`).
+- **`shared/select-template.ts`** — `selectTemplateForRecurringBrief()` 3-Layer (Spec 65.5 absorbs 65.6). Layer 0 = `fixed` (returns `definition.fixedTemplateKey`). Layer 1 = eligible-templates lookup via 65.4 `FORMAT_TYPES[formatType].eligibleTemplates` (single-eligible short-circuit). Layer 2 = LRU via `listRecentTemplateUsage(definition.id, limit: eligible.length - 1)` skipping recently-used; falls back to `eligible[0]` cold-start. Layer 3 = LLM-rank via Haiku 4.5 + jsonMode with hallucination/Zod-fail/throw fallback to LRU pick. Cost-tracked under `COST_OPS.RECURRING_TEMPLATE_RANK` (€0.005). Post-select logging happens in the caller via `logTemplateUsage` AFTER `persistRecurringBrief` lands — a failed persist must not leave a phantom usage entry.
+- **`shared/brief-text.ts`** — `buildBriefText()`. Single Sonnet 4.6 call with tagged-block `<TITLE>...</TITLE><BODY>...</BODY>` output (Sonnet rejects jsonMode prefill). Returns 3-6 sentences of dense brief-text that primes downstream `article:social-image` / `article:blog` content generators. Cost-tracked under `COST_OPS.RECURRING_BRIEF_BUILD` (€0.05).
+- **`shared/persist-brief.ts`** — `persistRecurringBrief()` writes `topic_briefs` with `source='recurring'`, `clusterAction='standalone'`, `approval_status='plan_pending'`, frozen `recurringMetadata` snapshot (`definitionId + runNumber + previousToolIds + formatType + formatConfig.{outputTargets, selectedTemplateKey, selectedTemplateVia, hookData, toolIds}`). Always runs through `TopicBriefInsertSchema.parse` to enforce the `source='recurring' ⇔ recurringMetadata != null` superRefine invariant.
+
+Family B generators (`story-arc-clickbait`, `lifestyle-listicle`, `opinion-recommendation`) ALSO call `pickHook` + `renderHook` from `lib/hook-library/` (Spec 65.4) — the picked hook + rendered substitution lands in `recurringMetadata.formatConfig.hookData` for downstream replay.
+
+**Dispatch registry** [`brief-generators/index.ts`](src/lib/recurring-content/brief-generators/index.ts) — `BRIEF_GENERATORS: Record<FormatTypeKey, fn>` map + `dispatchBriefGenerator(ctx)` entry point with `UnknownFormatTypeError` for stale `format_type` values that fell out of the registry.
+
+**Frequency helper** [`compute-next-run.ts`](src/lib/recurring-content/compute-next-run.ts) — `weekly | biweekly | monthly` or any cron expression. Cron via `cron-parser@5.5.0` (new dep). Monthly uses an explicit day-of-month clamp (`setUTCMonth` overflows — see root CLAUDE.md DO-NOT).
+
+**Notification surface** [`notify-skipped.ts`](src/lib/recurring-content/notify-skipped.ts) — fans out one notification per `users.role='owner'` row when a brief is skipped (Memory D21 batched). English strings to match `tool-data-refresh/notify-batch.ts` convention. Severity `info` (none of the V1 skip reasons warrant Web Push). `PIPELINE_NOTIFICATIONS_ENABLED=false` kill-switch.
+
+**12-point Content-Type registration** (Memory D7) — `recurring_content` registered across `CONTENT_TYPES`, `PLANNING_CONTENT_TYPES`, `PIPELINE_NAME_BY_CONTENT_TYPE` (default `article:social-image`; pipeline-router upgrades to `article:blog` when `outputTargets.article=true && social!==true`), `CONTENT_TYPE_TO_PIPELINE`, `matchBriefToContentType` (`source==='recurring'` → `'recurring_content'`), `pipelineInputFromBrief`, `distribute-slot-dates.ts` round-robin, `pipeline-router.ts` case, `PlannerItemCard.vue` `.ct-recurring_content` teal hue, `SettingsPlannerPage.vue` (`ContentType` union + `ALL_CONTENT_TYPES` + `perTypeInputs`), i18n DE+EN under `planner.contentType` + `settings.planner.contentTypes`.
+
 ## Endpoint Patterns
 - All endpoints use Zod-validated input via @hono/zod-validator
 - All responses follow `{ ok: true, data }` | `{ ok: false, error }` shape

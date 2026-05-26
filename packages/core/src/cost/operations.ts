@@ -122,6 +122,14 @@ export const COST_OPS = {
 
   // === Spec 59.1b: GitHub trending signal source ===
   GITHUB_SIGNAL_COLLECT: "github-signal-collect", // free API — tracked for observability only
+
+  // === Spec 65.5: Recurring content brief-generation ===
+  // Each fired recurring_content_definitions row makes up to three Haiku /
+  // Sonnet calls inside one BullMQ job — tool-curation, template-rank, and the
+  // free-text brief-text-build. All under service="anthropic".
+  RECURRING_TOOLS_CURATE:   "recurring-tools-curate",   // Haiku: pick top-N from a category candidate pool
+  RECURRING_TEMPLATE_RANK:  "recurring-template-rank",  // Haiku: 3-Layer template-selector LLM-rank
+  RECURRING_BRIEF_BUILD:    "recurring-brief-build",    // Sonnet: free-text brief body for downstream article/social
 } as const;
 
 export type CostOp = (typeof COST_OPS)[keyof typeof COST_OPS];

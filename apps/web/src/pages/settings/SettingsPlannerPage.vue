@@ -632,15 +632,17 @@ import { defineComponent } from "vue";
 import { Notify } from "quasar";
 import { apiGet, apiPut } from "src/lib/api";
 
-// Spec 64.1: `cluster_spoke` splits cluster along the cluster_action axis.
-// Keep this union in lockstep with `CONTENT_TYPES` in
-// packages/shared/src/types/project-goals.ts.
+// Spec 64.1 / 65.5: keep this union in lockstep with `CONTENT_TYPES` in
+// packages/shared/src/types/project-goals.ts. `cluster_spoke` splits cluster
+// along the cluster_action axis; `recurring_content` is the cron-fired bucket
+// for the 65.5 recurring-content system.
 type ContentType =
   | "cluster"
   | "cluster_spoke"
   | "comparison"
   | "social_post"
-  | "ki_wissen";
+  | "ki_wissen"
+  | "recurring_content";
 type CadenceUnit = "per_day" | "per_week";
 
 interface GoalRow {
@@ -777,6 +779,7 @@ const ALL_CONTENT_TYPES: ContentType[] = [
   "comparison",
   "social_post",
   "ki_wissen",
+  "recurring_content",
 ];
 
 export default defineComponent({
@@ -815,6 +818,7 @@ export default defineComponent({
       comparison: "",
       social_post: "",
       ki_wissen: "",
+      recurring_content: "",
     } as Record<ContentType, string>,
     validation: null as ValidationResult | null,
     validating: false,

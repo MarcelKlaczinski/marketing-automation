@@ -116,6 +116,7 @@ export default {
     comparison: "Comparison",
     ki_wissen: "KI-Wissen",
     social_post: "Social",
+    recurring_content: "Recurring",
     article: "Article",
     refresh: "Refresh",
     translation: "Translation",

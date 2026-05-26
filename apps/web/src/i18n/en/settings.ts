@@ -422,6 +422,7 @@ export default {
       comparison: "Comparison",
       social_post: "Social post",
       ki_wissen: "Knowledge article",
+      recurring_content: "Recurring content",
     },
     cadenceUnits: {
       per_day: "per day",

@@ -9,6 +9,7 @@ import { startTemplateWatcher } from "./lib/template-watcher.ts";
 import { cleanupLegacyPreviewSessions } from "./lib/template-preview-service.ts";
 import { templatePreviewRoutes } from "./routes/projects/templates.ts";
 import { startTemplateUsageLogPruneCron } from "./workers/template-usage-log-prune.cron.ts";
+import { startRecurringContentCron } from "./workers/recurring-content.cron.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -103,6 +104,12 @@ setInterval(() => {
 // in the API process here, never inside `apps/api/src/workers/index.ts`
 // (would multi-run when the worker fleet scales).
 startTemplateUsageLogPruneCron();
+
+// Spec 65.5: recurring-content cron coordinator — polls
+// `listDueRecurringDefinitions()` every 15 min and enqueues per-definition
+// jobs into the `recurring-brief-generator` BullMQ queue. Single-instance
+// per Memory D17 + D24 — API process only.
+startRecurringContentCron();
 
 const app = new Hono();
 

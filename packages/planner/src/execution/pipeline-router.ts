@@ -189,6 +189,52 @@ export function getPipelineForItem(
         },
       };
 
+    case "recurring_content": {
+      // Spec 65.5: recurring-content briefs default to the social pipeline.
+      // The brief's frozen `recurring_metadata.formatConfig.outputTargets`
+      // (mirrored into `pipelineInput.recurringFormatConfig` by
+      // `pipelineInputFromBrief`) may override to article:blog when
+      // article=true is the only target.
+      const briefId = typeof pipelineInput.briefId === "string" ? pipelineInput.briefId : null;
+      if (briefId === null) {
+        throw new Error(
+          `planned_item ${item.id} is content_type='recurring_content' but pipelineInput.briefId is missing`,
+        );
+      }
+      const formatConfig =
+        typeof pipelineInput.recurringFormatConfig === "object" &&
+        pipelineInput.recurringFormatConfig !== null
+          ? (pipelineInput.recurringFormatConfig as Record<string, unknown>)
+          : {};
+      const outputTargets =
+        typeof formatConfig.outputTargets === "object" && formatConfig.outputTargets !== null
+          ? (formatConfig.outputTargets as { article?: boolean; social?: boolean })
+          : null;
+      const articleOnly = outputTargets?.article === true && outputTargets.social !== true;
+      if (articleOnly) {
+        return {
+          kind: "enqueue",
+          pipelineName: "article:blog",
+          jobData: {
+            ...pipelineInput,
+            briefId,
+            llmMode,
+            plannedItemId: item.id,
+          },
+        };
+      }
+      return {
+        kind: "enqueue",
+        pipelineName: "article:social-image",
+        jobData: {
+          ...pipelineInput,
+          briefId,
+          llmMode,
+          plannedItemId: item.id,
+        },
+      };
+    }
+
     default:
       throw new Error(`Unknown content_type for planned_item ${item.id}: ${item.contentType}`);
   }

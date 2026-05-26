@@ -145,6 +145,7 @@ const KNOWN_CONTENT_TYPE_KEYS = new Set([
   "comparison",
   "ki_wissen",
   "social_post",
+  "recurring_content",
   "article",
   "refresh",
   "translation",
@@ -363,6 +364,14 @@ export default defineComponent({
   background: rgba(255, 77, 109, 0.1);
   color: #ff4d6d;
   border-color: rgba(255, 77, 109, 0.22);
+}
+
+/* Spec 65.5: recurring-content uses a teal hue family — visually distinct from
+   tool-spoke purples and social-post reds, signalling "scheduled rhythm". */
+.ct-recurring_content {
+  background: rgba(64, 200, 200, 0.12);
+  color: #40c8c8;
+  border-color: rgba(64, 200, 200, 0.28);
 }
 
 .source-kind-badge {

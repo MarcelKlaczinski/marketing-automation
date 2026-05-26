@@ -11,12 +11,18 @@ import { z } from "zod";
 // Spec 64.1: `cluster_spoke` is the append_to_existing sibling of `cluster`.
 // Routes through article:blog (spoke under brief.clusterId), so its default
 // pipeline name is the cheaper €1.06 article:blog, not cluster:full-plan.
+//
+// Spec 65.5: `recurring_content` is the bucket for cron-fired recurring-content
+// briefs. Default pipeline is `article:social-image` (social-first per the
+// v1 output_targets default); the article-first toggle in `output_targets`
+// is honoured by the pipeline-router (Spec 65.5 §3.4 / executor).
 export const PLANNING_CONTENT_TYPES = [
   "cluster",
   "cluster_spoke",
   "comparison",
   "social_post",
   "ki_wissen",
+  "recurring_content",
 ] as const;
 export type PlanningContentType = (typeof PLANNING_CONTENT_TYPES)[number];
 
@@ -32,6 +38,10 @@ export const PIPELINE_NAME_BY_CONTENT_TYPE: Record<PlanningContentType, string> 
   comparison: "article:blog",
   ki_wissen: "article:blog",
   social_post: "article:social-image",
+  // Spec 65.5: social-first default — the executor branches on the brief's
+  // `recurringMetadata.formatConfig.outputTargets` (frozen at emit time) so an
+  // article-only definition gets routed to `article:blog` instead.
+  recurring_content: "article:social-image",
 };
 
 /**

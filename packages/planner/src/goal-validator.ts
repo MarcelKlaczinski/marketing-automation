@@ -82,6 +82,12 @@ const CONTENT_TYPE_TO_PIPELINE: Record<string, { itemType: string; pipelineName:
   comparison: { itemType: "blog_article", pipelineName: "article:blog" },
   social_post: { itemType: "social_image", pipelineName: "article:social-image" },
   ki_wissen: { itemType: "blog_article", pipelineName: "article:blog" },
+  // Spec 65.5: recurring-content briefs (cron-fired) are social-first by
+  // default — cost mirrors `social_post`. When a definition's
+  // `output_targets.article === true` the router upgrades to `article:blog`,
+  // but for cost-estimation we use the cheaper social path so the budget
+  // bar reflects the expected average.
+  recurring_content: { itemType: "social_image", pipelineName: "article:social-image" },
 };
 
 /** Convert a goal's (cadenceUnit, minCount) into the expected weekly item count. */

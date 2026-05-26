@@ -12,12 +12,20 @@ import { starTrendConfigSchema, trendScoreWeightsSchema } from "./project-config
 // `cluster`        = create_new (inline cluster:full-plan, €4.20 hub + spokes)
 // `cluster_spoke`  = append_to_existing (article:blog under brief.clusterId, €1.06)
 // Plan-Goals get separate min/max so Marcel controls the create_new vs append mix.
+//
+// Spec 65.5: `recurring_content` is the bucket for briefs emitted by the
+// `recurring_content_definitions` cron coordinator (one brief per fired
+// definition, social-first per `output_targets` default `{article:false,
+// social:true}`). The brief's `recurring_metadata` typed-bucket carries the
+// definitionId + frozen formatType + formatConfig — the executor uses those
+// to dispatch (`article:social-image` for social, `article:blog` for article).
 export const CONTENT_TYPES = [
   "cluster",
   "cluster_spoke",
   "comparison",
   "social_post",
   "ki_wissen",
+  "recurring_content",
 ] as const;
 export const contentTypeSchema = z.enum(CONTENT_TYPES);
 export type ContentType = z.infer<typeof contentTypeSchema>;

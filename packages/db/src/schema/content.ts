@@ -995,7 +995,7 @@ export const topicBriefs = pgTable(
     projectId: uuid("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
 
     source: text("source").notNull().$type<
-      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery" | "release_detection" | "star_trend"
+      "gap_analysis" | "trend_discovery" | "refresh_detection" | "manual" | "comparison_discovery" | "release_detection" | "star_trend" | "recurring"
     >(),
 
     // FK to content_gaps declared in migration SQL (avoids circular ordering within this file)
@@ -1086,6 +1086,7 @@ export const TopicBriefInsertSchema = z
       "comparison_discovery", // Spec 62.3
       "release_detection",    // Spec 64.20 follow-up A3
       "star_trend",           // Spec 64.21
+      "recurring",            // Spec 65.5
     ]),
     gapId: z.string().uuid().nullable().optional(),
 
@@ -1156,7 +1157,8 @@ export const TopicBriefInsertSchema = z
     const hasComparison = data.comparisonMetadata != null;
     const hasRelease    = data.releaseMetadata    != null;
     const hasStarTrend  = data.starTrendMetadata  != null;
-    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0) + (hasRelease ? 1 : 0) + (hasStarTrend ? 1 : 0);
+    const hasRecurring  = data.recurringMetadata  != null;
+    const total         = (hasGap ? 1 : 0) + (hasTrend ? 1 : 0) + (hasRefresh ? 1 : 0) + (hasComparison ? 1 : 0) + (hasRelease ? 1 : 0) + (hasStarTrend ? 1 : 0) + (hasRecurring ? 1 : 0);
 
     if (data.source === "manual") {
       if (total !== 0) {
@@ -1183,6 +1185,7 @@ export const TopicBriefInsertSchema = z
       comparison_discovery:  hasComparison,
       release_detection:     hasRelease,
       star_trend:            hasStarTrend,
+      recurring:             hasRecurring,
     } as const;
 
     if (!expectedMap[data.source as keyof typeof expectedMap]) {
@@ -1193,6 +1196,7 @@ export const TopicBriefInsertSchema = z
         comparison_discovery: "comparison_metadata",
         release_detection:    "release_metadata",
         star_trend:           "star_trend_metadata",
+        recurring:            "recurring_metadata",
       }[data.source as keyof typeof expectedMap];
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

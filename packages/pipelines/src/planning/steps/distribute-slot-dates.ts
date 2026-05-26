@@ -99,6 +99,14 @@ export class DistributeSlotDatesStep extends BaseStep<Input, Output> {
         counters.social_post = idx + 1;
         return addDaysUtc(weekStart, idx % 7);
       }
+      case "recurring_content": {
+        // Spec 65.5: recurring-content briefs land on a per-type counter so a
+        // weekly "Top 5 LLMs" and a "Tool of the week" share the calendar
+        // evenly. Round-robin Mon..Sun mirrors social_post.
+        const idx = counters.recurring_content ?? 0;
+        counters.recurring_content = idx + 1;
+        return addDaysUtc(weekStart, idx % 7);
+      }
     }
   }
 }

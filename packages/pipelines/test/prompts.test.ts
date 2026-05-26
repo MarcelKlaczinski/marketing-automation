@@ -51,9 +51,13 @@ describe("buildSystemPrompt", () => {
   });
 
   it("throws when project context is missing", async () => {
+    // Pass `skills: []` so loadSkills returns "" instead of throwing —
+    // otherwise on machines where the `packages/skills` submodule isn't
+    // populated, the skill-load throws first ("Skill not found: copywriting")
+    // and shadows the project-context check we're trying to verify.
     expect(
       buildSystemPrompt({
-        skills: "copywriting",
+        skills: [],
         projectIdOrSlug: "definitely-not-a-real-slug",
         stepInstructions: "x",
       })

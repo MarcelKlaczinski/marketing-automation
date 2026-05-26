@@ -1,0 +1,337 @@
+/**
+ * Spec 65.5 — Recurring brief-generator worker (Option β standalone).
+ *
+ * Consumes per-definition jobs enqueued by `recurring-content.cron.ts`.
+ * Each job:
+ *   1. Acquires a Redis lock on the definitionId (5min TTL) — prevents
+ *      concurrent runs of the same definition. The lock is best-effort
+ *      bounded by the BullMQ `concurrency: 1` so a same-tick re-fire is the
+ *      only race vector.
+ *   2. Re-loads the definition (the cron may have read a stale row).
+ *   3. Dispatches to the format-type-specific brief-generator.
+ *   4. On `status: "persisted"` advances `last_run_at` + `next_run_at` via
+ *      `markRecurringDefinitionRun` so the cron skips the definition until
+ *      the next interval.
+ *   5. On `status: "skipped"` writes a structured log entry + dispatches an
+ *      admin notification (Memory D21) so Marcel can see the rhythm-gap.
+ *
+ * Per-job failures are caught + logged but the BullMQ job is re-thrown so
+ * `attempts: 1` + the failed-queue makes the error visible in the runs UI.
+ */
+import {
+  db,
+  eq,
+  getRecurringDefinition,
+  markRecurringDefinitionRun,
+  projects,
+  topicBriefs,
+} from "@marketing-auto/db";
+import { createLogger, getEnv } from "@marketing-auto/shared";
+import { Queue, type Job, Worker } from "bullmq";
+import IORedis from "ioredis";
+import { z } from "zod";
+import {
+  type BriefGenContext,
+  dispatchBriefGenerator,
+  UnknownFormatTypeError,
+  type GeneratedBriefResult,
+} from "../lib/recurring-content/brief-generators/index.ts";
+import { computeNextRun } from "../lib/recurring-content/compute-next-run.ts";
+import {
+  notifyRecurringBriefSkipped,
+  type NotifyRecurringBriefSkippedInput,
+} from "../lib/recurring-content/notify-skipped.ts";
+
+const log = createLogger("recurring-brief-generator-worker");
+
+export const RECURRING_BRIEF_GENERATOR_QUEUE = "recurring-brief-generator";
+
+/** Redis-lock TTL — 5min covers worst-case 4 LLM calls (curate + rank + brief-text + hook). */
+const LOCK_TTL_SECONDS = 300;
+
+const jobSchema = z.object({
+  definitionId: z.string().uuid(),
+  projectId: z.string().uuid(),
+});
+export type RecurringBriefGeneratorJobData = z.infer<typeof jobSchema>;
+
+// ─── Redis + queue singletons ────────────────────────────────────────────────
+
+let _connection: IORedis | null = null;
+function getConnection(): IORedis {
+  if (_connection) return _connection;
+  const env = getEnv();
+  _connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  return _connection;
+}
+
+let _queue: Queue | null = null;
+export function getRecurringBriefGeneratorQueue(): Queue {
+  if (_queue) return _queue;
+  _queue = new Queue(RECURRING_BRIEF_GENERATOR_QUEUE, {
+    connection: getConnection(),
+    defaultJobOptions: {
+      attempts: 1,
+      removeOnComplete: { count: 100 },
+      removeOnFail: { count: 100 },
+    },
+  });
+  return _queue;
+}
+
+/**
+ * Enqueue a per-definition brief-generation job. Called by the cron
+ * coordinator (`recurring-content.cron.ts`). Deterministic `jobId` so
+ * back-to-back cron ticks dedup at the BullMQ layer in addition to the
+ * Redis lock.
+ */
+export async function enqueueRecurringBriefGenerator(input: {
+  definitionId: string;
+  projectId: string;
+}): Promise<{ jobId: string }> {
+  const queue = getRecurringBriefGeneratorQueue();
+  const jobId = `recurring-${input.definitionId}-${Date.now()}`;
+  await queue.add(
+    "generate",
+    { definitionId: input.definitionId, projectId: input.projectId },
+    { jobId },
+  );
+  return { jobId };
+}
+
+// ─── Redis lock helpers ──────────────────────────────────────────────────────
+
+/**
+ * Best-effort Redis lock using `SET NX EX`. Returns the lock token when
+ * acquired; the caller passes it back to `releaseRedisLock` so we only
+ * release locks we own (avoid releasing a lock that has expired + been
+ * re-acquired by another process).
+ */
+async function tryAcquireRedisLock(
+  key: string,
+  ttlSeconds: number,
+): Promise<string | null> {
+  const conn = getConnection();
+  const token = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const result = await conn.set(key, token, "EX", ttlSeconds, "NX");
+  return result === "OK" ? token : null;
+}
+
+const RELEASE_SCRIPT = `if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end`;
+
+async function releaseRedisLock(key: string, token: string): Promise<void> {
+  const conn = getConnection();
+  try {
+    await conn.eval(RELEASE_SCRIPT, 1, key, token);
+  } catch (err) {
+    log.warn({ key, err: err instanceof Error ? err.message : String(err) }, "release-lock failed");
+  }
+}
+
+// ─── Job handler ─────────────────────────────────────────────────────────────
+
+export async function handleRecurringBriefGenerator(
+  data: RecurringBriefGeneratorJobData,
+): Promise<{ status: "ran" | "skipped"; reason?: string }> {
+  const lockKey = `recurring-def:${data.definitionId}`;
+  const token = await tryAcquireRedisLock(lockKey, LOCK_TTL_SECONDS);
+  if (token === null) {
+    log.info(
+      { definitionId: data.definitionId },
+      "recurring-brief-generator: lock-busy, skipping run (concurrent tick)",
+    );
+    return { status: "skipped", reason: "lock-busy" };
+  }
+
+  try {
+    const definition = await getRecurringDefinition(data.definitionId);
+    if (!definition) {
+      log.warn(
+        { definitionId: data.definitionId },
+        "recurring-brief-generator: definition not found — likely deleted between cron-pick and worker-pickup",
+      );
+      return { status: "skipped", reason: "deleted" };
+    }
+    if (!definition.isActive) {
+      log.info(
+        { definitionId: data.definitionId },
+        "recurring-brief-generator: definition is inactive — skipping",
+      );
+      return { status: "skipped", reason: "inactive" };
+    }
+    if (definition.projectId !== data.projectId) {
+      log.warn(
+        { definitionId: data.definitionId, jobProjectId: data.projectId, defProjectId: definition.projectId },
+        "recurring-brief-generator: project mismatch — rejecting (multi-tenant guard)",
+      );
+      return { status: "skipped", reason: "project-mismatch" };
+    }
+
+    // Resolve runNumber + previousRunToolIds from the most recent persisted
+    // brief for this definition. Recurring briefs are stamped with
+    // `recurring_metadata.runNumber` at emit time.
+    const runNumber = await computeNextRunNumber(definition.id);
+    const previousRunToolIds = await loadPreviousRunToolIds(definition.id);
+
+    // Derive the brief locale from the project's first target-locale.
+    // BCP-47 tags (`de-DE`, `en-US`) collapse to the two-letter code we use
+    // throughout the brief-generator stack. Multi-locale fan-out (emit one
+    // brief per target-locale) is a future enhancement.
+    const language = await resolveProjectLanguage(definition.projectId);
+
+    let result: GeneratedBriefResult;
+    try {
+      const briefCtx: BriefGenContext = {
+        definition,
+        // formatConfig is already typed `Record<string, unknown>` via the
+        // schema's $type<>() — `?? {}` covers the NULL-by-default-after-
+        // dynamic-shape edge case (e.g. a partial UPDATE that cleared the
+        // field).
+        config: definition.formatConfig ?? {},
+        projectId: definition.projectId,
+        language,
+        runNumber,
+      };
+      if (previousRunToolIds) briefCtx.previousRunToolIds = previousRunToolIds;
+      result = await dispatchBriefGenerator(briefCtx);
+    } catch (err) {
+      if (err instanceof UnknownFormatTypeError) {
+        log.error(
+          { definitionId: definition.id, formatType: definition.formatType },
+          "recurring-brief-generator: unknown format-type — definition needs cleanup",
+        );
+        return { status: "skipped", reason: "unknown-format-type" };
+      }
+      throw err;
+    }
+
+    if (result.status === "persisted") {
+      log.info(
+        {
+          definitionId: definition.id,
+          briefId: result.brief.id,
+          templateKey: result.templateKey,
+          toolCount: result.toolIds.length,
+        },
+        "recurring-brief-generator: brief persisted",
+      );
+    } else {
+      log.warn(
+        {
+          definitionId: definition.id,
+          reason: result.reason,
+          detail: result.detail,
+          missingToolIds: result.missingToolIds,
+        },
+        "recurring-brief-generator: brief skipped",
+      );
+      const notifyInput: NotifyRecurringBriefSkippedInput = {
+        projectId: definition.projectId,
+        definitionId: definition.id,
+        definitionName: definition.name,
+        reason: result.reason,
+      };
+      if (result.missingToolIds) notifyInput.missingToolIds = result.missingToolIds;
+      if (result.detail) notifyInput.detail = result.detail;
+      await notifyRecurringBriefSkipped(notifyInput);
+    }
+
+    // Advance next_run_at + last_run_at regardless of outcome. Skipped briefs
+    // still consume the slot — a missing-asset skip shouldn't fire again in
+    // 30 seconds (Marcel-Decision §0 — admin reviews the notification + fixes
+    // the asset, then waits for the next interval).
+    const nextRun = computeNextRun(definition.frequency, new Date());
+    await markRecurringDefinitionRun(definition.id, { newNextRunAt: nextRun });
+
+    return result.status === "persisted"
+      ? { status: "ran" }
+      : { status: "skipped", reason: result.reason };
+  } finally {
+    await releaseRedisLock(lockKey, token);
+  }
+}
+
+/**
+ * Count the persisted recurring briefs for this definition + 1. First run
+ * gives runNumber=1. Reads `topic_briefs.recurringMetadata->>'definitionId'`
+ * — no FK on the jsonb path, so a sequential scan with a partial-index
+ * (existing `topic_briefs_project_source_idx`) is fine at typical scale.
+ */
+async function computeNextRunNumber(definitionId: string): Promise<number> {
+  const rows = await db
+    .select({
+      meta: topicBriefs.recurringMetadata,
+    })
+    .from(topicBriefs)
+    .where(eq(topicBriefs.source, "recurring"));
+  let count = 0;
+  for (const r of rows) {
+    if (r.meta?.definitionId === definitionId) count += 1;
+  }
+  return count + 1;
+}
+
+async function loadPreviousRunToolIds(definitionId: string): Promise<string[] | undefined> {
+  const rows = await db
+    .select({
+      meta: topicBriefs.recurringMetadata,
+      createdAt: topicBriefs.createdAt,
+    })
+    .from(topicBriefs)
+    .where(eq(topicBriefs.source, "recurring"));
+  let latestMeta: Record<string, unknown> | null = null;
+  let latestAt = 0;
+  for (const r of rows) {
+    if (!r.meta || r.meta.definitionId !== definitionId) continue;
+    const ts = r.createdAt.getTime();
+    if (latestMeta === null || ts > latestAt) {
+      latestMeta = r.meta as unknown as Record<string, unknown>;
+      latestAt = ts;
+    }
+  }
+  if (latestMeta === null) return undefined;
+  // Prefer the actual toolIds picked in the prior brief
+  // (stored via formatConfig.toolIds in `persist-brief.ts`).
+  const fcRaw = latestMeta.formatConfig;
+  if (fcRaw && typeof fcRaw === "object") {
+    const candidate = (fcRaw as { toolIds?: unknown }).toolIds;
+    if (Array.isArray(candidate)) {
+      return candidate.filter((id): id is string => typeof id === "string");
+    }
+  }
+  const fallback = latestMeta.previousToolIds;
+  if (Array.isArray(fallback)) {
+    return fallback.filter((id): id is string => typeof id === "string");
+  }
+  return undefined;
+}
+
+/**
+ * Read `projects.target_locales[0]` and collapse to the two-letter code the
+ * brief-generator stack uses (`'de' | 'en'`). Defaults to `'de'` when the
+ * project is missing or the locale isn't recognised — Toolwiki is German,
+ * BK will explicitly set its locale on onboarding.
+ */
+async function resolveProjectLanguage(projectId: string): Promise<"de" | "en"> {
+  const [row] = await db
+    .select({ targetLocales: projects.targetLocales })
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  const first = row?.targetLocales?.[0];
+  if (typeof first === "string" && first.toLowerCase().startsWith("en")) return "en";
+  return "de";
+}
+
+// ─── Worker entry ────────────────────────────────────────────────────────────
+
+export function startRecurringBriefGeneratorWorker(): Worker {
+  return new Worker(
+    RECURRING_BRIEF_GENERATOR_QUEUE,
+    async (job: Job) => {
+      const parsed = jobSchema.parse(job.data);
+      return await handleRecurringBriefGenerator(parsed);
+    },
+    { connection: getConnection(), concurrency: 1 },
+  );
+}

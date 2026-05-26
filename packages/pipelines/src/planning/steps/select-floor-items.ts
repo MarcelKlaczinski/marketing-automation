@@ -60,6 +60,13 @@ type Output = z.infer<typeof selectFloorOutputSchema>;
  *   - everything else (create_new / standalone / orphan append) → "cluster"
  */
 export function matchBriefToContentType(brief: TopicBrief): PlanningContentType | null {
+  // Spec 65.5: cron-fired recurring-content briefs go to their own bucket so
+  // the planner's per-content-type cap (`recurring_content` min/max) governs
+  // the pace. The brief's `recurring_metadata` carries the definitionId +
+  // frozen formatConfig that the executor reads at dispatch time.
+  if (brief.source === "recurring") {
+    return "recurring_content";
+  }
   if (brief.source === "comparison_discovery" || brief.clusterAction === "comparison") {
     return "comparison";
   }
@@ -179,6 +186,19 @@ function pipelineInputFromBrief(
     input.clusterAction = brief.clusterAction;
     if (brief.clusterId !== null) input.clusterId = brief.clusterId;
     if (brief.intentType !== null) input.intentType = brief.intentType;
+  }
+  // Spec 65.5: stamp the recurring-content discriminator + frozen formatType
+  // so the pipeline-router can dispatch without a topic_briefs re-query and
+  // `recurring_metadata.formatConfig.outputTargets` is reachable for the
+  // social-vs-article branch.
+  if (contentType === "recurring_content") {
+    const meta = brief.recurringMetadata;
+    if (meta) {
+      input.recurringDefinitionId = meta.definitionId;
+      input.recurringFormatType = meta.formatType;
+      input.recurringFormatConfig = meta.formatConfig;
+      input.recurringRunNumber = meta.runNumber;
+    }
   }
   return input;
 }
@@ -311,6 +331,7 @@ export class SelectFloorItemsStep extends BaseStep<Input, Output> {
       comparison: [],
       ki_wissen: [],
       social_post: [],
+      recurring_content: [],
     };
     const bucketIndex = new Map<string, number>(); // brief.id → original pool index
     for (const b of briefs) {

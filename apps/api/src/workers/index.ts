@@ -74,6 +74,7 @@ import {
   seedToolDataRefreshCron,
   startToolDataRefreshWorker,
 } from "./tool-data-refresh.worker.ts";
+import { startRecurringBriefGeneratorWorker } from "./recurring-brief-generator.worker.ts";
 import { startRefreshDetectorWorker } from "./refresh-detector.ts";
 import { startSignalCollectorWorker } from "./signal-collector.ts";
 import { startSocialRenderWorker } from "./social-render.worker.ts";
@@ -375,6 +376,10 @@ async function main() {
   const githubInventoryRefreshWorker = startGithubInventoryRefreshWorker();
   const githubInventoryDiscoveryWorker = startGithubInventoryDiscoveryWorker();
   const toolDataRefreshWorker = startToolDataRefreshWorker();
+  // Spec 65.5: recurring-content brief-generator worker. Pure BullMQ
+  // consumer; the cron coordinator that ENQUEUES into this queue lives in
+  // server.ts (`startRecurringContentCron`) — workers process only listens.
+  const recurringBriefGeneratorWorker = startRecurringBriefGeneratorWorker();
   // Spec 62.0a Section 4.5.3 + 62.7 + 63.3b + 64.20: seed cron_state rows on startup
   // (idempotent). The orchestrator's next tick (within 60s) picks them up and
   // creates the BullMQ repeat job. Seed lives in code, not SQL migration,
@@ -416,6 +421,7 @@ async function main() {
     await githubInventoryRefreshWorker.close();
     await githubInventoryDiscoveryWorker.close();
     await toolDataRefreshWorker.close();
+    await recurringBriefGeneratorWorker.close();
     await schedulerWorker.close();
     await stopTemplateChangeSubscriber();
     await closePipelineInfrastructure();

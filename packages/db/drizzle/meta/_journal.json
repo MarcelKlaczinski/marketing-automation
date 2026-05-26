@@ -841,6 +841,13 @@
       "when": 1789700000000,
       "tag": "0119_persona_scoring_and_tool_refresh",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1789800000000,
+      "tag": "0120_topic_briefs_recurring_source",
+      "breakpoints": true
     }
   ]
 }

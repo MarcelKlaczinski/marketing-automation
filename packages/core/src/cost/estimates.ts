@@ -78,6 +78,16 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     [COST_OPS.SOCIAL_IMAGE_EXTRACT]:  0.005, // Haiku: extract tool list from article body
     [COST_OPS.SOCIAL_IMAGE_CAPTION]:  0.028, // Sonnet: caption + hashtags (merged, Spec 57.4)
     [COST_OPS.SOCIAL_IMAGE_GRID4_GENERATE]: 0.028, // Sonnet: comparison-grid-4 content (Spec 60.2)
+
+    // Spec 65.5: Recurring content brief-generation
+    // tools-curate: Haiku, ~2k input (candidate-pool descriptions) + ~300 output
+    [COST_OPS.RECURRING_TOOLS_CURATE]:  0.005,
+    // template-rank: Haiku, ~500 input + ~150 output — only invoked when
+    // template_selection_strategy='llm-picks' AND eligible.length > 1
+    [COST_OPS.RECURRING_TEMPLATE_RANK]: 0.005,
+    // brief-build: Sonnet, ~2k input (tool/hook/context) + ~800 output —
+    // free-text body for downstream article/social pipelines
+    [COST_OPS.RECURRING_BRIEF_BUILD]:   0.05,
   },
   dataforseo: {
     [COST_OPS.DATAFORSEO_SERP_ANALYSIS]: 0.2,

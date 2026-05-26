@@ -46,8 +46,15 @@ afterAll(async () => {
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("resolveToolIcon — resolution chain", () => {
-  it("resolves midjourney via iconify (not in simple-icons v16)", async () => {
-    const result = await resolveToolIcon(testProjectId, "midjourney");
+  // Chain order since Spec 65.2 follow-up: lobe-icons → simple-icons → iconify.
+  // The fallback layers below pick slugs that empirically miss lobe-icons
+  // (verified against @lobehub/icons-static-svg v1.90.0) so the chain still
+  // exercises each adapter's tryResolve.
+
+  it("resolves slack via iconify (not in lobe-icons or simple-icons)", async () => {
+    // `slack` is missing from lobe-icons + simple-icons (the latter dropped
+    // it in v16); iconify still has it via the logos collection.
+    const result = await resolveToolIcon(testProjectId, "slack");
     expect(result.type).toBe("svg");
     if (result.type === "svg") {
       expect(result.svg).toContain("<svg");
@@ -55,11 +62,23 @@ describe("resolveToolIcon — resolution chain", () => {
     }
   });
 
-  it("resolves claude via simple-icons", async () => {
-    const result = await resolveToolIcon(testProjectId, "claude");
+  it("resolves spotify via simple-icons (not in lobe-icons)", async () => {
+    // `spotify` is consumer-product, not in lobe-icons' AI-focused set.
+    const result = await resolveToolIcon(testProjectId, "spotify");
     expect(result.type).toBe("svg");
     if (result.type === "svg") {
       expect(result.source).toBe("simple-icons");
+      expect(result.brandColor).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
+  });
+
+  it("resolves claude via lobe-icons (lobe-FIRST chain since 65.2)", async () => {
+    // Pre-65.2 this resolved via simple-icons; the chain re-order means
+    // lobe wins now (richer asset: brand-color + wordmark variant).
+    const result = await resolveToolIcon(testProjectId, "claude");
+    expect(result.type).toBe("svg");
+    if (result.type === "svg") {
+      expect(result.source).toBe("lobe-icons");
       expect(result.brandColor).toMatch(/^#[0-9a-fA-F]{6}$/);
     }
   });
@@ -108,13 +127,16 @@ describe("resolveToolIcon — resolution chain", () => {
 
 describe("resolveToolIcon — DB cache behaviour", () => {
   it("writes to DB on first resolution", async () => {
-    await resolveToolIcon(testProjectId, "midjourney");
+    // `slack` falls through lobe + simple-icons → resolves via iconify.
+    // Exercises the cache-write for the iconify branch specifically (the
+    // other branches share the same write path, so testing one suffices).
+    await resolveToolIcon(testProjectId, "slack");
 
     const cached = await db.query.projectBrandAssets.findFirst({
       where: and(
         eq(projectBrandAssets.projectId, testProjectId),
         eq(projectBrandAssets.assetType, "tool_icon"),
-        eq(projectBrandAssets.assetKey, "midjourney"),
+        eq(projectBrandAssets.assetKey, "slack"),
       ),
     });
 
@@ -157,21 +179,23 @@ describe("resolveToolIcon — DB cache behaviour", () => {
   });
 
   it("re-resolves when cached source is stale/unknown", async () => {
-    // Seed a bad cache entry (simulating pre-52a broken lobe-icons entry)
+    // Seed a bad cache entry (simulating a stale source value from a
+    // pre-52a / pre-65.2 cache row that no longer matches the validSources
+    // allow-list inside resolveToolIcon).
     await db.insert(projectBrandAssets).values({
       projectId: testProjectId,
       assetType: "tool_icon",
-      assetKey: "midjourney",
+      assetKey: "slack",
       source: "broken-old-source",
-      displayName: "midjourney",
+      displayName: "slack",
       metadata: {},
     });
 
-    // Should ignore the stale entry and re-resolve
-    const result = await resolveToolIcon(testProjectId, "midjourney");
+    // Should ignore the stale entry and re-resolve through the chain.
+    // `slack` lands on iconify (lobe + simple-icons both miss).
+    const result = await resolveToolIcon(testProjectId, "slack");
     expect(result.type).toBe("svg");
     if (result.type === "svg") {
-      // Should have been re-resolved via iconify, overwriting the bad cache
       expect(result.source).toBe("iconify");
     }
   });
