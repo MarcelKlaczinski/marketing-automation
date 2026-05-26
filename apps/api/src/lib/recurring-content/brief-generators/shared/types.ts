@@ -21,6 +21,15 @@ export interface BriefGenContext<TConfig = Record<string, unknown>> {
   previousRunToolIds?: string[];
   /** Monotonic counter — 1st, 2nd, 3rd run of this definition. */
   runNumber: number;
+  /**
+   * Spec 65.V1.5a Bridge #3 — shared UUID across sibling briefs from the same
+   * multi-locale fire. The worker generates this once per fire (regardless of
+   * how many locales are in `definition.targetLocales`) and threads it through
+   * every per-locale brief so siblings end up linked via
+   * `recurring_metadata.runGroupId`. Undefined when the definition is
+   * single-locale (the field is then omitted from the persisted metadata).
+   */
+  runGroupId?: string;
   /** Threaded into Anthropic calls for cost-attribution. */
   pipelineRunId?: string;
   /**

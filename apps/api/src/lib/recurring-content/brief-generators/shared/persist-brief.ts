@@ -52,6 +52,13 @@ export interface PersistRecurringBriefInput {
   runNumber: number;
   /** Tool IDs from the previous run of this definition (LRU bias for next run). */
   previousToolIds?: string[];
+  /**
+   * Spec 65.V1.5a Bridge #3 — shared UUID across sibling briefs from the
+   * same multi-locale fire. Frozen into `recurring_metadata.runGroupId` so
+   * downstream tooling can detect DE+EN twins. Optional for back-compat with
+   * pre-bridge callers that emit a single brief per fire.
+   */
+  runGroupId?: string;
 }
 
 export async function persistRecurringBrief(
@@ -97,6 +104,12 @@ export async function persistRecurringBrief(
       previousToolIds: input.previousToolIds ?? [],
       formatType: input.definition.formatType,
       formatConfig: frozenFormatConfig,
+      // Bridge #3 multi-locale fan-out — only stamp when present so
+      // single-locale fires keep producing the pre-bridge metadata shape.
+      ...(input.runGroupId !== undefined && { runGroupId: input.runGroupId }),
+      ...(input.locale === "de" || input.locale === "en"
+        ? { targetLocale: input.locale }
+        : {}),
     },
   };
 

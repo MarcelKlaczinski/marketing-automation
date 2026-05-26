@@ -80,6 +80,21 @@ export const recurringContentDefinitions = pgTable(
     /** Array of end_slide_definitions IDs eligible for rotation. */
     endSlidePool: jsonb("end_slide_pool").notNull().default(sql`'[]'::jsonb`).$type<string[]>(),
 
+    /**
+     * Spec 65.V1.5a Bridge #3 — locales the brief-generator fans out to per
+     * fire. Default `["de"]` keeps pre-bridge behaviour (DE-only). Bilingual
+     * tenants (Toolwiki) set `["de", "en"]` so each fire emits TWO sibling
+     * briefs linked by a shared `runGroupId` UUID inside
+     * `recurring_metadata.runGroupId`. Values are 2-letter codes (NOT BCP-47)
+     * — Spec 65.5 worker already derives DE/EN from
+     * `projects.target_locales[0]` and the 65.4 hook-picker accepts
+     * `language: 'de' | 'en'` directly. Migration 0123.
+     */
+    targetLocales: jsonb("target_locales")
+      .notNull()
+      .default(sql`'["de"]'::jsonb`)
+      .$type<string[]>(),
+
     isActive: boolean("is_active").notNull().default(true),
 
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

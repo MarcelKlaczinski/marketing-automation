@@ -217,6 +217,9 @@ export async function generateLifestyleListicleBrief(
     hookData,
     runNumber: ctx.runNumber,
     ...(ctx.previousRunToolIds && { previousToolIds: ctx.previousRunToolIds }),
+    // Bridge #3 multi-locale sibling-linking — only stamped when the worker
+    // is fanning out to multiple locales.
+    ...(ctx.runGroupId && { runGroupId: ctx.runGroupId }),
   });
 
   return {

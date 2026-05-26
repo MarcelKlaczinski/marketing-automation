@@ -3,6 +3,7 @@ import { db, projectBrandAssets } from "@marketing-auto/db";
 import { simpleIconsAdapter } from "./icon-sources/simple-icons.ts";
 import { iconifyAdapter } from "./icon-sources/iconify.ts";
 import { lobeIconsAdapter } from "./icon-sources/lobe-icons.ts";
+import { resolveToolBrandAsset } from "./resolve-tool-brand-asset.ts";
 import type { IconSourceAdapter } from "./icon-sources/types.ts";
 
 // 65.2 follow-up 2026-05-25: lobe-icons moved FIRST. Three reasons:
@@ -52,6 +53,15 @@ export async function resolveToolIcon(
   toolSlug: string,
   _theme: "dark" | "light" = "dark"
 ): Promise<ResolvedIcon> {
+  // 0. Spec 65.V1.5a Bridge #1 — DB-first read of `tool_brand_assets` so
+  //    Marcel-edits in the Settings-UI Brand-Assets page propagate to renders
+  //    within 60s. Returns null on row-missing OR R2-fetch-failure; both
+  //    cases fall through to the existing project_brand_assets cache + chain.
+  const brandAssetResolved = await resolveToolBrandAsset(projectId, toolSlug);
+  if (brandAssetResolved) {
+    return brandAssetResolved;
+  }
+
   // 1. DB cache check
   const cached = await db.query.projectBrandAssets.findFirst({
     where: and(

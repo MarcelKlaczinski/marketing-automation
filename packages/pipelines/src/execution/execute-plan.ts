@@ -24,12 +24,14 @@ import {
   markPlannedItemEnqueued,
   pipelineRuns,
   projects,
+  topicBriefs,
   weeklyPlans,
 } from "@marketing-auto/db";
 import { getPipelineForItem, isoWeekStartDate, type LlmMode } from "@marketing-auto/planner";
 import { type ArticleCollectionType, createLogger } from "@marketing-auto/shared";
 import { enqueueSocialImagePipeline } from "../article/social-image/trigger.ts";
 import { runClusterFullPlanFromBrief } from "../cluster/full-plan/run-from-brief.ts";
+import { createRecurringContentArticle } from "../_lib/create-recurring-content-article.ts";
 import type { PlanExecutionJobResult } from "./plan-execution-queue.ts";
 import {
   emitPlanStatusIfFinalized,
@@ -247,10 +249,77 @@ export async function executePlan(planId: string): Promise<PlanExecutionJobResul
         } else if (routed.pipelineName === "article:social-image") {
           const sj = routed.jobData as {
             articleId?: string;
+            briefId?: string;
             templateKey?: string | null;
             theme?: "dark" | "light";
             variant?: "stunning";
           };
+
+          // Spec 65.V1.5a Bridge #4 — recurring-content preprocessing.
+          // The pipeline-router emits `briefId` (not `articleId`) for
+          // recurring_content items because the article doesn't exist yet at
+          // plan-execution time. Mirror the immediate-dispatch path from
+          // `approveBrief()`: load the brief inside a transaction, call
+          // `createRecurringContentArticle()` (idempotent re-entry safe), and
+          // stamp the resulting articleId into the dispatch input.
+          if (item.contentType === "recurring_content" && !sj.articleId && sj.briefId) {
+            const briefId = sj.briefId;
+            try {
+              const articleId = await db.transaction(async (tx) => {
+                const [brief] = await tx
+                  .select()
+                  .from(topicBriefs)
+                  .where(eq(topicBriefs.id, briefId))
+                  .limit(1);
+                if (!brief) {
+                  throw new Error(
+                    `recurring-content brief ${briefId} not found at execute time`,
+                  );
+                }
+                // Multi-tenant guard — the planner already scopes by project,
+                // but defense in depth (brief could have been moved by an
+                // unrelated migration / manual SQL).
+                if (brief.projectId !== plan.projectId) {
+                  throw new Error(
+                    `recurring-content brief ${briefId} belongs to project ${brief.projectId}, not plan project ${plan.projectId}`,
+                  );
+                }
+                const result = await createRecurringContentArticle({ brief, tx });
+                return result.articleId;
+              });
+              // Mutate the local dispatch payload in place. `sj` is the
+              // loosely-typed router-emitted jobData (plain JS object); the
+              // existing branch reads `sj.articleId` for the
+              // `enqueueSocialImagePipeline` call below. Patching here keeps
+              // the rest of the social-image branch oblivious to whether the
+              // article was pre-materialised by the router (non-recurring
+              // paths) or just-now by this preprocessing block.
+              sj.articleId = articleId;
+              log.info(
+                { planId, itemId: item.id, briefId, articleId, runId },
+                "executePlan: recurring-content article materialised inline",
+              );
+            } catch (err) {
+              const reason = err instanceof Error ? err.message : "recurring-content article creation failed";
+              log.error(
+                { err, itemId: item.id, briefId, planId },
+                "executePlan: createRecurringContentArticle threw",
+              );
+              await db
+                .update(pipelineRuns)
+                .set({ status: "failed", errorMessage: reason, completedAt: new Date() })
+                .where(eq(pipelineRuns.id, runId));
+              await transitionItemFailed({
+                projectId: plan.projectId,
+                planId,
+                itemId: item.id,
+                reason,
+              });
+              stats.inlineFailed += 1;
+              continue;
+            }
+          }
+
           if (!sj.articleId) {
             throw new Error(
               `article:social-image dispatch missing articleId in pipelineInput (item ${item.id})`,

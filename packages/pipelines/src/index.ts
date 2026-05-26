@@ -11,6 +11,12 @@ export * from "./internal-linking/index.ts";
 export * from "./cold-start/index.ts";
 export * from "./cold-start/triggers.ts";
 export { resolveToolIcon, type ResolvedIcon } from "./_lib/resolve-tool-icon.ts";
+export {
+  createRecurringContentArticle,
+  CreateRecurringArticleError,
+  type CreateRecurringContentArticleInput,
+  type CreateRecurringContentArticleResult,
+} from "./_lib/create-recurring-content-article.ts";
 export * from "./topic-sources/index.ts";
 export { loadActiveConfig, clearConfigCache } from "./config/index.ts";
 export * from "./routing/index.ts";

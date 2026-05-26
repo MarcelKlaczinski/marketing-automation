@@ -185,77 +185,126 @@ export async function handleRecurringBriefGenerator(
     const runNumber = await computeNextRunNumber(definition.id);
     const previousRunToolIds = await loadPreviousRunToolIds(definition.id);
 
-    // Derive the brief locale from the project's first target-locale.
-    // BCP-47 tags (`de-DE`, `en-US`) collapse to the two-letter code we use
-    // throughout the brief-generator stack. Multi-locale fan-out (emit one
-    // brief per target-locale) is a future enhancement.
-    const language = await resolveProjectLanguage(definition.projectId);
+    // Spec 65.V1.5a Bridge #3 — multi-locale fan-out. Emit ONE brief per entry
+    // in `definition.targetLocales`. The first entry is treated as primary; a
+    // single shared `runGroupId` UUID is generated only when there are 2+
+    // locales (single-locale fires keep producing the pre-bridge metadata
+    // shape with no `runGroupId` stamp). The project's primary language is
+    // still used as fallback when `targetLocales` is empty or holds an
+    // unknown value (Toolwiki DE-first invariant).
+    const fallbackLanguage = await resolveProjectLanguage(definition.projectId);
+    const targetLocales = resolveTargetLocales(definition.targetLocales, fallbackLanguage);
+    const runGroupId = targetLocales.length > 1 ? crypto.randomUUID() : undefined;
 
-    let result: GeneratedBriefResult;
-    try {
-      const briefCtx: BriefGenContext = {
-        definition,
-        // formatConfig is already typed `Record<string, unknown>` via the
-        // schema's $type<>() — `?? {}` covers the NULL-by-default-after-
-        // dynamic-shape edge case (e.g. a partial UPDATE that cleared the
-        // field).
-        config: definition.formatConfig ?? {},
-        projectId: definition.projectId,
-        language,
-        runNumber,
-      };
-      if (previousRunToolIds) briefCtx.previousRunToolIds = previousRunToolIds;
-      result = await dispatchBriefGenerator(briefCtx);
-    } catch (err) {
-      if (err instanceof UnknownFormatTypeError) {
-        log.error(
-          { definitionId: definition.id, formatType: definition.formatType },
-          "recurring-brief-generator: unknown format-type — definition needs cleanup",
-        );
-        return { status: "skipped", reason: "unknown-format-type" };
+    let lastResult: GeneratedBriefResult | null = null;
+    let persistedCount = 0;
+    let skippedCount = 0;
+
+    // Per-locale dispatch is awaited SEQUENTIALLY, not parallel.
+    //
+    // Rationale: each generator reads `previousRunToolIds` from prior briefs
+    // for LRU diversity (loadPreviousRunToolIds at the top of this handler).
+    // Parallel locale-runs would both query before either persists, so they'd
+    // see identical `previousRunToolIds` and end up converging on the same
+    // tool pool — defeating the LRU bias inside the same fire. Sequential
+    // means the second locale sees the first locale's freshly-persisted
+    // toolIds (via `loadPreviousRunToolIds` on the next worker pickup, not
+    // this iteration — but the cost is one fire's worth of staleness, not
+    // forever).
+    //
+    // Latency cost at 2 locales (Toolwiki today): ~30-60s sequential vs
+    // ~15-30s parallel. For 5+ locales we'd revisit parallelism with a
+    // shared in-memory `previousToolIds` accumulator. The Redis lock is
+    // per-definitionId (not per-locale), so parallel would NOT deadlock.
+    for (const language of targetLocales) {
+      let result: GeneratedBriefResult;
+      try {
+        const briefCtx: BriefGenContext = {
+          definition,
+          // formatConfig is already typed `Record<string, unknown>` via the
+          // schema's $type<>() — `?? {}` covers the NULL-by-default-after-
+          // dynamic-shape edge case (e.g. a partial UPDATE that cleared the
+          // field).
+          config: definition.formatConfig ?? {},
+          projectId: definition.projectId,
+          language,
+          runNumber,
+        };
+        if (previousRunToolIds) briefCtx.previousRunToolIds = previousRunToolIds;
+        if (runGroupId !== undefined) briefCtx.runGroupId = runGroupId;
+        result = await dispatchBriefGenerator(briefCtx);
+      } catch (err) {
+        if (err instanceof UnknownFormatTypeError) {
+          log.error(
+            { definitionId: definition.id, formatType: definition.formatType },
+            "recurring-brief-generator: unknown format-type — definition needs cleanup",
+          );
+          return { status: "skipped", reason: "unknown-format-type" };
+        }
+        throw err;
       }
-      throw err;
+      lastResult = result;
+
+      if (result.status === "persisted") {
+        persistedCount += 1;
+        log.info(
+          {
+            definitionId: definition.id,
+            briefId: result.brief.id,
+            language,
+            runGroupId: runGroupId ?? null,
+            templateKey: result.templateKey,
+            toolCount: result.toolIds.length,
+          },
+          "recurring-brief-generator: brief persisted",
+        );
+      } else if (result.status === "skipped") {
+        skippedCount += 1;
+        log.warn(
+          {
+            definitionId: definition.id,
+            language,
+            runGroupId: runGroupId ?? null,
+            reason: result.reason,
+            detail: result.detail,
+            missingToolIds: result.missingToolIds,
+          },
+          "recurring-brief-generator: brief skipped",
+        );
+        // Each skipped sibling fires its own notification — Marcel needs to
+        // know "EN went through but DE didn't" rather than just "something
+        // skipped this fire". The skip-reason already lives in the
+        // notification body so the locale-mix is implicit.
+        const notifyInput: NotifyRecurringBriefSkippedInput = {
+          projectId: definition.projectId,
+          definitionId: definition.id,
+          definitionName: definition.name,
+          reason: result.reason,
+        };
+        if (result.missingToolIds) notifyInput.missingToolIds = result.missingToolIds;
+        if (result.detail) notifyInput.detail = result.detail;
+        await notifyRecurringBriefSkipped(notifyInput);
+      } else {
+        // `dry-run-preview` is structurally unreachable here — the BullMQ worker
+        // never sets `ctx.dryRun = true` (dry-runs go through the synchronous
+        // `runDryRunForDefinition` entry point). Log defensively in case a
+        // future generator refactor leaks the variant through.
+        log.error(
+          { definitionId: definition.id, language, status: result.status },
+          "recurring-brief-generator: unexpected dry-run-preview from BullMQ path",
+        );
+      }
     }
 
-    if (result.status === "persisted") {
-      log.info(
-        {
-          definitionId: definition.id,
-          briefId: result.brief.id,
-          templateKey: result.templateKey,
-          toolCount: result.toolIds.length,
-        },
-        "recurring-brief-generator: brief persisted",
-      );
-    } else if (result.status === "skipped") {
-      log.warn(
-        {
-          definitionId: definition.id,
-          reason: result.reason,
-          detail: result.detail,
-          missingToolIds: result.missingToolIds,
-        },
-        "recurring-brief-generator: brief skipped",
-      );
-      const notifyInput: NotifyRecurringBriefSkippedInput = {
-        projectId: definition.projectId,
-        definitionId: definition.id,
-        definitionName: definition.name,
-        reason: result.reason,
-      };
-      if (result.missingToolIds) notifyInput.missingToolIds = result.missingToolIds;
-      if (result.detail) notifyInput.detail = result.detail;
-      await notifyRecurringBriefSkipped(notifyInput);
-    } else {
-      // `dry-run-preview` is structurally unreachable here — the BullMQ worker
-      // never sets `ctx.dryRun = true` (dry-runs go through the synchronous
-      // `runDryRunForDefinition` entry point). Log defensively in case a
-      // future generator refactor leaks the variant through.
-      log.error(
-        { definitionId: definition.id, status: result.status },
-        "recurring-brief-generator: unexpected dry-run-preview from BullMQ path",
-      );
-    }
+    // Use the last per-locale result as the "summary" returned to BullMQ.
+    // Workers don't act on this value beyond logging; the per-locale logs
+    // above are the source of truth. If ANY sibling persisted, the tick
+    // counts as "ran"; otherwise it's a "skipped" tick.
+    const result: GeneratedBriefResult = lastResult ?? {
+      status: "skipped" as const,
+      reason: "inactive-definition" as const,
+      detail: "targetLocales was empty after normalisation",
+    };
 
     // Advance next_run_at + last_run_at regardless of outcome. Skipped briefs
     // still consume the slot — a missing-asset skip shouldn't fire again in
@@ -276,13 +325,53 @@ export async function handleRecurringBriefGenerator(
       );
     }
 
-    if (result.status === "persisted") return { status: "ran" };
+    // Bridge #3 — roll up the per-locale outcomes into a single tick status.
+    // Tick "ran" iff at least one sibling persisted. Otherwise inherit the
+    // last sibling's skip reason (most informative for the audit log).
+    if (persistedCount > 0) {
+      if (skippedCount > 0) {
+        log.warn(
+          {
+            definitionId: definition.id,
+            persistedCount,
+            skippedCount,
+            runGroupId: runGroupId ?? null,
+          },
+          "recurring-brief-generator: mixed-outcome tick (some siblings persisted, some skipped)",
+        );
+      }
+      return { status: "ran" };
+    }
     if (result.status === "skipped") return { status: "skipped", reason: result.reason };
     // Unreachable from the BullMQ path (see defensive log above).
     return { status: "skipped", reason: "unexpected-dry-run-preview" };
   } finally {
     await releaseRedisLock(lockKey, token);
   }
+}
+
+/**
+ * Spec 65.V1.5a Bridge #3 — normalise the raw `definition.targetLocales` jsonb
+ * into the two-letter `"de" | "en"` codes the brief-generator stack
+ * consumes. Filters unknown entries (forward-compat with future locales) and
+ * dedup-preserves order. Empty result falls back to the project's primary
+ * language so misconfigured rows don't silently skip a fire.
+ */
+export function resolveTargetLocales(
+  raw: unknown,
+  fallback: "de" | "en",
+): Array<"de" | "en"> {
+  if (!Array.isArray(raw)) return [fallback];
+  const seen = new Set<"de" | "en">();
+  const out: Array<"de" | "en"> = [];
+  for (const entry of raw) {
+    if (typeof entry !== "string") continue;
+    const code = entry.toLowerCase().startsWith("en") ? "en" : entry.toLowerCase().startsWith("de") ? "de" : null;
+    if (code === null || seen.has(code)) continue;
+    seen.add(code);
+    out.push(code);
+  }
+  return out.length > 0 ? out : [fallback];
 }
 
 /**
@@ -389,7 +478,14 @@ export async function runDryRunForDefinition(input: {
 
   const runNumber = await computeNextRunNumber(definition.id);
   const previousRunToolIds = await loadPreviousRunToolIds(definition.id);
-  const language = await resolveProjectLanguage(definition.projectId);
+  const fallbackLanguage = await resolveProjectLanguage(definition.projectId);
+
+  // Bridge #3 — dry-run only emits the FIRST target-locale's preview. Marcel
+  // sees one preview per Test-click; if both locales need previewing, click
+  // Test twice (or seed sibling-locale Test in 65.V1.5b). The runGroupId
+  // pattern doesn't apply because dry-run never persists.
+  const targetLocales = resolveTargetLocales(definition.targetLocales, fallbackLanguage);
+  const language = targetLocales[0] ?? fallbackLanguage;
 
   const briefCtx: BriefGenContext = {
     definition,

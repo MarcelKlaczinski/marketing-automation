@@ -855,6 +855,20 @@
       "when": 1789900000000,
       "tag": "0121_end_slide_definitions_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0122_brand_assets_en_locale_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1790100000000,
+      "tag": "0123_recurring_definitions_target_locales",
+      "breakpoints": true
     }
   ]
 }

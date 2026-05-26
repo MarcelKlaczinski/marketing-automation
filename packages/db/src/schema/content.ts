@@ -983,6 +983,23 @@ export const RecurringMetadataSchema = z.object({
   formatType:      z.string(),
   /** Mirrors recurring_content_definitions.format_config at emission time (frozen). */
   formatConfig:    z.record(z.string(), z.unknown()),
+  /**
+   * Spec 65.V1.5a Bridge #3 — UUID shared across sibling briefs from the same
+   * fire when a definition's `target_locales` contains multiple entries. Lets
+   * downstream tooling (sibling-linking, coordinated posting times) detect
+   * "these two briefs are the DE+EN twins of one rhythm tick". Optional for
+   * back-compat with pre-bridge briefs that have no run-group concept.
+   */
+  runGroupId:      z.string().uuid().optional(),
+  /**
+   * Spec 65.V1.5a Bridge #3 — when multi-locale fan-out is active, each brief
+   * stamps its target locale so the planner-executor + article-output flow
+   * can pair the brief with the matching `articles.locale`. Optional for
+   * back-compat with pre-bridge single-locale briefs (locale lives on
+   * `topic_briefs.locale` already; this is a denormalised mirror inside the
+   * metadata bucket so future replay logic doesn't need a join).
+   */
+  targetLocale:    z.enum(["de", "en"]).optional(),
 });
 export type RecurringMetadata = z.infer<typeof RecurringMetadataSchema>;
 
