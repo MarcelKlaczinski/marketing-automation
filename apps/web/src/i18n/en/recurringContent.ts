@@ -97,9 +97,13 @@ export default {
           "fixed = one specific template • lru = least-recently-used • llm-picks = LLM ranks • latest = newest",
         fixedTemplateKey: "Fixed template (key)",
         endSlideStrategy: "End-slide strategy",
-        endSlidePool: "End-slide pool (UUIDs)",
+        endSlideStrategyHint:
+          "Rotation (LRU) only for now. Applied automatically to the pool, or falls back to format-type defaults when the pool is empty.",
+        endSlidePool: "End-slide pool",
         endSlidePoolHint:
-          "Comma-separated UUIDs from end-slide definitions. Empty = format-type defaults.",
+          "Pick one or more end-slide definitions. Empty = format-type defaults from the format-type registry are used.",
+        endSlidePoolPlaceholder: "Select end-slides …",
+        endSlidesLoadFailed: "Failed to load end-slide definitions",
         nextRunAt: "First run (UTC)",
         formatConfig: "Format config (JSON)",
         formatConfigHint:
@@ -128,6 +132,14 @@ export default {
       lru: "Least-recently-used (LRU)",
       "llm-picks": "LLM ranking",
       latest: "Latest",
+    },
+
+    endSlideStrategy: {
+      rotation: "Rotation (LRU)",
+    },
+
+    endSlideOption: {
+      inactive: "inactive",
     },
   },
 

@@ -70,14 +70,31 @@
 
         <label class="field">
           <span class="label">{{ $t("recurringContent.definitions.create.fields.endSlideStrategy") as string }}</span>
-          <input v-model="form.endSlideStrategy" type="text" class="text-input" />
+          <select v-model="form.endSlideStrategy" class="select-input">
+            <option value="rotation">{{ $t("recurringContent.definitions.endSlideStrategy.rotation") as string }}</option>
+          </select>
+          <small class="hint">{{ $t("recurringContent.definitions.create.fields.endSlideStrategyHint") as string }}</small>
         </label>
 
-        <label class="field">
+        <div class="field">
           <span class="label">{{ $t("recurringContent.definitions.create.fields.endSlidePool") as string }}</span>
-          <input v-model="form.endSlidePoolRaw" type="text" class="text-input" placeholder="uuid1, uuid2, ..." />
+          <q-select
+            v-model="form.endSlidePool"
+            :options="endSlideOptions"
+            :loading="loadingEndSlides"
+            multiple
+            use-chips
+            use-input
+            emit-value
+            map-options
+            dense
+            outlined
+            dark
+            input-debounce="0"
+            :placeholder="$t('recurringContent.definitions.create.fields.endSlidePoolPlaceholder') as string"
+          />
           <small class="hint">{{ $t("recurringContent.definitions.create.fields.endSlidePoolHint") as string }}</small>
-        </label>
+        </div>
 
         <label class="field">
           <span class="label">{{ $t("recurringContent.definitions.create.fields.formatConfig") as string }}</span>
@@ -118,7 +135,14 @@
 
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
-import { apiPatch, apiPost } from "src/lib/api";
+import { apiGet, apiPatch, apiPost } from "src/lib/api";
+
+interface EndSlideOption {
+  id: string;
+  name: string;
+  type: string;
+  isActive: boolean;
+}
 
 interface FormatTypeInfo {
   key: string;
@@ -222,6 +246,8 @@ export default defineComponent({
       visible: true,
       saving: false,
       jsonError: null as string | null,
+      availableEndSlides: [] as EndSlideOption[],
+      loadingEndSlides: false,
       form: {
         name: def?.name ?? "",
         formatType: initialFormatType,
@@ -234,7 +260,7 @@ export default defineComponent({
         templateSelectionStrategy: def?.templateSelectionStrategy ?? "lru",
         fixedTemplateKey: def?.fixedTemplateKey ?? null,
         endSlideStrategy: def?.endSlideStrategy ?? "rotation",
-        endSlidePoolRaw: def?.endSlidePool.join(", ") ?? "",
+        endSlidePool: def?.endSlidePool ?? [],
         formatConfigJson: JSON.stringify(initialConfig, null, 2),
         isActive: def?.isActive ?? true,
       },
@@ -259,6 +285,27 @@ export default defineComponent({
         '{\n  // permissive fallback — see packages/shared/src/format-types\n}'
       );
     },
+    endSlideOptions(): Array<{ label: string; value: string }> {
+      // Sort by type, then name, so similar end-slides cluster together in the dropdown.
+      // Inactive rows stay selectable so re-opening an old definition doesn't silently drop a known-but-disabled pick.
+      const sorted = [...this.availableEndSlides].sort(
+        (a, b) =>
+          a.type.localeCompare(b.type) || a.name.localeCompare(b.name),
+      );
+      return sorted.map((es) => {
+        const inactiveSuffix = es.isActive
+          ? ""
+          : ` (${this.$t("recurringContent.definitions.endSlideOption.inactive") as string})`;
+        return {
+          label: `${es.name} · ${es.type}${inactiveSuffix}`,
+          value: es.id,
+        };
+      });
+    },
+  },
+
+  mounted() {
+    void this.loadEndSlides();
   },
 
   watch: {
@@ -277,6 +324,27 @@ export default defineComponent({
   },
 
   methods: {
+    async loadEndSlides(): Promise<void> {
+      this.loadingEndSlides = true;
+      try {
+        const res = await apiGet<{ endSlides: EndSlideOption[] }>(
+          `/projects/${this.slug}/end-slides?includeInactive=true`,
+        );
+        this.availableEndSlides = res.endSlides;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "load_failed";
+        this.$q.notify({
+          type: "negative",
+          message: this.$t(
+            "recurringContent.definitions.create.endSlidesLoadFailed",
+          ) as string,
+          caption: msg,
+        });
+      } finally {
+        this.loadingEndSlides = false;
+      }
+    },
+
     validateJson(): boolean {
       try {
         JSON.parse(this.form.formatConfigJson);
@@ -303,10 +371,7 @@ export default defineComponent({
           string,
           unknown
         >;
-        const endSlidePool = this.form.endSlidePoolRaw
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0);
+        const endSlidePool = this.form.endSlidePool;
         const payload: Record<string, unknown> = {
           name: this.form.name,
           formatType: this.form.formatType,
