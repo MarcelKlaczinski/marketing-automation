@@ -1,4 +1,5 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { EndSlideLocale, EndSlideProps, FollowCtaConfig } from "./types";
 
@@ -19,7 +20,7 @@ export const FollowCtaSlide: React.FC<EndSlideProps<{ type: "follow-cta"; config
   brandTokens,
 }) => {
   const { config } = data;
-  const headline = config.customMessage ?? HEADLINE[locale];
+  const headline = pickLocalized(config.customMessage, locale) ?? HEADLINE[locale];
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="top-right" glowColor="brand">

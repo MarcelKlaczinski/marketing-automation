@@ -1,11 +1,14 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { EndSlideProps, TagFriendConfig } from "./types";
 
 export const TagFriendSlide: React.FC<
   EndSlideProps<{ type: "tag-friend"; config: TagFriendConfig }>
-> = ({ data, theme, brandTokens }) => {
+> = ({ data, theme, locale, brandTokens }) => {
   const { config } = data;
+  const prompt = pickLocalized(config.prompt, locale) ?? "";
+  const context = pickLocalized(config.context, locale);
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="top-right" glowColor="accent">
@@ -49,10 +52,10 @@ export const TagFriendSlide: React.FC<
               maxWidth: 880,
             }}
           >
-            {config.prompt}
+            {prompt}
           </div>
 
-          {config.context ? (
+          {context ? (
             <div
               style={{
                 fontSize: 32,
@@ -62,7 +65,7 @@ export const TagFriendSlide: React.FC<
                 maxWidth: 800,
               }}
             >
-              {config.context}
+              {context}
             </div>
           ) : null}
 

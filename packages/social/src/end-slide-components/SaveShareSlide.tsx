@@ -1,4 +1,5 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { EndSlideLocale, EndSlideProps, SaveShareConfig } from "./types";
 
@@ -54,6 +55,7 @@ export const SaveShareSlide: React.FC<
   const { config } = data;
   const isSave = config.primaryAction === "save";
   const secondary = isSave ? SECONDARY_LABEL[locale].save : SECONDARY_LABEL[locale].share;
+  const message = pickLocalized(config.message, locale) ?? "";
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="bottom-left" glowColor="brand">
@@ -84,7 +86,7 @@ export const SaveShareSlide: React.FC<
               maxWidth: 880,
             }}
           >
-            {config.message}
+            {message}
           </div>
 
           {/* Secondary action chip — smaller, muted */}

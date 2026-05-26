@@ -30,6 +30,7 @@ export {
   saveShareConfigSchema,
   swipeUpConfigSchema,
   quoteActionConfigSchema,
+  localizedString,
 } from "./types";
 
 export type {
@@ -45,4 +46,7 @@ export type {
   SaveShareConfig,
   SwipeUpConfig,
   QuoteActionConfig,
+  LocalizedString,
 } from "./types";
+
+export { pickLocalized } from "./localized";

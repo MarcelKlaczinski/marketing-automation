@@ -94,7 +94,7 @@ describe("POST /api/projects/:slug/end-slides", () => {
       authed(`/api/projects/${slug}/end-slides`, {
         method: "POST",
         body: JSON.stringify({
-          name: "Follow @toolwiki",
+          name: { de: "Follow @toolwiki", en: "Follow @toolwiki" },
           type: "follow-cta",
           config: { handle: "@toolwiki.ai" },
         }),
@@ -113,7 +113,7 @@ describe("POST /api/projects/:slug/end-slides", () => {
       authed(`/api/projects/${slug}/end-slides`, {
         method: "POST",
         body: JSON.stringify({
-          name: "Broken comment-to-get",
+          name: { de: "Broken comment-to-get", en: "Broken comment-to-get" },
           type: "comment-to-get",
           // keyword min(2), missing resourceTitle
           config: { keyword: "A" },
@@ -128,7 +128,7 @@ describe("POST /api/projects/:slug/end-slides", () => {
       authed(`/api/projects/${slug}/end-slides`, {
         method: "POST",
         body: JSON.stringify({
-          name: "Mystery",
+          name: { de: "Mystery", en: "Mystery" },
           type: "future-type",
           config: {},
         }),
@@ -144,17 +144,17 @@ describe("PATCH /api/projects/:slug/end-slides/:id", () => {
       .insert(endSlideDefinitions)
       .values({
         projectId,
-        name: "Tag friend",
+        name: { de: "Tag friend", en: "Tag friend" },
         type: "tag-friend",
-        config: { prompt: "Wer braucht das?" },
+        config: { prompt: { de: "Wer braucht das?", en: "Who needs this?" } },
       })
       .returning({ id: endSlideDefinitions.id });
 
-    // Try to patch config with incompatible shape — prompt must be ≥ 2 chars.
+    // Try to patch config with incompatible shape — prompt.de must be ≥ 2 chars.
     const res = await app.fetch(
       authed(`/api/projects/${slug}/end-slides/${row!.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ config: { prompt: "A" } }),
+        body: JSON.stringify({ config: { prompt: { de: "A", en: "Who?" } } }),
       }),
     );
     expect(res.status).toBe(422);
@@ -165,7 +165,7 @@ describe("PATCH /api/projects/:slug/end-slides/:id", () => {
       .insert(endSlideDefinitions)
       .values({
         projectId: otherProjectId,
-        name: "Foreign",
+        name: { de: "Foreign", en: "Foreign" },
         type: "follow-cta",
         config: { handle: "@nope" },
       })
@@ -174,7 +174,7 @@ describe("PATCH /api/projects/:slug/end-slides/:id", () => {
     const res = await app.fetch(
       authed(`/api/projects/${slug}/end-slides/${foreign!.id}`, {
         method: "PATCH",
-        body: JSON.stringify({ name: "Hijack" }),
+        body: JSON.stringify({ name: { de: "Hijack", en: "Hijack" } }),
       }),
     );
     expect(res.status).toBe(404);
@@ -187,7 +187,7 @@ describe("PATCH /api/projects/:slug/end-slides/:id/active", () => {
       .insert(endSlideDefinitions)
       .values({
         projectId,
-        name: "Toggle me",
+        name: { de: "Toggle me", en: "Toggle me" },
         type: "follow-cta",
         config: { handle: "@x" },
         isActive: true,
@@ -212,16 +212,23 @@ describe("PATCH /api/projects/:slug/end-slides/:id/active", () => {
 describe("GET /api/projects/:slug/end-slides", () => {
   it("filters by type", async () => {
     await db.insert(endSlideDefinitions).values([
-      { projectId, name: "f1", type: "follow-cta", config: { handle: "@a" } },
-      { projectId, name: "c1", type: "comment-to-get", config: { keyword: "GO", resourceTitle: "Pack" } },
-      { projectId, name: "f2", type: "follow-cta", config: { handle: "@b" } },
+      { projectId, name: { de: "f1", en: "f1" }, type: "follow-cta", config: { handle: "@a" } },
+      {
+        projectId,
+        name: { de: "c1", en: "c1" },
+        type: "comment-to-get",
+        config: { keyword: "GO", resourceTitle: { de: "Pack", en: "Pack" } },
+      },
+      { projectId, name: { de: "f2", en: "f2" }, type: "follow-cta", config: { handle: "@b" } },
     ]);
     const res = await app.fetch(
       authed(`/api/projects/${slug}/end-slides?type=follow-cta`),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { endSlides: Array<{ name: string }> } };
+    const body = (await res.json()) as {
+      data: { endSlides: Array<{ name: { de: string; en: string } }> };
+    };
     expect(body.data.endSlides).toHaveLength(2);
-    expect(body.data.endSlides.map((e) => e.name).sort()).toEqual(["f1", "f2"]);
+    expect(body.data.endSlides.map((e) => e.name.de).sort()).toEqual(["f1", "f2"]);
   });
 });

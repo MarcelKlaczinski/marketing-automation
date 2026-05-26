@@ -6,10 +6,20 @@
       </q-card-section>
 
       <q-card-section class="body">
-        <label class="field">
+        <div class="field">
           <span class="label">{{ $t("recurringContent.endSlides.edit.fields.name") as string }}</span>
-          <input v-model="form.name" type="text" class="text-input" maxlength="120" />
-        </label>
+          <div class="locale-pair">
+            <label class="locale-input">
+              <small class="locale-tag">DE</small>
+              <input v-model="form.nameDe" type="text" class="text-input" maxlength="120" />
+            </label>
+            <label class="locale-input">
+              <small class="locale-tag">EN</small>
+              <input v-model="form.nameEn" type="text" class="text-input" maxlength="120" />
+            </label>
+          </div>
+          <small class="hint">{{ $t("recurringContent.endSlides.edit.fields.nameHint") as string }}</small>
+        </div>
 
         <label class="field">
           <span class="label">
@@ -68,7 +78,8 @@ import { apiPatch, apiPost } from "src/lib/api";
 
 interface EndSlideDef {
   id: string;
-  name: string;
+  /** Spec 65.9-followup: locale-aware admin label. */
+  name: { de: string; en: string };
   type: string;
   config: Record<string, unknown>;
   isActive: boolean;
@@ -104,35 +115,72 @@ function defaultConfigForEndSlideType(type: string): Record<string, unknown> {
   }
 }
 
+/**
+ * Schema samples with the Spec 65.9-followup locale-aware shape. Locale-binding
+ * fields (resourceTitle, description, prompt, message, quote, customMessage,
+ * attribution, context, promptText) take a `{de, en}` jsonb object; locale-
+ * agnostic fields (handle, keyword, url, destination, primaryAction) stay
+ * plain strings. Marcel-curated sample texts; he can edit per-tenant.
+ */
 const SCHEMA_SAMPLES: Record<string, string> = {
   "follow-cta": `{
   "handle": "@toolwiki.ai",
-  "customMessage": "Folge für mehr Tool-Tests"
+  "customMessage": {
+    "de": "Folge für mehr Tool-Tests",
+    "en": "Follow for more tool tests"
+  }
 }`,
   "comment-to-get": `{
   "keyword": "CLAUDE",
-  "resourceTitle": "Claude Prompts Pack",
-  "promptText": "Kommentiere CLAUDE"
+  "resourceTitle": {
+    "de": "Claude Prompts Pack",
+    "en": "Claude Prompts Pack"
+  },
+  "promptText": {
+    "de": "Kommentiere CLAUDE",
+    "en": "Comment CLAUDE"
+  }
 }`,
   "link-in-bio": `{
-  "description": "Vollständiger Vergleich auf toolwiki.ai",
+  "description": {
+    "de": "Vollständiger Vergleich auf toolwiki.ai",
+    "en": "Full comparison at toolwiki.ai"
+  },
   "url": "toolwiki.ai"
 }`,
   "tag-friend": `{
-  "prompt": "Wer braucht das?",
-  "context": "Tagge jemanden aus deinem Team"
+  "prompt": {
+    "de": "Wer braucht das?",
+    "en": "Who needs this?"
+  },
+  "context": {
+    "de": "Tagge jemanden aus deinem Team",
+    "en": "Tag someone on your team"
+  }
 }`,
   "save-share-cta": `{
   "primaryAction": "save",
-  "message": "Speichern für später"
+  "message": {
+    "de": "Speichern für später",
+    "en": "Save for later"
+  }
 }`,
   "swipe-up": `{
   "destination": "toolwiki.ai",
-  "customMessage": "Mehr lesen"
+  "customMessage": {
+    "de": "Mehr lesen",
+    "en": "Read more"
+  }
 }`,
   "quote-action": `{
-  "quote": "Stop scrolling. Test es in 30 Sekunden.",
-  "attribution": "— Marcel @ Toolwiki"
+  "quote": {
+    "de": "Stop scrolling. Test es in 30 Sekunden.",
+    "en": "Stop scrolling. Test it in 30 seconds."
+  },
+  "attribution": {
+    "de": "— Marcel @ Toolwiki",
+    "en": "— Marcel @ Toolwiki"
+  }
 }`,
 };
 
@@ -155,7 +203,8 @@ export default defineComponent({
       jsonError: null as string | null,
       END_SLIDE_TYPE_KEYS,
       form: {
-        name: es?.name ?? "",
+        nameDe: es?.name.de ?? "",
+        nameEn: es?.name.en ?? "",
         type: initialType,
         configJson: JSON.stringify(es?.config ?? defaultConfigForEndSlideType(initialType), null, 2),
         isActive: es?.isActive ?? true,
@@ -206,18 +255,28 @@ export default defineComponent({
 
     async save(): Promise<void> {
       if (!this.validateJson()) return;
+      const nameDe = this.form.nameDe.trim();
+      const nameEn = this.form.nameEn.trim();
+      if (!nameDe || !nameEn) {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t("recurringContent.endSlides.edit.nameRequiredBoth") as string,
+        });
+        return;
+      }
       this.saving = true;
       try {
         const config = JSON.parse(this.form.configJson) as Record<string, unknown>;
+        const name = { de: nameDe, en: nameEn };
         if (this.endSlide) {
           await apiPatch(`/projects/${this.slug}/end-slides/${this.endSlide.id}`, {
-            name: this.form.name,
+            name,
             config,
             isActive: this.form.isActive,
           });
         } else {
           await apiPost(`/projects/${this.slug}/end-slides`, {
-            name: this.form.name,
+            name,
             type: this.form.type,
             config,
             isActive: this.form.isActive,
@@ -250,6 +309,18 @@ export default defineComponent({
 .body { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.locale-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.locale-input { display: flex; flex-direction: column; gap: 2px; }
+.locale-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+@media (max-width: 520px) {
+  .locale-pair { grid-template-columns: 1fr; }
+}
 .hint.inline { margin-left: 6px; color: var(--text-tertiary); font-weight: 400; }
 .text-input, .select-input, .json-input {
   background: var(--bg-glass-strong);

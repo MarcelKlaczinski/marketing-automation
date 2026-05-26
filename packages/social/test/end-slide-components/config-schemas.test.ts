@@ -31,9 +31,10 @@ describe("End-slide config schemas", () => {
     it("accepts custom message override", () => {
       const parsed = followCtaConfigSchema.parse({
         handle: "@x",
-        customMessage: "Folge für mehr",
+        customMessage: { de: "Folge für mehr", en: "Follow for more" },
       });
-      expect(parsed.customMessage).toBe("Folge für mehr");
+      expect(parsed.customMessage?.de).toBe("Folge für mehr");
+      expect(parsed.customMessage?.en).toBe("Follow for more");
     });
 
     it("rejects empty handle", () => {
@@ -49,15 +50,18 @@ describe("End-slide config schemas", () => {
     it("accepts canonical payload", () => {
       const parsed = commentToGetConfigSchema.parse({
         keyword: "CLAUDE",
-        resourceTitle: "Claude Prompts Pack",
+        resourceTitle: { de: "Claude Prompts Pack", en: "Claude Prompts Pack" },
       });
       expect(parsed.keyword).toBe("CLAUDE");
-      expect(parsed.resourceTitle).toBe("Claude Prompts Pack");
+      expect(parsed.resourceTitle.de).toBe("Claude Prompts Pack");
     });
 
     it("rejects keyword under 2 chars", () => {
       expect(() =>
-        commentToGetConfigSchema.parse({ keyword: "A", resourceTitle: "X" }),
+        commentToGetConfigSchema.parse({
+          keyword: "A",
+          resourceTitle: { de: "XX", en: "XX" },
+        }),
       ).toThrow();
     });
 
@@ -65,7 +69,7 @@ describe("End-slide config schemas", () => {
       expect(() =>
         commentToGetConfigSchema.parse({
           keyword: "VERYLONGKEYWORD-OVER-LIMIT",
-          resourceTitle: "X",
+          resourceTitle: { de: "XX", en: "XX" },
         }),
       ).toThrow();
     });
@@ -73,13 +77,15 @@ describe("End-slide config schemas", () => {
 
   describe("link-in-bio", () => {
     it("accepts url-less payload", () => {
-      const parsed = linkInBioConfigSchema.parse({ description: "Full comparison" });
+      const parsed = linkInBioConfigSchema.parse({
+        description: { de: "Vollständiger Vergleich", en: "Full comparison" },
+      });
       expect(parsed.url).toBeUndefined();
     });
 
     it("accepts payload with url", () => {
       const parsed = linkInBioConfigSchema.parse({
-        description: "Full comparison",
+        description: { de: "Vollständiger Vergleich", en: "Full comparison" },
         url: "toolwiki.ai",
       });
       expect(parsed.url).toBe("toolwiki.ai");
@@ -88,14 +94,19 @@ describe("End-slide config schemas", () => {
 
   describe("tag-friend", () => {
     it("accepts prompt-only", () => {
-      const parsed = tagFriendConfigSchema.parse({ prompt: "Wer braucht das?" });
-      expect(parsed.prompt).toBe("Wer braucht das?");
+      const parsed = tagFriendConfigSchema.parse({
+        prompt: { de: "Wer braucht das?", en: "Who needs this?" },
+      });
+      expect(parsed.prompt.de).toBe("Wer braucht das?");
     });
 
     it("accepts prompt + context", () => {
       const parsed = tagFriendConfigSchema.parse({
-        prompt: "Wer braucht das?",
-        context: "Markiere jemanden der gerade KI entdeckt",
+        prompt: { de: "Wer braucht das?", en: "Who needs this?" },
+        context: {
+          de: "Markiere jemanden der gerade KI entdeckt",
+          en: "Tag someone discovering AI",
+        },
       });
       expect(parsed.context).toBeDefined();
     });
@@ -105,7 +116,7 @@ describe("End-slide config schemas", () => {
     it("accepts save primaryAction", () => {
       const parsed = saveShareConfigSchema.parse({
         primaryAction: "save",
-        message: "Speichern",
+        message: { de: "Speichern", en: "Save it" },
       });
       expect(parsed.primaryAction).toBe("save");
     });
@@ -113,14 +124,17 @@ describe("End-slide config schemas", () => {
     it("accepts share primaryAction", () => {
       const parsed = saveShareConfigSchema.parse({
         primaryAction: "share",
-        message: "Teilen",
+        message: { de: "Teilen", en: "Share it" },
       });
       expect(parsed.primaryAction).toBe("share");
     });
 
     it("rejects unknown primaryAction", () => {
       expect(() =>
-        saveShareConfigSchema.parse({ primaryAction: "tap" as never, message: "x" }),
+        saveShareConfigSchema.parse({
+          primaryAction: "tap" as never,
+          message: { de: "XX", en: "XX" },
+        }),
       ).toThrow();
     });
   });
@@ -135,21 +149,26 @@ describe("End-slide config schemas", () => {
   describe("quote-action", () => {
     it("accepts quote-only", () => {
       const parsed = quoteActionConfigSchema.parse({
-        quote: "Stop scrolling. Test it in 30 seconds.",
+        quote: {
+          de: "Stop scrolling. Test es in 30 Sekunden.",
+          en: "Stop scrolling. Test it in 30 seconds.",
+        },
       });
       expect(parsed.attribution).toBeUndefined();
     });
 
     it("accepts quote + attribution", () => {
       const parsed = quoteActionConfigSchema.parse({
-        quote: "Stop scrolling.",
-        attribution: "Marcel @ Toolwiki",
+        quote: { de: "Stop scrolling.", en: "Stop scrolling." },
+        attribution: { de: "Marcel @ Toolwiki", en: "Marcel @ Toolwiki" },
       });
-      expect(parsed.attribution).toBe("Marcel @ Toolwiki");
+      expect(parsed.attribution?.en).toBe("Marcel @ Toolwiki");
     });
 
     it("rejects quote under 4 chars", () => {
-      expect(() => quoteActionConfigSchema.parse({ quote: "abc" })).toThrow();
+      expect(() =>
+        quoteActionConfigSchema.parse({ quote: { de: "abc", en: "abc" } }),
+      ).toThrow();
     });
   });
 });

@@ -38,15 +38,25 @@ endSlidesRoutes.use(requireAuth);
 
 const endSlideTypeSchema = z.enum(END_SLIDE_TYPES);
 
+/**
+ * Locale-aware admin label (Spec 65.9-followup migration 0124). Both locales
+ * required so the renderer never deals with a partial row — Marcel fills both
+ * fields in the Edit modal. Length cap shared across both locales.
+ */
+const endSlideNameSchema = z.object({
+  de: z.string().min(1).max(120),
+  en: z.string().min(1).max(120),
+});
+
 const createEndSlideBodySchema = z.object({
-  name: z.string().min(1).max(120),
+  name: endSlideNameSchema,
   type: endSlideTypeSchema,
   config: z.record(z.string(), z.unknown()).default({}),
   isActive: z.boolean().default(true),
 });
 
 const patchEndSlideBodySchema = z.object({
-  name: z.string().min(1).max(120).optional(),
+  name: endSlideNameSchema.optional(),
   config: z.record(z.string(), z.unknown()).optional(),
   isActive: z.boolean().optional(),
 });

@@ -1,4 +1,5 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { EndSlideLocale, EndSlideProps, LinkInBioConfig } from "./types";
 
@@ -11,6 +12,7 @@ export const LinkInBioSlide: React.FC<
   EndSlideProps<{ type: "link-in-bio"; config: LinkInBioConfig }>
 > = ({ data, theme, locale, brandTokens }) => {
   const { config } = data;
+  const description = pickLocalized(config.description, locale) ?? "";
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="bottom-right" glowColor="brand">
@@ -65,7 +67,7 @@ export const LinkInBioSlide: React.FC<
               maxWidth: 800,
             }}
           >
-            {config.description}
+            {description}
           </div>
 
           {config.url ? (

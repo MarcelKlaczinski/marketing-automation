@@ -44,7 +44,7 @@ export interface PersistRecurringBriefInput {
     endSlideDefinitionId: string;
     endSlideType: string;
     config: Record<string, unknown>;
-    name: string;
+    name: { de: string; en: string };
     selectedVia: "lru-within-pool" | "format-type-default";
   };
   /** Family B only — picked hook + render result. */

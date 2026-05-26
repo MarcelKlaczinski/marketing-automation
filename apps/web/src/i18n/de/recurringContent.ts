@@ -222,16 +222,20 @@ export default {
       titleCreate: "Neuer End-Slide",
       titleEdit: "End-Slide bearbeiten",
       fields: {
-        name: "Name",
+        name: "Name (DE / EN)",
+        nameHint:
+          "Admin-Label für beide UI-Sprachen. Wird je nach Login-Sprache angezeigt.",
         type: "Typ",
         typeImmutable: "(nach Erstellung nicht änderbar)",
         config: "Konfiguration (JSON)",
-        configHint: "Zod-validiert per Typ. Schema-Hinweise unten.",
+        configHint:
+          "Zod-validiert per Typ. Texte für die gerenderten Slides als {\"de\": \"…\", \"en\": \"…\"} eintragen. Schema-Hinweise unten.",
         isActive: "Aktiv",
       },
       schemaHeading: "Erwartetes Schema für diesen Typ",
       saveSuccess: "End-Slide gespeichert.",
       saveFailed: "Speichern fehlgeschlagen.",
+      nameRequiredBoth: "Bitte beide Sprachen (DE + EN) ausfüllen.",
       cancel: "Abbrechen",
       save: "Speichern",
     },

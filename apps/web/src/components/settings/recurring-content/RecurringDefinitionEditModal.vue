@@ -139,7 +139,8 @@ import { apiGet, apiPatch, apiPost } from "src/lib/api";
 
 interface EndSlideOption {
   id: string;
-  name: string;
+  /** Spec 65.9-followup: locale-aware admin label `{de, en}`. */
+  name: { de: string; en: string };
   type: string;
   isActive: boolean;
 }
@@ -286,18 +287,22 @@ export default defineComponent({
       );
     },
     endSlideOptions(): Array<{ label: string; value: string }> {
-      // Sort by type, then name, so similar end-slides cluster together in the dropdown.
+      // Sort by type, then localized name, so similar end-slides cluster together in the dropdown.
       // Inactive rows stay selectable so re-opening an old definition doesn't silently drop a known-but-disabled pick.
+      // Spec 65.9-followup: `name` is `{de, en}` jsonb — display the value matching the active UI locale.
+      const loc = this.$i18n.locale === "en" ? "en" : "de";
+      const labelFor = (es: EndSlideOption): string =>
+        es.name[loc] ?? es.name.de ?? es.name.en ?? "";
       const sorted = [...this.availableEndSlides].sort(
         (a, b) =>
-          a.type.localeCompare(b.type) || a.name.localeCompare(b.name),
+          a.type.localeCompare(b.type) || labelFor(a).localeCompare(labelFor(b)),
       );
       return sorted.map((es) => {
         const inactiveSuffix = es.isActive
           ? ""
           : ` (${this.$t("recurringContent.definitions.endSlideOption.inactive") as string})`;
         return {
-          label: `${es.name} · ${es.type}${inactiveSuffix}`,
+          label: `${labelFor(es)} · ${es.type}${inactiveSuffix}`,
           value: es.id,
         };
       });

@@ -9,6 +9,13 @@
  * column. Pipeline-side and brief-generator-side consumers SHOULD parse the
  * config through these schemas before passing to a component — never trust
  * the column shape.
+ *
+ * Spec 65.9-followup (migration 0124): locale-binding fields (resourceTitle,
+ * description, prompt, message, quote, customMessage, attribution, context,
+ * promptText) are stored as `{de, en}` jsonb so a single definition row
+ * serves bilingual tenants. Locale-agnostic fields (handle, keyword, url,
+ * destination, primaryAction) stay plain strings. The renderer picks the
+ * right locale via `pickLocalized(field, locale)` in `localized.ts`.
  */
 import { z } from "zod";
 
@@ -24,13 +31,30 @@ export const END_SLIDE_TYPES = [
 
 export type EndSlideType = (typeof END_SLIDE_TYPES)[number];
 
+// ── Localized text helper ────────────────────────────────────────────────
+
+/**
+ * Build a Zod schema for a `{de, en}` localized string with per-locale length
+ * bounds. Both locales are required so a renderer never has to deal with a
+ * partially-populated row — migration 0124 backfills `{de: existing, en:
+ * existing}` for legacy rows; Marcel curates the EN copy later via the
+ * Settings UI.
+ */
+export const localizedString = (min: number, max: number) =>
+  z.object({
+    de: z.string().min(min).max(max),
+    en: z.string().min(min).max(max),
+  });
+
+export type LocalizedString = { de: string; en: string };
+
 // ── Per-type config schemas ──────────────────────────────────────────────
 
 export const followCtaConfigSchema = z.object({
   /** Account handle as it should appear on the slide (e.g. "@toolwiki.ai"). */
   handle: z.string().min(1).max(40),
   /** Override the default "Follow for more" headline. */
-  customMessage: z.string().min(1).max(80).optional(),
+  customMessage: localizedString(1, 80).optional(),
 });
 export type FollowCtaConfig = z.infer<typeof followCtaConfigSchema>;
 
@@ -38,15 +62,15 @@ export const commentToGetConfigSchema = z.object({
   /** Single uppercase keyword viewer comments to trigger the resource DM. */
   keyword: z.string().min(2).max(20),
   /** Display title of the resource viewer receives ("Claude Prompts Pack"). */
-  resourceTitle: z.string().min(2).max(80),
+  resourceTitle: localizedString(2, 80),
   /** Optional override for the "comment <KEYWORD>" instruction line. */
-  promptText: z.string().min(1).max(80).optional(),
+  promptText: localizedString(1, 80).optional(),
 });
 export type CommentToGetConfig = z.infer<typeof commentToGetConfigSchema>;
 
 export const linkInBioConfigSchema = z.object({
   /** "Full comparison at toolwiki.ai" — the directive line. */
-  description: z.string().min(2).max(120),
+  description: localizedString(2, 120),
   /** Reference URL shown small (carousel links aren't clickable). */
   url: z.string().min(1).max(80).optional(),
 });
@@ -54,9 +78,9 @@ export type LinkInBioConfig = z.infer<typeof linkInBioConfigSchema>;
 
 export const tagFriendConfigSchema = z.object({
   /** Main prompt: "Wer braucht das?" / "Who needs this?". */
-  prompt: z.string().min(2).max(80),
+  prompt: localizedString(2, 80),
   /** Secondary hint line that frames who to tag. */
-  context: z.string().min(2).max(120).optional(),
+  context: localizedString(2, 120).optional(),
 });
 export type TagFriendConfig = z.infer<typeof tagFriendConfigSchema>;
 
@@ -64,7 +88,7 @@ export const saveShareConfigSchema = z.object({
   /** Which engagement to visually emphasize. */
   primaryAction: z.enum(["save", "share"]),
   /** Headline ("Save for later", "Share with your team"). */
-  message: z.string().min(2).max(80),
+  message: localizedString(2, 80),
 });
 export type SaveShareConfig = z.infer<typeof saveShareConfigSchema>;
 
@@ -72,15 +96,15 @@ export const swipeUpConfigSchema = z.object({
   /** Where the viewer is sent — usually the project domain. */
   destination: z.string().min(2).max(80),
   /** Override the default "Visit" headline. */
-  customMessage: z.string().min(1).max(80).optional(),
+  customMessage: localizedString(1, 80).optional(),
 });
 export type SwipeUpConfig = z.infer<typeof swipeUpConfigSchema>;
 
 export const quoteActionConfigSchema = z.object({
   /** Punchy action-verb quote ("Stop scrolling. Test it in 30 seconds."). */
-  quote: z.string().min(4).max(160),
+  quote: localizedString(4, 160),
   /** Optional attribution ("— Marcel @ Toolwiki"). */
-  attribution: z.string().min(1).max(60).optional(),
+  attribution: localizedString(1, 60).optional(),
 });
 export type QuoteActionConfig = z.infer<typeof quoteActionConfigSchema>;
 

@@ -1,11 +1,14 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { EndSlideProps, QuoteActionConfig } from "./types";
 
 export const QuoteActionSlide: React.FC<
   EndSlideProps<{ type: "quote-action"; config: QuoteActionConfig }>
-> = ({ data, theme, brandTokens }) => {
+> = ({ data, theme, locale, brandTokens }) => {
   const { config } = data;
+  const quote = pickLocalized(config.quote, locale) ?? "";
+  const attribution = pickLocalized(config.attribution, locale);
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="bottom-right" glowColor="accent">
@@ -38,7 +41,7 @@ export const QuoteActionSlide: React.FC<
               maxWidth: 920,
             }}
           >
-            {config.quote}
+            {quote}
           </div>
 
           {/* Accent underline */}
@@ -52,7 +55,7 @@ export const QuoteActionSlide: React.FC<
             }}
           />
 
-          {config.attribution ? (
+          {attribution ? (
             <div
               style={{
                 fontSize: 26,
@@ -63,7 +66,7 @@ export const QuoteActionSlide: React.FC<
                 marginTop: 8,
               }}
             >
-              {config.attribution}
+              {attribution}
             </div>
           ) : null}
         </>

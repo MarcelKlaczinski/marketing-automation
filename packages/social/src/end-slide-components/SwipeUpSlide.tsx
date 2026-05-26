@@ -1,4 +1,5 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { EndSlideLocale, EndSlideProps, SwipeUpConfig } from "./types";
 
@@ -16,7 +17,7 @@ export const SwipeUpSlide: React.FC<
   EndSlideProps<{ type: "swipe-up"; config: SwipeUpConfig }>
 > = ({ data, theme, locale, brandTokens }) => {
   const { config } = data;
-  const headline = config.customMessage ?? HEADLINE[locale];
+  const headline = pickLocalized(config.customMessage, locale) ?? HEADLINE[locale];
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="top-right" glowColor="brand">

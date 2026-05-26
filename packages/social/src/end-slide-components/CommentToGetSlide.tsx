@@ -1,4 +1,5 @@
 import React from "react";
+import { pickLocalized } from "./localized";
 import { EndSlideBase } from "./shared/EndSlideBase";
 import type { CommentToGetConfig, EndSlideLocale, EndSlideProps } from "./types";
 
@@ -28,7 +29,8 @@ export const CommentToGetSlide: React.FC<
   EndSlideProps<{ type: "comment-to-get"; config: CommentToGetConfig }>
 > = ({ data, theme, locale, brandTokens }) => {
   const { config } = data;
-  const prompt = config.promptText ?? PROMPT_LINE[locale];
+  const prompt = pickLocalized(config.promptText, locale) ?? PROMPT_LINE[locale];
+  const resourceTitle = pickLocalized(config.resourceTitle, locale) ?? "";
 
   return (
     <EndSlideBase theme={theme} brandTokens={brandTokens} glowCorner="top-left" glowColor="accent">
@@ -68,7 +70,7 @@ export const CommentToGetSlide: React.FC<
               maxWidth: 800,
             }}
           >
-            {PAYOFF_LINE[locale](config.resourceTitle)}
+            {PAYOFF_LINE[locale](resourceTitle)}
           </div>
 
           {/* Hint arrow */}

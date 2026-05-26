@@ -48,8 +48,12 @@ export interface SelectedEndSlide {
   endSlideType: string;
   /** Raw jsonb config — pipeline consumers parse via END_SLIDE_CONFIG_SCHEMAS[type]. */
   config: Record<string, unknown>;
-  /** Display name from the DB row — useful for audit logs + planner UI. */
-  name: string;
+  /**
+   * Display name from the DB row — useful for audit logs + planner UI.
+   * Spec 65.9-followup: locale-aware `{de, en}` jsonb. Renderer / UI picks
+   * the right locale via `pickLocalized(name, locale)`.
+   */
+  name: { de: string; en: string };
   selectedVia: EndSlideSelectedVia;
   reasoning: string;
 }

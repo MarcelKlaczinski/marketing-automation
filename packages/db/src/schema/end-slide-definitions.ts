@@ -14,9 +14,22 @@ import { sql } from "drizzle-orm";
  * (v1: follow-cta, comment-to-get, link-in-bio; v2: poll-cta, quiz-cta, ...).
  * Per-type config-shape validated via shared/format-types/registry (skeleton
  * today, populated in 65.4/65.9).
+ *
+ * Spec 65.9-followup (migration 0124): `name` widened from `text` to
+ * `jsonb {de, en}` so bilingual tenants (Toolwiki) render the admin label in
+ * the user's UI locale. Per-type `config` jsonb additionally stores
+ * locale-binding strings as `{de, en}` rather than plain text — handled by
+ * the per-type Zod schemas in `packages/social/src/end-slide-components/types.ts`.
  */
 import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { projects } from "./projects.ts";
+
+/**
+ * Localized admin label shared across both UI locales. Always carries both
+ * values; the migration backfills `{de: existing, en: existing}` for legacy
+ * rows so Marcel sees the original string in either locale until he edits.
+ */
+export type LocalizedEndSlideName = { de: string; en: string };
 
 export const endSlideDefinitions = pgTable(
   "end_slide_definitions",
@@ -26,7 +39,7 @@ export const endSlideDefinitions = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
 
-    name: text("name").notNull(),
+    name: jsonb("name").notNull().$type<LocalizedEndSlideName>(),
     /** Type discriminator — 'follow-cta' | 'comment-to-get' | 'link-in-bio' | etc. */
     type: text("type").notNull(),
 

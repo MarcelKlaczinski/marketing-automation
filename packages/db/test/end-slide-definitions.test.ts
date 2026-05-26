@@ -50,7 +50,7 @@ describe("end_slide_definitions helpers (Spec 65.1)", () => {
   it("create + read roundtrip with default config", async () => {
     const row = await createEndSlideDefinition({
       projectId,
-      name: "Follow CTA",
+      name: { de: "Follow CTA", en: "Follow CTA" },
       type: "follow-cta",
       config: { handle: "@toolwiki", arrowDirection: "right" },
     });
@@ -63,12 +63,12 @@ describe("end_slide_definitions helpers (Spec 65.1)", () => {
   it("multi-tenant isolation by project_id", async () => {
     await createEndSlideDefinition({
       projectId,
-      name: "A-slide",
+      name: { de: "A-slide", en: "A-slide" },
       type: "follow-cta",
     });
     await createEndSlideDefinition({
       projectId: projectIdOther,
-      name: "B-slide",
+      name: { de: "B-slide", en: "B-slide" },
       type: "follow-cta",
     });
     const aRows = await listEndSlideDefinitions({ projectId });
@@ -80,12 +80,12 @@ describe("end_slide_definitions helpers (Spec 65.1)", () => {
   it("filters by type + excludes inactive by default", async () => {
     await createEndSlideDefinition({
       projectId,
-      name: "comment-1",
+      name: { de: "comment-1", en: "comment-1" },
       type: "comment-to-get",
     });
     const disabled = await createEndSlideDefinition({
       projectId,
-      name: "comment-2-disabled",
+      name: { de: "comment-2-disabled", en: "comment-2-disabled" },
       type: "comment-to-get",
     });
     await setEndSlideActive(disabled.id, false);
@@ -108,19 +108,19 @@ describe("end_slide_definitions helpers (Spec 65.1)", () => {
   it("updateEndSlideDefinition patches editable fields", async () => {
     const row = await createEndSlideDefinition({
       projectId,
-      name: "patch-test",
+      name: { de: "patch-test", en: "patch-test" },
       type: "link-in-bio",
     });
     const patched = await updateEndSlideDefinition(row.id, {
-      name: "renamed",
+      name: { de: "renamed", en: "renamed" },
       config: { url: "https://example.com" },
     });
-    expect(patched?.name).toBe("renamed");
+    expect(patched?.name).toEqual({ de: "renamed", en: "renamed" });
     expect((patched?.config as { url: string }).url).toBe("https://example.com");
 
     const ghost = await updateEndSlideDefinition(
       "00000000-0000-0000-0000-000000000000",
-      { name: "x" },
+      { name: { de: "x", en: "x" } },
     );
     expect(ghost).toBeNull();
   });

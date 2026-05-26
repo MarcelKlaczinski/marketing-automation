@@ -34,7 +34,7 @@
       </thead>
       <tbody>
         <tr v-for="es in endSlides" :key="es.id" :class="{ inactive: !es.isActive }">
-          <td class="es-name">{{ es.name }}</td>
+          <td class="es-name">{{ resolveName(es) }}</td>
           <td>
             <span class="type-chip mono">
               {{ typeLabel(es.type) }}
@@ -77,7 +77,12 @@ import EndSlideEditModal from "src/components/settings/recurring-content/EndSlid
 interface EndSlideDef {
   id: string;
   projectId: string;
-  name: string;
+  /**
+   * Spec 65.9-followup: locale-aware admin label `{de, en}`. The list
+   * renders the value matching the active UI locale (`$i18n.locale`);
+   * Marcel curates both via the Edit modal.
+   */
+  name: { de: string; en: string };
   type: string;
   config: Record<string, unknown>;
   isActive: boolean;
@@ -129,6 +134,20 @@ export default defineComponent({
       return typeof label === "string" && !label.startsWith("recurringContent.")
         ? label
         : type;
+    },
+
+    /**
+     * Pick the locale-matching admin label for the row. Defensive against
+     * legacy snapshots: if the API ever returned a plain string before the
+     * migration, render it verbatim. Empty-string fallback keeps the cell
+     * from collapsing if both locales are somehow blank.
+     */
+    resolveName(es: EndSlideDef): string {
+      const name = es.name as { de?: string; en?: string } | string | undefined;
+      if (typeof name === "string") return name;
+      if (!name) return "";
+      const loc = this.$i18n.locale === "en" ? "en" : "de";
+      return name[loc] ?? name.de ?? name.en ?? "";
     },
 
     openCreate(): void {

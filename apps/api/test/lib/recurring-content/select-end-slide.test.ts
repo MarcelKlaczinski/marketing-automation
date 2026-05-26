@@ -20,6 +20,7 @@ import {
   logTemplateUsage,
   projects,
   recurringContentDefinitions,
+  sql,
   templateUsageLog,
   type EndSlideDefinition,
   type RecurringContentDefinition,
@@ -35,7 +36,7 @@ describe("pickLruEndSlide (pure helper)", () => {
     return {
       id,
       projectId: "proj-x",
-      name: `${type} stub`,
+      name: { de: `${type} stub`, en: `${type} stub` },
       type,
       config: {},
       isActive: true,
@@ -108,7 +109,7 @@ describe("selectEndSlideForRecurringBrief (DB integration)", () => {
     for (const type of seedTypes) {
       const row = await createEndSlideDefinition({
         projectId,
-        name: `seed ${type}`,
+        name: { de: `seed ${type}`, en: `seed ${type}` },
         type,
         config: { handle: "@toolwiki.ai", description: "x", keyword: "X", resourceTitle: "X", prompt: "x", primaryAction: "save", message: "x", destination: "x", quote: "abcd" },
         isActive: true,
@@ -119,7 +120,7 @@ describe("selectEndSlideForRecurringBrief (DB integration)", () => {
     // Also seed an INACTIVE row to verify it never appears as a candidate.
     await createEndSlideDefinition({
       projectId,
-      name: "inactive follow-cta",
+      name: { de: "inactive follow-cta", en: "inactive follow-cta" },
       type: "follow-cta",
       config: { handle: "@inactive" },
       isActive: false,
@@ -296,10 +297,11 @@ describe("selectEndSlideForRecurringBrief (DB integration)", () => {
       .update(endSlideDefinitions)
       .set({ isActive: true })
       .where(eq(endSlideDefinitions.projectId, projectId));
-    // The "inactive follow-cta" row we seeded should stay inactive.
+    // The "inactive follow-cta" row we seeded should stay inactive. `name` is
+    // now jsonb (Spec 65.9-followup migration 0124), so match via jsonb path.
     await db
       .update(endSlideDefinitions)
       .set({ isActive: false })
-      .where(eq(endSlideDefinitions.name, "inactive follow-cta"));
+      .where(sql`${endSlideDefinitions.name}->>'de' = 'inactive follow-cta'`);
   });
 });

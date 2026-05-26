@@ -23,7 +23,7 @@ export interface BuildDryRunPreviewInput {
   selectedEndSlide: {
     endSlideDefinitionId: string;
     endSlideType: string;
-    name: string;
+    name: { de: string; en: string };
     selectedVia: "lru-within-pool" | "format-type-default";
   };
   brief: { topicTitle: string; briefText: string };
