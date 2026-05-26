@@ -876,6 +876,13 @@
       "when": 1790200000000,
       "tag": "0124_end_slide_locale_aware",
       "breakpoints": true
+    },
+    {
+      "idx": 125,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0125_end_slide_toolwiki_translations",
+      "breakpoints": true
     }
   ]
 }
