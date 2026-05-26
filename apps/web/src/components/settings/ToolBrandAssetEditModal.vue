@@ -249,6 +249,12 @@ export default defineComponent({
     async onSave(): Promise<void> {
       if (!this.item) return;
       this.saving = true;
+      // The button label literally promises "mark as reviewed" — honor that
+      // intent unconditionally by sending needsReview=false. The backend's
+      // color-completeness auto-flip ([tool-brand-assets.ts] `colorsBothFilled`)
+      // only fires when `needsReview` is omitted, so this explicit value wins.
+      // Without this, Marcel-saves on tools with no colors silently kept the
+      // row in needs_review=true → looked like "nothing happened".
       const result = await patchToolBrandAsset({
         slug: this.slug,
         toolId: this.item.toolId,
@@ -259,6 +265,7 @@ export default defineComponent({
           this.form.brandNameCanonical.trim() === ""
             ? null
             : this.form.brandNameCanonical.trim(),
+        needsReview: false,
       });
       this.saving = false;
       if (!result.ok) {

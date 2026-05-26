@@ -2,13 +2,16 @@
   <div class="color-picker">
     <label v-if="label" class="cp-label">{{ label }}</label>
     <div class="cp-row">
-      <input
-        type="color"
-        class="cp-swatch"
-        :value="effectiveHex"
-        :aria-label="label || $t('settings.toolBrandAssets.modal.colorPickerAria') as string"
-        @input="onSwatchInput"
-      />
+      <label class="cp-swatch-wrap" :class="{ 'is-empty': isEmpty }">
+        <input
+          type="color"
+          class="cp-swatch"
+          :value="effectiveHex"
+          :aria-label="label || $t('settings.toolBrandAssets.modal.colorPickerAria') as string"
+          @input="onSwatchInput"
+        />
+        <span v-if="isEmpty" class="cp-empty-icon" aria-hidden="true">+</span>
+      </label>
       <input
         type="text"
         class="cp-hex"
@@ -18,7 +21,7 @@
         @input="onTextInput"
       />
       <button
-        v-if="modelValue !== null"
+        v-if="!isEmpty"
         type="button"
         class="cp-clear"
         :aria-label="$t('settings.toolBrandAssets.modal.clearColor') as string"
@@ -52,13 +55,27 @@ export default defineComponent({
   emits: ["update:modelValue"],
 
   computed: {
+    /**
+     * Whether the picker has no user-set value. Used to switch the swatch into
+     * an empty-state visual (dashed border + "+" icon) instead of showing the
+     * `effectiveHex` purple fallback as if it were a saved color.
+     */
+    isEmpty(): boolean {
+      return this.modelValue === null || this.modelValue === "";
+    },
+    /**
+     * The native `<input type="color">` requires a valid hex even when no
+     * color is set. We feed it `#7B61FF` as a neutral starting position for
+     * the OS color picker — visually hidden via `.is-empty .cp-swatch`
+     * opacity:0, so the user never sees the purple in the small swatch.
+     */
     effectiveHex(): string {
       if (this.modelValue && HEX_RE.test(this.modelValue)) return this.modelValue;
       return "#7B61FF";
     },
     invalid(): boolean {
-      if (this.modelValue === null || this.modelValue === "") return false;
-      return !HEX_RE.test(this.modelValue);
+      if (this.isEmpty) return false;
+      return !HEX_RE.test(this.modelValue ?? "");
     },
   },
 
@@ -91,14 +108,41 @@ export default defineComponent({
   align-items: center;
   gap: 8px;
 }
-.cp-swatch {
+.cp-swatch-wrap {
+  position: relative;
   width: 36px;
   height: 36px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
+  display: inline-block;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.cp-swatch-wrap.is-empty {
+  border-style: dashed;
+  background: transparent;
+}
+.cp-swatch {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: inherit;
   cursor: pointer;
   background: transparent;
   padding: 0;
+}
+.cp-swatch-wrap.is-empty .cp-swatch {
+  opacity: 0;
+}
+.cp-empty-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  color: var(--text-tertiary);
+  font-size: 18px;
+  line-height: 1;
 }
 .cp-hex {
   flex: 1;
