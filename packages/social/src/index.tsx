@@ -17,6 +17,8 @@ import { HeadToHeadVs } from "./compositions/head-to-head-vs/HeadToHeadVs.tsx";
 import { headToHeadVsInputSchema } from "./compositions/head-to-head-vs/types.ts";
 import { HeadToHeadDeepDive } from "./compositions/head-to-head-deep-dive/HeadToHeadDeepDive.tsx";
 import { headToHeadDeepDiveInputSchema } from "./compositions/head-to-head-deep-dive/types.ts";
+import { StoryArcClickbait } from "./compositions/story-arc-clickbait/StoryArcClickbait.tsx";
+import { storyArcClickbaitInputSchema } from "./compositions/story-arc-clickbait/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -446,6 +448,59 @@ export function RemotionRoot() {
             verdictEm: "erste Wahl",
             recommendationTag: "Empfohlen für: Content Creator & Agenturen",
           },
+        })}
+      />
+      <Composition
+        id="story-arc-clickbait"
+        component={StoryArcClickbait}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={storyArcClickbaitInputSchema}
+        defaultProps={storyArcClickbaitInputSchema.parse({
+          slideIndex: 0,
+          slideTotal: 7,
+          theme: "dark",
+          locale: "de",
+          hook: {
+            rendered: "Wie ich als Texter meinen Job mit KI gerettet habe",
+            variables: { profession: "Texter", lifeArea: "Job" },
+          },
+          narrative: {
+            setup: {
+              beatName: "setup",
+              eyebrow: "Setup",
+              text: "Als Texter saß ich jeden Tag vor dem leeren Dokument — bis das Thema KI in jedem Briefing landete.",
+            },
+            conflict: {
+              beatName: "conflict",
+              eyebrow: "Konflikt",
+              text: "Plötzlich konnte ich die ChatGPT-Texte nicht mehr von meinen unterscheiden. Mein USP fiel weg.",
+            },
+            resolution: {
+              beatName: "resolution",
+              eyebrow: "Auflösung",
+              text: "Ich entschied mich, KI nicht als Konkurrenz, sondern als Sparring-Partner zu nutzen — und mein Texter-Workflow änderte sich.",
+            },
+            payoff: {
+              beatName: "payoff",
+              eyebrow: "Auswirkung",
+              text: "Heute spare ich pro Briefing 2 Stunden — und meine Texte sind besser, nicht schlechter geworden.",
+            },
+            lesson: {
+              beatName: "lesson",
+              eyebrow: "Lehre",
+              text: "Wenn dein Job nicht mehr nur deinen Beruf braucht, sondern dein Urteilsvermögen — bist du genau richtig im KI-Zeitalter.",
+            },
+          },
+          end: {
+            headlineLead: "Mehr Geschichten",
+            headlineEm: "ehrlich erzählt.",
+            articleUrl: "toolwiki.ai/wie-texter-ki",
+            ctaLine: "Vollständige Story →",
+          },
+          images: [],
         })}
       />
     </>

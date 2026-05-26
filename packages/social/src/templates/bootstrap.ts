@@ -7,6 +7,7 @@ import { singleToolSpotlightTemplate } from "./definitions/singleToolSpotlight.t
 import { proConVerdictTemplate } from "./definitions/proConVerdict.ts";
 import { headToHeadVsTemplate } from "./definitions/headToHeadVs.ts";
 import { headToHeadDeepDiveTemplate } from "./definitions/headToHeadDeepDive.ts";
+import { storyArcClickbaitTemplate } from "./definitions/storyArcClickbait.ts";
 import type { TemplateDefinition } from "./types.ts";
 
 const REQUIRED_FIXTURE_KEYS = ["characteristic", "edge-min", "edge-max"] as const;
@@ -37,6 +38,7 @@ export function bootstrapTemplates(): void {
     proConVerdictTemplate,
     headToHeadVsTemplate,
     headToHeadDeepDiveTemplate,
+    storyArcClickbaitTemplate,
   ] as unknown as TemplateDefinition<unknown>[];
 
   for (const t of templates) {

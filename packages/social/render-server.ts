@@ -18,6 +18,7 @@ import type { ComparisonGrid3Input } from "./src/compositions/comparison-grid-3/
 import type { ComparisonGrid5Input } from "./src/compositions/comparison-grid-5/types.ts";
 import type { HeadToHeadVsInput } from "./src/compositions/head-to-head-vs/types.ts";
 import type { HeadToHeadDeepDiveInput } from "./src/compositions/head-to-head-deep-dive/types.ts";
+import type { StoryArcClickbaitInput } from "./src/compositions/story-arc-clickbait/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -254,6 +255,11 @@ export async function renderHeadToHeadVs(input: HeadToHeadVsInput): Promise<Rend
 export async function renderHeadToHeadDeepDive(input: HeadToHeadDeepDiveInput): Promise<RenderResult> {
   // Spec 65.7 — 2-tool deep-dive carousel (9 slides).
   return renderMultiSlideComposition("head-to-head-deep-dive", input, input.slideTotal, "h2hdd");
+}
+
+export async function renderStoryArcClickbait(input: StoryArcClickbaitInput): Promise<RenderResult> {
+  // Spec 65.8 — Family B 7-slide narrative carousel.
+  return renderMultiSlideComposition("story-arc-clickbait", input, input.slideTotal, "sac");
 }
 
 export async function renderVerdictPerUseCase(input: VerdictPerUseCaseInput): Promise<RenderResult> {

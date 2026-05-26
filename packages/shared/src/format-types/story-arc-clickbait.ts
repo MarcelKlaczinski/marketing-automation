@@ -4,8 +4,11 @@
  * Hook-driven narrative-arc carousel ("I lost my {profession} job because of
  * {tool}"). The brief-generator (65.5) reads `professionPool + toolToFeature`,
  * asks the 65.4 Hook-Picker for the best LRU-eligible hook pattern, then
- * substitutes the variables. Templates: `story-arc-clickbait-dramatic` and
- * `story-arc-clickbait-minimal` (65.8).
+ * substitutes the variables. V1 template: `story-arc-clickbait` (65.8 Day 3).
+ * The 65.4 spec listed `-dramatic` + `-minimal` as planned variants; V1 ships
+ * a single template with `toneIntensity` controlling the narrative register
+ * inside one composition (cheaper than two parallel templates; future split
+ * is a follow-up if the engagement data justifies it).
  */
 import { z } from "zod";
 import type { FormatTypeDefinition } from "./registry.ts";
@@ -33,7 +36,7 @@ export const storyArcClickbaitDefinition: FormatTypeDefinition = {
   family: "B",
   configSchema: storyArcClickbaitConfigSchema,
   briefGenerator: "story-arc-clickbait-brief-generator",
-  eligibleTemplates: ["story-arc-clickbait-dramatic", "story-arc-clickbait-minimal"],
+  eligibleTemplates: ["story-arc-clickbait"],
   needsHooks: true,
   defaultEndSlides: ["tag-friend", "comment-to-get"],
 };

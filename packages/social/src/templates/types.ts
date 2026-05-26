@@ -28,7 +28,8 @@ export type TemplateKey =
   | "price-comparison"
   | "pro-con-verdict"
   | "head-to-head-vs"
-  | "head-to-head-deep-dive";
+  | "head-to-head-deep-dive"
+  | "story-arc-clickbait";
 
 /**
  * Spec 65.0 Day 4 — name of the function exported by
@@ -48,7 +49,8 @@ export type RenderServerFn =
   | "renderSingleToolSpotlight"
   | "renderProConVerdict"
   | "renderHeadToHeadVs"
-  | "renderHeadToHeadDeepDive";
+  | "renderHeadToHeadDeepDive"
+  | "renderStoryArcClickbait";
 
 export type Theme = "dark" | "light";
 export type Locale = "de" | "en";
@@ -58,7 +60,7 @@ export type Channel         = "instagram" | "tiktok" | "linkedin";
 export type GenerationClass = "frontmatter-derived" | "llm-live";
 
 export interface TemplatePlannerMeta {
-  contentType: "comparison" | "tool-spotlight" | "use-case" | "news" | "concept";
+  contentType: "comparison" | "tool-spotlight" | "use-case" | "news" | "concept" | "story";
   estimatedEngagementTier: "low" | "medium" | "high";
   recycleableFromExistingArticle: boolean;
   requiresLiveData: boolean;
