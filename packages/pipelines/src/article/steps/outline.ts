@@ -46,7 +46,11 @@ export class OutlineStep extends BaseStep<z.infer<typeof InputSchema>, ArticleOu
   override readonly llmBound = true;
 
   override estimatedCostEur(): number {
-    return 0.07; // Sonnet 4.6 @ up to 8k output tokens
+    // Calibrated against Toolwiki 30d data (2026-05-27): real avg cost per
+    // `article-outline` op = €0.087. Old 0.07 was slightly UNDER-estimating —
+    // outlines have grown longer with FRONTMATTER_EXTRAS injection (Spec 50).
+    // ×1.4 margin covers projects with larger skill-prompt foundations.
+    return 0.12;
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {

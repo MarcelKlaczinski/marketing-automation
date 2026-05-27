@@ -196,7 +196,12 @@ export class TranslationBodyStep extends BaseStep<
   override readonly llmBound = true;
 
   override estimatedCostEur(): number {
-    return 0.22; // literal ~0.20, adaptive ~0.30 — use midpoint
+    // Calibrated against Toolwiki 30d data (2026-05-27): `translate-draft`
+    // avg €0.097 (literal path, single Sonnet call), `refresh-draft` avg
+    // €0.106 (adaptive path uses 2 calls — outline + draft). Old 0.22 was
+    // a ~50% over-estimate on the literal path. ×1.6 margin captures the
+    // adaptive worst-case + 1× validation retry (Spec 64.4/64.5).
+    return 0.16;
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<z.infer<typeof OutputSchema>> {

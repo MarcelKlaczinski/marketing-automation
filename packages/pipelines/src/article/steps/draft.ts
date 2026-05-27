@@ -47,7 +47,12 @@ export class DraftStep extends BaseStep<z.infer<typeof InputSchema>, z.infer<typ
   override readonly llmBound = true;
 
   override estimatedCostEur(): number {
-    return 0.8;
+    // Calibrated against Toolwiki 30d data (2026-05-27): real avg cost per
+    // `article-draft` op = €0.165, p95 ≈ €0.25. Old upper-bound 0.80 was a
+    // ~5× over-estimate from early-spec days and triggered false-positive
+    // budget overruns in the Planner. Keep ×1.5 margin so outlier articles
+    // (longer body, more tools, multiple retries) stay within estimate.
+    return 0.25;
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {

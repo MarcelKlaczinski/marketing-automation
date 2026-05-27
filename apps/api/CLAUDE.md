@@ -260,6 +260,16 @@ The helper:
 
 **Out of scope for V1:** `cluster:full-plan` is not a registered BullMQ pipeline — it runs inline via `runClusterFullPlanFromBrief`, with no `worker.on('completed')` to hook. Successful spokes already fire their own `article:blog` notification, so a cluster-level event is redundant.
 
+### Standalone workers + `pipeline_runs` visibility
+
+Standalone BullMQ workers (signal-collector, article-quality-analysis, recurring-brief-generator etc.) don't go through the shared `startPipelineWorker` runner, so they bypass the runner's `pipeline_runs` INSERT/UPDATE flow. For per-tick visibility on `/projects/:slug/runs` + live SSE updates, wire the lifecycle manually inside the job handler:
+
+1. **At job start** — `INSERT pipelineRuns` with `status: "running"` + `pipelineName: "<scope>:<action>"` + `jobId` + `input: {...}`; publish `pipeline.started` via `publishPipelineEvent`. Best-effort try/catch — a write failure must not crash the tick.
+2. **At job end** — `UPDATE` to `completed`/`failed` with `completedAt` + optional `output`/`errorMessage`; publish `pipeline.completed` or `pipeline.failed`. The frontend's `usePipelineEvents` listener already invalidates the `["pipeline-runs"]` query cache on these events (no per-worker UI wiring needed).
+3. **Pattern** — wrap the existing body in an IIFE so a single outer try/catch finalizes on both success and exception without touching the body's scattered `return` statements. Canonical example: [`recurring-brief-generator.worker.ts`](src/workers/recurring-brief-generator.worker.ts) `startPipelineRunRow` + `finalizePipelineRunRow`.
+
+Standalone workers produce only the **parent row** (`stepName: NULL`) — no child step rows, since they don't compose `BaseStep` instances. That's intentional; the `/runs/:runId` detail view degrades gracefully to a single-row display.
+
 ### Test gotcha: notification coalesce is GLOBAL, not per-user
 
 `notifyPipelineCompletion` (and `notifyStepPaused`) coalesce by `(type, metadata->>'pipelineRunId')` across **all** users. Real-DB tests that use static run IDs (`"run-success-1"`) collide with prior test runs whose tenant owners weren't cleaned up by CASCADE (because their projects survived). The second run silently no-ops and assertions on `rows.length === 1` fail with `Received: 0`. Always stamp test `pipelineRunId` values with `Date.now() + random` so each invocation is unique. See `apps/api/test/workers/lib/pipeline-notification.test.ts` for the canonical pattern.
@@ -327,17 +337,18 @@ exit'et (signal 0 returns ESRCH). Falls nach 20s noch lebt → SIGKILL.
 - Stale PID-Datei (Prozess tot) wird beim nächsten Start stillschweigend ignoriert
 - `releasePidLock()` **liest erst, löscht nur wenn die PID-Datei noch unsere eigene PID enthält** — sonst hat ein neuer Worker bereits übernommen und wir würden seinen Lock kapern
 - Nach dem `writeFile(PID_FILE, ownPid)` verifiziert der Worker per re-read dass seine PID wirklich drin steht — falls ein paralleler Restart gewonnen hat: `process.exit(0)` clean
+- **Ghost-Scan beim Start**: zusätzlich zur PID-File-Logik scannt `acquirePidLock` `ps` nach allen Prozessen die `bun … src/workers/index.ts` matchen, exkludiert die eigene + die PID-File-PID, und SIGTERMt jeden gefundenen Geist (SIGKILL-Fallback nach 20s). Schließt das Loch wenn die PID-File stale ist (zeigt auf toten PID) während ein realer Worker mit anderer PID läuft.
 
 **Diagnostik bei "worker:restart wirkt nicht"**: `bun --filter @marketing-auto/api worker:status` —
 zeigt PID-File-Inhalt, Process-Liveness, Redis-Connectivity und BullMQ-Queue-Counts (active/waiting/delayed).
 
-**Symptom "alter Code läuft trotz Restart"** (z.B. ein bereits gefixter Step crasht weiter):
-mehrere Worker-Prozesse koexistieren als Geister aus früheren fehlgeschlagenen Restarts.
-BullMQ load-balanced über alle connected Workers — einer davon hat noch den alten Code.
-Diagnose: `ps aux | grep "bun.*workers/index" | grep -v grep` — wenn mehr als eine Zeile,
-manuell den falschen killen (`kill -TERM <pid>`, fall-through SIGKILL). Danach `tmp/worker.pid`
-checken — falls leer/falsch, einen frischen Start machen. Der `1cfe5bd` Hardening-Fix
-verhindert NEUE Geister, kann aber existierende nicht rückwirkend einsammeln.
+**Symptom "alter Code läuft trotz Restart"** war historisch ein Problem wenn mehrere Worker-Prozesse als
+Geister aus früheren fehlgeschlagenen Restarts koexistierten und BullMQ über sie load-balanced hat
+(einer mit altem Code, einer mit neuem). **Seit dem Ghost-Scan-Fix** (siehe `findGhostWorkerPids`
+in [src/workers/index.ts](src/workers/index.ts)) räumt jeder `worker:restart` automatisch alle
+Worker-Prozesse außer dem eigenen weg — kein manuelles `kill -TERM <pid>` mehr nötig. Falls trotzdem
+nochmal mehrere laufen sollten: `ps aux | grep "bun.*workers/index" | grep -v grep` als Diagnose,
+dann einmal `worker:restart` triggert den Ghost-Scan und säubert auf.
 
 **BullMQ `lockDuration`**: Auf 10 Minuten gesetzt (default: 30s). LLM-Jobs dauern bis zu 15 min.
 Würde der Lock ablaufen, könnte BullMQ den Job als "stalled" markieren und einem anderen Worker

@@ -15,6 +15,14 @@
     </template>
 
     <template #actions>
+      <!--
+        Spec 65.5 — Recurring-source briefs land in `plan_pending` directly
+        (they're auto-queued for the next Planner cycle). For those Marcel
+        only needs the "Sofort generieren" path (skip queue, run now) +
+        Dismiss; the "Plan"-Button is hidden because the brief is already
+        queued for plan. Spec 65.10's `approveRecurringBrief` accepts
+        `pending ∪ plan_pending` on the backend.
+      -->
       <GlassButton
         v-if="brief?.approvalStatus === 'pending'"
         variant="primary"
@@ -24,7 +32,7 @@
         {{ $t("briefs.bulkApprove.plan") as string }}
       </GlassButton>
       <GlassButton
-        v-if="brief?.approvalStatus === 'pending'"
+        v-if="isApprovable"
         variant="secondary"
         size="sm"
         @click="onApproveImmediateClick"
@@ -32,7 +40,7 @@
         {{ $t("briefs.bulkApprove.immediate") as string }}
       </GlassButton>
       <GlassButton
-        v-if="brief?.approvalStatus === 'pending'"
+        v-if="isApprovable"
         variant="ghost"
         size="sm"
         @click="onDismiss"
@@ -125,6 +133,18 @@ export default defineComponent({
     },
     brief(): BriefListItem | null {
       return (this.data as { brief: BriefListItem } | undefined)?.brief ?? null;
+    },
+    /**
+     * A brief is approvable from the detail page when its status is in the
+     * "open" set per the partial-unique-index `topic_briefs_unique_open_per_gap`
+     * (migration 0084): `pending` (default initial state) or `plan_pending`
+     * (recurring-source default + manual dispatch=plan). Other states
+     * (`approved`, `routed`, `auto_approved`, `rejected`, `superseded`) are
+     * terminal-or-already-actioned and the action buttons stay hidden.
+     */
+    isApprovable(): boolean {
+      const s = this.brief?.approvalStatus;
+      return s === "pending" || s === "plan_pending";
     },
     briefMeta(): string {
       if (!this.brief) return "";

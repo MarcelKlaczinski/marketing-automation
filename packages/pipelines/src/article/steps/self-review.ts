@@ -85,7 +85,11 @@ export class SelfReviewStep extends BaseStep<
   override readonly llmBound = true;
 
   override estimatedCostEur(): number {
-    return 0.05;
+    // Calibrated against Toolwiki 30d data (2026-05-27): real avg cost per
+    // `article-self-review` op = €0.018 (Haiku classification on a finished
+    // draft, small payload). Old 0.05 was ~3× high. ×1.7 margin still covers
+    // long-body articles that consume more input tokens.
+    return 0.03;
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {

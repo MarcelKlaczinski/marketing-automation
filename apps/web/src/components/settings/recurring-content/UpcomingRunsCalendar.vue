@@ -68,9 +68,13 @@ import "@quasar/quasar-ui-qcalendar/QCalendar.css";
  * "Today" button jumps back to the current month.
  */
 function isoDate(d: Date): string {
-  // q-calendar expects YYYY-MM-DD format.
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
-    d.getUTCDate(),
+  // q-calendar emits `scope.timestamp.date` as a LOCAL YYYY-MM-DD string,
+  // so the lookup map must also be keyed by local date — using UTC would
+  // misplace runs that cross the local TZ midnight boundary (e.g. a run
+  // at 22:00 UTC = 00:00 next day in Berlin would lookup-miss the cell
+  // q-calendar renders for that local day).
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
   ).padStart(2, "0")}`;
 }
 
@@ -90,16 +94,29 @@ export default defineComponent({
     todayStr: isoDate(new Date()),
   }),
 
+  /**
+   * On mount, jump the calendar to the month of the FIRST upcoming run so
+   * Marcel doesn't have to navigate forward to see the chips. We can't do
+   * this in `data()` because props aren't bound there yet.
+   */
+  mounted(): void {
+    const first = this.runs[0];
+    if (!first) return;
+    const d = new Date(first);
+    if (!Number.isNaN(d.getTime())) {
+      this.currentDate = isoDate(d);
+    }
+  },
+
   computed: {
     monthLabel(): string {
       const [yearStr, monthStr] = this.currentDate.split("-");
       const year = Number(yearStr);
       const month = Number(monthStr) - 1;
       const locale = this.$i18n.locale === "de" ? "de-DE" : "en-US";
-      return new Date(Date.UTC(year, month, 1)).toLocaleDateString(locale, {
+      return new Date(year, month, 1).toLocaleDateString(locale, {
         month: "long",
         year: "numeric",
-        timeZone: "UTC",
       });
     },
 
@@ -155,7 +172,7 @@ export default defineComponent({
       const [yearStr, monthStr] = this.currentDate.split("-");
       const year = Number(yearStr);
       const month = Number(monthStr) - 1;
-      const prev = new Date(Date.UTC(year, month - 1, 1));
+      const prev = new Date(year, month - 1, 1);
       this.currentDate = isoDate(prev);
     },
 
@@ -163,7 +180,7 @@ export default defineComponent({
       const [yearStr, monthStr] = this.currentDate.split("-");
       const year = Number(yearStr);
       const month = Number(monthStr) - 1;
-      const next = new Date(Date.UTC(year, month + 1, 1));
+      const next = new Date(year, month + 1, 1);
       this.currentDate = isoDate(next);
     },
 
@@ -200,9 +217,22 @@ export default defineComponent({
 }
 
 .calendar {
-  background: var(--surface-strong);
+  /* Defined tokens in `src/css/styles/tokens.css` — earlier draft used
+     non-existent `--surface-strong` which fell back to transparent and
+     made the whole calendar grid invisible against the page background. */
+  background: var(--bg-glass-strong);
+  border: 1px solid var(--border-subtle);
   border-radius: 10px;
   overflow: hidden;
+  color: var(--text-primary);
+}
+.calendar :deep(.q-calendar-month__head),
+.calendar :deep(.q-calendar-month__week) {
+  color: var(--text-secondary);
+}
+.calendar :deep(.q-calendar-month__day),
+.calendar :deep(.q-calendar__head--weekday) {
+  border-color: var(--border-subtle);
 }
 
 .day-cell {
@@ -221,8 +251,8 @@ export default defineComponent({
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--brand-primary);
-  color: var(--brand-primary-contrast, #fff);
+  background: var(--accent-primary);
+  color: #fff;
   font-weight: 600;
   font-size: 12px;
 }
@@ -236,8 +266,8 @@ export default defineComponent({
 
 .run-chip {
   display: inline-block;
-  background: color-mix(in oklch, var(--brand-primary) 18%, transparent);
-  color: var(--brand-primary);
+  background: color-mix(in oklch, var(--accent-primary) 18%, transparent);
+  color: var(--accent-primary);
   border-radius: 4px;
   padding: 1px 6px;
   font-size: 11px;

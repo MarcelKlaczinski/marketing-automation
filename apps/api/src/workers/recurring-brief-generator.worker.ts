@@ -23,9 +23,11 @@ import {
   eq,
   getRecurringDefinition,
   markRecurringDefinitionRun,
+  pipelineRuns,
   projects,
   topicBriefs,
 } from "@marketing-auto/db";
+import { publishPipelineEvent } from "@marketing-auto/core/events";
 import { createLogger, getEnv } from "@marketing-auto/shared";
 import { Queue, type Job, Worker } from "bullmq";
 import IORedis from "ioredis";
@@ -139,10 +141,108 @@ async function releaseRedisLock(key: string, token: string): Promise<void> {
   }
 }
 
+// ─── pipeline_runs lifecycle helpers ─────────────────────────────────────────
+
+const PIPELINE_NAME = "recurring:brief-generator";
+
+/**
+ * Insert a `pipeline_runs` row (status='running') and publish `pipeline.started`
+ * so the /runs page lights up live via SSE. Best-effort — a write failure here
+ * logs warn but does NOT break the worker; the brief generation still runs.
+ * Returns the runId on success, `null` on failure (caller skips the finalize).
+ */
+async function startPipelineRunRow(input: {
+  projectId: string;
+  definitionId: string;
+  jobId: string | undefined;
+  forceImmediate: boolean;
+}): Promise<string | null> {
+  try {
+    const startedAt = new Date();
+    const [row] = await db
+      .insert(pipelineRuns)
+      .values({
+        projectId: input.projectId,
+        pipelineName: PIPELINE_NAME,
+        status: "running",
+        jobId: input.jobId ?? null,
+        input: {
+          definitionId: input.definitionId,
+          forceImmediate: input.forceImmediate,
+        },
+        startedAt,
+      })
+      .returning({ id: pipelineRuns.id });
+    if (!row) return null;
+    void publishPipelineEvent(input.projectId, {
+      type: "pipeline.started",
+      runId: row.id,
+      pipelineName: PIPELINE_NAME,
+      timestamp: startedAt.toISOString(),
+    });
+    return row.id;
+  } catch (err) {
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "recurring-brief-generator: pipeline_runs insert failed (continuing without audit row)",
+    );
+    return null;
+  }
+}
+
+async function finalizePipelineRunRow(input: {
+  runId: string;
+  projectId: string;
+  startedAt: Date;
+  status: "completed" | "failed";
+  output?: Record<string, unknown>;
+  errorMessage?: string;
+}): Promise<void> {
+  const completedAt = new Date();
+  try {
+    await db
+      .update(pipelineRuns)
+      .set({
+        status: input.status,
+        completedAt,
+        ...(input.output !== undefined && { output: input.output }),
+        ...(input.errorMessage !== undefined && { errorMessage: input.errorMessage }),
+      })
+      .where(eq(pipelineRuns.id, input.runId));
+  } catch (err) {
+    log.warn(
+      { runId: input.runId, err: err instanceof Error ? err.message : String(err) },
+      "recurring-brief-generator: pipeline_runs finalize failed",
+    );
+  }
+  // Publish even if the UPDATE failed — the SSE consumer just invalidates the
+  // list cache, and a fresh fetch will reflect whatever state the row landed in.
+  if (input.status === "completed") {
+    void publishPipelineEvent(input.projectId, {
+      type: "pipeline.completed",
+      runId: input.runId,
+      pipelineName: PIPELINE_NAME,
+      totalCostEur: 0,
+      durationMs: completedAt.getTime() - input.startedAt.getTime(),
+      timestamp: completedAt.toISOString(),
+    });
+  } else {
+    void publishPipelineEvent(input.projectId, {
+      type: "pipeline.failed",
+      runId: input.runId,
+      pipelineName: PIPELINE_NAME,
+      stepName: "brief-generator",
+      error: input.errorMessage ?? "unknown",
+      timestamp: completedAt.toISOString(),
+    });
+  }
+}
+
 // ─── Job handler ─────────────────────────────────────────────────────────────
 
 export async function handleRecurringBriefGenerator(
   data: RecurringBriefGeneratorJobData,
+  meta: { jobId?: string } = {},
 ): Promise<{ status: "ran" | "skipped"; reason?: string }> {
   const lockKey = `recurring-def:${data.definitionId}`;
   const token = await tryAcquireRedisLock(lockKey, LOCK_TTL_SECONDS);
@@ -154,7 +254,18 @@ export async function handleRecurringBriefGenerator(
     return { status: "skipped", reason: "lock-busy" };
   }
 
+  const runStartedAt = new Date();
+  const runId = await startPipelineRunRow({
+    projectId: data.projectId,
+    definitionId: data.definitionId,
+    jobId: meta.jobId,
+    forceImmediate: data.forceImmediate ?? false,
+  });
+
   try {
+    let result: { status: "ran" | "skipped"; reason?: string };
+    try {
+      result = await (async (): Promise<{ status: "ran" | "skipped"; reason?: string }> => {
     const definition = await getRecurringDefinition(data.definitionId);
     if (!definition) {
       log.warn(
@@ -375,6 +486,34 @@ export async function handleRecurringBriefGenerator(
     if (result.status === "skipped") return { status: "skipped", reason: result.reason };
     // Unreachable from the BullMQ path (see defensive log above).
     return { status: "skipped", reason: "unexpected-dry-run-preview" };
+      })();
+    } catch (err) {
+      // Body threw — flip the pipeline_runs row to `failed` with the message
+      // before propagating. The outer `finally` still releases the Redis lock.
+      if (runId) {
+        await finalizePipelineRunRow({
+          runId,
+          projectId: data.projectId,
+          startedAt: runStartedAt,
+          status: "failed",
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+      }
+      throw err;
+    }
+    // Body returned cleanly — even a "skipped" tick counts as a completed run
+    // (the worker reached its terminal state without throwing). Marcel sees
+    // skip-reasons in the row's `output` JSONB.
+    if (runId) {
+      await finalizePipelineRunRow({
+        runId,
+        projectId: data.projectId,
+        startedAt: runStartedAt,
+        status: "completed",
+        output: { ...result },
+      });
+    }
+    return result;
   } finally {
     await releaseRedisLock(lockKey, token);
   }
@@ -536,7 +675,13 @@ export function startRecurringBriefGeneratorWorker(): Worker {
     RECURRING_BRIEF_GENERATOR_QUEUE,
     async (job: Job) => {
       const parsed = jobSchema.parse(job.data);
-      return await handleRecurringBriefGenerator(parsed);
+      // Conditional spread: `job.id` is `string | undefined`, but `meta.jobId`
+      // is typed `string` under `exactOptionalPropertyTypes`. Pass the field
+      // only when defined; the worker accepts an empty meta object.
+      return await handleRecurringBriefGenerator(
+        parsed,
+        job.id !== undefined ? { jobId: job.id } : {},
+      );
     },
     { connection: getConnection(), concurrency: 1 },
   );

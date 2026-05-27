@@ -62,7 +62,10 @@ export class TranslationDecisionStep extends BaseStep<
   readonly outputSchema = OutputSchema;
   override readonly llmBound = true;
 
-  override estimatedCostEur() { return 0.005; }
+  // Calibrated against Toolwiki 30d data (2026-05-27): `translation-decision`
+  // avg €0.0015 (Haiku classification, tiny payload). Old 0.005 was ~3× high.
+  // ×2 margin still covers larger source-body classifications.
+  override estimatedCostEur() { return 0.003; }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext): Promise<TranslationDecision> {
     const sourceLocaleName = input.sourceLocale === "de" ? "German" : "English";

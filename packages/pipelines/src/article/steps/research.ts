@@ -23,7 +23,12 @@ export class ResearchStep extends BaseStep<
   readonly outputSchema = ResearchResultSchema;
 
   override estimatedCostEur(): number {
-    return 0.0018 + 0.1; // DataForSEO SERP depth=10 + Anthropic Sonnet synthesis
+    // Calibrated against Toolwiki 30d data (2026-05-27): SERP fetch
+    // (`article-research-serp-*`) avg €0.0018; LLM synthesis
+    // (`research-competitor-synthesis`) avg €0.043. Old 0.10 LLM portion was
+    // ~2.3× the real cost. ×1.5 margin on the LLM side keeps room for
+    // unusual SERP volumes / longer competitor lists.
+    return 0.0018 + 0.065; // DataForSEO SERP depth=10 + Anthropic Sonnet synthesis
   }
 
   async execute(input: z.infer<typeof InputSchema>, ctx: StepContext) {

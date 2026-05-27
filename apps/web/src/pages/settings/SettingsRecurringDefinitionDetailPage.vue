@@ -53,13 +53,13 @@
         </div>
       </section>
 
-      <q-tabs v-model="activeTab" align="left" no-caps>
+      <q-tabs v-model="activeTab" align="left" no-caps dark>
         <q-tab name="config" :label="$t('recurringContent.definitions.detail.tabs.config') as string" />
         <q-tab name="history" :label="$t('recurringContent.definitions.detail.tabs.history') as string" />
         <q-tab name="upcoming" :label="$t('recurringContent.definitions.detail.tabs.upcoming') as string" />
       </q-tabs>
 
-      <q-tab-panels v-model="activeTab" animated>
+      <q-tab-panels v-model="activeTab" animated dark class="tab-panels">
         <q-tab-panel name="config" class="panel">
           <dl class="config-grid">
             <dt>{{ $t("recurringContent.definitions.create.fields.formatType") as string }}</dt>
@@ -101,7 +101,12 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="brief in history" :key="brief.id">
+              <tr
+                v-for="brief in history"
+                :key="brief.id"
+                class="history-row"
+                @click="openBrief(brief.id)"
+              >
                 <td class="mono">#{{ briefRunNumber(brief) }}</td>
                 <td>{{ formatDate(brief.createdAt) }}</td>
                 <td>{{ brief.topicTitle }}</td>
@@ -316,6 +321,19 @@ export default defineComponent({
       });
     },
 
+    /**
+     * Open a history-row's brief in the universal Brief-Detail page where
+     * Marcel can approve (dispatch=immediate / dispatch=plan) and, once the
+     * social-image pipeline has run, jump to the rendered article. The
+     * Verlauf tab here is the entry — the actual approve+render UX lives
+     * in `/projects/:slug/briefs/:briefId`.
+     */
+    openBrief(briefId: string): void {
+      void this.$router.push({
+        path: `/projects/${this.slug}/briefs/${briefId}`,
+      });
+    },
+
     async toggleActive(): Promise<void> {
       if (!this.definition) return;
       this.busyAction = "toggle";
@@ -461,6 +479,14 @@ export default defineComponent({
   flex-wrap: wrap;
 }
 
+.tab-panels {
+  background: transparent;
+  color: var(--text-primary);
+}
+.tab-panels :deep(.q-tab-panel) {
+  background: transparent;
+  color: var(--text-primary);
+}
 .panel {
   padding: 20px 0;
 }
@@ -505,6 +531,15 @@ export default defineComponent({
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 500;
+}
+.history-row {
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1));
+}
+@media (hover: hover) and (pointer: fine) {
+  .history-row:hover {
+    background: var(--bg-glass);
+  }
 }
 .status-chip {
   background: var(--bg-glass-strong);
