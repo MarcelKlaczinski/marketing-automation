@@ -108,8 +108,13 @@ export abstract class BaseStep<TInput, TOutput> {
    * When defined and returns false, the step is skipped (execute() is not called).
    * The runner calls skipOutput() to determine the skipped step's output.
    * Default: undefined (step always runs).
+   *
+   * Spec 65.8 Day-5-followup #2: the `input` parameter lets the guard branch
+   * on step-input fields (e.g. `templateKeyOverride` for Family-B skip in
+   * ExtractToolsStep) without needing to query the DB inside shouldRun().
+   * Pre-existing overrides that ignore the parameter are forward-compatible.
    */
-  shouldRun?(ctx: StepContext): Promise<boolean>;
+  shouldRun?(ctx: StepContext, input: TInput): Promise<boolean>;
 
   /**
    * Returns the output to use when the step is skipped via shouldRun() → false.

@@ -95,6 +95,13 @@ const LoadArticleOutputSchema = z.object({
   // Locale-specific sibling articles keyed by locale prefix ("en", "de").
   // Populated when the canonical article has translation siblings.
   localeArticles: z.record(z.string(), localeArticleSchema).optional(),
+  // Spec 65.8 Day-5-followup #2: templateKey from pipelineInput, injected by
+  // SocialImagePipeline.bridge() at the FIRST transition where it's missing.
+  // Listed here so Zod doesn't strip the field at the load-article → extract-tools
+  // step boundary — without this, the bridge injection only lands at
+  // generate-caption → render-slides (accidental survival via passthrough).
+  // ExtractToolsStep.shouldRun() reads this to skip cleanly for Family-B templates.
+  templateKeyOverride: z.string().nullable().optional(),
 });
 
 type LoadArticleInput = {
@@ -242,7 +249,12 @@ const localeToolsDataSchema = z.object({
 });
 
 const ExtractToolsOutputSchema = ExtractToolsInputSchema.extend({
-  extractedTools: z.array(extractedToolSchema).min(1).max(10),
+  // Spec 65.8 Day-5-followup #2: min(1) → min(0) so the Family-B skipOutput
+  // path can produce a valid empty array. Family-A render paths
+  // (comparison-grid-3/4/5, verdict-per-use-case, single-tool-spotlight)
+  // still require ≥1 tool — that's enforced by their own gates
+  // (GenerateComparisonGrid4Step.comparisonGrid4Generated null-check, etc.).
+  extractedTools: z.array(extractedToolSchema).min(0).max(10),
   coverEyebrow: z.string(),
   coverHeadlineLead: z.string(),
   coverHeadlineHighlight: z.string(),
@@ -268,6 +280,42 @@ export class ExtractToolsStep extends BaseStep<
   override readonly llmBound = true;
 
   override estimatedCostEur(): number { return 0.005; }
+
+  /**
+   * Spec 65.8 Day-5-followup #2 — Pattern 102 gate for Family-B narrative
+   * carousels. Family-B templates (story-arc-clickbait / lifestyle-listicle /
+   * opinion-recommendation) build their composition input from
+   * `format_config.toolToFeature` + `domain_extras.familyBImages` — they do
+   * NOT need LLM-extracted tools from the article body. Worse: the article
+   * body for a recurring-content brief is short narrative text (the brief
+   * description), so the LLM has nothing to extract and returns JSON without
+   * a `tools` field → root-array Zod parse fails ("expected array, received
+   * undefined"). Skip cleanly for Family-B.
+   */
+  override async shouldRun(
+    _ctx: StepContext,
+    input: z.infer<typeof ExtractToolsInputSchema>,
+  ): Promise<boolean> {
+    return !isFamilyBTemplate(input.templateKeyOverride ?? null);
+  }
+
+  override skipOutput(
+    input: z.infer<typeof ExtractToolsInputSchema>,
+  ): z.infer<typeof ExtractToolsOutputSchema> {
+    return {
+      ...input,
+      extractedTools: [],
+      // Family-A cover/end fields stay empty — downstream Family-A consumers
+      // never reach this skipOutput because shouldRun() returns true for them.
+      // Family-B consumers (GenerateCaptionStep → StageFamilyBImagesStep →
+      // RenderSlidesStep Family-B branch) don't read these fields.
+      coverEyebrow: "",
+      coverHeadlineLead: "",
+      coverHeadlineHighlight: "",
+      endHeadline: "",
+      endHeadlineHighlight: "",
+    };
+  }
 
   async execute(input: z.infer<typeof ExtractToolsInputSchema>, ctx: StepContext) {
     // For EN-only requests, use the EN sibling article body if available — otherwise the LLM

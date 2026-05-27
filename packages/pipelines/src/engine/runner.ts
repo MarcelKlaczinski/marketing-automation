@@ -511,8 +511,10 @@ export async function runPipeline<TInput, TOutput>(
       };
 
       // Pattern 102 (Spec 60.7): optional steps declare shouldRun(); skip cleanly when false.
+      // Spec 65.8 Day-5-followup #2: pass stepInput so guards can branch on
+      // step-input fields (e.g. templateKeyOverride for ExtractToolsStep Family-B skip).
       if (step.shouldRun) {
-        const run = await step.shouldRun(ctx);
+        const run = await step.shouldRun(ctx, stepInput);
         if (!run) {
           stepLog.info({ stepIndex: i }, "Step skipped (shouldRun = false)");
           const rawSkip = step.skipOutput ? step.skipOutput(stepInput) : stepInput;
