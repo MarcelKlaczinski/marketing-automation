@@ -60,8 +60,11 @@ describe("frequencySchema (Spec 65.1)", () => {
 });
 
 describe("DEFAULT_PERSONAS (Spec 65.1)", () => {
-  it("has 10 entries", () => {
-    expect(DEFAULT_PERSONAS).toHaveLength(10);
+  it("has 15 entries", () => {
+    // Spec 65.3 widened the v1 set from 10 → 15 (added translators, musicians,
+    // craftsmen, consultants, researchers); test assertion was missed in that
+    // commit and surfaced during Spec 65.cleanup Phase 5 verification.
+    expect(DEFAULT_PERSONAS).toHaveLength(15);
   });
 
   it("contains the v1 set", () => {

@@ -113,21 +113,17 @@ describe("selectTemplateForRecurringBrief (Spec 65.5)", () => {
   });
 
   it("Layer 1 — single-eligible-template format-types short-circuit to LRU", async () => {
-    // No format-type has only 1 eligible template today, so spoof one via
-    // the fixed strategy fallback shortcut. (Layer 1 short-circuit triggers
-    // for format-types with exactly 1 eligibleTemplate — the test exercises
-    // the same code path via the fixed strategy with the canonical template.)
+    // Spec 65.cleanup: opinion_recommendation now has exactly 1 eligible
+    // template ("opinion-recommendation" — V1-cut from -dramatic / -minimal
+    // variants per Spec 65.7 Day 4 §16). This exercises the genuine Layer 1
+    // single-eligible short-circuit (was spoofed via the 2-variant array
+    // before V1-cut).
     const def = await seedDefinition({
       formatType: "opinion_recommendation",
       templateSelectionStrategy: "lru",
     });
     const result = await selectTemplateForRecurringBrief({ definition: def });
-    // opinion_recommendation has 2 eligible templates — the LRU pick is
-    // either "opinion-recommendation-dramatic" or "-minimal". With no
-    // prior usage, the first registered wins.
-    expect(["opinion-recommendation-dramatic", "opinion-recommendation-minimal"]).toContain(
-      result.templateKey,
-    );
+    expect(result.templateKey).toBe("opinion-recommendation");
     expect(result.selectedVia).toBe("lru");
   });
 

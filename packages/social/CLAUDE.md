@@ -198,6 +198,23 @@ src/compositions/list-carousel/
 2. Register it in `src/index.tsx` with `<Composition id="..." ... />`.
 3. Add a `render<Name>()` function in `render-server.ts` following the same pattern as `renderListCarousel()`.
 4. Create a `TemplateDefinition` in `src/templates/definitions/<name>.ts` and register it in `src/templates/bootstrap.ts`.
+5. Add the new `templateKey` to `TemplateKey` in `src/templates/types.ts` AND to `EXPECTED_SHIPPED_KEYS` in `test/templates/template-registry-coverage.test.ts`.
+6. Add the key to `FAMILY_A_TEMPLATE_KEYS` or `FAMILY_B_TEMPLATE_KEYS` + add a render-fn dispatch branch in `apps/api/src/workers/social-render.worker.ts` (Spec 65.7-followup + Memory D30).
+
+## V1-cut template variants (Spec 65.cleanup)
+
+Templates that were planned in Spec 65.4/65.7 but V1-cut (ship as ONE template + config-knob instead of N variants) are kept in the `TemplateKey` union with a parallel `DeprecatedTemplateKey` union in `src/templates/types.ts`. Current V1-cut set (all Family-B `-dramatic` / `-minimal` variants):
+
+- `opinion-recommendation-dramatic`, `opinion-recommendation-minimal` → `opinion-recommendation` + `toneIntensity` config
+- `story-arc-clickbait-dramatic`, `story-arc-clickbait-minimal` → `story-arc-clickbait` + `toneIntensity` config
+- `lifestyle-listicle-dramatic`, `lifestyle-listicle-minimal` → `lifestyle-listicle` + `toneIntensity` config
+
+`ShippedTemplateKey = Exclude<TemplateKey, DeprecatedTemplateKey | UnsupportedTemplateKey>` is the canonical "what's actually shippable" type. Two-layer drift protection:
+
+1. **Compile-time** — the exhaustivity guard in `apps/api/src/workers/social-render.worker.ts` excludes all four categories (Family-A, Family-B, Unsupported, Deprecated). Adding a new value to `TemplateKey` without a home triggers `TS2344: Type 'X' does not satisfy the constraint 'never'.`
+2. **Runtime** — `test/templates/template-registry-coverage.test.ts` walks `templateRegistry.list()` post-bootstrap and asserts (a) every `EXPECTED_SHIPPED_KEYS` member is registered, (b) no `DeprecatedTemplateKey` or `UnsupportedTemplateKey` value is registered, (c) registry size matches `EXPECTED_SHIPPED_KEYS.length` exactly.
+
+**If engagement data justifies splitting a single template back into variants** (un-deprecating), move the literal from `DeprecatedTemplateKey` to `FAMILY_B_TEMPLATE_KEYS`, add a dispatch branch in the worker, register the new `TemplateDefinition` in `bootstrap.ts`, and add the key to `EXPECTED_SHIPPED_KEYS`. The type-system + test pair guides the refactor — TypeScript surfaces the missing dispatch, the test surfaces the missing registration.
 
 ## Template Registry (Spec 54a)
 

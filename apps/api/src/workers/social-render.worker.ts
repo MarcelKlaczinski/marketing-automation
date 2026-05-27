@@ -10,7 +10,11 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 import { z } from "zod";
 import { getSocialRenderQueue, type SocialRenderJobData, type SocialRenderJobResult } from "@marketing-auto/pipelines/social-render-queue";
-import type { TemplateKey } from "@marketing-auto/social/templates";
+import type {
+  DeprecatedTemplateKey,
+  TemplateKey,
+  UnsupportedTemplateKey,
+} from "@marketing-auto/social/templates";
 import { syncRecurringArticleStatus } from "../lib/recurring-content/sync-article-status.ts";
 
 const log = createLogger("workers:social-render");
@@ -44,21 +48,23 @@ const FAMILY_B_TEMPLATE_KEYS = [
 
 type FamilyBTemplateKey = (typeof FAMILY_B_TEMPLATE_KEYS)[number];
 
-// Template keys present in the TemplateKey union but NOT registered in
-// bootstrap.ts (= not wired into any render path). Listed explicitly so the
-// exhaustivity check below catches any future TemplateKey addition that lands
-// without being assigned to one of the three sets.
-type UnsupportedTemplateKey =
-  | "news-slide"             // Spec 54g — never shipped
-  | "concept-explainer-deck" // Spec 54h — never shipped
-  | "price-comparison";      // never shipped
+// `UnsupportedTemplateKey` ("never shipped, future maybe") and
+// `DeprecatedTemplateKey` ("planned, V1-cut, ships as config-knob now") both
+// live in `@marketing-auto/social/templates/types.ts` as the canonical
+// classification surface. Imported above so the exhaustivity guard catches
+// any future TemplateKey addition that lands without being assigned to one
+// of the four categories.
 
-// Compile-time guard: every TemplateKey must belong to FamilyA, FamilyB, or
-// Unsupported. A new value in the union without a home triggers
-// "Type 'X' does not satisfy the constraint 'never'." on the cast below.
+// Compile-time guard: every TemplateKey must belong to FamilyA, FamilyB,
+// Unsupported, or Deprecated. A new value in the union without a home
+// triggers "Type 'X' does not satisfy the constraint 'never'." on the cast
+// below. Spec 65.cleanup extended this from 3 to 4 categories.
 type _AssertNever<T extends never> = T;
 const _exhaustivityCheck = null as unknown as _AssertNever<
-  Exclude<TemplateKey, FamilyATemplateKey | FamilyBTemplateKey | UnsupportedTemplateKey>
+  Exclude<
+    TemplateKey,
+    FamilyATemplateKey | FamilyBTemplateKey | UnsupportedTemplateKey | DeprecatedTemplateKey
+  >
 >;
 void _exhaustivityCheck;
 

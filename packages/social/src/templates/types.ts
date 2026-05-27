@@ -31,7 +31,87 @@ export type TemplateKey =
   | "head-to-head-deep-dive"
   | "story-arc-clickbait"
   | "lifestyle-listicle"
-  | "opinion-recommendation";
+  | "opinion-recommendation"
+  // Deprecated V1-cut variants — kept in union for audit trail + backward-
+  // compat. See `DeprecatedTemplateKey` JSDoc below for full rationale.
+  | "opinion-recommendation-dramatic"
+  | "opinion-recommendation-minimal"
+  | "story-arc-clickbait-dramatic"
+  | "story-arc-clickbait-minimal"
+  | "lifestyle-listicle-dramatic"
+  | "lifestyle-listicle-minimal";
+
+/**
+ * Spec 65.cleanup — Template keys that were planned in Spec 65.4/65.7 as
+ * separate `-dramatic` / `-minimal` variants per Family-B format-type but
+ * V1-cut. Each format-type now ships as ONE template with a
+ * `toneIntensity: 'dramatic' | 'balanced' | 'minimal'` config-knob inside
+ * `format_config` (see Spec 65.7 Day 4 §16).
+ *
+ * Kept in {@link TemplateKey} union for:
+ * - Audit trail (planned variants visible in code)
+ * - Backward-compat (old test seeds, possible old DB rows don't break compile)
+ * - Forward-cut signal (if engagement data justifies splitting later, move
+ *   the literal from this union to `FAMILY_B_TEMPLATE_KEYS` in the worker)
+ *
+ * NEVER dispatch these — the worker's exhaustivity guard
+ * (`apps/api/src/workers/social-render.worker.ts`) throws "Unknown templateKey"
+ * on receipt, and the runtime registry-coverage test
+ * (`packages/social/test/templates/template-registry-coverage.test.ts`) asserts
+ * none of these are present in `templateRegistry.list()`.
+ *
+ * Mapping back to shipped templates:
+ * - `opinion-recommendation-dramatic` → `opinion-recommendation` + `toneIntensity='dramatic'`
+ * - `opinion-recommendation-minimal`  → `opinion-recommendation` + `toneIntensity='minimal'`
+ * - `story-arc-clickbait-dramatic`    → `story-arc-clickbait`    + `toneIntensity='dramatic'`
+ * - `story-arc-clickbait-minimal`     → `story-arc-clickbait`    + `toneIntensity='minimal'`
+ * - `lifestyle-listicle-dramatic`     → `lifestyle-listicle`     + `toneIntensity='dramatic'`
+ * - `lifestyle-listicle-minimal`      → `lifestyle-listicle`     + `toneIntensity='minimal'`
+ *
+ * @deprecated V1-cut. See Spec 65.7 Day 4 §16 + Spec 65.cleanup §3.1.
+ */
+export type DeprecatedTemplateKey =
+  | "opinion-recommendation-dramatic"
+  | "opinion-recommendation-minimal"
+  | "story-arc-clickbait-dramatic"
+  | "story-arc-clickbait-minimal"
+  | "lifestyle-listicle-dramatic"
+  | "lifestyle-listicle-minimal";
+
+/**
+ * Template keys present in {@link TemplateKey} but NOT registered in
+ * `bootstrap.ts` (= not wired into any render path). Semantically distinct
+ * from {@link DeprecatedTemplateKey}:
+ *
+ * - `UnsupportedTemplateKey` = "doesn't exist yet, future maybe"
+ * - `DeprecatedTemplateKey`  = "was planned, V1-cut, ships as config-knob now"
+ *
+ * Listed explicitly so the worker's exhaustivity check catches any future
+ * `TemplateKey` addition that lands without being assigned to one of the
+ * four categories (Family-A, Family-B, Unsupported, Deprecated).
+ */
+export type UnsupportedTemplateKey =
+  | "news-slide" // Spec 54g — never shipped
+  | "concept-explainer-deck" // Spec 54h — never shipped
+  | "price-comparison"; // never shipped
+
+/**
+ * Spec 65.cleanup — Canonical type for "templates that ARE actually shippable".
+ * Excludes both V1-cut variants ({@link DeprecatedTemplateKey}) and
+ * never-shipped stubs ({@link UnsupportedTemplateKey}).
+ *
+ * The runtime coverage test
+ * (`packages/social/test/templates/template-registry-coverage.test.ts`) asserts
+ * that `bootstrapTemplates()` registers exactly these keys — no more, no less.
+ * Combined with the compile-time exhaustivity guard in
+ * `apps/api/src/workers/social-render.worker.ts`, this gives drift-protection
+ * at both PR-time (TS error on unhandled union member) and CI-time (test
+ * failure when bootstrap drifts away from the shipped set).
+ */
+export type ShippedTemplateKey = Exclude<
+  TemplateKey,
+  DeprecatedTemplateKey | UnsupportedTemplateKey
+>;
 
 /**
  * Spec 65.0 Day 4 — name of the function exported by

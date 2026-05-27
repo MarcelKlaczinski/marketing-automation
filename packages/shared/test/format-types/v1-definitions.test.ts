@@ -108,13 +108,13 @@ describe("story_arc_clickbait (Family B)", () => {
 });
 
 describe("lifestyle_listicle (Family B)", () => {
-  it("definition has needsHooks=true + 2 eligible templates", () => {
+  it("definition has needsHooks=true + single eligible template", () => {
+    // Spec 65.cleanup: V1 ships ONE template per Family-B format-type with a
+    // toneIntensity config-knob; the planned -dramatic / -minimal variants
+    // were V1-cut per Spec 65.7 Day 4 §16.
     expect(lifestyleListicleDefinition.family).toBe("B");
     expect(lifestyleListicleDefinition.needsHooks).toBe(true);
-    expect(lifestyleListicleDefinition.eligibleTemplates).toEqual([
-      "lifestyle-listicle-dramatic",
-      "lifestyle-listicle-minimal",
-    ]);
+    expect(lifestyleListicleDefinition.eligibleTemplates).toEqual(["lifestyle-listicle"]);
   });
 
   it("applies itemCount default + accepts optional toolFilter", () => {

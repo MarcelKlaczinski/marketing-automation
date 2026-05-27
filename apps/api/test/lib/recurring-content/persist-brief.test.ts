@@ -98,8 +98,11 @@ describe("persistRecurringBrief (Spec 65.5)", () => {
       topicTitle: "I lost my Texter job",
       toolIds: ["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"],
       locale: "de",
+      // Spec 65.cleanup: story-arc-clickbait now ships as ONE template with
+      // toneIntensity config (V1-cut from -dramatic / -minimal variants).
+      // The selectedTemplateKey is the canonical shipped key.
       selectedTemplate: {
-        templateKey: "story-arc-clickbait-dramatic",
+        templateKey: "story-arc-clickbait",
         selectedVia: "llm-rank",
         reasoning: "matched dramatic tone",
       },
@@ -116,7 +119,7 @@ describe("persistRecurringBrief (Spec 65.5)", () => {
       "00000000-0000-0000-0000-000000000000",
     ]);
     const fc = brief.recurringMetadata?.formatConfig as Record<string, unknown>;
-    expect(fc.selectedTemplateKey).toBe("story-arc-clickbait-dramatic");
+    expect(fc.selectedTemplateKey).toBe("story-arc-clickbait");
     expect(fc.selectedTemplateVia).toBe("llm-rank");
     expect(fc.selectedTemplateReasoning).toBe("matched dramatic tone");
     expect(fc.hookData).toEqual({
