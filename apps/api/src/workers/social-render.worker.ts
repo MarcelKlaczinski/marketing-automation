@@ -10,9 +10,158 @@ import { createLogger, getEnv } from "@marketing-auto/shared";
 import IORedis from "ioredis";
 import { z } from "zod";
 import { getSocialRenderQueue, type SocialRenderJobData, type SocialRenderJobResult } from "@marketing-auto/pipelines/social-render-queue";
+import type { TemplateKey } from "@marketing-auto/social/templates";
 import { syncRecurringArticleStatus } from "../lib/recurring-content/sync-article-status.ts";
 
 const log = createLogger("workers:social-render");
+
+// ─── Template-key dispatch sets (Spec 65.7-followup) ─────────────────────────
+// Family A: single-still + multi-slide carousels that use the snapshot-pattern
+// with a flat composition input (the snapshot IS the input). The worker reads
+// social_posts.content.renderInput, spreads fresh brandTokens + overrides from
+// job-data, and dispatches to the matching render-server function.
+const FAMILY_A_TEMPLATE_KEYS = [
+  "comparison-grid-3",
+  "comparison-grid-4",
+  "comparison-grid-5",
+  "verdict-per-use-case",
+  "single-tool-spotlight",
+  "pro-con-verdict",
+  "head-to-head-vs",
+  "head-to-head-deep-dive",
+] as const satisfies readonly TemplateKey[];
+
+type FamilyATemplateKey = (typeof FAMILY_A_TEMPLATE_KEYS)[number];
+
+// Family B: photographic carousels (Spec 65.8). Snapshot has shape
+// `{ kind: "family-b", templateKey, locale, theme, slideTotal, compositionInput }`
+// — the worker spreads compositionInput plus fresh brandTokens + overrides.
+const FAMILY_B_TEMPLATE_KEYS = [
+  "story-arc-clickbait",
+  "lifestyle-listicle",
+  "opinion-recommendation",
+] as const satisfies readonly TemplateKey[];
+
+type FamilyBTemplateKey = (typeof FAMILY_B_TEMPLATE_KEYS)[number];
+
+// Template keys present in the TemplateKey union but NOT registered in
+// bootstrap.ts (= not wired into any render path). Listed explicitly so the
+// exhaustivity check below catches any future TemplateKey addition that lands
+// without being assigned to one of the three sets.
+type UnsupportedTemplateKey =
+  | "news-slide"             // Spec 54g — never shipped
+  | "concept-explainer-deck" // Spec 54h — never shipped
+  | "price-comparison";      // never shipped
+
+// Compile-time guard: every TemplateKey must belong to FamilyA, FamilyB, or
+// Unsupported. A new value in the union without a home triggers
+// "Type 'X' does not satisfy the constraint 'never'." on the cast below.
+type _AssertNever<T extends never> = T;
+const _exhaustivityCheck = null as unknown as _AssertNever<
+  Exclude<TemplateKey, FamilyATemplateKey | FamilyBTemplateKey | UnsupportedTemplateKey>
+>;
+void _exhaustivityCheck;
+
+export function isFamilyA(key: string): key is FamilyATemplateKey {
+  return (FAMILY_A_TEMPLATE_KEYS as readonly string[]).includes(key);
+}
+
+export function isFamilyB(key: string): key is FamilyBTemplateKey {
+  return (FAMILY_B_TEMPLATE_KEYS as readonly string[]).includes(key);
+}
+
+// Re-export for tests + future Settings-UI consumers that want to surface
+// the dispatch-coverage matrix.
+export { FAMILY_A_TEMPLATE_KEYS, FAMILY_B_TEMPLATE_KEYS };
+
+// ─── Pure dispatcher (extracted for offline test coverage) ────────────────────
+// Routes a templateKey + already-resolved composition input to the matching
+// render-server function. Family-specific snapshot-read + brandTokens-spread
+// happens in `renderSlidesViaRemotion`; `dispatchByTemplateKey` is the pure
+// switch + sets-membership guard.
+//
+// The exhaustive `assertNever` in each switch's default branch + the
+// type-level guard above guarantee that adding a TemplateKey value without
+// extending one of the dispatch sets is a compile-time error in BOTH places.
+export type RenderServerLike = {
+  renderComparisonGrid3: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderComparisonGrid4: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderComparisonGrid5: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderVerdictPerUseCase: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderSingleToolSpotlight: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderProConVerdict: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderHeadToHeadVs: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderHeadToHeadDeepDive: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderStoryArcClickbait: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderLifestyleListicle: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderOpinionRecommendation: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+};
+
+export async function dispatchByTemplateKey(
+  templateKey: string,
+  fullInput: Record<string, unknown>,
+  renderServer: RenderServerLike,
+): Promise<{ slides: Buffer[]; sequenceCount: number }> {
+  if (isFamilyB(templateKey)) {
+    switch (templateKey) {
+      case "story-arc-clickbait":
+        return renderServer.renderStoryArcClickbait(fullInput);
+      case "lifestyle-listicle":
+        return renderServer.renderLifestyleListicle(fullInput);
+      case "opinion-recommendation":
+        return renderServer.renderOpinionRecommendation(fullInput);
+      default: {
+        const _exhaustive: never = templateKey;
+        throw new Error(`Unhandled Family-B templateKey: ${String(_exhaustive)}`);
+      }
+    }
+  }
+  if (isFamilyA(templateKey)) {
+    switch (templateKey) {
+      case "comparison-grid-3":
+        return renderServer.renderComparisonGrid3(fullInput);
+      case "comparison-grid-4":
+        return renderServer.renderComparisonGrid4(fullInput);
+      case "comparison-grid-5":
+        return renderServer.renderComparisonGrid5(fullInput);
+      case "verdict-per-use-case":
+        return renderServer.renderVerdictPerUseCase(fullInput);
+      case "single-tool-spotlight":
+        return renderServer.renderSingleToolSpotlight(fullInput);
+      case "pro-con-verdict":
+        return renderServer.renderProConVerdict(fullInput);
+      case "head-to-head-vs":
+        return renderServer.renderHeadToHeadVs(fullInput);
+      case "head-to-head-deep-dive":
+        return renderServer.renderHeadToHeadDeepDive(fullInput);
+      default: {
+        const _exhaustive: never = templateKey;
+        throw new Error(`Unhandled Family-A templateKey: ${String(_exhaustive)}`);
+      }
+    }
+  }
+  throw new Error(`Unknown templateKey: ${templateKey}`);
+}
+
+// Read the renderInput snapshot persisted by RenderSlidesStep at INSERT time.
+// Shared by Family-A + Family-B branches.
+async function loadRenderSnapshot(
+  socialPostId: string,
+  templateKey: string,
+): Promise<Record<string, unknown>> {
+  const [post] = await db
+    .select({ content: socialPosts.content })
+    .from(socialPosts)
+    .where(eq(socialPosts.id, socialPostId));
+  const contentRecord = post?.content as Record<string, unknown> | null | undefined;
+  const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
+  if (!snapshot) {
+    throw new Error(
+      `No renderInput snapshot in social_posts.content for post ${socialPostId} (templateKey: ${templateKey})`,
+    );
+  }
+  return snapshot;
+}
 
 // ─── Runtime Zod validation for job.data (arrives as unknown from Redis) ─────
 
@@ -50,153 +199,54 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
   // Dynamic import: avoids Remotion bundling into API startup context (per packages/social CLAUDE.md).
   // Import from the /render-server subpath (pure .ts, no JSX) so the API tsconfig doesn't need --jsx.
   const renderServer = (await import("@marketing-auto/social/render-server")) as unknown as {
-    renderComparisonGrid: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    // Family A (Spec 60.1/60.2/60.3/60.4/60.5 + Spec 65.7 multi-slide carousels)
     renderComparisonGrid3: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderComparisonGrid4: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderComparisonGrid5: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderVerdictPerUseCase: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderSingleToolSpotlight: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderProConVerdict: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
-    // Spec 65.8 Day-5-followup — Family-B carousel render functions.
+    renderHeadToHeadVs: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderHeadToHeadDeepDive: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    // Family B (Spec 65.8 photographic carousels)
     renderStoryArcClickbait: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderLifestyleListicle: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderOpinionRecommendation: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   };
 
-  // Spec 65.8 Day-5-followup — Family-B templates have their own snapshot shape
-  // (kind: "family-b" discriminator on `social_posts.content.renderInput`)
-  // because the composition input carries hook + narrative + per-slide images,
-  // NOT the list-carousel resolvedTools field. Branch fires for the 3 Family-B
-  // templates and reads the full compositionInput from DB.
-  const FAMILY_B_TEMPLATE_KEYS = new Set([
-    "story-arc-clickbait",
-    "lifestyle-listicle",
-    "opinion-recommendation",
-  ]);
-
-  let slides: Buffer[];
-
-  if (FAMILY_B_TEMPLATE_KEYS.has(templateKey)) {
-    // Spec 65.8 Day-5-followup — Family-B carousels. The snapshot persisted by
-    // RenderSlidesStep has shape `{ kind: "family-b", templateKey, locale,
-    // theme, slideTotal, compositionInput }`. Spread `compositionInput` plus
-    // fresh `brandTokens` + `overrides` from job-data into the composition's
-    // input schema.
-    const [post] = await db
-      .select({ content: socialPosts.content })
-      .from(socialPosts)
-      .where(eq(socialPosts.id, data.socialPostId));
-
-    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
-    const snapshot = contentRecord?.renderInput as
-      | { kind?: string; templateKey?: string; compositionInput?: Record<string, unknown> }
-      | undefined;
-    if (!snapshot || snapshot.kind !== "family-b" || !snapshot.compositionInput) {
+  // ─── Build composition input from snapshot (family-specific) ────────────────
+  // Family-B snapshots have shape `{ kind: "family-b", compositionInput, ... }`
+  // (nested). Family-A snapshots are flat — the persisted renderInput IS the
+  // composition input. Both spread fresh brandTokens + overrides from job-data.
+  let fullInput: Record<string, unknown>;
+  if (isFamilyB(templateKey)) {
+    const snapshot = (await loadRenderSnapshot(data.socialPostId, templateKey)) as {
+      kind?: string;
+      compositionInput?: Record<string, unknown>;
+    };
+    if (snapshot.kind !== "family-b" || !snapshot.compositionInput) {
       throw new Error(
-        `No Family-B renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: ${templateKey})`,
+        `Family-B snapshot mismatch in social_posts.content for post ${data.socialPostId} (templateKey: ${templateKey}, kind: ${snapshot.kind ?? "missing"})`,
       );
     }
-
-    const fullInput: Record<string, unknown> = {
+    fullInput = {
       ...snapshot.compositionInput,
       brandTokens: data.brandTokens,
       overrides: data.overrides,
     };
-
-    let result: { slides: Buffer[]; sequenceCount: number };
-    if (templateKey === "story-arc-clickbait") {
-      result = await renderServer.renderStoryArcClickbait(fullInput);
-    } else if (templateKey === "lifestyle-listicle") {
-      result = await renderServer.renderLifestyleListicle(fullInput);
-    } else {
-      // opinion-recommendation
-      result = await renderServer.renderOpinionRecommendation(fullInput);
-    }
-    slides = result.slides;
-  } else if (templateKey === "comparison-grid-4") {
-    // comparison-grid-4 uses the renderInput snapshot pattern (Spec 60.2).
-    // The full ComparisonGrid4Input was stored in social_posts.content.renderInput at INSERT time.
-    const [post] = await db
-      .select({ content: socialPosts.content })
-      .from(socialPosts)
-      .where(eq(socialPosts.id, data.socialPostId));
-
-    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
-    const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
-    if (!snapshot) {
-      throw new Error(
-        `No renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: comparison-grid-4)`,
-      );
-    }
-
-    const fullInput: Record<string, unknown> = {
+  } else if (isFamilyA(templateKey)) {
+    const snapshot = await loadRenderSnapshot(data.socialPostId, templateKey);
+    fullInput = {
       ...snapshot,
       brandTokens: data.brandTokens,
       overrides: data.overrides,
     };
-    const result = await renderServer.renderComparisonGrid4(fullInput);
-    slides = result.slides;
-  } else if (templateKey === "comparison-grid-3") {
-    // comparison-grid-3 uses the renderInput snapshot pattern (Spec 60.3).
-    // The full ComparisonGrid3Input is stored in social_posts.content.renderInput at INSERT time.
-    const [post] = await db
-      .select({ content: socialPosts.content })
-      .from(socialPosts)
-      .where(eq(socialPosts.id, data.socialPostId));
-
-    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
-    const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
-    if (!snapshot) {
-      throw new Error(
-        `No renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: comparison-grid-3)`,
-      );
-    }
-
-    const fullInput: Record<string, unknown> = {
-      ...snapshot,
-      brandTokens: data.brandTokens,
-      overrides: data.overrides,
-    };
-    const result = await renderServer.renderComparisonGrid3(fullInput);
-    slides = result.slides;
-  } else if (
-    templateKey === "verdict-per-use-case" ||
-    templateKey === "single-tool-spotlight" ||
-    templateKey === "pro-con-verdict"
-  ) {
-    // Read full composition input from the renderInput snapshot stored in social_posts.content
-    // at INSERT time (Spec 58.2). Fresh brandTokens + overrides come from job data.
-    const [post] = await db
-      .select({ content: socialPosts.content })
-      .from(socialPosts)
-      .where(eq(socialPosts.id, data.socialPostId));
-
-    const contentRecord = post?.content as Record<string, unknown> | null | undefined;
-    const snapshot = contentRecord?.renderInput as Record<string, unknown> | undefined;
-    if (!snapshot) {
-      throw new Error(
-        `No renderInput snapshot in social_posts.content for post ${data.socialPostId} (templateKey: ${templateKey})`,
-      );
-    }
-
-    // Merge snapshot with fresh brand tokens + overrides from job data
-    const fullInput: Record<string, unknown> = {
-      ...snapshot,
-      brandTokens: data.brandTokens,
-      overrides: data.overrides,
-    };
-
-    let result: { slides: Buffer[]; sequenceCount: number };
-    if (templateKey === "verdict-per-use-case") {
-      result = await renderServer.renderVerdictPerUseCase(fullInput);
-    } else if (templateKey === "single-tool-spotlight") {
-      result = await renderServer.renderSingleToolSpotlight(fullInput);
-    } else {
-      result = await renderServer.renderProConVerdict(fullInput);
-    }
-    slides = result.slides;
   } else {
     throw new Error(`Unknown templateKey: ${templateKey}`);
   }
+
+  const result = await dispatchByTemplateKey(templateKey, fullInput, renderServer);
+  const slides = result.slides;
 
   // Upload each PNG buffer to R2 and collect public URLs
   const timestamp = Date.now();
