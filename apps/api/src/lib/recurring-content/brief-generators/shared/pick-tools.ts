@@ -29,6 +29,7 @@ import {
   isNotNull,
   not,
   sql,
+  toolBrandAssets,
 } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
@@ -75,10 +76,26 @@ export interface PickToolsResult {
 }
 
 /**
- * Load the candidate tool pool. Filters: `collection='tools'`, `locale`, and
- * optionally `category`. Excludes `previousRunToolIds` when
- * `excludeRecentlyUsed` is on. Orders by (toolRating desc, toolVotes desc,
- * lastRefreshedAt desc) so the LLM sees the strongest candidates first.
+ * Load the candidate tool pool. Filters: `collection='tools'`, `locale`,
+ * optionally `category`, AND **pre-filters to tools that have a brand-asset
+ * row with a non-null `logo_url`** via inner-join against `tool_brand_assets`.
+ *
+ * The pre-filter (Spec 65.5-followup, 2026-05-27) closes a real V1-launch
+ * gap: prior behaviour let `pickToolsForBrief` LLM-curate across all
+ * category+locale tools regardless of logo coverage. Toolwiki has ~35% of
+ * tools on `deterministic-avatar` source (no logo file) and the LLM
+ * consistently picked at least one of them, which `ensureBrandAssetsAvailable`
+ * then rejected — skipping the entire fire. Pre-filtering keeps the LLM
+ * inside the "renderable" subset; the post-check stays as defence-in-depth
+ * for the race where a brand-asset row is deleted between pick + render.
+ *
+ * Manual-override path stays unfiltered (Marcel-controlled — if he sets
+ * `manualToolIds` explicitly he gets what he asked for, and the post-check
+ * still gates render time).
+ *
+ * Excludes `previousRunToolIds` when `excludeRecentlyUsed` is on. Orders by
+ * (toolRating desc, toolVotes desc, lastRefreshedAt desc) so the LLM sees
+ * the strongest candidates first.
  */
 async function loadCandidatePool(input: {
   projectId: string;
@@ -92,6 +109,11 @@ async function loadCandidatePool(input: {
     eq(articles.collection, "tools"),
     eq(articles.locale, input.locale),
     eq(articles.status, "published"),
+    // Spec 65.5-followup brand-asset pre-filter: only consider tools with a
+    // non-null `logo_url`. EXISTS keeps the return shape as `Article[]` so we
+    // don't need a projection cast. PostgreSQL plans EXISTS as a semi-join,
+    // performance is identical to INNER JOIN.
+    sql`EXISTS (SELECT 1 FROM ${toolBrandAssets} tba WHERE tba.tool_id = ${articles.id} AND tba.logo_url IS NOT NULL)`,
   ];
   if (input.categorySlug) {
     conditions.push(eq(articles.category, input.categorySlug));
