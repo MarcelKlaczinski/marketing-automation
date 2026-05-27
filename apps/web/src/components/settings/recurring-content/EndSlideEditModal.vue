@@ -56,6 +56,13 @@
           <input v-model="form.isActive" type="checkbox" />
           <span>{{ $t("recurringContent.endSlides.edit.fields.isActive") as string }}</span>
         </label>
+
+        <!--
+          Spec 65.V1.5c — live preview of the end-slide via lazy-loaded React
+          mount. `previewInput` mirrors the form state; the React tree
+          re-renders on every form change via internal watch handlers.
+        -->
+        <EndSlideLivePreview :input="previewInput" />
       </q-card-section>
 
       <q-card-actions class="actions" align="right">
@@ -75,6 +82,7 @@
 <script lang="ts">
 import { defineComponent, type PropType } from "vue";
 import { apiPatch, apiPost } from "src/lib/api";
+import EndSlideLivePreview from "./EndSlideLivePreview.vue";
 
 interface EndSlideDef {
   id: string;
@@ -187,6 +195,8 @@ const SCHEMA_SAMPLES: Record<string, string> = {
 export default defineComponent({
   name: "EndSlideEditModal",
 
+  components: { EndSlideLivePreview },
+
   props: {
     slug: { type: String, required: true },
     endSlide: { type: Object as PropType<EndSlideDef | null>, default: null },
@@ -220,6 +230,24 @@ export default defineComponent({
     },
     schemaSample(): string {
       return SCHEMA_SAMPLES[this.form.type] ?? "{}";
+    },
+    // Spec 65.V1.5c — payload for the React live-preview. Preview shows
+    // whichever locale matches the admin's current `$i18n.locale`.
+    previewInput(): {
+      type: string;
+      configJson: string;
+      nameDe: string;
+      nameEn: string;
+      locale: "de" | "en";
+    } {
+      const i18nLocale = this.$i18n.locale === "de" ? "de" : "en";
+      return {
+        type: this.form.type,
+        configJson: this.form.configJson,
+        nameDe: this.form.nameDe,
+        nameEn: this.form.nameEn,
+        locale: i18nLocale,
+      };
     },
   },
 

@@ -125,6 +125,14 @@ export const projects = pgTable(
       .notNull()
       .default("1k"),
 
+    // Spec 65.V1.5b: project-level default for recurring-content auto-approve.
+    // When a definition does NOT set `auto_approve_override`, this value
+    // decides whether the generated brief auto-approves vs. lands in
+    // plan_pending for Marcel-review. Default FALSE (manual approve V1).
+    recurringAutoApproveDefault: boolean("recurring_auto_approve_default")
+      .notNull()
+      .default(false),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

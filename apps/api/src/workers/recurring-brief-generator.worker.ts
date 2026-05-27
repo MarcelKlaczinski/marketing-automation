@@ -37,10 +37,9 @@ import {
   type GeneratedBriefResult,
 } from "../lib/recurring-content/brief-generators/index.ts";
 import { computeNextRun } from "../lib/recurring-content/compute-next-run.ts";
-import {
-  notifyRecurringBriefSkipped,
-  type NotifyRecurringBriefSkippedInput,
-} from "../lib/recurring-content/notify-skipped.ts";
+import type { NotifyRecurringBriefSkippedInput } from "../lib/recurring-content/notify-skipped.ts";
+import { notifyBriefSkippedWithCooldown } from "../lib/recurring-content/skip-cooldown.ts";
+import { resolveAutoApprove } from "../lib/recurring-content/resolve-auto-approve.ts";
 
 const log = createLogger("recurring-brief-generator-worker");
 
@@ -196,6 +195,24 @@ export async function handleRecurringBriefGenerator(
     const targetLocales = resolveTargetLocales(definition.targetLocales, fallbackLanguage);
     const runGroupId = targetLocales.length > 1 ? crypto.randomUUID() : undefined;
 
+    // Spec 65.V1.5b — resolve auto-approve once per fire, thread through every
+    // per-locale generator. The override + project-default are READ ONCE here
+    // so all locale-siblings within the same fire land in the same approval
+    // state. Subsequent fires re-read against the freshest definition row.
+    const [projectRow] = await db
+      .select({
+        recurringAutoApproveDefault: projects.recurringAutoApproveDefault,
+      })
+      .from(projects)
+      .where(eq(projects.id, definition.projectId))
+      .limit(1);
+    const autoApprove = projectRow
+      ? resolveAutoApprove({
+          definitionAutoApproveOverride: definition.autoApproveOverride,
+          projectRecurringAutoApproveDefault: projectRow.recurringAutoApproveDefault,
+        })
+      : false;
+
     let lastResult: GeneratedBriefResult | null = null;
     let persistedCount = 0;
     let skippedCount = 0;
@@ -232,6 +249,12 @@ export async function handleRecurringBriefGenerator(
         };
         if (previousRunToolIds) briefCtx.previousRunToolIds = previousRunToolIds;
         if (runGroupId !== undefined) briefCtx.runGroupId = runGroupId;
+        // Spec 65.V1.5b — propagate the resolved auto-approve flag. Always
+        // assign (even false) so a generator can rely on `ctx.autoApprove`
+        // being defined when reading; the field is still typed optional for
+        // back-compat with tests + the runDryRunForDefinition entry point
+        // (dry-runs never persist so the flag is moot there).
+        briefCtx.autoApprove = autoApprove;
         result = await dispatchBriefGenerator(briefCtx);
       } catch (err) {
         if (err instanceof UnknownFormatTypeError) {
@@ -275,6 +298,10 @@ export async function handleRecurringBriefGenerator(
         // know "EN went through but DE didn't" rather than just "something
         // skipped this fire". The skip-reason already lives in the
         // notification body so the locale-mix is implicit.
+        // Spec 65.V1.5b — 24h cooldown to prevent same-skip-reason spam when
+        // a brand-asset gap or hook-library hole persists across multiple
+        // cron ticks. The wrapper updates `recurring_content_definitions.
+        // last_skip_notified_at` atomically with the dispatch.
         const notifyInput: NotifyRecurringBriefSkippedInput = {
           projectId: definition.projectId,
           definitionId: definition.id,
@@ -283,7 +310,10 @@ export async function handleRecurringBriefGenerator(
         };
         if (result.missingToolIds) notifyInput.missingToolIds = result.missingToolIds;
         if (result.detail) notifyInput.detail = result.detail;
-        await notifyRecurringBriefSkipped(notifyInput);
+        await notifyBriefSkippedWithCooldown({
+          ...notifyInput,
+          lastSkipNotifiedAt: definition.lastSkipNotifiedAt ?? null,
+        });
       } else {
         // `dry-run-preview` is structurally unreachable here — the BullMQ worker
         // never sets `ctx.dryRun = true` (dry-runs go through the synchronous

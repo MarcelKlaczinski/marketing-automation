@@ -1,0 +1,84 @@
+/**
+ * Shared styles for the 5 per-format recurring-content forms (Spec 65.V1.5c).
+ * Each form imports this via `@import "./_form-shared.scss";` in a scoped
+ * <style> block so the rules apply to that form's local scope only.
+ */
+.format-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.value-pill {
+  font-family: ui-monospace, "JetBrains Mono", "Menlo", monospace;
+  font-size: 11px;
+  background: var(--surface-strong);
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--text-primary);
+}
+
+.text-input,
+.select-input {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font: inherit;
+}
+.text-input:focus,
+.select-input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}
+
+.slider-input {
+  width: 100%;
+  accent-color: var(--brand-primary);
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.checkbox-input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.radio-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}

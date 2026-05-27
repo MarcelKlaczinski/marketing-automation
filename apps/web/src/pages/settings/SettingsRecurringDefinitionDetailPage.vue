@@ -117,12 +117,14 @@
           <div v-if="upcoming.length === 0" class="state-banner">
             {{ $t("recurringContent.definitions.detail.upcomingEmpty") as string }}
           </div>
-          <ul v-else class="upcoming-list">
-            <li v-for="(ts, i) in upcoming" :key="ts" class="upcoming-row">
-              <span class="upcoming-index mono">#{{ i + 1 }}</span>
-              <span class="upcoming-date">{{ formatDate(ts) }}</span>
-            </li>
-          </ul>
+          <!--
+            Spec 65.V1.5c — q-calendar replaces the 4-row list. Renders the
+            current month + nav buttons; days with scheduled runs show a
+            time-chip per run. The `upcoming` array is unchanged (still the
+            server-resolved next 4 runs); the calendar widget handles the
+            visualisation.
+          -->
+          <UpcomingRunsCalendar v-else :runs="upcoming" />
         </q-tab-panel>
       </q-tab-panels>
 
@@ -152,6 +154,7 @@
 import { defineComponent } from "vue";
 import { apiGet, apiPatch, apiPost } from "src/lib/api";
 import RecurringDefinitionEditModal from "src/components/settings/recurring-content/RecurringDefinitionEditModal.vue";
+import UpcomingRunsCalendar from "src/components/settings/recurring-content/UpcomingRunsCalendar.vue";
 
 interface FormatTypeInfo {
   key: string;
@@ -201,7 +204,7 @@ interface DryRunResult {
 
 export default defineComponent({
   name: "SettingsRecurringDefinitionDetailPage",
-  components: { RecurringDefinitionEditModal },
+  components: { RecurringDefinitionEditModal, UpcomingRunsCalendar },
 
   data: () => ({
     definition: null as RecurringDefinition | null,

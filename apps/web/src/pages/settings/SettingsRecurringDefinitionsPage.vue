@@ -194,8 +194,13 @@ export default defineComponent({
     },
 
     openCreate(): void {
-      this.editing = null;
-      this.editorOpen = true;
+      // Spec 65.V1.5b — new definitions go through the multi-page wizard.
+      // The legacy single-page modal is still wired for EDIT (openEdit) so
+      // existing rows can be tweaked inline; CREATE always uses the wizard.
+      void this.$router.push({
+        name: "wizard-step-format-type",
+        params: { slug: this.slug },
+      });
     },
 
     openDetail(id: string): void {

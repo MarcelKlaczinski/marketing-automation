@@ -51,6 +51,8 @@ interface ProjectSettingsData {
   // Spec 61.4: batch API fields
   llmMode: "sync" | "batch";
   batchApiEnabled: boolean;
+  // Spec 65.V1.5b: project-level default for recurring-content auto-approve
+  recurringAutoApproveDefault: boolean;
 }
 
 export function useSettingsProjectPage(slug: string) {
@@ -202,6 +204,20 @@ export function useSettingsProjectPage(slug: string) {
     invalidateKeys: [["project-settings", slug]],
   });
 
+  // Spec 65.V1.5b — Recurring-content auto-approve project default + monthly
+  // budgets (dry_run + recurring_content_total). The two budgets share a
+  // single sub-form so Marcel can edit both monthly limits in one save.
+  const recurringDefaultsForm = useSectionForm({
+    initialData: () => ({
+      recurringAutoApproveDefault: project.value?.recurringAutoApproveDefault ?? false,
+    }),
+    onSave: (data) =>
+      apiPatch(`/projects/${slug}`, {
+        recurringAutoApproveDefault: data.recurringAutoApproveDefault,
+      }),
+    invalidateKeys: [["project-settings", slug]],
+  });
+
   watch(project, () => {
     basicsForm.resetFromUpstream();
     marketingForm.resetFromUpstream();
@@ -212,6 +228,7 @@ export function useSettingsProjectPage(slug: string) {
     socialForm.resetFromUpstream();
     discoveryForm.resetFromUpstream();
     llmModeForm.resetFromUpstream();
+    recurringDefaultsForm.resetFromUpstream();
   });
 
   return {
@@ -228,5 +245,6 @@ export function useSettingsProjectPage(slug: string) {
     cronStatus,
     triggerCron,
     llmModeForm,
+    recurringDefaultsForm,
   };
 }

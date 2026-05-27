@@ -44,6 +44,14 @@ export interface BriefGenContext<TConfig = Record<string, unknown>> {
    * UI caps invocations per project per day.
    */
   dryRun?: boolean;
+  /**
+   * Spec 65.V1.5b — resolved auto-approve flag. The worker resolves
+   * `resolveAutoApprove(definition, project)` once per fire and threads
+   * the boolean through every per-locale generator. Generators pass it
+   * straight to `persistRecurringBrief` — when true, the brief lands as
+   * `auto_approved` instead of `plan_pending`.
+   */
+  autoApprove?: boolean;
 }
 
 export type GeneratedBriefResult =

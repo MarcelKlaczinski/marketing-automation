@@ -883,6 +883,20 @@
       "when": 1790300000000,
       "tag": "0125_end_slide_toolwiki_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0126_project_recurring_budgets",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0127_auto_approve_and_skip_cooldown",
+      "breakpoints": true
     }
   ]
 }

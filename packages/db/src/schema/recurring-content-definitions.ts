@@ -97,6 +97,23 @@ export const recurringContentDefinitions = pgTable(
 
     isActive: boolean("is_active").notNull().default(true),
 
+    /**
+     * Spec 65.V1.5b — per-definition auto-approve override. NULL = inherit
+     * project default (`projects.recurring_auto_approve_default`). TRUE/FALSE
+     * = win over project default for this definition only. Resolved at
+     * brief-generation time via `resolveAutoApprove(definition, project)`.
+     */
+    autoApproveOverride: boolean("auto_approve_override"),
+
+    /**
+     * Spec 65.V1.5b — last admin-notification timestamp for the brief-skip
+     * cooldown gate. The brief-generator suppresses a skip notification
+     * when `NOW() - last_skip_notified_at < 24h`. NULL = no prior skip
+     * notification (first one always fires). Updated in the same write
+     * that calls `notifyMarcelOfSkip`.
+     */
+    lastSkipNotifiedAt: timestamp("last_skip_notified_at", { withTimezone: true }),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

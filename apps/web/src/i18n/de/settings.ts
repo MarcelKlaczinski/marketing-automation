@@ -826,5 +826,28 @@ export default {
         "Dieses Tool wird auch in {n} anderem Projekt verwendet. | Dieses Tool wird auch in {n} anderen Projekten verwendet.",
       loadingUsage: "Prüfe Cross-Projekt-Verwendung …",
     },
+    // Spec 65.V1.5b — Recurring-content defaults section (auto-approve + budgets)
+    recurringDefaults: {
+      title: "Recurring-Content Defaults",
+      description:
+        "Projekt-Default für Auto-Approve + monatliche Budget-Caps für Dry-Runs und Recurring-Content-Renders.",
+      autoApproveLabel: "Recurring-Briefs automatisch genehmigen",
+      autoApproveHelper:
+        "Wenn aktiviert, überspringen frisch generierte Recurring-Briefs plan_pending und landen direkt im Planner. Pro Definition überschreibbar im Wizard Step 3.",
+      exhausted: "Budget aufgebraucht",
+      monthlyLimitLabel: "Monatslimit (€)",
+      saveSuccess: "Budget aktualisiert.",
+      saveError: "Speichern fehlgeschlagen.",
+      dryRun: {
+        title: "Dry-Run Budget",
+        hint:
+          "Wizard-Vorschauen kosten ~€0.25 pro Run (Haiku Curate + Sonnet Brief). Default: €5/Monat.",
+      },
+      total: {
+        title: "Recurring-Content Budget",
+        hint:
+          "Reale Cron-Fires + Auto-Renderings. Default: €15/Monat (~50-75 Renders).",
+      },
+    },
   },
 };

@@ -190,6 +190,8 @@ export async function generateStoryArcClickbaitBrief(
     // Bridge #3 multi-locale sibling-linking — only stamped when the worker
     // is fanning out to multiple locales.
     ...(ctx.runGroupId && { runGroupId: ctx.runGroupId }),
+    // Spec 65.V1.5b — worker-resolved auto-approve flag.
+    autoApprove: ctx.autoApprove ?? false,
   });
 
   return {

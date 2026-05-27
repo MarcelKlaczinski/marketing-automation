@@ -39,6 +39,52 @@ export default defineConfig((/* ctx */) => ({
       if (!viteConf.build) viteConf.build = {};
       // MarkdownEditor (CodeMirror) bundles to ~644 KB — silence the warning
       viteConf.build.chunkSizeWarningLimit = 700;
+
+      // Spec 65.V1.5c — @quasar/quasar-ui-qcalendar ships CSS with an
+      // invalid chained-pseudo-element selector (`:before.q-range-first:before`)
+      // that lightningcss (Vite 8's default minifier) rejects. esbuild is
+      // more permissive and was the pre-Vite-8 default. We force esbuild
+      // for CSS minify only — the JS minifier preference is unchanged.
+      viteConf.build.cssMinify = "esbuild";
+
+      // Spec 65.V1.5c — React-in-Vue end-slide live preview.
+      //
+      // The end-slide React components (packages/social/src/end-slide-components/)
+      // import `AbsoluteFill` from "remotion" — Remotion's browser bundle is
+      // heavy (player + animation runtime). Since AbsoluteFill is literally
+      // just `<div style="position:absolute;inset:0">`, we alias `remotion`
+      // to a 5-line shim that keeps the preview light.
+      //
+      // The `@marketing-auto/social/end-slide-components` alias maps to the
+      // package source so Vite/esbuild can JIT-compile the .tsx files at
+      // import time — one-component-exception to apps/web/CLAUDE.md's
+      // "no @marketing-auto/* imports" DO-NOT, accepted because vendoring
+      // would force keeping a parallel copy of 7 end-slide components in sync.
+      if (!viteConf.resolve) viteConf.resolve = {};
+      const existingAlias = viteConf.resolve.alias;
+      const aliasArray = Array.isArray(existingAlias)
+        ? existingAlias
+        : existingAlias
+          ? Object.entries(existingAlias).map(([find, replacement]) => ({
+              find,
+              replacement: replacement as string,
+            }))
+          : [];
+      aliasArray.push(
+        {
+          find: /^remotion$/,
+          replacement: new URL("src/lib/end-slide-preview/remotion-shim.ts", import.meta.url)
+            .pathname,
+        },
+        {
+          find: /^@marketing-auto\/social\/end-slide-components$/,
+          replacement: new URL(
+            "../../packages/social/src/end-slide-components/index.ts",
+            import.meta.url,
+          ).pathname,
+        },
+      );
+      viteConf.resolve.alias = aliasArray;
     },
   },
 

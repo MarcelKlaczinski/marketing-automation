@@ -168,6 +168,44 @@ const routes = [
             component: () =>
               import("src/pages/settings/SettingsRecurringDefinitionsPage.vue"),
           },
+          // Spec 65.V1.5b — multi-page wizard. Must be registered BEFORE
+          // `recurring-content/:id` so the static `new` segment wins over
+          // the wildcard param (Vue Router matches in registration order).
+          {
+            path: "recurring-content/new",
+            component: () =>
+              import("src/pages/settings/recurring-content/wizard/WizardLayout.vue"),
+            children: [
+              {
+                path: "",
+                redirect: { name: "wizard-step-format-type" },
+              },
+              {
+                path: "format-type",
+                name: "wizard-step-format-type",
+                component: () =>
+                  import("src/pages/settings/recurring-content/wizard/StepFormatTypePage.vue"),
+              },
+              {
+                path: "config",
+                name: "wizard-step-config",
+                component: () =>
+                  import("src/pages/settings/recurring-content/wizard/StepConfigPage.vue"),
+              },
+              {
+                path: "schedule",
+                name: "wizard-step-schedule",
+                component: () =>
+                  import("src/pages/settings/recurring-content/wizard/StepSchedulePage.vue"),
+              },
+              {
+                path: "review",
+                name: "wizard-step-review",
+                component: () =>
+                  import("src/pages/settings/recurring-content/wizard/StepReviewPage.vue"),
+              },
+            ],
+          },
           {
             path: "recurring-content/:id",
             name: "settings-recurring-content-detail",

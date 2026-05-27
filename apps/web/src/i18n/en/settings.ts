@@ -825,5 +825,26 @@ export default {
         "This tool is also used in {n} other project. | This tool is also used in {n} other projects.",
       loadingUsage: "Checking cross-project usage …",
     },
+    // Spec 65.V1.5b — Recurring-content defaults section (auto-approve + budgets)
+    recurringDefaults: {
+      title: "Recurring content defaults",
+      description:
+        "Project-level auto-approve default plus monthly budget caps for dry-runs and recurring-content renders.",
+      autoApproveLabel: "Auto-approve recurring briefs",
+      autoApproveHelper:
+        "When enabled, freshly generated recurring briefs skip plan_pending and land directly in the planner. Override per definition in Wizard Step 3.",
+      exhausted: "Budget exhausted",
+      monthlyLimitLabel: "Monthly limit (€)",
+      saveSuccess: "Budget updated.",
+      saveError: "Save failed.",
+      dryRun: {
+        title: "Dry-run budget",
+        hint: "Wizard previews cost ~€0.25 per run (Haiku curate + Sonnet brief). Default: €5/month.",
+      },
+      total: {
+        title: "Recurring-content budget",
+        hint: "Real cron-fires + auto-renders. Default: €15/month (~50-75 renders).",
+      },
+    },
   },
 };

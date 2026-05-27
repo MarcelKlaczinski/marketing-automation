@@ -269,6 +269,12 @@
         </FormField>
       </FormSection>
 
+      <!-- Section 6b: Recurring-content defaults (Spec 65.V1.5b) -->
+      <RecurringDefaultsSection
+        :slug="slug"
+        :auto-approve-form="recurringDefaultsForm"
+      />
+
       <!-- Section 7: Social Media -->
       <FormSection
         :title="$t('settings.project.social.title')"
@@ -506,6 +512,7 @@ import FormSelect from "src/components/forms/FormSelect.vue";
 import FormTextarea from "src/components/forms/FormTextarea.vue";
 import GlassButton from "src/components/ui/GlassButton.vue";
 import CronStatusDisplay from "src/components/settings/CronStatusDisplay.vue";
+import RecurringDefaultsSection from "src/components/settings/recurring-content/RecurringDefaultsSection.vue";
 import { useSettingsProjectPage } from "src/composables/useSettingsProjectPage";
 import { apiPost } from "src/lib/api";
 
@@ -520,13 +527,14 @@ export default defineComponent({
     FormTextarea,
     GlassButton,
     CronStatusDisplay,
+    RecurringDefaultsSection,
   },
 
   setup() {
     const route = useRoute();
     const slug = route.params.slug as string;
-    // Returns all form sections including socialForm
-    return useSettingsProjectPage(slug);
+    // Returns all form sections including socialForm + recurringDefaultsForm
+    return { slug, ...useSettingsProjectPage(slug) };
   },
 
   data: () => ({

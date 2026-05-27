@@ -32,6 +32,8 @@ export default {
   dismiss: "Dismiss",
   toggle: "Toggle",
   continue: "Continue",
+  discard: "Discard",
+  today: "Today",
   other: "Other",
   notSet: "Not set",
   add: "Add",

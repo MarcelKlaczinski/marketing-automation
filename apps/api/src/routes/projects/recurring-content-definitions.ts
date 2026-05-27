@@ -36,6 +36,10 @@ import { z } from "zod";
 import { requireAuth } from "../../middleware/auth.ts";
 import { computeNextRun } from "../../lib/recurring-content/compute-next-run.ts";
 import {
+  checkBudgetAvailable,
+  recordBudgetConsumption,
+} from "../../lib/recurring-content/budget-check.ts";
+import {
   enqueueRecurringBriefGenerator,
   runDryRunForDefinition,
 } from "../../workers/recurring-brief-generator.worker.ts";
@@ -72,6 +76,12 @@ const createDefinitionBodySchema = z.object({
   endSlideStrategy: z.string().min(1).max(40).default("rotation"),
   endSlidePool: z.array(z.string().uuid()).default([]),
   isActive: z.boolean().default(true),
+  /**
+   * Spec 65.V1.5b — per-definition auto-approve override.
+   * NULL = inherit project default (`projects.recurringAutoApproveDefault`).
+   * TRUE/FALSE = win over project default for this definition only.
+   */
+  autoApproveOverride: z.boolean().nullable().optional(),
 });
 
 const patchDefinitionBodySchema = createDefinitionBodySchema.partial();
@@ -206,6 +216,8 @@ recurringContentDefinitionsRoutes.post(
       isActive: body.isActive,
     };
     if (body.fixedTemplateKey) insertValues.fixedTemplateKey = body.fixedTemplateKey;
+    if (body.autoApproveOverride !== undefined)
+      insertValues.autoApproveOverride = body.autoApproveOverride;
 
     const created = await createRecurringDefinition(insertValues);
     log.info(
@@ -341,6 +353,38 @@ recurringContentDefinitionsRoutes.post(
     const def = await loadOwnedDefinition(id, project.id);
     if (!def) return c.json({ ok: false, error: "Definition not found" }, 404);
 
+    // Spec 65.V1.5b — pre-flight budget gate. Dry-runs are full LLM-cost
+    // (~20-30 cents each); a monthly cap prevents Marcel-clicking from
+    // accidentally draining the budget while debugging a definition.
+    const DRY_RUN_EXPECTED_COST_CENTS = 25;
+    const budgetState = await checkBudgetAvailable({
+      projectId: project.id,
+      budgetType: "dry_run",
+      expectedCostCents: DRY_RUN_EXPECTED_COST_CENTS,
+    });
+    if (!budgetState.allowed) {
+      log.warn(
+        {
+          projectSlug: slug,
+          definitionId: id,
+          consumed: budgetState.consumed,
+          limit: budgetState.limit,
+        },
+        "dry-run rejected: monthly budget exhausted",
+      );
+      return c.json(
+        {
+          ok: false,
+          error: "dry_run_budget_exceeded",
+          consumed: budgetState.consumed,
+          limit: budgetState.limit,
+          currentMonth: budgetState.currentMonth,
+          message: `Monthly dry-run budget of €${(budgetState.limit / 100).toFixed(2)} consumed (€${(budgetState.consumed / 100).toFixed(2)}). Wait until next month or raise the limit.`,
+        },
+        429,
+      );
+    }
+
     log.info(
       { projectSlug: slug, definitionId: id },
       "recurring-definition dry-run started",
@@ -349,6 +393,15 @@ recurringContentDefinitionsRoutes.post(
       const result = await runDryRunForDefinition({
         definitionId: id,
         projectId: project.id,
+      });
+      // Always record the expected cost — even when the dry-run short-circuits
+      // (skip path) it still consumed Haiku-curate calls before bailing. Using
+      // the constant keeps accounting predictable; finer per-stage accounting
+      // is a V1.6 optimisation if Marcel asks for it.
+      await recordBudgetConsumption({
+        projectId: project.id,
+        budgetType: "dry_run",
+        actualCostCents: DRY_RUN_EXPECTED_COST_CENTS,
       });
       log.info(
         { projectSlug: slug, definitionId: id, status: result.status },

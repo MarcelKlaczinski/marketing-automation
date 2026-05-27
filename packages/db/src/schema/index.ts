@@ -22,4 +22,6 @@ export * from "./tool-persona-scores.ts";
 export * from "./end-slide-definitions.ts";
 export * from "./engagement-resources.ts";
 export * from "./template-usage-log.ts";
+// Spec 65.V1.5b — Per-project monthly budgets (dry-run + recurring-content-total)
+export * from "./project-recurring-budgets.ts";
 // contentGaps exported via content.ts

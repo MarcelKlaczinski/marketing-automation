@@ -56,6 +56,7 @@ import { promptVersionsRoutes } from "./routes/prompt-versions.ts";
 import { projectGoalsRoutes } from "./routes/project-goals.ts";
 import { planRoutes } from "./routes/projects/plans.ts";
 import { recurringContentDefinitionsRoutes } from "./routes/projects/recurring-content-definitions.ts";
+import { recurringBudgetsRoutes } from "./routes/projects/recurring-budgets.ts";
 import { hooksRoutes } from "./routes/projects/hooks.ts";
 import { endSlidesRoutes } from "./routes/projects/end-slides.ts";
 
@@ -194,6 +195,7 @@ app.route("/api/projects", signalsRefreshRoutes);
 app.route("/api/projects", planRoutes);
 app.route("/api/projects", comparisonDiscoveryRoutes);
 app.route("/api/projects", recurringContentDefinitionsRoutes);
+app.route("/api/projects", recurringBudgetsRoutes);
 app.route("/api/projects", hooksRoutes);
 app.route("/api/projects", endSlidesRoutes);
 

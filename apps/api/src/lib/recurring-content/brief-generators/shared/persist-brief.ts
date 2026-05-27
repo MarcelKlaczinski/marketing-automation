@@ -59,6 +59,14 @@ export interface PersistRecurringBriefInput {
    * pre-bridge callers that emit a single brief per fire.
    */
   runGroupId?: string;
+  /**
+   * Spec 65.V1.5b — when true, the brief lands as `auto_approved` instead of
+   * `plan_pending`. Resolved upstream via `resolveAutoApprove(definition,
+   * project)` so the recurring-brief worker decides per fire. The downstream
+   * plan-router treats `auto_approved` identically to a Marcel-approved
+   * brief in `plan_pending` once the planner picks it up.
+   */
+  autoApprove?: boolean;
 }
 
 export async function persistRecurringBrief(
@@ -95,8 +103,14 @@ export async function persistRecurringBrief(
     topicTitle: input.topicTitle,
     locale: input.locale,
     clusterAction: "standalone" as const,
-    approvalRequired: true,
-    approvalStatus: "plan_pending" as const,
+    approvalRequired: !input.autoApprove,
+    // Spec 65.V1.5b — auto-approved briefs land as `auto_approved` which is
+    // already in the partial-unique-index "open" set (per migration 0084
+    // widening); downstream Planner picks them up identically to Marcel-
+    // approved briefs in `plan_pending`.
+    approvalStatus: input.autoApprove
+      ? ("auto_approved" as const)
+      : ("plan_pending" as const),
     suggestedMeta: input.briefText.slice(0, 280),
     recurringMetadata: {
       definitionId: input.definition.id,

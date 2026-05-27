@@ -32,6 +32,8 @@ export default {
   dismiss: "Ablehnen",
   toggle: "Umschalten",
   continue: "Weiter",
+  discard: "Verwerfen",
+  today: "Heute",
   other: "Sonstiges",
   notSet: "Nicht angegeben",
   add: "Hinzufügen",

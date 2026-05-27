@@ -198,6 +198,8 @@ projectRoutes.get("/:slug", async (c) => {
       llmMode: proj.llmMode,
       // Spec 61.4: feature flag so the UI only shows the LLM Mode toggle when batch API is enabled
       batchApiEnabled: getEnv().BATCH_API_ENABLED,
+      // Spec 65.V1.5b: project default for recurring-content auto-approve
+      recurringAutoApproveDefault: proj.recurringAutoApproveDefault,
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),
@@ -452,6 +454,8 @@ const updateProjectSchema = z.object({
   vendorRssSignalCronEnabled: z.boolean().optional(),
   // Spec 61.4: LLM execution mode for batch API opt-in
   llmMode: z.enum(["sync", "batch"]).optional(),
+  // Spec 65.V1.5b: project-level default for recurring-content auto-approve
+  recurringAutoApproveDefault: z.boolean().optional(),
 });
 
 projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c) => {
@@ -498,6 +502,8 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
   if (input.producthuntSignalCronEnabled !== undefined) setFields.producthuntSignalCronEnabled = input.producthuntSignalCronEnabled;
   if (input.vendorRssSignalCronEnabled !== undefined) setFields.vendorRssSignalCronEnabled = input.vendorRssSignalCronEnabled;
   if (input.llmMode !== undefined) setFields.llmMode = input.llmMode;
+  if (input.recurringAutoApproveDefault !== undefined)
+    setFields.recurringAutoApproveDefault = input.recurringAutoApproveDefault;
 
   await db
     .update(projects)
