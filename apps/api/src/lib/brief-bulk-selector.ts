@@ -34,6 +34,9 @@ export const BRIEF_SOURCES = [
   "refresh_detection",
   "manual",
   "comparison_discovery",
+  "release_detection",
+  "star_trend",
+  "recurring",
 ] as const;
 export type BriefSource = (typeof BRIEF_SOURCES)[number];
 

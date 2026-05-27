@@ -99,6 +99,9 @@ export default {
     refresh_detection: "Refresh",
     manual: "Manual",
     comparison_discovery: "Comparison Discovery",
+    release_detection: "Release",
+    star_trend: "Star spike",
+    recurring: "Recurring",
   },
 
   clusterAction: {
