@@ -13,6 +13,10 @@ import {
   type SocialPostRenderInput,
 } from "@marketing-auto/db";
 import { buildFamilyBRenderInput } from "./family-b-render.ts";
+import {
+  buildFamilyAMultiSlideRenderInput,
+  isFamilyAMultiSlideTemplate,
+} from "./family-a-multi-slide-render.ts";
 import { isFamilyBTemplate } from "./stage-family-b-images.step.ts";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -1121,17 +1125,18 @@ export class RenderSlidesStep extends BaseStep<
     const results: Array<z.infer<typeof socialPostResultSchema>> = [];
     const isGrid4 = templateKey === "comparison-grid-4" && input.comparisonGrid4Generated != null;
     const isFamilyB = isFamilyBTemplate(templateKey);
+    const isFamilyAMultiSlide = isFamilyAMultiSlideTemplate(templateKey);
 
-    // Spec 65.8 Day-5-followup — Family-B narrative + image data: load the
-    // article row + (optional) discovery row ONCE before the per-locale loop.
-    // Both are needed by `buildFamilyBRenderInput` to thread the article into
-    // `template.buildInput` + the narrative-LLM call. For non-Family-B
-    // templates this read is skipped (Grid-4 + list-carousel paths build
-    // their snapshot from `input.*` fields directly).
+    // Spec 65.8 Day-5-followup + Spec 65.7-followup-2 — load article + (optional)
+    // discovery ONCE before the per-locale loop. Family-B needs both for the
+    // narrative-LLM call; Family-A multi-slide needs the article (discovery is
+    // a structural pass-through for the 4 comparison templates). Grid-4 +
+    // list-carousel paths build their snapshot from `input.*` directly.
+    const needsArticleLoad = isFamilyB || isFamilyAMultiSlide;
     let familyBArticle: typeof articles.$inferSelect | null = null;
     let familyBDiscovery: ArticleDiscovery | null = null;
     let familyBImagesFromExtras: Array<{ slideIndex: number; cdnUrl: string; photographer?: string | null }> = [];
-    if (isFamilyB) {
+    if (needsArticleLoad) {
       const [articleRow2] = await db
         .select()
         .from(articles)
@@ -1267,6 +1272,130 @@ export class RenderSlidesStep extends BaseStep<
           "Family-B social post created + render job enqueued",
         );
         results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: familyBCaption, hashtags: familyBResult.hashtags });
+        continue;
+      }
+
+      // ─── Family-A multi-slide (Spec 65.7-followup-2) ──────────────────────────
+      // The 4 carousels (comparison-grid-3/-5, head-to-head-vs/-deep-dive)
+      // each have a private buildCompositionInput() that returns a snapshot
+      // with `slideTotal` + per-template cover/tools/verdict/end fields. The
+      // list-carousel default branch below would produce a snapshot missing
+      // those fields and the worker would render 0 slides (Marcel-hit case
+      // 2026-05-27). This branch invokes the template's exported
+      // build<X>RenderSnapshot wrapper via family-a-multi-slide-render.ts.
+      if (isFamilyAMultiSlide) {
+        if (familyBArticle === null) {
+          throw new Error(`Family-A multi-slide render: article ${input.articleId} not found in DB`);
+        }
+        // Synthesize empty discovery when none exists — the 4 multi-slide
+        // templates' buildInput() reads only `article.domainExtras.tools`.
+        const effectiveDiscovery: ArticleDiscovery = familyBDiscovery ?? buildEmptyDiscovery(familyBArticle.id);
+        const familyALocale: "de" | "en" = localePrefix === "en" ? "en" : "de";
+
+        // Recurring-content articles store tool data under
+        // `domain_extras.recurring.formatConfig.toolIds[]` — NOT under the
+        // `domain_extras.tools[]` field that Family-A `buildInput()` reads.
+        // For non-recurring comparisons articles, `domain_extras.tools[]` is
+        // populated by the upstream import pipeline and we leave the article
+        // untouched. For recurring articles, synthesize a `tools[]` shadow
+        // from the already-resolved upstream `input.resolvedTools` so
+        // `template.buildInput()` can enrich with icons + brand colors via
+        // `buildToolLookup()` as designed.
+        const existingTools = (familyBArticle.domainExtras as { tools?: unknown } | null | undefined)?.tools;
+        const needsToolSynthesis = !Array.isArray(existingTools) || existingTools.length === 0;
+        const articleForBuildInput = needsToolSynthesis && input.resolvedTools.length > 0
+          ? {
+              ...familyBArticle,
+              domainExtras: {
+                ...((familyBArticle.domainExtras as object | null) ?? {}),
+                tools: input.resolvedTools.map((rt, i) => ({
+                  slug: rt.slug,
+                  name: rt.name,
+                  isWinner: i === 0,
+                })),
+                ...(input.resolvedTools[0]?.slug !== undefined && { winner: input.resolvedTools[0].slug }),
+              },
+            }
+          : familyBArticle;
+
+        const familyAResult = await buildFamilyAMultiSlideRenderInput({
+          templateKey,
+          article: articleForBuildInput,
+          discovery: effectiveDiscovery,
+          locale: familyALocale,
+          theme: input.theme,
+          brandTokens: input.brandTokens,
+        });
+
+        // Append license-attribution suffix when present (defense in depth —
+        // these templates don't currently stage photographic backgrounds, but
+        // if a future variant does, the suffix gets attached uniformly).
+        const familyACaption = captionAttributionSuffix
+          ? `${familyAResult.caption}\n\n${captionAttributionSuffix}`
+          : familyAResult.caption;
+
+        const [post] = await db
+          .insert(socialPosts)
+          .values({
+            projectId: input.projectId,
+            articleId: input.articleId,
+            platform: "instagram",
+            format: "carousel",
+            status: "draft",
+            theme: input.theme,
+            locale: loc.locale,
+            templateKey,
+            totalSlides: familyAResult.slideTotal,
+            content: {
+              kind: "carousel",
+              slides: [],
+              caption: familyACaption,
+              hashtags: familyAResult.hashtags,
+              // Cast justified: discriminated snapshot shape
+              // `{kind: "family-a-multi-slide", compositionInput, slideTotal}`
+              // — the canonical `SocialPostRenderInput` type doesn't yet
+              // declare this variant; the JSONB column accepts the extra
+              // keys at runtime and the worker discriminates on
+              // `renderInput.kind` before narrowing.
+              renderInput: familyAResult.renderInput as unknown as SocialPostRenderInput,
+            },
+            renderStatus: "pending",
+            generatedAt: new Date(),
+          })
+          .returning({ id: socialPosts.id });
+
+        if (!post) throw new Error(`Failed to insert Family-A multi-slide social post for locale ${loc.locale}`);
+
+        // Worker reads the full snapshot from DB; list-carousel job-data
+        // fields beyond the basics are unused (mirrors Family-B + grid-4 pattern).
+        const jobData: SocialRenderJobData = {
+          socialPostId: post.id,
+          projectId: input.projectId,
+          articleId: input.articleId,
+          brandTokens: input.brandTokens,
+          overrides: resolvedOverrides,
+          templateKey,
+          locale: loc.locale,
+          theme: input.theme,
+          variant: input.variant,
+          articleTitle: localeSibling?.title ?? input.articleTitle,
+          articleSlug: localeSibling?.slug ?? input.articleSlug,
+          projectSlug: input.projectSlug,
+          articleUrl: localeSibling?.articleUrl ?? input.articleUrl,
+          resolvedTools: [],
+          coverEyebrow: "",
+          coverHeadlineLead: "",
+          coverHeadlineHighlight: "",
+          endHeadline: "",
+          endHeadlineHighlight: "",
+        };
+
+        const renderJobId = await enqueueSocialRenderJob(jobData);
+        ctx.log.info(
+          { socialPostId: post.id, renderJobId, locale: loc.locale, templateKey, slideTotal: familyAResult.slideTotal },
+          "Family-A multi-slide social post created + render job enqueued",
+        );
+        results.push({ socialPostId: post.id, locale: loc.locale, renderJobId, caption: familyACaption, hashtags: familyAResult.hashtags });
         continue;
       }
 

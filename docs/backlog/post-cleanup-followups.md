@@ -177,6 +177,88 @@ pillars — the importer rewrites to canonical before lookup. The denormalized
 `clusters.pillar` text field also stays canonical. 8/8 tests including 2
 DB-integration scenarios. **Worker-restart required** on deploy.
 
+### Re-Render UI-Audit — Article-Page Doppel-Button-Falle
+
+**Created 2026-05-27 — Priorität HOCH.**
+
+Auf `/projects/:slug/articles/:id` existieren ZWEI Re-Render-Buttons mit komplett
+unterschiedlicher Semantik, ohne dass die UI das kommuniziert:
+
+1. **Header oben** ([ArticleDetailPage.vue:28-35](apps/web/src/pages/articles/ArticleDetailPage.vue:28)) →
+   `POST /api/articles/:id/re-render` (Spec 65.10) — **triggert full pipeline
+   re-run**, baut Snapshot neu, funktioniert korrekt.
+2. **Per-Post im Social-Tab** ([ArticleSocialTab.vue:193](apps/web/src/pages/articles/tabs/ArticleSocialTab.vue:193)) →
+   `POST /api/social-posts/:id/re-render` (Spec 58.2) — **re-enqueueed
+   nur den vorhandenen Snapshot** mit fresh brandTokens/overrides; rebuildet
+   NIE den compositionInput.
+
+**Konkreter Marcel-Hit 2026-05-27**: Article
+[e5c421a7-60e0-4bec-a2c0-e61bbfaad10a](http://localhost:3051/projects/toolwiki/articles/e5c421a7-60e0-4bec-a2c0-e61bbfaad10a)
+hatte einen pre-Spec-65.7-followup-2 kaputten Snapshot (kein `kind`, kein
+`slideTotal` → 0 Slides). Marcel klickte den per-Post-Button → re-enqueued den
+KAPUTTEN Snapshot → wieder 0 Slides. Per-Post-Button hat keinen Hinweis dass er
+für solche Fälle nicht hilft; User-Erlebnis: "Re-Render macht nichts".
+
+**Hypothesen die zu hinterfragen sind:**
+
+1. **Brauchen wir den per-Post-Button überhaupt?** Was ist der Use Case für
+   "re-render ohne Snapshot-Rebuild"? Vermutlich: schnelle Iteration an Brand
+   Tokens / Template Overrides OHNE LLM-Kosten neu zu zahlen. Wenn ja → Button
+   muss klar als "Cheap Re-Render (uses stored snapshot)" labeled werden mit
+   Cost-Hint `~€0.00`, und der article-level Button als "Full Re-Render
+   (rebuild + render, ~€0.10)".
+2. **Sollte der per-Post-Endpoint kaputte Snapshots erkennen?** Detection:
+   `templateKey ∈ FAMILY_A_MULTI_SLIDE_KEYS && renderInput.kind !== "family-a-multi-slide"`,
+   ODER `templateKey ∈ FAMILY_B_KEYS && renderInput.kind !== "family-b"`.
+   Bei Match → 422 `{ error: "snapshot_outdated", upgradeUrl: "/articles/:id/re-render" }`
+   plus Frontend leitet auf article-level um (mit Hinweis "Snapshot zu alt,
+   triggere Full Re-Render").
+3. **Sollte der per-Post-Endpoint generell zum article-level upgraden?**
+   Wenn der per-Post-Pfad fast nie der richtige ist → komplett deprecaten + nur
+   article-level Re-Render anbieten. Aktuelle Codebase hat den Endpoint seit
+   Spec 58.2 (~6 Monate), Nutzung unklar.
+4. **Ist die UI generell auf article-level Operationen optimiert?** Recurring-
+   Content-Articles haben pro Article meist 1 social_post — der per-Post-Loop
+   im Social-Tab ist semantisch redundant. Nicht-recurring Articles können N
+   social_posts pro Template haben (DE + EN sibling × N Templates).
+
+**Empfohlenes Vorgehen:**
+
+- Phase 0: nutze-analyse `bun --filter @marketing-auto/api ...` query gegen
+  pipeline_runs / social_posts updatedAt-history: wie oft wurde
+  `POST /social-posts/:id/re-render` aufgerufen vs `/articles/:id/re-render`
+  in den letzten 30 Tagen? Wenn <5% per-Post → deprecate.
+- Phase 1 (sofort, wenn per-Post-Endpoint bleibt): Stale-Snapshot-Detection im
+  Endpoint einbauen (Hypothese 2 oben) — 422 mit klarer Error-Message + Frontend
+  leitet automatisch um.
+- Phase 2: UI-Audit:
+  - Per-Post-Button mit explizitem Cost-Hint + "uses stored snapshot" Label
+  - Article-Level-Button prominenter platzieren (zur Zeit klein in Header-Zeile
+    zwischen Sibling-Toggle + Refresh + Sync — bei recurring-content sollte er
+    VIEL prominenter sein da Refresh/Sync hidden sind)
+  - Confirm-Dialog erklärt den Unterschied beider Buttons (oder eliminiert
+    einen, je nach Phase-0-Befund)
+- Phase 3: Backlog-Item zu Health-Check: nach `RenderSlidesStep`-Änderungen
+  automatisch alle bestehenden social_posts-Snapshots gegen die aktuelle
+  `kind`-Discriminator-Logik validieren, kaputte als `renderStatus='failed'`
+  flaggen mit Hinweis "snapshot outdated — re-render via article-level".
+
+**Tech-Debt-Kontext**: Pattern 65.7-followup-2 (Spec 65.7 + 65.8 Day-5-followup)
+hat eingeführt dass Family-A-Multi-Slide-Snapshots `kind: "family-a-multi-slide"`
+tragen (analog zu Family-B `kind: "family-b"`). Pre-Spec-65.7-followup-2
+Snapshots haben den Discriminator nicht → fallen in den flat-snapshot-Pfad → der
+Worker spread sie direkt in `renderComparisonGrid5(input)` ohne `slideTotal` →
+0-Slide-Render ohne Error. Solche Snapshots existieren in der DB bis sie via
+article-level Re-Render neu erzeugt werden. Die per-Post-Endpoint-Falle macht
+sie aus User-Sicht "unrettbar" (Re-Render macht nichts).
+
+**Files berührt vom Folge-Spec:**
+
+- [apps/api/src/routes/social-posts.ts](apps/api/src/routes/social-posts.ts) — Stale-Detection in `re-render` endpoint
+- [apps/web/src/pages/articles/tabs/ArticleSocialTab.vue](apps/web/src/pages/articles/tabs/ArticleSocialTab.vue) — Per-Post-Button Label/Hint + Stale-Response-Handling
+- [apps/web/src/pages/articles/ArticleDetailPage.vue](apps/web/src/pages/articles/ArticleDetailPage.vue) — Article-Level-Button-Prominenz
+- ggf. Backfill-Script falls Phase 3 priorisiert wird
+
 ## Priorität 2 (architectural improvements to the importer)
 
 ### Orphan-Detection im Importer

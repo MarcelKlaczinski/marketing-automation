@@ -1182,6 +1182,42 @@ The Family-B branch sits FIRST because the templateKey is the most specific disc
 
 **Spec 65.7 worker-dispatch gap (flagged, NOT fixed in Day-5-followup):** `comparison-grid-5` / `head-to-head-vs` / `head-to-head-deep-dive` have `renderComparisonGrid5` / `renderHeadToHeadVs` / `renderHeadToHeadDeepDive` functions in `render-server.ts` but no `social-render.worker.ts` if-branch. They'd throw `Unknown templateKey: comparison-grid-5` at render time today. Fix shape is identical to the existing `comparison-grid-3` branch (multi-slide snapshot pattern). Owner: Spec 65.7 follow-up.
 
+## Family-A multi-slide render dispatch (Spec 65.7-followup-2)
+
+Parallel to Family-B but for the 4 multi-slide carousel templates: `comparison-grid-3` (7 slides), `comparison-grid-5` (9 slides), `head-to-head-vs` (6 slides), `head-to-head-deep-dive` (9 slides). The 4 single-still Family-A templates (`comparison-grid-4`, `verdict-per-use-case`, `single-tool-spotlight`, `pro-con-verdict`) stay on the flat-snapshot path — they either have their own dedicated branch (grid-4) or don't read `slideTotal` at render time.
+
+**Canonical helper:** `buildFamilyAMultiSlideRenderInput(args, deps?)` in [packages/pipelines/src/article/social-image/family-a-multi-slide-render.ts](src/article/social-image/family-a-multi-slide-render.ts). Mirrors the Family-B helper shape exactly — DI seam (`FamilyAMultiSlideRenderDeps`), default LLM caller wraps `anthropic.messages()` with soft-fail to template's own fallback, returns a discriminated snapshot `{kind: "family-a-multi-slide", templateKey, slideTotal, locale, theme, compositionInput}`.
+
+The helper dispatches by templateKey to the matching exported `build<X>RenderSnapshot()` wrapper from each template module:
+- `comparisonGrid3.ts` → `buildComparisonGrid3RenderSnapshot`
+- `comparisonGrid5.ts` → `buildComparisonGrid5RenderSnapshot`
+- `headToHeadVs.ts` → `buildHeadToHeadVsRenderSnapshot`
+- `headToHeadDeepDive.ts` → `buildHeadToHeadDeepDiveRenderSnapshot`
+
+Each wrapper is a pure function over `{ctx, generatedContent, articleSlug, locale, theme, brandTokens}` returning `{compositionInput, slideTotal}`. The wrapper reads the LLM-produced `_<key>Extra` payload off `generatedContent` (Spec 60.1 extension pattern), falls back to the template's private `buildFallbackExtra(ctx, locale)` if missing, then calls the template's private `buildCompositionInput()` which assembles `slideTotal` + cover/tools/verdict/end. **All 4 wrappers re-exported from `@marketing-auto/social/templates` barrel.**
+
+**RenderSlidesStep wiring** ([packages/pipelines/src/article/social-image/steps.ts](src/article/social-image/steps.ts)):
+- New `isFamilyAMultiSlide` branch BEFORE the `isGrid4` branch.
+- Reuses the existing `familyBArticle` + `familyBDiscovery` pre-load (variables shared because both branches need the same DB reads — name predates this fix; cleanup deferred).
+- **Recurring-content tool synthesis**: recurring articles store tool data under `domain_extras.recurring.formatConfig.toolIds[]` — NOT under `domain_extras.tools[]` that the Family-A `template.buildInput()` reads. The branch synthesizes a `tools[]` shadow from `input.resolvedTools` (already resolved by upstream `ExtractToolsStep`) BEFORE calling the helper, so `template.buildInput()` can enrich icons + brand colors via `buildToolLookup()` as designed. Non-recurring comparisons articles already have `domain_extras.tools[]` populated by the import pipeline — synthesis is skipped via `!Array.isArray(existingTools) || existingTools.length === 0` gate.
+
+**Worker dispatch** ([apps/api/src/workers/social-render.worker.ts](../../apps/api/src/workers/social-render.worker.ts)):
+- Family-A branch now first checks `snapshot.kind === "family-a-multi-slide"` → unwraps nested `compositionInput`, spreads `brandTokens` + `overrides` from job-data on top, dispatches via `dispatchByTemplateKey`.
+- Falls back to flat-spread for single-still Family-A keys + legacy pre-65.7-followup-2 rows.
+- Three snapshot shapes coexist: nested family-b, nested family-a-multi-slide, flat single-still — documented in the dispatch comment block.
+
+**Known limitation — same duplication risk as Family-B:** the per-template `buildXxxRenderSnapshot` wrappers call `buildCompositionInput()` here AND each template's `render()` calls the same private function internally. If a template adds a new field to its `render()` composition input, both paths must stay in sync. Acceptable trade-off — the alternative (worker calls `template.render(context)` directly) requires aligning `writeSlides` local-disk paths with the worker's R2 upload contract.
+
+**Per-post Re-Render footgun (UI-audit follow-up):** `POST /api/social-posts/:id/re-render` (Spec 58.2) re-enqueues the stored snapshot WITHOUT rebuilding — so pre-65.7-followup-2 broken snapshots (kind missing, no slideTotal) stay broken on re-render. Recovery requires the article-level `POST /api/articles/:id/re-render` (Spec 65.10) which re-runs the full `article:social-image` pipeline. Backlog entry at `docs/backlog/post-cleanup-followups.md` Priorität 1 documents the proposed UI audit + stale-snapshot detection in the per-post endpoint.
+
+**Adding a new multi-slide template branch:**
+1. Implement the template module with a private `buildCompositionInput` + `buildFallbackExtra` pair, and a `SLIDE_TOTAL` constant.
+2. Export a `buildXxxRenderSnapshot(args)` wrapper at the bottom of the template module (mirror `comparisonGrid5.ts`).
+3. Re-export the wrapper + the `*Context` type from `packages/social/src/templates/index.ts`.
+4. Add the templateKey to `FAMILY_A_MULTI_SLIDE_TEMPLATE_KEYS` in `family-a-multi-slide-render.ts` + add a `if (templateKey === "...") { ... }` branch in the helper.
+5. Per the Spec 65.7-followup playbook: add the key to `FAMILY_A_TEMPLATE_KEYS` in `social-render.worker.ts` + extend `dispatchByTemplateKey`.
+6. Worker dispatch already handles the nested-shape narrowing via the `kind === "family-a-multi-slide"` check — no worker change needed beyond step 5.
+
 **Day-5-followup #2 — ExtractToolsStep Family-B Pattern 102 gate (Spec 65.8 follow-up, 2026-05-27):** Live V1-launch surfaced that `ExtractToolsStep` (step 2 of `article:social-image`, runs BEFORE the family branch points) parsed `parsed.tools` from the LLM JSON with `z.array(extractedToolSchema).min(1).max(10).parse(...)`. For Family-B narrative-content briefs the article `bodyMd` is short brief-text — the LLM has nothing to extract, returns JSON without a `tools` field, root-path Zod parse throws `[{code:"invalid_type", expected:"array", received:"undefined", path:[]}]`. Every approve of a recurring-content Family-B brief failed at `extract-tools` until this fix landed.
 
 **Fix shape (three coordinated edits):**

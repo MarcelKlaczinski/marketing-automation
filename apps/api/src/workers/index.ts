@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ArticleSyncPipeline } from "@marketing-auto/adapter-astro-sync";
@@ -105,6 +106,54 @@ const log = createLogger("worker");
 const PID_FILE = join(process.cwd(), "tmp", "worker.pid");
 
 /**
+ * Scan `ps` for any process whose command line matches the worker entrypoint
+ * (`bun [flags] src/workers/index.ts`, also covering `--hot` dev mode and
+ * `--env-file …` invocations). Used by `acquirePidLock` to clean up ghost
+ * workers the PID-file-based logic misses — typical case: the PID file is
+ * stale (points at a dead PID) while a real worker is running with a
+ * different PID, so `worker:restart` would start a fresh worker on top of
+ * the surviving ghost, leaving two workers competing for BullMQ jobs.
+ *
+ * `excludePids` MUST contain at least `process.pid` (so we don't kill
+ * ourselves) plus any PID the caller has already handled.
+ *
+ * Returns the list of matching PIDs that survived the exclude filter. On `ps`
+ * failure or unexpected output, returns an empty array — fail-safe (better to
+ * miss a ghost than mass-kill unrelated bun processes).
+ */
+function findGhostWorkerPids(excludePids: Set<number>): number[] {
+  // `ps -ax -o pid=,command=` works identically on macOS + Linux. The trailing
+  // `=` on each column suppresses headers so we can parse line-by-line.
+  const result = spawnSync("ps", ["-ax", "-o", "pid=,command="], {
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  if (result.status !== 0 || typeof result.stdout !== "string") return [];
+
+  const pids: number[] = [];
+  for (const line of result.stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Lines look like: "  5883 bun --env-file ../../.env src/workers/index.ts"
+    const match = trimmed.match(/^(\d+)\s+(.+)$/);
+    if (!match) continue;
+    const pid = Number.parseInt(match[1]!, 10);
+    const cmd = match[2]!;
+    if (Number.isNaN(pid)) continue;
+    if (excludePids.has(pid)) continue;
+    // Match the worker entrypoint. `src/workers/index.ts` is the canonical
+    // suffix — covers `bun src/...`, `bun --env-file ... src/...`,
+    // `bun --hot src/...`. The `bun run worker:restart` shell wrapper does
+    // NOT contain this substring (it shows as `bun run worker:restart`), so
+    // it's correctly excluded.
+    if (!cmd.includes("src/workers/index.ts")) continue;
+    if (!cmd.startsWith("bun")) continue;
+    pids.push(pid);
+  }
+  return pids;
+}
+
+/**
  * Wait up to `timeoutMs` for `pid` to exit. Polls every 200ms via signal 0.
  * Returns true if the process is gone, false if it's still alive at timeout.
  */
@@ -125,7 +174,7 @@ async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
 }
 
 /**
- * Acquire the worker PID lock. Robust against three pre-existing failure modes:
+ * Acquire the worker PID lock. Robust against four pre-existing failure modes:
  *
  *  1. **Slow-shutdown race**: `pipelineWorker.close()` waits for active BullMQ
  *     jobs to drain (lockDuration = 10 min). The fixed 2-second wait could
@@ -147,6 +196,17 @@ async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
  *     each write their own PID; one loses but believes it owns the lock.
  *     → Fix: after our writeFile, re-read and verify the PID is ours. If not,
  *       another worker won the race — exit cleanly so they can run.
+ *
+ *  4. **Ghost workers from stale PID files**: the PID file points at a dead
+ *     PID while a real worker (started in some prior session with a
+ *     different PID, e.g. before a `tmp/worker.pid` corruption or after a
+ *     manual rm) keeps running. The existing PID-file logic SIGTERMs the
+ *     dead PID (no-op), starts fresh, and now TWO workers run — BullMQ
+ *     load-balances and half the jobs land on stale code.
+ *     → Fix: after handling the PID-file-registered worker, scan `ps` for
+ *       any other process matching the worker entrypoint and SIGTERM each
+ *       one (SIGKILL fallback after 20s). Excludes own PID + already-handled
+ *       PID so we never kill ourselves or double-signal.
  */
 async function acquirePidLock(): Promise<void> {
   await mkdir(join(process.cwd(), "tmp"), { recursive: true });
@@ -198,6 +258,43 @@ async function acquirePidLock(): Promise<void> {
         } catch {
           // Already dead between checks — fine.
         }
+      }
+    }
+  }
+
+  // Failure mode #4 — scan for ghost workers not registered in the PID file.
+  // The existing PID-file logic above only handles the worker the file points
+  // at; if a real worker was started outside that lock (e.g. the file got rm'd
+  // and a fresh worker started fresh, but a prior worker was still draining)
+  // or the file went stale (PID died, but a separate real worker still runs
+  // with a different PID), the PID-file path can't see them. We scan `ps` to
+  // catch + reap those, so the next steps always start in a one-worker world.
+  const excludePids = new Set<number>([process.pid]);
+  if (existingPid !== null) excludePids.add(existingPid);
+  const ghosts = findGhostWorkerPids(excludePids);
+  for (const ghostPid of ghosts) {
+    log.warn({ pid: ghostPid }, "Found ghost worker (not in PID file) — sending SIGTERM");
+    try {
+      process.kill(ghostPid, "SIGTERM");
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "ESRCH") {
+        // Already died between scan and signal — fine.
+        continue;
+      }
+      log.warn(
+        { pid: ghostPid, code: (e as NodeJS.ErrnoException).code },
+        "Ghost-worker SIGTERM raised — continuing"
+      );
+      continue;
+    }
+    const ghostGone = await waitForExit(ghostPid, 20_000);
+    if (!ghostGone) {
+      log.warn({ pid: ghostPid }, "Ghost worker still alive after 20s — escalating to SIGKILL");
+      try {
+        process.kill(ghostPid, "SIGKILL");
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      } catch {
+        // Race with self-exit — fine.
       }
     }
   }

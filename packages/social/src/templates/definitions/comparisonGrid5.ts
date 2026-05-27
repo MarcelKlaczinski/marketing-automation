@@ -261,6 +261,34 @@ function buildCompositionInput(
   };
 }
 
+// ─── Render-snapshot export (Spec 65.7-followup-2) ────────────────────────────
+// Public wrapper around the private `buildCompositionInput` + `buildFallbackExtra`
+// pair so the social-image pipeline's RenderSlidesStep can pre-build the full
+// composition input (including `slideTotal`) as the persisted snapshot.
+// Mirrors `comparisonGrid3.ts` / `headToHeadVs.ts` / `headToHeadDeepDive.ts`.
+export function buildComparisonGrid5RenderSnapshot(args: {
+  ctx: Grid5Context;
+  generatedContent: GeneratedContent | undefined;
+  articleSlug: string;
+  locale: "de" | "en";
+  theme: "dark" | "light";
+  brandTokens: unknown;
+}): { compositionInput: ComparisonGrid5Input; slideTotal: number } {
+  const withExtra = args.generatedContent as
+    | (GeneratedContent & { _grid5Extra?: Grid5Extra })
+    | undefined;
+  const extra = withExtra?._grid5Extra ?? buildFallbackExtra(args.ctx, args.locale);
+  const compositionInput = buildCompositionInput(
+    args.ctx,
+    extra,
+    args.articleSlug,
+    args.locale,
+    args.theme,
+    args.brandTokens,
+  );
+  return { compositionInput, slideTotal: SLIDE_TOTAL };
+}
+
 // ─── Template definition ──────────────────────────────────────────────────────
 
 export const comparisonGrid5Template: TemplateDefinition<Grid5Context> = {

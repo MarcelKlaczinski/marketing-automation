@@ -221,9 +221,16 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
   };
 
   // ─── Build composition input from snapshot (family-specific) ────────────────
-  // Family-B snapshots have shape `{ kind: "family-b", compositionInput, ... }`
-  // (nested). Family-A snapshots are flat — the persisted renderInput IS the
-  // composition input. Both spread fresh brandTokens + overrides from job-data.
+  // Three snapshot shapes coexist:
+  //   1. Family-B: `{ kind: "family-b", compositionInput, ... }` — nested.
+  //   2. Family-A multi-slide (Spec 65.7-followup-2): same nested shape with
+  //      `kind: "family-a-multi-slide"`. Discriminator is needed because the
+  //      4 multi-slide carousels' snapshots carry `slideTotal` + the full
+  //      template-built composition input that RenderSlidesStep pre-assembled
+  //      via `family-a-multi-slide-render.ts`.
+  //   3. Family-A single-still + legacy list-carousel: flat — the persisted
+  //      renderInput IS the composition input. Stays untouched.
+  // All paths spread fresh brandTokens + overrides from job-data on top.
   let fullInput: Record<string, unknown>;
   if (isFamilyB(templateKey)) {
     const snapshot = (await loadRenderSnapshot(data.socialPostId, templateKey)) as {
@@ -241,12 +248,31 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
       overrides: data.overrides,
     };
   } else if (isFamilyA(templateKey)) {
-    const snapshot = await loadRenderSnapshot(data.socialPostId, templateKey);
-    fullInput = {
-      ...snapshot,
-      brandTokens: data.brandTokens,
-      overrides: data.overrides,
-    };
+    const snapshot = (await loadRenderSnapshot(data.socialPostId, templateKey)) as {
+      kind?: string;
+      compositionInput?: Record<string, unknown>;
+    } & Record<string, unknown>;
+    if (snapshot.kind === "family-a-multi-slide") {
+      if (!snapshot.compositionInput) {
+        throw new Error(
+          `Family-A multi-slide snapshot missing compositionInput for post ${data.socialPostId} (templateKey: ${templateKey})`,
+        );
+      }
+      fullInput = {
+        ...snapshot.compositionInput,
+        brandTokens: data.brandTokens,
+        overrides: data.overrides,
+      };
+    } else {
+      // Flat snapshot — Family-A single-still (grid-4, verdict-per-use-case,
+      // single-tool-spotlight, pro-con-verdict) and any pre-65.7-followup-2
+      // rows that may still exist.
+      fullInput = {
+        ...snapshot,
+        brandTokens: data.brandTokens,
+        overrides: data.overrides,
+      };
+    }
   } else {
     throw new Error(`Unknown templateKey: ${templateKey}`);
   }

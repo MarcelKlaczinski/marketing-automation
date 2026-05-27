@@ -270,6 +270,34 @@ function buildCompositionInput(
 
 // ─── Template definition ──────────────────────────────────────────────────────
 
+// ─── Render-snapshot export (Spec 65.7-followup-2) ────────────────────────────
+// Public wrapper around the private `buildCompositionInput` + `buildFallbackExtra`
+// pair so the social-image pipeline's RenderSlidesStep can pre-build the full
+// composition input (including `slideTotal`) as the persisted snapshot.
+// Mirrors `comparisonGrid5.ts` / `headToHeadVs.ts` / `headToHeadDeepDive.ts`.
+export function buildComparisonGrid3RenderSnapshot(args: {
+  ctx: Grid3Context;
+  generatedContent: GeneratedContent | undefined;
+  articleSlug: string;
+  locale: "de" | "en";
+  theme: "dark" | "light";
+  brandTokens: unknown;
+}): { compositionInput: ComparisonGrid3Input; slideTotal: number } {
+  const withExtra = args.generatedContent as
+    | (GeneratedContent & { _grid3Extra?: Grid3Extra })
+    | undefined;
+  const extra = withExtra?._grid3Extra ?? buildFallbackExtra(args.ctx, args.locale);
+  const compositionInput = buildCompositionInput(
+    args.ctx,
+    extra,
+    args.articleSlug,
+    args.locale,
+    args.theme,
+    args.brandTokens,
+  );
+  return { compositionInput, slideTotal: SLIDE_TOTAL };
+}
+
 export const comparisonGrid3Template: TemplateDefinition<Grid3Context> = {
   key: "comparison-grid-3",
   displayName: "3-Tool-Vergleich (Carousel)",

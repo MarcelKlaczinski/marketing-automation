@@ -250,6 +250,34 @@ function buildCompositionInput(
   };
 }
 
+// ─── Render-snapshot export (Spec 65.7-followup-2) ────────────────────────────
+// Public wrapper around the private `buildCompositionInput` + `buildFallbackExtra`
+// pair so the social-image pipeline's RenderSlidesStep can pre-build the full
+// composition input (including `slideTotal`) as the persisted snapshot.
+// Mirrors `comparisonGrid3.ts` / `comparisonGrid5.ts` / `headToHeadDeepDive.ts`.
+export function buildHeadToHeadVsRenderSnapshot(args: {
+  ctx: HeadToHeadVsContext;
+  generatedContent: GeneratedContent | undefined;
+  articleSlug: string;
+  locale: "de" | "en";
+  theme: "dark" | "light";
+  brandTokens: unknown;
+}): { compositionInput: HeadToHeadVsInput; slideTotal: number } {
+  const withExtra = args.generatedContent as
+    | (GeneratedContent & { _headToHeadVsExtra?: HeadToHeadVsExtra })
+    | undefined;
+  const extra = withExtra?._headToHeadVsExtra ?? buildFallbackExtra(args.ctx, args.locale);
+  const compositionInput = buildCompositionInput(
+    args.ctx,
+    extra,
+    args.articleSlug,
+    args.locale,
+    args.theme,
+    args.brandTokens,
+  );
+  return { compositionInput, slideTotal: SLIDE_TOTAL };
+}
+
 export const headToHeadVsTemplate: TemplateDefinition<HeadToHeadVsContext> = {
   key: "head-to-head-vs",
   displayName: "Head-to-Head (2-Tool)",
