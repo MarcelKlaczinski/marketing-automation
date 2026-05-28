@@ -30,6 +30,11 @@ export interface RecurringWizardDraft {
   fixedTemplateKey: string | null;
   /** null = inherit project default; true/false = per-definition override. */
   autoApproveOverride: boolean | null;
+  /**
+   * Spec 65.16 — per-definition image-style preset override.
+   * null = inherit project default; preset key = win over for this definition.
+   */
+  socialImageStylePresetOverride: "dark-neon-grid" | "light-editorial" | "blue-tech-gradient" | null;
   targetLocales: string[];
   /** Furthest step ever reached (0..3). Used to gate forward nav. */
   furthestStep: number;
@@ -47,6 +52,7 @@ function buildInitialDraft(): RecurringWizardDraft {
     templateSelectionStrategy: "lru",
     fixedTemplateKey: null,
     autoApproveOverride: null,
+    socialImageStylePresetOverride: null,
     targetLocales: ["de"],
     furthestStep: 0,
     lastSavedAt: 0,

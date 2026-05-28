@@ -82,6 +82,17 @@ const createDefinitionBodySchema = z.object({
    * TRUE/FALSE = win over project default for this definition only.
    */
   autoApproveOverride: z.boolean().nullable().optional(),
+  /**
+   * Spec 65.16 — per-definition image-style preset override.
+   * NULL = inherit project default (`projects.socialImageStylePreset`).
+   * Set to one of the 3 PRESET_KEYS to win over the project default for
+   * this definition only. Resolved at brief-generation time via
+   * `resolvePresetForArticle()` cascade.
+   */
+  socialImageStylePresetOverride: z
+    .enum(["dark-neon-grid", "light-editorial", "blue-tech-gradient"])
+    .nullable()
+    .optional(),
 });
 
 const patchDefinitionBodySchema = createDefinitionBodySchema.partial();
@@ -218,6 +229,8 @@ recurringContentDefinitionsRoutes.post(
     if (body.fixedTemplateKey) insertValues.fixedTemplateKey = body.fixedTemplateKey;
     if (body.autoApproveOverride !== undefined)
       insertValues.autoApproveOverride = body.autoApproveOverride;
+    if (body.socialImageStylePresetOverride !== undefined)
+      insertValues.socialImageStylePresetOverride = body.socialImageStylePresetOverride;
 
     const created = await createRecurringDefinition(insertValues);
     log.info(

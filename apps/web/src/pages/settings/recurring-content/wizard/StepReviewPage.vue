@@ -35,6 +35,10 @@
         <dd>{{ autoApproveLabel }}</dd>
       </div>
       <div class="review-row">
+        <dt>{{ $t("recurringContent.wizard.review.imageStylePreset") as string }}</dt>
+        <dd>{{ presetOverrideLabel }}</dd>
+      </div>
+      <div class="review-row">
         <dt>{{ $t("recurringContent.wizard.review.config") as string }}</dt>
         <dd>
           <pre class="config-preview">{{ configPreview }}</pre>
@@ -100,6 +104,13 @@ export default defineComponent({
         ? (this.$t("recurringContent.wizard.schedule.autoApproveOn") as string)
         : (this.$t("recurringContent.wizard.schedule.autoApproveOff") as string);
     },
+    presetOverrideLabel(): string {
+      const o = this.d.socialImageStylePresetOverride;
+      if (o === null) {
+        return this.$t("recurringContent.wizard.schedule.imageStylePresetInherit") as string;
+      }
+      return this.$t(`recurringContent.wizard.schedule.imageStylePresetOptions.${o}`) as string;
+    },
   },
 
   mounted() {
@@ -125,6 +136,7 @@ export default defineComponent({
           outputTargets: this.d.outputTargets,
           templateSelectionStrategy: this.d.templateSelectionStrategy,
           autoApproveOverride: this.d.autoApproveOverride,
+          socialImageStylePresetOverride: this.d.socialImageStylePresetOverride,
           isActive: true,
         };
         if (this.d.fixedTemplateKey) {

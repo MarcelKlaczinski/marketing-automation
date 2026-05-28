@@ -388,6 +388,15 @@ export default {
       autoApproveOff: "Für diese Definition deaktivieren",
       autoApproveHint:
         "Auto-approvierte Briefs überspringen plan_pending und landen direkt in der Pipeline.",
+      imageStylePresetLabel: "Bild-Stil Preset (Override)",
+      imageStylePresetInherit: "Projekt-Standard verwenden",
+      imageStylePresetOptions: {
+        "dark-neon-grid": "Dark Neon Grid",
+        "light-editorial": "Light Editorial",
+        "blue-tech-gradient": "Blue Tech Gradient",
+      },
+      imageStylePresetHint:
+        "Überschreibt den Projekt-Default für die NB2-Bilder dieser Definition. Lifestyle nutzt photographic statt NB2.",
     },
     review: {
       title: "Definition überprüfen",
@@ -399,6 +408,7 @@ export default {
       outputTargets: "Output",
       locales: "Sprachen",
       autoApprove: "Auto-Approve",
+      imageStylePreset: "Bild-Stil",
       config: "Konfiguration",
       create: "Definition erstellen",
       createSuccess: "Definition erstellt.",

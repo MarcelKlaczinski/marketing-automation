@@ -190,6 +190,66 @@ describe("POST /api/projects/:slug/recurring-content/definitions", () => {
     );
     expect(res.status).toBe(404);
   });
+
+  it("Spec 65.16 V1.7 — accepts socialImageStylePresetOverride on create", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/recurring-content/definitions`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Preset override test",
+          formatType: "top_n_comparison",
+          formatConfig: { topN: 5, categorySlug: "llm" },
+          frequency: "weekly",
+          socialImageStylePresetOverride: "blue-tech-gradient",
+        }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      ok: boolean;
+      data: { definition: { id: string; socialImageStylePresetOverride: string | null } };
+    };
+    expect(body.ok).toBe(true);
+    expect(body.data.definition.socialImageStylePresetOverride).toBe("blue-tech-gradient");
+  });
+
+  it("Spec 65.16 V1.7 — rejects an invalid preset override (422)", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/recurring-content/definitions`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Bad preset",
+          formatType: "top_n_comparison",
+          formatConfig: { topN: 5 },
+          frequency: "weekly",
+          socialImageStylePresetOverride: "not-a-preset",
+        }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("Spec 65.16 V1.7 — null preset override means inherit project default", async () => {
+    const res = await app.fetch(
+      authed(`/api/projects/${slug}/recurring-content/definitions`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: "Inherit project default",
+          formatType: "top_n_comparison",
+          formatConfig: { topN: 5, categorySlug: "llm" },
+          frequency: "weekly",
+          socialImageStylePresetOverride: null,
+        }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      ok: boolean;
+      data: { definition: { socialImageStylePresetOverride: string | null } };
+    };
+    expect(body.ok).toBe(true);
+    expect(body.data.definition.socialImageStylePresetOverride).toBeNull();
+  });
 });
 
 describe("GET /api/projects/:slug/recurring-content/definitions", () => {

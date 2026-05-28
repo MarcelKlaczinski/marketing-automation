@@ -98,6 +98,30 @@
       </div>
       <small class="hint">{{ $t("recurringContent.wizard.schedule.autoApproveHint") as string }}</small>
     </div>
+
+    <!-- Spec 65.16 — Per-definition image-style preset override. Empty value = inherit project default. -->
+    <label class="field">
+      <span class="label">
+        {{ $t("recurringContent.wizard.schedule.imageStylePresetLabel") as string }}
+      </span>
+      <select v-model="presetOverrideValue" class="select-input" @change="persist">
+        <option value="">
+          {{ $t("recurringContent.wizard.schedule.imageStylePresetInherit") as string }}
+        </option>
+        <option value="dark-neon-grid">
+          {{ $t("recurringContent.wizard.schedule.imageStylePresetOptions.dark-neon-grid") as string }}
+        </option>
+        <option value="light-editorial">
+          {{ $t("recurringContent.wizard.schedule.imageStylePresetOptions.light-editorial") as string }}
+        </option>
+        <option value="blue-tech-gradient">
+          {{ $t("recurringContent.wizard.schedule.imageStylePresetOptions.blue-tech-gradient") as string }}
+        </option>
+      </select>
+      <small class="hint">
+        {{ $t("recurringContent.wizard.schedule.imageStylePresetHint") as string }}
+      </small>
+    </label>
   </WizardStepShell>
 </template>
 
@@ -107,6 +131,7 @@ import WizardStepShell from "src/components/settings/recurring-content/wizard/Wi
 import { useRecurringWizardDraftStore } from "src/stores/recurring-wizard-draft";
 
 type AutoApproveChoice = "inherit" | "on" | "off";
+type PresetOverrideValue = "" | "dark-neon-grid" | "light-editorial" | "blue-tech-gradient";
 
 const KNOWN_PRESETS: Record<string, true> = {
   weekly: true,
@@ -127,6 +152,7 @@ export default defineComponent({
     localeDe: true,
     localeEn: false,
     autoApproveChoice: "inherit" as AutoApproveChoice,
+    presetOverrideValue: "" as PresetOverrideValue,
   }),
 
   computed: {
@@ -164,6 +190,7 @@ export default defineComponent({
         : d.autoApproveOverride
           ? "on"
           : "off";
+    this.presetOverrideValue = d.socialImageStylePresetOverride ?? "";
   },
 
   methods: {
@@ -177,11 +204,14 @@ export default defineComponent({
           : this.autoApproveChoice === "on";
       const persistedFrequency =
         this.frequency === "custom" ? this.cronExpression.trim() : this.frequency;
+      const socialImageStylePresetOverride =
+        this.presetOverrideValue === "" ? null : this.presetOverrideValue;
       this.store.patchDraft({
         frequency: persistedFrequency,
         outputTargets: { article: this.targetArticle, social: this.targetSocial },
         targetLocales: targetLocales.length > 0 ? targetLocales : ["de"],
         autoApproveOverride,
+        socialImageStylePresetOverride,
       });
     },
 

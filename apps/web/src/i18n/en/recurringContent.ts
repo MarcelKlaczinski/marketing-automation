@@ -380,6 +380,15 @@ export default {
       autoApproveOff: "Disable for this definition",
       autoApproveHint:
         "Auto-approved briefs skip plan_pending and go straight into the pipeline.",
+      imageStylePresetLabel: "Image-style preset (override)",
+      imageStylePresetInherit: "Inherit project default",
+      imageStylePresetOptions: {
+        "dark-neon-grid": "Dark Neon Grid",
+        "light-editorial": "Light Editorial",
+        "blue-tech-gradient": "Blue Tech Gradient",
+      },
+      imageStylePresetHint:
+        "Overrides the project default for NB2 image generation on this definition. Lifestyle still uses photographic instead of NB2.",
     },
     review: {
       title: "Review definition",
@@ -391,6 +400,7 @@ export default {
       outputTargets: "Output",
       locales: "Locales",
       autoApprove: "Auto-approve",
+      imageStylePreset: "Image style",
       config: "Configuration",
       create: "Create definition",
       createSuccess: "Definition created.",
