@@ -9,7 +9,7 @@
 import type React from "react";
 import { useMemo } from "react";
 import { resolveBrandTokens } from "../../../lib/brand-tokens.ts";
-import { deriveEmotionalDsTokens } from "../../_shared/family-b/ds-tokens-emotional.ts";
+import { deriveTokensForRender, type PresetKey } from "../../../presets/index.ts";
 import { SlideComposition } from "../../_shared/family-b/SlideComposition.tsx";
 import type { FamilyBEndContent, FamilyBImage } from "../../_shared/family-b/types.ts";
 
@@ -18,6 +18,8 @@ interface InlineEndSlideProps {
   image: FamilyBImage | null;
   brandTokens?: unknown;
   theme: "dark" | "light";
+  /** Spec 65.16 — Visual-style preset; aliases preset values into legacy token slots. */
+  preset?: PresetKey | null;
   slideIndex: number;
   slideTotal: number;
 }
@@ -27,12 +29,13 @@ export const InlineEndSlide: React.FC<InlineEndSlideProps> = ({
   image,
   brandTokens,
   theme,
+  preset,
   slideIndex,
   slideTotal,
 }) => {
   const tokens = useMemo(
-    () => deriveEmotionalDsTokens(resolveBrandTokens(brandTokens), theme),
-    [brandTokens, theme],
+    () => deriveTokensForRender(resolveBrandTokens(brandTokens), theme, preset ?? null),
+    [brandTokens, theme, preset],
   );
 
   return (

@@ -59,6 +59,38 @@ export interface PresetEmotionalDsTokens extends EmotionalDsTokens {
 }
 
 /**
+ * Slide-component-friendly token deriver. Returns `EmotionalDsTokens` when
+ * no preset is active (legacy back-compat) OR `PresetEmotionalDsTokens`
+ * when a preset is set. The discriminator is `"preset" in tokens`.
+ *
+ * Slide components call this unconditionally inside `useMemo`. When
+ * `tokens.preset` is present, they read `tokens.preset.text.accent` etc.;
+ * when absent, they fall back to `tokens.ink.base` (the pre-65.16 path).
+ *
+ * Pure function — no I/O.
+ */
+export function deriveTokensForRender(
+  brandTokens: BrandTokens,
+  theme: "dark" | "light",
+  preset: PresetKey | null | undefined,
+): EmotionalDsTokens | PresetEmotionalDsTokens {
+  if (preset && PRESET_CATALOG[preset]) {
+    return derivePresetEmotionalDsTokens(brandTokens, theme, preset);
+  }
+  return deriveEmotionalDsTokens(brandTokens, theme);
+}
+
+/**
+ * Type guard for the discriminator. Use in slide components to narrow
+ * the union returned by `deriveTokensForRender`.
+ */
+export function hasPresetTokens(
+  tokens: EmotionalDsTokens | PresetEmotionalDsTokens,
+): tokens is PresetEmotionalDsTokens {
+  return "preset" in tokens;
+}
+
+/**
  * Derive emotional DS-tokens with preset overrides applied. Pure function —
  * call inside `useMemo` in slide components.
  */
@@ -72,6 +104,23 @@ export function derivePresetEmotionalDsTokens(
 
   return {
     ...base,
+    // Alias preset values into the LEGACY token slots that slide components
+    // already read. This lets pre-65.16 slides pick up preset typography +
+    // accent colors WITHOUT per-slide code changes — they keep reading
+    // `tokens.typography.fontFamily` / `tokens.accent[500]` / `tokens.ink.base`,
+    // and those values now come from the active preset. The `preset.*`
+    // sub-object stays available for future per-slide branching that needs
+    // the preset key explicitly (e.g. cover dot-grid only on dark-neon-grid).
+    typography: {
+      ...base.typography,
+      fontFamily: resolveFontFamily(entry.typography.displayFontFamily),
+      fontFamilyMono: resolveFontFamily(entry.typography.eyebrowFontFamily),
+      eyebrowLetterSpacing: entry.typography.eyebrowLetterSpacing,
+    },
+    accent: {
+      ...base.accent,
+      500: entry.colors.textAccent,
+    },
     // Override emotion + image surface colors with preset values
     emotion: {
       ...base.emotion,

@@ -36,6 +36,8 @@ interface RenderEndSlideProps {
     theme: "dark" | "light";
     slideIndex: number;
     slideTotal: number;
+    /** Spec 65.16 — forwarded to the inline-end-slide for preset-aware tokens. */
+    preset?: "dark-neon-grid" | "light-editorial" | "blue-tech-gradient" | null;
   }>;
   brandTokens?: unknown;
   theme: "dark" | "light";
@@ -44,6 +46,8 @@ interface RenderEndSlideProps {
   slideTotal: number;
   /** Spec 65.15 — bottom-right brand-stamp watermark on the end slide (bookend). */
   logoUrl?: string | null;
+  /** Spec 65.16 — visual-style preset; passed through to the inline-end-slide. */
+  preset?: "dark-neon-grid" | "light-editorial" | "blue-tech-gradient" | null;
 }
 
 export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
@@ -57,6 +61,7 @@ export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
   slideIndex,
   slideTotal,
   logoUrl,
+  preset,
 }) => {
   if (endSlideData !== undefined) {
     const parsed = endSlideDataSchema.safeParse(endSlideData);
@@ -83,6 +88,7 @@ export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
         theme={theme}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(preset !== undefined && { preset })}
       />
       <DsBrandStamp logoUrl={logoUrl} />
     </>

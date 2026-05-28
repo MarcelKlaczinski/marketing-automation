@@ -52,5 +52,7 @@ export {
 
 export {
   derivePresetEmotionalDsTokens,
+  deriveTokensForRender,
+  hasPresetTokens,
   type PresetEmotionalDsTokens,
 } from "./preset-ds-tokens.ts";

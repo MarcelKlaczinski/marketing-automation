@@ -12,7 +12,7 @@
 import type React from "react";
 import { useMemo } from "react";
 import { resolveBrandTokens } from "../../../lib/brand-tokens.ts";
-import { deriveEmotionalDsTokens } from "../../_shared/family-b/ds-tokens-emotional.ts";
+import { deriveTokensForRender, type PresetKey } from "../../../presets/index.ts";
 import { SlideComposition } from "../../_shared/family-b/SlideComposition.tsx";
 import type { FamilyBHook, FamilyBImage } from "../../_shared/family-b/types.ts";
 
@@ -25,6 +25,8 @@ interface CoverSlideProps {
   slideTotal: number;
   /** Spec 65.15 — bottom-right brand-stamp watermark. */
   logoUrl?: string | null;
+  /** Spec 65.16 — Visual-style preset; aliases preset values into legacy token slots. */
+  preset?: PresetKey | null;
 }
 
 export const CoverSlide: React.FC<CoverSlideProps> = ({
@@ -35,10 +37,11 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
   slideIndex,
   slideTotal,
   logoUrl,
+  preset,
 }) => {
   const tokens = useMemo(
-    () => deriveEmotionalDsTokens(resolveBrandTokens(brandTokens), theme),
-    [brandTokens, theme],
+    () => deriveTokensForRender(resolveBrandTokens(brandTokens), theme, preset ?? null),
+    [brandTokens, theme, preset],
   );
 
   return (

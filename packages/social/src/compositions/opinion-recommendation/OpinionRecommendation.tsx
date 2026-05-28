@@ -41,6 +41,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
     locale,
     endSlideData,
     logoUrl,
+    preset,
   } = props;
   const image = findImageForSlide(images, slideIndex);
 
@@ -56,6 +57,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
         slideIndex={slideIndex}
         slideTotal={slideTotal}
         {...(logoUrl !== undefined && { logoUrl })}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -71,6 +73,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
         locale={locale}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -88,6 +91,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
         locale={locale}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -104,6 +108,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
         locale={locale}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -121,6 +126,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
       slideIndex={slideIndex}
       slideTotal={slideTotal}
       {...(logoUrl !== undefined && { logoUrl })}
+      {...(preset !== undefined && { preset })}
     />
   );
 };

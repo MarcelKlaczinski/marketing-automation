@@ -9,7 +9,7 @@
 import type React from "react";
 import { useMemo } from "react";
 import { resolveBrandTokens } from "../../../lib/brand-tokens.ts";
-import { deriveEmotionalDsTokens } from "../../_shared/family-b/ds-tokens-emotional.ts";
+import { deriveTokensForRender, type PresetKey } from "../../../presets/index.ts";
 import { SlideComposition } from "../../_shared/family-b/SlideComposition.tsx";
 import type { FamilyBHook, FamilyBImage } from "../../_shared/family-b/types.ts";
 
@@ -18,6 +18,8 @@ interface CoverSlideProps {
   image: FamilyBImage | null;
   brandTokens?: unknown;
   theme: "dark" | "light";
+  /** Spec 65.16 — Visual-style preset; aliases preset values into legacy token slots. */
+  preset?: PresetKey | null;
   locale: "de" | "en";
   slideIndex: number;
   slideTotal: number;
@@ -30,14 +32,15 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
   image,
   brandTokens,
   theme,
+  preset,
   locale,
   slideIndex,
   slideTotal,
   logoUrl,
 }) => {
   const tokens = useMemo(
-    () => deriveEmotionalDsTokens(resolveBrandTokens(brandTokens), theme),
-    [brandTokens, theme],
+    () => deriveTokensForRender(resolveBrandTokens(brandTokens), theme, preset ?? null),
+    [brandTokens, theme, preset],
   );
   const itemCountLabel = locale === "de" ? "3 Lifestyle-Momente" : "3 lifestyle moments";
 

@@ -40,6 +40,7 @@ export const LifestyleListicle: React.FC<LifestyleListicleInput> = (props) => {
     locale,
     endSlideData,
     logoUrl,
+    preset,
   } = props;
   const image = findImageForSlide(images, slideIndex);
 
@@ -55,6 +56,7 @@ export const LifestyleListicle: React.FC<LifestyleListicleInput> = (props) => {
         slideIndex={slideIndex}
         slideTotal={slideTotal}
         {...(logoUrl !== undefined && { logoUrl })}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -69,6 +71,7 @@ export const LifestyleListicle: React.FC<LifestyleListicleInput> = (props) => {
         theme={theme}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -87,6 +90,7 @@ export const LifestyleListicle: React.FC<LifestyleListicleInput> = (props) => {
         theme={theme}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(preset !== undefined && { preset })}
       />
     );
   }
@@ -104,6 +108,7 @@ export const LifestyleListicle: React.FC<LifestyleListicleInput> = (props) => {
       slideIndex={slideIndex}
       slideTotal={slideTotal}
       {...(logoUrl !== undefined && { logoUrl })}
+      {...(preset !== undefined && { preset })}
     />
   );
 };
