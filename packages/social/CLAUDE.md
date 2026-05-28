@@ -313,3 +313,24 @@ The `emoji` prop was removed in Spec 52a. The component never renders emoji.
 **Provider credentials live in the vault** (Spec 64.20 pattern). Service names: `pexels` / `unsplash` / `pixabay`. Required keys: `api_key` / `access_key` / `api_key`. Marcel enters them via `/settings/credentials`; the verify button per provider runs `verifyPexels/Unsplash/Pixabay` from each adapter package against a known search query. Boot-time smoke check: `bun --filter @marketing-auto/api verify-image-providers` exits 0 when all 3 verify.
 
 **Free-tier API convention** — Pexels/Unsplash/Pixabay are free-tier providers, so the calls deliberately do NOT go through `cost-tracker`. This matches Reddit / ProductHunt / HackerNews / vendor-rss adapters; the cost-tracker exists for budget enforcement on paid APIs (Anthropic, Replicate, DataForSEO, Voyage, Nano Banana). Spec §4 budgets €0.00 for provider calls and ~€0.20-0.25 total per render comes entirely from the LLM steps (query-keywords + vision-pick + narrative).
+
+## Visual-Style Preset Catalog (Spec 65.16)
+
+`src/presets/` is the catalog of signature visual-languages applied to Family-B Cover + emotion-heavy slides when the project routes through Nano Banana 2. Three V1.6 presets — `dark-neon-grid` / `light-editorial` / `blue-tech-gradient` — each defined as one `PresetCatalogEntry` (colors + typography + NB2-prompt direction).
+
+**Two subpaths, JSX-free split:**
+
+- `@marketing-auto/social/presets` — full surface, includes `fonts.ts` which calls `loadFont()` at module level. Composition-side consumers only (slide components).
+- `@marketing-auto/social/presets/catalog` — slim re-export of `catalog.ts` + `nb2-prompts.ts` (pure, no Remotion side-effects). Used by `apps/api` (resolveImageStylePreset helper) + `packages/pipelines` (NB2 orchestrator + StageFamilyBImagesStep). Same pattern as the `end-slide-components/types` split (Spec 65.11).
+
+**Adding a new preset** (e.g. BK Solar `warm-solar-gold`):
+1. Add the key to `PRESET_KEYS` const tuple in `catalog.ts`.
+2. Add a `PresetCatalogEntry` to `PRESET_CATALOG` with distinct color + typography + nb2 direction (per design-skill "vary aesthetics, never converge").
+3. Write a migration that DROPs + recreates BOTH CHECK constraints with the widened set: `projects.social_image_style_preset` + `recurring_content_definitions.social_image_style_preset_override`. Mirror migration 0130's shape.
+4. Mirror the widening on the Drizzle `$type<>()` unions for both columns.
+5. Widen the Zod `.enum(...)` in `apps/api/src/routes/projects.ts` `updateProjectSchema.socialImageStylePreset` + the `apps/web/src/composables/useSettingsProjectPage.ts` `ImageStylePreset` field union + the `RecurringDefaultsSection` `PRESET_OPTIONS` array + i18n keys (DE+EN) under `settings.recurringDefaults.imageStylePreset.options.<key>.{label,description}`.
+6. If the preset needs a NEW distinctive font, verify it ships in `@remotion/google-fonts/` BEFORE adding to typography overrides — Fontshare fonts (Clash Display / Cabinet Grotesk / Satoshi) are NOT in the package and would require WOFF2 hosting. V1.6 deliberately limited itself to Fraunces / JetBrainsMono / SpaceGrotesk / Inter Variable — all verified in the dist/esm/ listing.
+
+**NB2 prompt assembly** (pure `buildNB2Prompt(input)` in `presets/nb2-prompts.ts`) — Gemini Image API has NO `negativePrompt` field (verified live, Memory D18). Anti-AI-slop avoidance is folded into the positive prompt as an `AVOID: NOT <phrase>, NOT <phrase>` block at the end. Same constraint applies to aspect-ratio: `"vertical 4:5 (portrait)"` is baked into prompt prose, NOT delivered via a request-body field (the `aspectRatio` field on `GenerateImageInput` is audit-only). When adding new generative-image features, follow this "fold into positive prompt" pattern unless the underlying API actually accepts a negative-prompt parameter.
+
+**`license.provider` was widened** from `("pexels"|"unsplash"|"pixabay")` to include `"nano-banana-2"` so the NB2-generated `FamilyBImageEntry` can fit the existing `domain_extras.familyBImages[]` cache without a parallel schema. `buildCaptionAttribution` skips `nano-banana-2` for credit lines (same posture as `pixabay` — no human photographer, no attribution required). Adding a new image provider that doesn't carry photographer credit follows the same path: widen the enum + add a skip branch in `buildCaptionAttribution`.

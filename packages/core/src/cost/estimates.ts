@@ -138,6 +138,13 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // doesn't emit the "no estimate found" warn at the boundary.
     [COST_OPS.HERO_IMAGE_BATCH_SUBMIT]: 0.25,
     [COST_OPS.HERO_IMAGE_BATCH_RESULT]: 0.25,
+    // Spec 65.16: per-slide NB2 social-image generation. Per-call gate stays
+    // at the same conservative €0.25 worst-case ceiling so a Pro-tier route
+    // can't bypass the budget. Real cost is ~€0.062 at the default 1k/standard
+    // model and lands per-call via the adapter's `track()` wrapper using
+    // `nanoBananaImageCostEur({model, resolution})`. A 4-slide Family-B
+    // carousel adds up to ~€0.25 sync / ~€0.12 batch.
+    [COST_OPS.SOCIAL_NB2_IMAGE]: 0.25,
   },
   smtp: {
     [COST_OPS.SMTP_MAGIC_LINK]: 0.001,

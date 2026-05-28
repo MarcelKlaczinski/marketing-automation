@@ -133,6 +133,23 @@ export const familyBCommonInputSchema = z.object({
    * Pipeline resolves per-theme via `resolveLogoUrl(projectId, theme)`.
    */
   logoUrl: z.string().nullable().optional(),
+  /**
+   * Spec 65.16 — Resolved visual-style preset for this render. Frozen at
+   * `buildFamilyBRenderInput()` time from the 3-tier cascade (content-level
+   * choice > definition override > project default). Optional + nullable
+   * for back-compat with pre-65.16 snapshots; missing means "use the legacy
+   * `deriveEmotionalDsTokens(brandTokens, theme)` defaults".
+   *
+   * V1.6 ships this field carrying the preset value through the snapshot;
+   * slide-component DS-token reads (per-preset typography + accent colors
+   * via `derivePresetEmotionalDsTokens`) land in V1.7. Today the preset
+   * already drives the signature NB2 image; text overlay tuning is the
+   * follow-up surface.
+   */
+  preset: z
+    .enum(["dark-neon-grid", "light-editorial", "blue-tech-gradient"])
+    .nullable()
+    .optional(),
 });
 
 export type FamilyBCommonInput = z.infer<typeof familyBCommonInputSchema>;

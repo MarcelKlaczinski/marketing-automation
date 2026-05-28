@@ -10,7 +10,8 @@
       "@marketing-auto/adapter-voyage": ["../../packages/adapters/voyage/src/index.ts"],
       "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"],
       "@marketing-auto/shared/hero-variants": ["../../packages/shared/src/hero-variants.ts"],
-      "@marketing-auto/social/photographic": ["../../packages/social/src/photographic/index.ts"]
+      "@marketing-auto/social/photographic": ["../../packages/social/src/photographic/index.ts"],
+      "@marketing-auto/social/presets/catalog": ["../../packages/social/src/presets/catalog-export.ts"]
     }
   },
   "include": ["src/**/*", "test/**/*"]

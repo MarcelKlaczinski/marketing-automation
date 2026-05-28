@@ -844,6 +844,26 @@ export default {
       autoApproveLabel: "Auto-approve recurring briefs",
       autoApproveHelper:
         "When enabled, freshly generated recurring briefs skip plan_pending and land directly in the planner. Override per definition in Wizard Step 3.",
+      imageStylePreset: {
+        label: "Image-style preset (project default)",
+        options: {
+          "dark-neon-grid": {
+            label: "Dark Neon Grid",
+            description:
+              "Cinematic dark with electric blue + purple neon. Tech-magic — pairs with Story-Arc + Opinion.",
+          },
+          "light-editorial": {
+            label: "Light Editorial",
+            description:
+              "Warm cream + serif typography. Kinfolk magazine feel — pairs with Lifestyle + Educational.",
+          },
+          "blue-tech-gradient": {
+            label: "Blue Tech Gradient",
+            description:
+              "SaaS energy, blue gradient, optimistic tech. Pairs with Head-to-Head + Comparison.",
+          },
+        },
+      },
       exhausted: "Budget exhausted",
       monthlyLimitLabel: "Monthly limit (€)",
       saveSuccess: "Budget updated.",

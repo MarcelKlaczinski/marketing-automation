@@ -114,6 +114,21 @@ export const recurringContentDefinitions = pgTable(
      */
     lastSkipNotifiedAt: timestamp("last_skip_notified_at", { withTimezone: true }),
 
+    /**
+     * Spec 65.16 — per-definition image-style preset override. NULL = inherit
+     * project default (`projects.social_image_style_preset`). Set to one of
+     * the values in `PRESET_KEYS` from `@marketing-auto/social/presets` to
+     * win over the project default. Resolved at brief-generation time via
+     * `resolveImageStylePreset(definition, project, contentLevelChoice)`.
+     *
+     * CHECK constraint enforces the closed enum at the DB layer. Adding a
+     * new preset = (a) extend PRESET_KEYS in the catalog, (b) write a
+     * migration that DROPs + recreates this CHECK with the widened set.
+     */
+    socialImageStylePresetOverride: text(
+      "social_image_style_preset_override",
+    ).$type<"dark-neon-grid" | "light-editorial" | "blue-tech-gradient">(),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

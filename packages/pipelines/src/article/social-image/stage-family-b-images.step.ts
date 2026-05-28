@@ -37,12 +37,20 @@ import {
   type FamilyBImageEntry,
   familyBImagesArraySchema,
 } from "@marketing-auto/social/photographic";
+import { type SlideRole } from "@marketing-auto/social/presets/catalog";
 import { articles, db, eq, sql } from "@marketing-auto/db";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
 import {
+  generateNB2ImagesForSlides,
+  type NB2ImageSlideRequest,
+  type OrchestrateNB2ImagesResult,
+} from "./nb2/orchestrator.ts";
+import { resolvePresetForArticle } from "./nb2/resolve-preset.ts";
+import {
   type ImageSlideRequest,
   getImagesForSlides,
+  type OrchestrateImagesResult,
 } from "./photographic/orchestrator.ts";
 import { readAdapterCredsForProject } from "./photographic/read-creds.ts";
 
@@ -53,7 +61,13 @@ import { readAdapterCredsForProject } from "./photographic/read-creds.ts";
  * not listed render gradient-only. Indexed by slideIndex; the orchestrator
  * passes through one request per index.
  */
-const FAMILY_B_IMAGE_SLIDES: Readonly<Record<string, ReadonlyArray<{ slideIndex: number; beat: string }>>> = {
+// Spec 65.16 — `beat` is typed as `SlideRole` (not bare `string`) so the
+// NB2 path's `slideRole: s.narrativeBeat` flow stays type-safe end-to-end.
+// Adding a new beat string without extending `SlideRole` is a compile-time
+// error in this map.
+const FAMILY_B_IMAGE_SLIDES: Readonly<
+  Record<string, ReadonlyArray<{ slideIndex: number; beat: SlideRole }>>
+> = {
   // story-arc-clickbait — Cover/Conflict/Resolution/Payoff (Setup + Lesson stay gradient-only)
   "story-arc-clickbait": [
     { slideIndex: 0, beat: "cover" },
@@ -127,12 +141,49 @@ export interface StageFamilyBImagesDeps {
   }>;
   /** Default is `getImagesForSlides` from `./photographic/orchestrator.ts`. */
   runOrchestrator?: typeof getImagesForSlides;
+  /**
+   * Spec 65.16 — NB2 orchestrator dep, mirrors `runOrchestrator` shape so
+   * tests can inject a stub when exercising the NB2 routing branch.
+   * Default is `generateNB2ImagesForSlides` from `./nb2/orchestrator.ts`.
+   */
+  runNB2Orchestrator?: typeof generateNB2ImagesForSlides;
 }
 
 const DEFAULT_DEPS: StageFamilyBImagesDeps = {
   loadCredentials: readAdapterCredsForProject,
   runOrchestrator: getImagesForSlides,
+  runNB2Orchestrator: generateNB2ImagesForSlides,
 };
+
+// ─── Image provider routing (Spec 65.16 §3.4) ────────────────────────────
+
+type ImageProvider = "nano-banana-2" | "photographic";
+
+/**
+ * Content-type default routing. Lifestyle stays photographic per Marcel-
+ * Decision §3.4 (authentic-lifestyle fits real-photos). Everything else
+ * routes through NB2 for signature visual quality. Mirrors the table in
+ * `apps/api/src/lib/recurring-content/resolve-image-style-preset.ts` —
+ * keep these in sync when adding a Family-B template.
+ */
+const CONTENT_TYPE_PROVIDER_DEFAULT: Record<string, ImageProvider> = {
+  "story-arc-clickbait": "nano-banana-2",
+  "opinion-recommendation": "nano-banana-2",
+  "lifestyle-listicle": "photographic",
+};
+
+function isImageProvider(value: unknown): value is ImageProvider {
+  return value === "nano-banana-2" || value === "photographic";
+}
+
+function resolveProvider(templateKey: string, contentLevelChoice: unknown): ImageProvider {
+  if (isImageProvider(contentLevelChoice)) return contentLevelChoice;
+  return CONTENT_TYPE_PROVIDER_DEFAULT[templateKey] ?? "nano-banana-2";
+}
+
+// Preset resolution lives in `./nb2/resolve-preset.ts` since Spec 65.16 — it's
+// shared with `RenderSlidesStep` so the image preset + text overlay preset
+// always match. See `resolvePresetForArticle()`.
 
 // ─── Step ──────────────────────────────────────────────────────────────────────
 
@@ -217,7 +268,99 @@ export class StageFamilyBImagesStep extends BaseStep<StageInput, StageOutput> {
       beatText: narrative?.[beat]?.text ?? hookData.rendered ?? "",
     }));
 
-    // 3. Load provider credentials from vault.
+    // 3. Spec 65.16 — resolve image provider + preset.
+    //    Provider: content-level choice > content-type default (lifestyle →
+    //    photographic, story-arc/opinion → nano-banana-2). Preset: content-
+    //    level choice > definition override > project default. Both come from
+    //    `recurring.formatConfig.*` snapshot frozen at brief-generation time
+    //    (the brief-generator stamped them per Marcel's wizard choices).
+    const contentLevelPreset = recurring?.formatConfig?.imageStylePreset ?? null;
+    const contentLevelProvider = recurring?.formatConfig?.imageProvider ?? null;
+    const provider = resolveProvider(tk, contentLevelProvider);
+
+    // Branch 1: Nano Banana 2 — preset-driven signature image generation.
+    if (provider === "nano-banana-2") {
+      // Resolve preset via the shared 3-tier helper (Spec 65.16 §3.3).
+      // Single source of truth shared with `RenderSlidesStep` so the image
+      // and the text overlay end up using the same preset.
+      const preset = await resolvePresetForArticle({
+        projectId: input.projectId,
+        definitionId: recurring?.definitionId ?? null,
+        contentLevelChoice: contentLevelPreset,
+      });
+
+      const nb2Slides: NB2ImageSlideRequest[] = slides.map((s) => ({
+        slideIndex: s.slideIndex,
+        // Safe cast — `ImageSlideRequest.narrativeBeat` is typed `string` upstream
+        // (photographic interface) but the SOURCE values come from
+        // `FAMILY_B_IMAGE_SLIDES.beat: SlideRole`, so this can only widen at the
+        // photographic boundary then narrow back at the NB2 boundary. Drift
+        // protection lives on the source map's type, not on this cast.
+        slideRole: s.narrativeBeat as SlideRole,
+        narrativeBeat: s.narrativeBeat,
+        beatText: s.beatText,
+        hookContext: s.hookContext,
+      }));
+
+      const nb2Orchestrator = this.deps.runNB2Orchestrator ?? generateNB2ImagesForSlides;
+      const nb2Result: OrchestrateNB2ImagesResult = await nb2Orchestrator({
+        projectId: input.projectId,
+        projectSlug: input.projectSlug,
+        articleId: input.articleId,
+        formatType: tk,
+        preset,
+        slides: nb2Slides,
+        existingCache,
+        ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+      });
+
+      // Persist back to articles.domain_extras.familyBImages via jsonb_set.
+      if (nb2Result.entries.length > 0 || existingCache.length > 0) {
+        await db
+          .update(articles)
+          .set({
+            domainExtras: sql`jsonb_set(
+              COALESCE(${articles.domainExtras}, '{}'::jsonb),
+              '{familyBImages}',
+              ${JSON.stringify(nb2Result.entries)}::jsonb
+            )`,
+          })
+          .where(eq(articles.id, input.articleId));
+      }
+
+      ctx.log.info(
+        {
+          articleId: input.articleId,
+          templateKey,
+          provider: "nano-banana-2",
+          preset,
+          ...nb2Result.stats,
+          failedSlides: nb2Result.failedSlideIndices,
+        },
+        "StageFamilyBImagesStep: nb2 pipeline complete",
+      );
+
+      // Map NB2 stats shape to the FamilyBImagesStats output schema. NB2
+      // path has no provider candidates (it's generative); `freshGenerations`
+      // maps to `freshStages` for shape compat with consumers reading either
+      // path's output uniformly.
+      return {
+        ...input,
+        familyBImages: nb2Result.entries,
+        familyBImagesStats: {
+          templateKey,
+          cacheHits: nb2Result.stats.cacheHits,
+          freshStages: nb2Result.stats.freshGenerations,
+          failures: nb2Result.stats.failures,
+          totalProviderCandidates: 0,
+        },
+      } as StageOutput;
+    }
+
+    // Branch 2: Photographic pipeline (pre-65.16 default path, retained for
+    // lifestyle-listicle + any content-level photographic override).
+
+    // Load provider credentials from vault.
     const credentials = await this.deps.loadCredentials(input.projectId);
     if (!credentials.pexels && !credentials.unsplash && !credentials.pixabay) {
       ctx.log.warn(
@@ -227,12 +370,12 @@ export class StageFamilyBImagesStep extends BaseStep<StageInput, StageOutput> {
       return passThroughEmpty(input, templateKey);
     }
 
-    // 4. Resolve brand primary color (used by vision-pick for harmony scoring).
+    // Resolve brand primary color (used by vision-pick for harmony scoring).
     const brandPrimaryColor = resolveBrandPrimary(extras);
 
-    // 5. Call the orchestrator. Soft-fail per slide (see orchestrator comment).
+    // Call the photographic orchestrator. Soft-fail per slide.
     const orchestrator = this.deps.runOrchestrator ?? getImagesForSlides;
-    const result = await orchestrator({
+    const result: OrchestrateImagesResult = await orchestrator({
       projectId: input.projectId,
       projectSlug: input.projectSlug,
       articleId: input.articleId,
@@ -245,8 +388,8 @@ export class StageFamilyBImagesStep extends BaseStep<StageInput, StageOutput> {
       ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
     });
 
-    // 6. Persist back to articles.domain_extras.familyBImages via jsonb_set
-    //    (preserves sibling keys; never overwrites the whole column).
+    // Persist back to articles.domain_extras.familyBImages via jsonb_set
+    // (preserves sibling keys; never overwrites the whole column).
     if (result.entries.length > 0 || existingCache.length > 0) {
       await db
         .update(articles)
@@ -264,6 +407,7 @@ export class StageFamilyBImagesStep extends BaseStep<StageInput, StageOutput> {
       {
         articleId: input.articleId,
         templateKey,
+        provider: "photographic",
         ...result.stats,
         failedSlides: result.failedSlideIndices,
       },
@@ -306,9 +450,14 @@ export function parseExistingCache(extras: Record<string, unknown>): FamilyBImag
 }
 
 export function parseRecurring(extras: Record<string, unknown>): {
+  definitionId?: string;
   formatConfig?: {
     hookData?: { rendered?: string; variables?: Record<string, string> };
     narrative?: Record<string, { text?: string }>;
+    /** Spec 65.16 content-level preset choice (frozen at brief-generation time). */
+    imageStylePreset?: string;
+    /** Spec 65.16 content-level provider choice — overrides content-type-default routing. */
+    imageProvider?: string;
   };
 } | null {
   const recurring = extras.recurring;

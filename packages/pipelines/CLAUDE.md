@@ -1255,3 +1255,23 @@ lobe-icons (AI-focused) → simple-icons (universal monochrome) → iconify (log
 **`@lobehub/icons-static-svg` is the source-of-truth package** (NOT `static-png`). Static-png is kept as a defensive fallback for the handful of brands lobe ships only as PNG. The SVG variant is vector + extractable via regex; PNG was the original V1 choice but became second-class once Spec 65.2's `extractBrandColors` + wordmark pickup landed.
 
 **The `project_brand_assets` (Spec 52b) cache is a side-effect** of `resolveToolIcon` — every successful chain-hit writes the resolved SVG + metadata to that table. The chain READS from this cache first on the next call to the same project+slug. After ANY adapter logic change (mapping update, new extractor branch, wordmark fetch), the cache MUST be invalidated before the next backfill or the new logic stays dormant. Production-grade solution (Redis pub-sub) is deferred to "Engine reads-from-DB" backlog item.
+
+## Family-B image-style preset routing (Spec 65.16)
+
+The `article:social-image` pipeline routes Family-B image generation along **two orthogonal axes**:
+
+1. **Provider** — `nano-banana-2` (signature NB2 generation) vs `photographic` (Pexels/Unsplash/Pixabay search). Content-type default (`story-arc-clickbait` + `opinion-recommendation` → NB2; `lifestyle-listicle` → photographic) with content-level override at `domain_extras.recurring.formatConfig.imageProvider`.
+2. **Style-preset** — `dark-neon-grid` / `light-editorial` / `blue-tech-gradient` (NB2 only — the photographic pipeline uses Sonnet vision-pick instead). 3-tier resolution: content-level > definition-override > project-default.
+
+**Shared resolver** [`packages/pipelines/src/article/social-image/nb2/resolve-preset.ts`](src/article/social-image/nb2/resolve-preset.ts) `resolvePresetForArticle({projectId, definitionId, contentLevelChoice})` is called from BOTH `StageFamilyBImagesStep` (for the NB2 prompt) AND `RenderSlidesStep` (for text-overlay tokens). Two indexed DB lookups per render; the duplication is cheap and ensures image-preset + text-overlay-preset always match.
+
+**`StageFamilyBImagesStep` branching** ([`src/article/social-image/stage-family-b-images.step.ts`](src/article/social-image/stage-family-b-images.step.ts)):
+
+- Branch 1: `provider === "nano-banana-2"` → `generateNB2ImagesForSlides` from [`src/article/social-image/nb2/orchestrator.ts`](src/article/social-image/nb2/orchestrator.ts) — preset-driven NB2 prompts via `buildNB2Prompt`; per-slide deterministic seed via `seedForSlide(articleId, slideIndex)`; emits `FamilyBImageEntry[]` with `license.provider: "nano-banana-2"`.
+- Branch 2: photographic (pre-65.16 default) — unchanged orchestrator; only `lifestyle-listicle` + content-level overrides land here today.
+
+Both branches persist to the SAME `articles.domain_extras.familyBImages[]` jsonb array via `jsonb_set` — NB2 + photographic entries are interchangeable thanks to the `licenseSchema.provider` enum widening (see `packages/social/CLAUDE.md`).
+
+**`FAMILY_B_IMAGE_SLIDES.beat` typed as `SlideRole` (not bare `string`)** so the NB2 path's `slideRole: s.narrativeBeat as SlideRole` cast is safe-by-construction — both the source map's value type AND the target union are derived from the same closed literal set. Drift protection lives on the source map's type. Adding a new beat without extending `SlideRole` is a compile-time error.
+
+**Reusable pattern — two-axis routing**: when a future feature has independent "WHICH backend" + "WHICH style" dimensions (LLM-model + tone, render-backend + aspect, etc.), follow this shape — both dimensions resolved by independent helpers with their own cascade, both content-level overridable, both stamped in the persisted snapshot for re-render compat. Same shape extends to BK Solar's preset family-set (would add `warm-solar-gold` etc. via the catalog widening checklist in `packages/social/CLAUDE.md` Visual-Style Preset Catalog section).

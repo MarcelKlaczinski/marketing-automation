@@ -60,6 +60,13 @@ export const COST_OPS = {
   HERO_IMAGE_BATCH_SUBMIT: "image_batch:submit",
   HERO_IMAGE_BATCH_RESULT: "image_batch:result",
 
+  // === Spec 65.16: Per-slide NB2 social-image generation ===
+  // Fires once per Family-B slide that routes through Nano Banana 2 (Cover +
+  // emotion-heavy body, per 65.8 §3.7 Option γ). service='google-gemini' —
+  // operation discriminator distinguishes social-image gen from hero-image
+  // gen so the dashboard breaks down spend per surface.
+  SOCIAL_NB2_IMAGE: "social-nb2-image",
+
   // === DataForSEO ===
   DATAFORSEO_SERP_ANALYSIS: "serp-analysis",
   DATAFORSEO_KEYWORD_RESEARCH: "keyword-research",

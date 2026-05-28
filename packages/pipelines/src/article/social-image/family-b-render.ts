@@ -195,6 +195,18 @@ export interface BuildFamilyBRenderArgs {
    * slides, never on body slides.
    */
   logoUrl?: string | null;
+  /**
+   * Spec 65.16 — Resolved visual-style preset for this render. Frozen at
+   * snapshot-build time via the 3-tier cascade (content-level > definition
+   * override > project default) — same value passed to the NB2 orchestrator
+   * so generated image + text overlay use the same visual language.
+   *
+   * Null / undefined falls through to slide-component defaults (legacy
+   * `deriveEmotionalDsTokens(brandTokens, theme)` path). Slide-component
+   * preset-aware reads land in V1.7 — V1.6 plumbs the value through the
+   * snapshot so the follow-up wiring needs no executor changes.
+   */
+  preset?: "dark-neon-grid" | "light-editorial" | "blue-tech-gradient" | null;
 }
 
 export async function buildFamilyBRenderInput(
@@ -272,6 +284,7 @@ export async function buildFamilyBRenderInput(
     ...(args.brandTokens !== undefined && { brandTokens: args.brandTokens }),
     ...(args.endSlideData != null && { endSlideData: args.endSlideData }),
     ...(args.logoUrl != null && { logoUrl: args.logoUrl }),
+    ...(args.preset != null && { preset: args.preset }),
   };
 
   // Tool-mention field name differs per template — match each schema literally.

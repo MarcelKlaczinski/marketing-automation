@@ -845,6 +845,26 @@ export default {
       autoApproveLabel: "Recurring-Briefs automatisch genehmigen",
       autoApproveHelper:
         "Wenn aktiviert, überspringen frisch generierte Recurring-Briefs plan_pending und landen direkt im Planner. Pro Definition überschreibbar im Wizard Step 3.",
+      imageStylePreset: {
+        label: "Bild-Stil Preset (Projekt-Default)",
+        options: {
+          "dark-neon-grid": {
+            label: "Dark Neon Grid",
+            description:
+              "Cinematic dunkel, Electric-Blau + Purple Neon. Tech-Magic — passt zu Story-Arc + Opinion.",
+          },
+          "light-editorial": {
+            label: "Light Editorial",
+            description:
+              "Warmes Creme + Serif-Typografie. Kinfolk-Magazine-Feel — passt zu Lifestyle + Educational.",
+          },
+          "blue-tech-gradient": {
+            label: "Blue Tech Gradient",
+            description:
+              "SaaS-Energie, blauer Verlauf, optimistic-tech. Passt zu Head-to-Head + Comparison.",
+          },
+        },
+      },
       exhausted: "Budget aufgebraucht",
       monthlyLimitLabel: "Monatslimit (€)",
       saveSuccess: "Budget aktualisiert.",

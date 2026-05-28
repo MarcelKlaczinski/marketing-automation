@@ -12,7 +12,9 @@
     "./brand-tokens": "./src/brand-tokens/index.ts",
     "./end-slide-components": "./src/end-slide-components/index.ts",
     "./end-slide-components/types": "./src/end-slide-components/types.ts",
-    "./photographic": "./src/photographic/index.ts"
+    "./photographic": "./src/photographic/index.ts",
+    "./presets": "./src/presets/index.ts",
+    "./presets/catalog": "./src/presets/catalog-export.ts"
   },
   "scripts": {
     "studio": "remotion studio src/index.tsx",

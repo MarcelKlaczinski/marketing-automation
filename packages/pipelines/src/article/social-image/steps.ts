@@ -13,6 +13,7 @@ import {
   type SocialPostRenderInput,
 } from "@marketing-auto/db";
 import { buildFamilyBRenderInput } from "./family-b-render.ts";
+import { resolvePresetForArticle } from "./nb2/resolve-preset.ts";
 import {
   buildFamilyAMultiSlideRenderInput,
   isFamilyAMultiSlideTemplate,
@@ -1200,6 +1201,17 @@ export class RenderSlidesStep extends BaseStep<
         const effectiveDiscovery: ArticleDiscovery = familyBDiscovery ?? buildEmptyDiscovery(familyBArticle.id);
         const familyBLocale: "de" | "en" = localePrefix === "en" ? "en" : "de";
 
+        // Spec 65.16 — resolve preset via the shared 3-tier helper so the
+        // text overlay matches the image preset chosen at staging time.
+        const familyBRecurring = (familyBArticle.domainExtras as {
+          recurring?: { definitionId?: string; formatConfig?: { imageStylePreset?: string } };
+        } | null)?.recurring;
+        const familyBPreset = await resolvePresetForArticle({
+          projectId: input.projectId,
+          definitionId: familyBRecurring?.definitionId ?? null,
+          contentLevelChoice: familyBRecurring?.formatConfig?.imageStylePreset ?? null,
+        });
+
         const familyBResult = await buildFamilyBRenderInput({
           templateKey,
           article: familyBArticle,
@@ -1210,6 +1222,7 @@ export class RenderSlidesStep extends BaseStep<
           stagedImages: familyBImagesFromExtras,
           ...(endSlideData !== null && { endSlideData }),
           ...(stampLogoUrl !== null && { logoUrl: stampLogoUrl }),
+          preset: familyBPreset,
         });
 
         // Caption from generateContent — append attribution suffix per-locale.

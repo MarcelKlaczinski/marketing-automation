@@ -911,6 +911,13 @@
       "when": 1790700000000,
       "tag": "0129_hook_templates_v1_6_seed",
       "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0130_image_style_preset",
+      "breakpoints": true
     }
   ]
 }

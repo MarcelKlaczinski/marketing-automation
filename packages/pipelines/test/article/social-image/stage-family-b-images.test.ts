@@ -234,6 +234,26 @@ describe("StageFamilyBImagesStep.execute — Family-B paths", () => {
   });
 
   it("skips orchestration when no provider credentials are configured", async () => {
+    // Spec 65.16: story-arc-clickbait routes to nano-banana-2 by default.
+    // Force photographic branch via content-level override so the credentials
+    // check this test exercises actually fires.
+    await db
+      .update(articles)
+      .set({
+        domainExtras: {
+          recurring: {
+            formatConfig: {
+              hookData: {
+                rendered: "Wie ich als Texter meinen Job mit KI rettete",
+                variables: { profession: "Texter", lifeArea: "Job" },
+              },
+              imageProvider: "photographic",
+            },
+          },
+        },
+      })
+      .where(eq(articles.id, testArticleId));
+
     let orchestratorCalled = false;
     const step = new StageFamilyBImagesStep({
       loadCredentials: async () => ({ pexels: null, unsplash: null, pixabay: null }),
@@ -269,6 +289,27 @@ describe("StageFamilyBImagesStep.execute — Family-B paths", () => {
       queryUsed: "frustrated copywriter at desk",
       cachedAt: new Date().toISOString(),
     };
+
+    // Spec 65.16: story-arc-clickbait routes to nano-banana-2 by default.
+    // Stamp content-level imageProvider override so this test stays on the
+    // photographic path it was written for (still verifies the legacy
+    // orchestrator wiring + jsonb_set persistence).
+    await db
+      .update(articles)
+      .set({
+        domainExtras: {
+          recurring: {
+            formatConfig: {
+              hookData: {
+                rendered: "Wie ich als Texter meinen Job mit KI rettete",
+                variables: { profession: "Texter", lifeArea: "Job" },
+              },
+              imageProvider: "photographic",
+            },
+          },
+        },
+      })
+      .where(eq(articles.id, testArticleId));
 
     let orchestratorInput: unknown = null;
     const step = new StageFamilyBImagesStep({
@@ -324,6 +365,144 @@ describe("StageFamilyBImagesStep.execute — Family-B paths", () => {
     expect((extras.familyBImages as unknown[]).length).toBe(1);
     // Sibling keys preserved (recurring stayed untouched)
     expect(extras.recurring).toBeDefined();
+  });
+
+  it("Spec 65.16: routes story-arc-clickbait to NB2 by default + persists familyBImages", async () => {
+    const nb2Entry = {
+      slideIndex: 0,
+      r2Key: "stage-family-b-test/social/abc/slide-0/x.webp",
+      r2Url: "https://cdn.example.com/x.webp",
+      originalR2Key: null,
+      license: {
+        provider: "nano-banana-2" as const,
+        photographer: null,
+        sourceUrl: "https://cdn.example.com/x.webp",
+      },
+      queryUsed: "nb2:dark-neon-grid:cover",
+      cachedAt: new Date().toISOString(),
+    };
+
+    let nb2Input: unknown = null;
+    let photographicCalled = false;
+    const step = new StageFamilyBImagesStep({
+      // Photographic creds present — should NOT be touched by the NB2 branch
+      loadCredentials: async () => ({ pexels: { apiKey: "x" }, unsplash: null, pixabay: null }),
+      runOrchestrator: async () => {
+        photographicCalled = true;
+        return { entries: [], failedSlideIndices: [], stats: { cacheHits: 0, freshStages: 0, failures: 0, totalProviderCandidates: 0 } };
+      },
+      runNB2Orchestrator: async (input) => {
+        nb2Input = input;
+        return {
+          entries: [nb2Entry],
+          failedSlideIndices: [],
+          stats: { cacheHits: 0, freshGenerations: 1, failures: 0 },
+        };
+      },
+    });
+
+    const result = await step.execute(
+      {
+        articleId: testArticleId,
+        projectId: TEST_PROJECT_ID,
+        projectSlug: TEST_PROJECT_SLUG,
+        templateKeyOverride: "story-arc-clickbait",
+      },
+      makeMockCtx({ projectId: TEST_PROJECT_ID }),
+    );
+
+    expect(photographicCalled).toBe(false);
+    expect(result.familyBImages.length).toBe(1);
+    expect(result.familyBImages[0]?.license.provider).toBe("nano-banana-2");
+    // freshGenerations → freshStages remap for shape compat
+    expect(result.familyBImagesStats?.freshStages).toBe(1);
+    expect(result.familyBImagesStats?.totalProviderCandidates).toBe(0);
+
+    // NB2 input received correct preset (project default) + slide map
+    const ni = nb2Input as { preset: string; slides: Array<{ slideIndex: number; slideRole: string }> };
+    expect(ni.preset).toBe("dark-neon-grid"); // project default after migration 0130
+    expect(ni.slides.map((s) => s.slideIndex)).toEqual([0, 2, 3, 4]);
+    expect(ni.slides.map((s) => s.slideRole)).toEqual([
+      "cover",
+      "conflict",
+      "resolution",
+      "payoff",
+    ]);
+
+    // Persisted to articles.domain_extras.familyBImages via jsonb_set
+    const [row] = await db
+      .select({ domainExtras: articles.domainExtras })
+      .from(articles)
+      .where(eq(articles.id, testArticleId))
+      .limit(1);
+    const extras = row?.domainExtras as Record<string, unknown>;
+    expect(Array.isArray(extras.familyBImages)).toBe(true);
+    expect((extras.familyBImages as unknown[]).length).toBe(1);
+  });
+
+  it("Spec 65.16: content-level imageStylePreset wins over project default", async () => {
+    await db
+      .update(articles)
+      .set({
+        domainExtras: {
+          recurring: {
+            formatConfig: {
+              hookData: {
+                rendered: "Hook",
+                variables: { profession: "Texter", lifeArea: "Job" },
+              },
+              imageStylePreset: "blue-tech-gradient", // content-level override
+            },
+          },
+        },
+      })
+      .where(eq(articles.id, testArticleId));
+
+    let nb2Input: unknown = null;
+    const step = new StageFamilyBImagesStep({
+      loadCredentials: async () => ({ pexels: null, unsplash: null, pixabay: null }),
+      runNB2Orchestrator: async (input) => {
+        nb2Input = input;
+        return { entries: [], failedSlideIndices: [], stats: { cacheHits: 0, freshGenerations: 0, failures: 0 } };
+      },
+    });
+    await step.execute(
+      {
+        articleId: testArticleId,
+        projectId: TEST_PROJECT_ID,
+        projectSlug: TEST_PROJECT_SLUG,
+        templateKeyOverride: "opinion-recommendation",
+      },
+      makeMockCtx({ projectId: TEST_PROJECT_ID }),
+    );
+    expect((nb2Input as { preset: string }).preset).toBe("blue-tech-gradient");
+  });
+
+  it("Spec 65.16: lifestyle-listicle stays on photographic (Marcel-Decision §3.4)", async () => {
+    let nb2Called = false;
+    let photographicCalled = false;
+    const step = new StageFamilyBImagesStep({
+      loadCredentials: async () => ({ pexels: { apiKey: "x" }, unsplash: null, pixabay: null }),
+      runOrchestrator: async () => {
+        photographicCalled = true;
+        return { entries: [], failedSlideIndices: [], stats: { cacheHits: 0, freshStages: 0, failures: 0, totalProviderCandidates: 0 } };
+      },
+      runNB2Orchestrator: async () => {
+        nb2Called = true;
+        return { entries: [], failedSlideIndices: [], stats: { cacheHits: 0, freshGenerations: 0, failures: 0 } };
+      },
+    });
+    await step.execute(
+      {
+        articleId: testArticleId,
+        projectId: TEST_PROJECT_ID,
+        projectSlug: TEST_PROJECT_SLUG,
+        templateKeyOverride: "lifestyle-listicle",
+      },
+      makeMockCtx({ projectId: TEST_PROJECT_ID }),
+    );
+    expect(photographicCalled).toBe(true);
+    expect(nb2Called).toBe(false);
   });
 
   it("forwards existing cache from domain_extras into the orchestrator", async () => {

@@ -133,6 +133,22 @@ export const projects = pgTable(
       .notNull()
       .default(false),
 
+    /**
+     * Spec 65.16 — project-level default for the NB2 image-style preset.
+     * Drives signature visual-language on Family-B Cover + emotion-heavy
+     * slides when the project routes through Nano Banana 2. Per-definition
+     * override lives on `recurring_content_definitions.social_image_style_preset_override`;
+     * per-content override lives on `topic_briefs.recurring_metadata.formatConfig.imageStylePreset`.
+     *
+     * CHECK constraint enforces the closed enum (migration 0130). Adding a
+     * new preset = (a) widen `PRESET_KEYS` in `@marketing-auto/social/presets`,
+     * (b) write a migration that DROPs + recreates this CHECK with the new set.
+     */
+    socialImageStylePreset: text("social_image_style_preset")
+      .$type<"dark-neon-grid" | "light-editorial" | "blue-tech-gradient">()
+      .notNull()
+      .default("dark-neon-grid"),
+
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

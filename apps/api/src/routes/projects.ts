@@ -200,6 +200,8 @@ projectRoutes.get("/:slug", async (c) => {
       batchApiEnabled: getEnv().BATCH_API_ENABLED,
       // Spec 65.V1.5b: project default for recurring-content auto-approve
       recurringAutoApproveDefault: proj.recurringAutoApproveDefault,
+      // Spec 65.16: project default for Family-B image-style preset
+      socialImageStylePreset: proj.socialImageStylePreset,
       createdAt: proj.createdAt,
       updatedAt: proj.updatedAt,
       stats: await getProjectStats(proj.id),
@@ -456,6 +458,10 @@ const updateProjectSchema = z.object({
   llmMode: z.enum(["sync", "batch"]).optional(),
   // Spec 65.V1.5b: project-level default for recurring-content auto-approve
   recurringAutoApproveDefault: z.boolean().optional(),
+  // Spec 65.16: project-level default for Family-B image-style preset
+  socialImageStylePreset: z
+    .enum(["dark-neon-grid", "light-editorial", "blue-tech-gradient"])
+    .optional(),
 });
 
 projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c) => {
@@ -504,6 +510,8 @@ projectRoutes.patch("/:slug", zValidator("json", updateProjectSchema), async (c)
   if (input.llmMode !== undefined) setFields.llmMode = input.llmMode;
   if (input.recurringAutoApproveDefault !== undefined)
     setFields.recurringAutoApproveDefault = input.recurringAutoApproveDefault;
+  if (input.socialImageStylePreset !== undefined)
+    setFields.socialImageStylePreset = input.socialImageStylePreset;
 
   await db
     .update(projects)

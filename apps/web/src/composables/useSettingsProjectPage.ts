@@ -53,6 +53,9 @@ interface ProjectSettingsData {
   batchApiEnabled: boolean;
   // Spec 65.V1.5b: project-level default for recurring-content auto-approve
   recurringAutoApproveDefault: boolean;
+  // Spec 65.16: project-level default for Family-B image-style preset
+  // ("dark-neon-grid" | "light-editorial" | "blue-tech-gradient")
+  socialImageStylePreset: "dark-neon-grid" | "light-editorial" | "blue-tech-gradient";
 }
 
 export function useSettingsProjectPage(slug: string) {
@@ -210,10 +213,14 @@ export function useSettingsProjectPage(slug: string) {
   const recurringDefaultsForm = useSectionForm({
     initialData: () => ({
       recurringAutoApproveDefault: project.value?.recurringAutoApproveDefault ?? false,
+      // Spec 65.16 — project-level default preset
+      socialImageStylePreset:
+        project.value?.socialImageStylePreset ?? ("dark-neon-grid" as const),
     }),
     onSave: (data) =>
       apiPatch(`/projects/${slug}`, {
         recurringAutoApproveDefault: data.recurringAutoApproveDefault,
+        socialImageStylePreset: data.socialImageStylePreset,
       }),
     invalidateKeys: [["project-settings", slug]],
   });
