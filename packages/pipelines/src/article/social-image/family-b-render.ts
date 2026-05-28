@@ -397,10 +397,42 @@ function buildFamilyBEnd(ctx: FamilyBBuildInputShape, locale: Locale): Record<st
 }
 
 /**
+ * V1.6.1 (Spec 65.4/65.8 followup) — defense-in-depth tag-strip on Family-B
+ * narrative beat texts. `splitNarrativeByBeats` in
+ * `_shared/family-b/helpers.ts` is the primary stripper, but if a future
+ * prompt-template edit introduces a new tagged-block convention that the
+ * helper doesn't yet recognise, the text would leak into the slide. This
+ * walks each beat entry's `text` field and removes any `<UPPERCASE_TAG>...
+ * </UPPERCASE_TAG>` block (inline OR across newlines).
+ */
+const UPPERCASE_TAG_BLOCK = /<[A-Z][A-Z0-9_]*>[\s\S]*?<\/[A-Z][A-Z0-9_]*>/g;
+function scrubTaggedBlocksFromNarrative(
+  narrative: Record<string, unknown>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(narrative)) {
+    if (value !== null && typeof value === "object" && "text" in value) {
+      const beat = value as { beatName?: string; text?: unknown };
+      if (typeof beat.text === "string") {
+        const scrubbed = beat.text.replace(UPPERCASE_TAG_BLOCK, "").trim();
+        result[key] = { ...beat, text: scrubbed.length > 0 ? scrubbed : " " };
+        continue;
+      }
+    }
+    result[key] = value;
+  }
+  return result;
+}
+
+/**
  * Pull the narrative payload off the generated-content `_<tplKey>Extra`
  * extension field (Spec 60.1 pattern). Falls back to an empty-but-valid
  * shape so the composition's Zod validator still parses — Family-B slides
  * render placeholder text in that case rather than failing the worker.
+ *
+ * V1.6.1 — wraps every successful extraction in `scrubTaggedBlocksFromNarrative`
+ * so any tagged blocks the primary `splitNarrativeByBeats` missed are removed
+ * before the composition renders.
  */
 function extractNarrative(
   templateKey: FamilyBTemplateKey,
@@ -412,13 +444,13 @@ function extractNarrative(
     _opinionExtra?: Record<string, unknown>;
   };
   if (templateKey === "story-arc-clickbait" && ext._storyArcExtra) {
-    return ext._storyArcExtra;
+    return scrubTaggedBlocksFromNarrative(ext._storyArcExtra);
   }
   if (templateKey === "lifestyle-listicle" && ext._lifestyleExtra) {
-    return ext._lifestyleExtra;
+    return scrubTaggedBlocksFromNarrative(ext._lifestyleExtra);
   }
   if (templateKey === "opinion-recommendation" && ext._opinionExtra) {
-    return ext._opinionExtra;
+    return scrubTaggedBlocksFromNarrative(ext._opinionExtra);
   }
   return buildFallbackNarrative(templateKey);
 }
