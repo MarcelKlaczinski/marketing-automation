@@ -171,8 +171,11 @@ export const PRESET_CATALOG: Record<PresetKey, PresetCatalogEntry> = {
       emotionImageOverlay: "rgba(177, 78, 255, 0.18)",
     },
     typography: {
-      displayFontFamily: "Inter Variable",
-      displayWeight: "900",
+      // Spec 65.16 V1.7 #4 — Clash Display via Fontshare CDN (bold geometric
+      // condensed display sans, the aditya-style anchor). Falls back to Inter
+      // when Fontshare is unreachable via the CSS-stack inheritance.
+      displayFontFamily: "Clash Display",
+      displayWeight: "800",
       displayLetterSpacing: "0.02em",
       displayTextTransform: "uppercase",
       bodyFontFamily: "Inter Variable",
@@ -239,13 +242,17 @@ export const PRESET_CATALOG: Record<PresetKey, PresetCatalogEntry> = {
       emotionImageOverlay: "rgba(0, 240, 255, 0.14)",
     },
     typography: {
-      displayFontFamily: "Space Grotesk",
-      displayWeight: "700",
+      // Spec 65.16 V1.7 #4 — Cabinet Grotesk via Fontshare CDN (modern
+      // geometric sans, the "modern SaaS-energy" anchor per niche-analysis).
+      displayFontFamily: "Cabinet Grotesk",
+      displayWeight: "800",
       displayLetterSpacing: "-0.015em",
       displayTextTransform: "none",
       bodyFontFamily: "Inter Variable",
       bodyWeight: "500",
-      eyebrowFontFamily: "Space Grotesk",
+      // Satoshi for the eyebrow line — distinctive geometric tracking that
+      // pairs with Cabinet Grotesk's wide-curve display.
+      eyebrowFontFamily: "Satoshi",
       eyebrowLetterSpacing: "0.10em",
     },
     nb2: {

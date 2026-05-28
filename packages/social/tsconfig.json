@@ -5,6 +5,11 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "noUnusedLocals": false,
+    // Slide components render in Remotion's headless Chrome — they ARE in a
+    // browser context at runtime. Adding "DOM" to lib lets `fonts.ts`
+    // reference `document.fonts` / `document.createElement` etc. for the
+    // Spec 65.16 V1.7 #4 Fontshare loader without `declare const document`.
+    "lib": ["ESNext", "DOM"],
     "paths": {
       "@marketing-auto/shared": ["../../packages/shared/src/index.ts"],
       "@marketing-auto/shared/brand-tokens": ["../../packages/shared/src/brand-tokens/index.ts"],
