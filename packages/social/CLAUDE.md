@@ -334,3 +334,23 @@ The `emoji` prop was removed in Spec 52a. The component never renders emoji.
 **NB2 prompt assembly** (pure `buildNB2Prompt(input)` in `presets/nb2-prompts.ts`) — Gemini Image API has NO `negativePrompt` field (verified live, Memory D18). Anti-AI-slop avoidance is folded into the positive prompt as an `AVOID: NOT <phrase>, NOT <phrase>` block at the end. Same constraint applies to aspect-ratio: `"vertical 4:5 (portrait)"` is baked into prompt prose, NOT delivered via a request-body field (the `aspectRatio` field on `GenerateImageInput` is audit-only). When adding new generative-image features, follow this "fold into positive prompt" pattern unless the underlying API actually accepts a negative-prompt parameter.
 
 **`license.provider` was widened** from `("pexels"|"unsplash"|"pixabay")` to include `"nano-banana-2"` so the NB2-generated `FamilyBImageEntry` can fit the existing `domain_extras.familyBImages[]` cache without a parallel schema. `buildCaptionAttribution` skips `nano-banana-2` for credit lines (same posture as `pixabay` — no human photographer, no attribution required). Adding a new image provider that doesn't carry photographer credit follows the same path: widen the enum + add a skip branch in `buildCaptionAttribution`.
+
+**Legacy-slot aliasing — token deriver that pre-65.16 slide code consumes without per-slide edits (V1.7 #1)**. `derivePresetEmotionalDsTokens(brandTokens, theme, preset)` returns `PresetEmotionalDsTokens` where preset values are aliased INTO the existing legacy slots that slide components already read:
+
+```
+tokens.typography.fontFamily       ← preset.typography.displayFontFamily
+tokens.typography.fontFamilyMono   ← preset.typography.eyebrowFontFamily
+tokens.typography.eyebrowLetterSpacing ← preset.typography.eyebrowLetterSpacing
+tokens.accent[500]                 ← preset.colors.textAccent
+tokens.ink.base                    ← preset.colors.textPrimary
+tokens.emotion.surface             ← preset.colors.emotionSurface
+tokens.image.gradientOverlay       ← preset.colors.imageOverlayGradient
+```
+
+Plus a `preset.*` sub-object for future per-slide branching that needs the key explicitly (e.g. dot-grid background only on dark-neon-grid). Slide components stay unchanged — they keep their `tokens.accent[500]` / `tokens.typography.fontFamily` reads, the VALUES come from the active preset.
+
+**Slide-component entry point:** `deriveTokensForRender(brandTokens, theme, preset?)` is the union-returning wrapper called inside `useMemo`. When `preset` is null/undefined → returns plain `EmotionalDsTokens` (back-compat); when set → returns `PresetEmotionalDsTokens`. Discriminator type-guard `hasPresetTokens(tokens)` available for future code that needs to branch.
+
+Per-slide migration is mechanical (~4 lines): import swap + `preset?: PresetKey | null` prop + `deriveTokensForRender(resolveBrandTokens(brandTokens), theme, preset ?? null)` instead of `deriveEmotionalDsTokens(...)` + `[brandTokens, theme, preset]` deps. Dispatcher composition files thread `preset` from `props` to each child via `...(preset !== undefined && { preset })` conditional spread.
+
+**Pattern reusable for any future "style preset" or "skin" system**: when introducing a parallel typography/color variant, alias into the EXISTING slots that consumers already read. Avoids per-consumer branching, preserves back-compat automatically. The `preset.*` sub-object is the escape hatch for variant-specific behaviour that genuinely needs to know the key.
