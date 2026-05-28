@@ -323,6 +323,9 @@ export default {
         manualToolsLabel: "Manual tool list",
         manualToolsHint: "Pick exactly {n} tools. Order is preserved.",
         excludeRecentlyUsed: "Exclude tools from the last 4 runs (LRU diversity)",
+        tierModeLabel: "Tier-ranking mode (Decent · Solid · Top)",
+        tierModeHint:
+          "Data-driven tier buckets from tool_persona_scores. Routes to the tool-tier-ranking template. Pool is filtered to scored + logo-having tools; topN is clamped to 3–5.",
       },
       headToHead: {
         toolALabel: "Tool A",

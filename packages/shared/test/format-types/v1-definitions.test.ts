@@ -34,11 +34,12 @@ describe("top_n_comparison (Family A)", () => {
     expect(topNComparisonDefinition.eligibleTemplates).toContain("comparison-grid-5");
   });
 
-  it("applies defaults for topN, rankingSource, excludeRecentlyUsed", () => {
+  it("applies defaults for topN, rankingSource, excludeRecentlyUsed, tierMode", () => {
     const r = topNComparisonConfigSchema.parse({ categorySlug: "ai-image-generation" });
     expect(r.topN).toBe(5);
     expect(r.rankingSource).toBe("llm-curated");
     expect(r.excludeRecentlyUsed).toBe(true);
+    expect(r.tierMode).toBe(false); // Spec 65.17 B4 — back-compat default
   });
 
   it("rejects topN < 3 and topN > 10", () => {
@@ -48,6 +49,20 @@ describe("top_n_comparison (Family A)", () => {
 
   it("rejects empty categorySlug", () => {
     expect(topNComparisonConfigSchema.safeParse({ categorySlug: "" }).success).toBe(false);
+  });
+
+  // ─── Spec 65.17 B4 — tierMode + tool-tier-ranking eligibility ──────────────
+
+  it("Spec 65.17 B4 — tierMode round-trips through Zod", () => {
+    const r = topNComparisonConfigSchema.parse({
+      categorySlug: "x",
+      tierMode: true,
+    });
+    expect(r.tierMode).toBe(true);
+  });
+
+  it("Spec 65.17 B4 — tool-tier-ranking is listed as eligible (selection gated in brief-generator)", () => {
+    expect(topNComparisonDefinition.eligibleTemplates).toContain("tool-tier-ranking");
   });
 });
 

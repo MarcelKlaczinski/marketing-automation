@@ -49,6 +49,7 @@ const EXPECTED_SHIPPED_KEYS = [
   "story-arc-clickbait",
   "lifestyle-listicle",
   "opinion-recommendation",
+  "tool-tier-ranking",
 ] as const satisfies readonly ShippedTemplateKey[];
 
 /**

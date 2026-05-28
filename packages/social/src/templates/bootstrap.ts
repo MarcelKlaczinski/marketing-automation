@@ -10,6 +10,7 @@ import { headToHeadDeepDiveTemplate } from "./definitions/headToHeadDeepDive.ts"
 import { storyArcClickbaitTemplate } from "./definitions/storyArcClickbait.ts";
 import { lifestyleListicleTemplate } from "./definitions/lifestyleListicle.ts";
 import { opinionRecommendationTemplate } from "./definitions/opinionRecommendation.ts";
+import { toolTierRankingTemplate } from "./definitions/toolTierRanking.ts";
 import type { TemplateDefinition } from "./types.ts";
 
 const REQUIRED_FIXTURE_KEYS = ["characteristic", "edge-min", "edge-max"] as const;
@@ -43,6 +44,7 @@ export function bootstrapTemplates(): void {
     storyArcClickbaitTemplate,
     lifestyleListicleTemplate,
     opinionRecommendationTemplate,
+    toolTierRankingTemplate,
   ] as unknown as TemplateDefinition<unknown>[];
 
   for (const t of templates) {

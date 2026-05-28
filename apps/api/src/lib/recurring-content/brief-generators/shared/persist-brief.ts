@@ -67,6 +67,15 @@ export interface PersistRecurringBriefInput {
    * brief in `plan_pending` once the planner picks it up.
    */
   autoApprove?: boolean;
+  /**
+   * Spec 65.17 B5 — frozen tier-assignment for the `tool-tier-ranking`
+   * template. Each entry pairs a `toolId` with one of the positive tier
+   * labels (`spitze` / `stark` / `solide`). Spread into
+   * `recurringMetadata.formatConfig.tierData` so the planner-router replay
+   * sees the same buckets the brief-generator computed. Only set when the
+   * generator routed to tier-mode; absent for normal grid carousels.
+   */
+  tierData?: Array<{ toolId: string; tier: "solide" | "stark" | "spitze" }>;
 }
 
 export async function persistRecurringBrief(
@@ -94,6 +103,7 @@ export async function persistRecurringBrief(
       },
     }),
     ...(input.hookData && { hookData: input.hookData }),
+    ...(input.tierData && { tierData: input.tierData }),
     toolIds: input.toolIds,
   };
 

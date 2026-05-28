@@ -21,6 +21,7 @@ import type { HeadToHeadDeepDiveInput } from "./src/compositions/head-to-head-de
 import type { StoryArcClickbaitInput } from "./src/compositions/story-arc-clickbait/types.ts";
 import type { LifestyleListicleInput } from "./src/compositions/lifestyle-listicle/types.ts";
 import type { OpinionRecommendationInput } from "./src/compositions/opinion-recommendation/types.ts";
+import type { ToolTierRankingInput } from "./src/compositions/tool-tier-ranking/types.ts";
 
 const ENTRY_POINT = resolve(fileURLToPath(import.meta.url), "..", "src/index.tsx");
 const WORKSPACE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -281,6 +282,38 @@ export async function renderVerdictPerUseCase(input: VerdictPerUseCaseInput): Pr
   if (!baseComposition) throw new Error("verdict-per-use-case composition not found in bundle");
 
   const outDir = resolve(tmpdir(), `social-render-vpc-${Date.now()}`);
+  await mkdir(outDir, { recursive: true });
+
+  const slides: Buffer[] = [];
+  try {
+    const outPath = resolve(outDir, "slide-0.png");
+    const slideProps = { ...input, slideIndex: 0 } as Record<string, unknown>;
+
+    await renderStill({
+      composition: { ...baseComposition, props: slideProps },
+      serveUrl,
+      output: outPath,
+      frame: 0,
+      imageFormat: "png",
+    });
+
+    const buf = await readFile(outPath);
+    slides.push(buf);
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+
+  return { slides, sequenceCount: 1 };
+}
+
+export async function renderToolTierRanking(input: ToolTierRankingInput): Promise<RenderResult> {
+  // Spec 65.17 B2 — Family-A single-still data-driven tier-ranking carousel.
+  const serveUrl = await getBundle();
+  const compositions = await getCompositions(serveUrl);
+  const baseComposition = compositions.find((c) => c.id === "tool-tier-ranking");
+  if (!baseComposition) throw new Error("tool-tier-ranking composition not found in bundle");
+
+  const outDir = resolve(tmpdir(), `social-render-ttr-${Date.now()}`);
   await mkdir(outDir, { recursive: true });
 
   const slides: Buffer[] = [];

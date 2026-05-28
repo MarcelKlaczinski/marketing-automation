@@ -330,6 +330,9 @@ export default {
         manualToolsLabel: "Manuelle Tool-Liste",
         manualToolsHint: "Genau {n} Tools auswählen. Reihenfolge wird beibehalten.",
         excludeRecentlyUsed: "Tools aus den letzten 4 Runs ausschließen (LRU-Diversität)",
+        tierModeLabel: "Tier-Ranking-Modus (Solide · Stark · Spitze)",
+        tierModeHint:
+          "Datengetriebene Tier-Buckets aus tool_persona_scores. Routet zu tool-tier-ranking-Template. Pool wird auf scored + logo-having Tools gefiltert; topN wird auf 3-5 begrenzt.",
       },
       headToHead: {
         toolALabel: "Tool A",

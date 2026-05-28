@@ -23,6 +23,8 @@ import { LifestyleListicle } from "./compositions/lifestyle-listicle/LifestyleLi
 import { lifestyleListicleInputSchema } from "./compositions/lifestyle-listicle/types.ts";
 import { OpinionRecommendation } from "./compositions/opinion-recommendation/OpinionRecommendation.tsx";
 import { opinionRecommendationInputSchema } from "./compositions/opinion-recommendation/types.ts";
+import { ToolTierRanking } from "./compositions/tool-tier-ranking/ToolTierRanking.tsx";
+import { toolTierRankingInputSchema } from "./compositions/tool-tier-ranking/types.ts";
 
 const stunningDefaultProps = listCarouselInputSchema.parse({
   theme: "dark",
@@ -613,6 +615,54 @@ export function RemotionRoot() {
             ctaLine: "Vollständige Analyse →",
           },
           images: [],
+        })}
+      />
+      <Composition
+        id="tool-tier-ranking"
+        component={ToolTierRanking}
+        durationInFrames={1}
+        fps={30}
+        width={1080}
+        height={1350}
+        schema={toolTierRankingInputSchema}
+        defaultProps={toolTierRankingInputSchema.parse({
+          slideIndex: 0,
+          theme: "dark",
+          locale: "de",
+          generated: {
+            eyebrow: "Tier-Ranking · KI-Bild-Generatoren",
+            headlineLead: "Solide,",
+            headlineEm: "Stark, Spitze.",
+            subline: "5 Tools getestet, in 3 Klassen sortiert — datengetrieben aus Persona-Scores.",
+            headerNum: "05/2026 · toolwiki.ai/bilder",
+            ctaLine: "Vollständiges Ranking →",
+            articleUrl: "toolwiki.ai/bilder-ranking",
+            tiers: [
+              {
+                tier: "spitze",
+                label: "Spitze",
+                tools: [
+                  { slug: "midjourney", name: "Midjourney v7", score: 92, scoreTier: "hi", meta: "Premium-Ästhetik", pricePrefix: "Ab", priceAmount: "10 $/Mo", pros: ["Hero-Visuals", "Konsistenz"], cons: ["Schwer auszubrechen", "Text schwach"], isWinner: true, iconInitials: "MJ", iconHue: 220 },
+                  { slug: "dalle", name: "DALL·E 4", score: 88, scoreTier: "hi", meta: "Prompt-Adhärenz", pricePrefix: "Ab", priceAmount: "20 $/Mo", pros: ["Exakte Prompts", "Text lesbar"], cons: ["Stil glatt", "Weniger Kontrolle"], isWinner: false, iconInitials: "DE", iconHue: 160 },
+                ],
+              },
+              {
+                tier: "stark",
+                label: "Stark",
+                tools: [
+                  { slug: "flux", name: "Flux 1.1 Pro", score: 78, scoreTier: "hi", meta: "Foto-Realismus", pricePrefix: "Ab", priceAmount: "5 $/Mo", pros: ["Photo-Look", "Schnell + günstig"], cons: ["Style-Transfer schwach", "EN bevorzugt"], isWinner: false, iconInitials: "FL", iconHue: 30 },
+                  { slug: "ideogram", name: "Ideogram 2.0", score: 72, scoreTier: "mid", meta: "Typografie", pricePrefix: "Ab", priceAmount: "8 $/Mo", pros: ["Bestes Text-im-Bild", "Schnelle Iteration"], cons: ["Foto weniger natürlich", "Begrenzte Library"], isWinner: false, iconInitials: "ID", iconHue: 290 },
+                ],
+              },
+              {
+                tier: "solide",
+                label: "Solide",
+                tools: [
+                  { slug: "stable-diffusion", name: "Stable Diffusion", score: 58, scoreTier: "mid", meta: "Maximale Kontrolle", pricePrefix: "", priceAmount: "Kostenlos", pros: ["LoRAs für Konsistenz", "Kein Abo, lokal"], cons: ["Steile Lernkurve", "Default wirkt blass"], isWinner: false, iconInitials: "SD", iconHue: 270 },
+                ],
+              },
+            ],
+          },
         })}
       />
     </>

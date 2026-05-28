@@ -25,6 +25,18 @@ export const topNComparisonConfigSchema = z.object({
   manualToolIds: z.array(z.string().uuid()).optional(),
   /** Skip tools used in the last 4 runs of this definition (LRU diversity). */
   excludeRecentlyUsed: z.boolean().default(true),
+  /**
+   * Spec 65.17 B4 — when enabled, the brief-generator derives Bad/Good/Great
+   * tier-buckets from `tool_persona_scores` (Spec 65.3) and routes to the
+   * `tool-tier-ranking` template instead of `comparison-grid-3/5`. Requires
+   * `persona` to be set on the definition so persona-scoped scores exist for
+   * tier-derivation (the brief-generator falls back to tierMode=false with a
+   * warn-log when persona is missing).
+   *
+   * Marcel-decision Q3 (Discovery §3.2) — Option β template-under-existing
+   * format-type, avoids the 12-site content_type checklist of a new format-type.
+   */
+  tierMode: z.boolean().default(false),
 });
 
 export type TopNComparisonConfig = z.infer<typeof topNComparisonConfigSchema>;
@@ -33,8 +45,12 @@ export const topNComparisonDefinition: FormatTypeDefinition = {
   family: "A",
   configSchema: topNComparisonConfigSchema,
   briefGenerator: "top-n-comparison-brief-generator",
-  // 65.7 will add comparison-grid-10; the other two are 60.2/60.3 shipped.
-  eligibleTemplates: ["comparison-grid-3", "comparison-grid-5"],
+  // 60.2/60.3 shipped the grid templates; 65.17 B4 adds `tool-tier-ranking`
+  // as an additional eligible template when `tierMode === true`. Selection
+  // routing is handled by the brief-generator (Spec 65.17 B5), not by template
+  // registry — the eligible-set is the union; per-brief eligibility is gated
+  // by config.
+  eligibleTemplates: ["comparison-grid-3", "comparison-grid-5", "tool-tier-ranking"],
   needsHooks: false,
   defaultEndSlides: ["comment-to-get", "link-in-bio"],
 };
