@@ -30,6 +30,13 @@ export const opinionRecommendationConfigSchema = z.object({
    * value-prop-only without monetary references.
    */
   affiliateAngle: z.boolean().default(true),
+  /**
+   * Spec 65.14 — optional incumbent / competitor name used as the
+   * `{established}` substitution in contrarian-pattern hooks (e.g.
+   * "Why I switched from {established} to {tool}"). Omitted → picker drops
+   * hooks referencing `{established}`.
+   */
+  competitorTool: z.string().min(1).optional(),
 });
 
 export type OpinionRecommendationConfig = z.infer<typeof opinionRecommendationConfigSchema>;

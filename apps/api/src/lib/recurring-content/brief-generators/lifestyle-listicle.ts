@@ -10,6 +10,7 @@ import {
   type LifestyleListicleConfig,
   lifestyleListicleConfigSchema,
 } from "@marketing-auto/shared/format-types";
+import { derivePainPoint } from "../../hook-library/derive-pain-point.ts";
 import { pickHook } from "../../hook-library/pick-hook.ts";
 import { renderHook } from "../../hook-library/render-hook.ts";
 import { buildBriefText } from "./shared/brief-text.ts";
@@ -98,15 +99,23 @@ export async function generateLifestyleListicleBrief(
     return { status: "skipped", reason: "insufficient-tools", detail: "Empty resolvedTools" };
   }
 
-  // 3. Hook-pick.
+  // 3. Hook-pick. Spec 65.14: outputTargets + briefTopic + competitorTool
+  //    context, picker pre-filters by drama-intensity allow-list.
+  const briefTopic = `${config.itemCount}-item ${config.lifeArea} listicle featuring ${resolvedTools
+    .slice(0, 3)
+    .map((t) => t.name)
+    .join(", ")}${resolvedTools.length > 3 ? " and others" : ""}`;
   const hookInput: Parameters<typeof pickHook>[0] = {
     projectId: ctx.projectId,
     formatType: "lifestyle_listicle",
     language: ctx.language,
+    outputTargets: ctx.definition.outputTargets,
     contentContext: {
       toolNames: resolvedTools.map((t) => t.name),
       lifeArea: config.lifeArea,
+      briefTopic,
       ...(config.toolFilter?.personaFilter && { narrativeIntent: config.toolFilter.personaFilter }),
+      ...(config.competitorTool && { competitorTool: config.competitorTool }),
     },
   };
   if (ctx.pipelineRunId !== undefined) hookInput.pipelineRunId = ctx.pipelineRunId;
@@ -122,11 +131,30 @@ export async function generateLifestyleListicleBrief(
   // The lifestyle hook canonically substitutes {tool} + {lifeArea} +
   // optionally {persona}. We pass the head-tool name as `tool` — Marcel can
   // edit pre-render if a different tool should anchor the hook.
-  const renderedHook = renderHook(picked2.pattern, {
+  // Spec 65.14: variable-pool extension — n/k from itemCount, painPoint via
+  // LLM-derive when the picked pattern needs it, established from config.
+  const itemCount = config.itemCount;
+  const renderVars: Record<string, string> = {
     tool: firstTool.name,
     lifeArea: config.lifeArea,
     persona: config.toolFilter?.personaFilter ?? "Solopreneur",
-  });
+    n: String(itemCount),
+    k: String(Math.max(1, Math.floor(itemCount / 2))),
+  };
+  if (picked2.variables.includes("painPoint")) {
+    const derived = await derivePainPoint({
+      projectId: ctx.projectId,
+      language: ctx.language,
+      toolNames: resolvedTools.map((t) => t.name),
+      briefTopic,
+      ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+    });
+    renderVars.painPoint = derived.painPoint;
+  }
+  if (picked2.variables.includes("established") && config.competitorTool) {
+    renderVars.established = config.competitorTool;
+  }
+  const renderedHook = renderHook(picked2.pattern, renderVars);
   const hookData = {
     hookId: picked2.hookId,
     pattern: picked2.pattern,

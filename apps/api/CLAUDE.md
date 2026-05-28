@@ -34,14 +34,19 @@ Rules:
 
 Canonical example: `src/lib/gap-service.ts` (Spec 49c) — DataForSEO keyword enrichment + Claude Haiku suggestion, called from two route handlers without duplicating logic.
 
-### Hook-Library lib (Spec 65.4)
+### Hook-Library lib (Spec 65.4 + 65.14)
 
 `src/lib/hook-library/` is the canonical home for Family-B narrative-hook lookup:
 
 - [`pick-hook.ts`](src/lib/hook-library/pick-hook.ts) `pickHook(input)` — loads up to 10 LRU-eligible hooks via `listLruEligibleHooks`, asks Haiku 4.5 + `jsonMode: true` to pick one by UUID with a reasoning sentence, falls back to first LRU on hallucination / LLM throw / Zod-parse-fail. Returns `null` only when no candidates exist. Marks the picked hook used via `markHookUsed`.
 - [`render-hook.ts`](src/lib/hook-library/render-hook.ts) `renderHook(pattern, vars)` — pure `{variable}` substitution. Throws `HookRenderError` on missing variable so a broken substitution fails loudly instead of leaking `"… wegen {tool}"` into a published slide.
+- [`derive-pain-point.ts`](src/lib/hook-library/derive-pain-point.ts) (Spec 65.14) `derivePainPoint(input)` — single Haiku 4.5 + jsonMode call returns a 1-4 word noun-phrase naming the friction the featured tools remove (e.g. `"stundenlanges Brainstorming"` / `"boilerplate code"`). Soft-fails to a per-language generic anchor (`"manuelle Arbeit"` / `"manual work"`) on LLM throw or Zod-parse-fail. Called from brief-generators ONLY when the picked hook's `variables` array includes `painPoint`. Cost-tracked under `COST_OPS.HOOK_PAIN_POINT_DERIVE` (€0.005).
 
 Cost-tracked under `COST_OPS.HOOK_PICK` (€0.005/call). Used by 65.5 brief-generators when `FORMAT_TYPES[formatType].needsHooks === true`. The hook-picker pattern (LRU candidates + LLM picks UUID + hallucination fallback to candidates[0]) is reusable for any future "LLM picks N of M from a curated pool" surface (template picker, persona picker, etc.).
+
+**Spec 65.14 — drama-intensity mode-switch.** `hook_templates.drama_intensity` (`subtle` / `moderate` / `aggressive`) tags each hook by SEO/Social fit. `pickHook(input)` requires the caller to pass `outputTargets: { article?: boolean; social?: boolean }` — pure helper `allowedDramaIntensitiesFor(outputTargets)` derives the allow-list (`article-only → ['subtle']` per Spec 64.16, `social → all three`). The picker pre-filters at SQL level via `listLruEligibleHooks({ dramaIntensities })` so the LLM only sees pool members it is allowed to pick (matches the 65.5-followup "filter at SQL, not post-check" pattern). Existing 60 hooks from migration 0116 default to `'subtle'` and stay available for SEO callers; 66 new V1.6 winner-hooks from migration 0129 are tagged `moderate` (number-driven, year-anchor, tier-anchor) or `aggressive` (contrarian "RIP {established}", curator-confidence "I tested N. Only K survived.").
+
+**`contentContext` extension (Spec 65.14):** the picker now reads `briefTopic` (1-line topic-summary per generator) + `competitorTool` (incumbent name for `{established}` substitution) in addition to the existing `toolNames / professionPool / lifeArea / narrativeIntent`. When `competitorTool` is undefined, the picker drops hooks whose `variables` array includes `"established"` — `renderHook` would otherwise throw `HookRenderError`. Render-time variable-population is per-generator (story_arc / lifestyle / opinion each conditionally populate `painPoint` via `derivePainPoint`, `established` from `config.competitorTool`, `n` from `formatConfig.itemCount` or a small narrative anchor, `k` from `Math.floor(n/2)` for lifestyle curator-hooks). Adding a new hook pattern with novel variables = (a) extend `variables` jsonb on seed, (b) extend the relevant generator's `renderVars` build, (c) add a test that the new variable lands in the rendered output.
 
 ### Persona-Scoring lib (Spec 65.3 Part A)
 

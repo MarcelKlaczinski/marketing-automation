@@ -10,6 +10,7 @@ import {
   type StoryArcClickbaitConfig,
   storyArcClickbaitConfigSchema,
 } from "@marketing-auto/shared/format-types";
+import { derivePainPoint } from "../../hook-library/derive-pain-point.ts";
 import { pickHook } from "../../hook-library/pick-hook.ts";
 import { renderHook } from "../../hook-library/render-hook.ts";
 import { buildBriefText } from "./shared/brief-text.ts";
@@ -75,16 +76,22 @@ export async function generateStoryArcClickbaitBrief(
   }
 
   // 3. Hook-pick (Family B — definition.needsHooks=true).
+  //    Spec 65.14: outputTargets + briefTopic + competitorTool context, picker
+  //    pre-filters by drama-intensity allow-list derived from outputTargets.
   const profession = pickProfession(config.professionPool, ctx.runNumber);
   const resolvedTool = articleToResolvedTool(tool);
+  const briefTopic = `${config.narrativeAngle} narrative featuring ${resolvedTool.name} for ${profession}`;
   const hookInput: Parameters<typeof pickHook>[0] = {
     projectId: ctx.projectId,
     formatType: "story_arc_clickbait",
     language: ctx.language,
+    outputTargets: ctx.definition.outputTargets,
     contentContext: {
       toolNames: [resolvedTool.name],
       professionPool: config.professionPool,
       narrativeIntent: config.narrativeAngle,
+      briefTopic,
+      ...(config.competitorTool && { competitorTool: config.competitorTool }),
     },
   };
   if (ctx.pipelineRunId !== undefined) hookInput.pipelineRunId = ctx.pipelineRunId;
@@ -97,11 +104,33 @@ export async function generateStoryArcClickbaitBrief(
     };
   }
 
-  // 4. Render hook with substituted variables.
-  const rendered = renderHook(picked.pattern, {
+  // 4. Render hook with substituted variables. Spec 65.14: populate the
+  //    Variable-Pool extension (painPoint via LLM-derive when the picked
+  //    pattern needs it, established from config, n/k auto-derived).
+  const renderVars: Record<string, string> = {
     profession,
     tool: resolvedTool.name,
-  });
+  };
+  if (picked.variables.includes("painPoint")) {
+    const derived = await derivePainPoint({
+      projectId: ctx.projectId,
+      language: ctx.language,
+      toolNames: [resolvedTool.name],
+      briefTopic,
+      profession,
+      ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+    });
+    renderVars.painPoint = derived.painPoint;
+  }
+  if (picked.variables.includes("established") && config.competitorTool) {
+    renderVars.established = config.competitorTool;
+  }
+  if (picked.variables.includes("n")) {
+    // story_arc_clickbait has no native item-count — use a small narrative
+    // anchor (3) so "{n} reasons …" reads naturally.
+    renderVars.n = "3";
+  }
+  const rendered = renderHook(picked.pattern, renderVars);
   const hookData = {
     hookId: picked.hookId,
     pattern: picked.pattern,

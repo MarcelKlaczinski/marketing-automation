@@ -897,6 +897,20 @@
       "when": 1790500000000,
       "tag": "0127_auto_approve_and_skip_cooldown",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0128_hook_templates_drama_intensity",
+      "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0129_hook_templates_v1_6_seed",
+      "breakpoints": true
     }
   ]
 }

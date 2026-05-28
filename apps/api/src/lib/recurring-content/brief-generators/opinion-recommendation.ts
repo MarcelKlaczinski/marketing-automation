@@ -10,6 +10,7 @@ import {
   type OpinionRecommendationConfig,
   opinionRecommendationConfigSchema,
 } from "@marketing-auto/shared/format-types";
+import { derivePainPoint } from "../../hook-library/derive-pain-point.ts";
 import { pickHook } from "../../hook-library/pick-hook.ts";
 import { renderHook } from "../../hook-library/render-hook.ts";
 import { buildBriefText } from "./shared/brief-text.ts";
@@ -70,14 +71,21 @@ export async function generateOpinionRecommendationBrief(
 
   const resolvedTool = articleToResolvedTool(tool);
 
-  // 3. Hook-pick.
+  // 3. Hook-pick. Spec 65.14: outputTargets + briefTopic + competitorTool
+  //    context, picker pre-filters by drama-intensity allow-list.
+  const briefTopic = `${config.opinionStance} opinion piece on ${resolvedTool.name}${
+    config.affiliateAngle ? " (pricing/value-prop emphasis)" : ""
+  }`;
   const hookInput: Parameters<typeof pickHook>[0] = {
     projectId: ctx.projectId,
     formatType: "opinion_recommendation",
     language: ctx.language,
+    outputTargets: ctx.definition.outputTargets,
     contentContext: {
       toolNames: [resolvedTool.name],
       narrativeIntent: `${config.opinionStance}${config.affiliateAngle ? "-affiliate" : ""}`,
+      briefTopic,
+      ...(config.competitorTool && { competitorTool: config.competitorTool }),
     },
   };
   if (ctx.pipelineRunId !== undefined) hookInput.pipelineRunId = ctx.pipelineRunId;
@@ -90,12 +98,31 @@ export async function generateOpinionRecommendationBrief(
     };
   }
 
-  // Opinion hooks substitute only {tool}. Pass extra vars defensively in
-  // case a custom pattern uses {tool}+{stance}.
-  const rendered = renderHook(picked.pattern, {
+  // Opinion hooks substitute {tool} + {stance} + optionally drama-pattern
+  // vars ({painPoint}, {established}). We pass extras defensively so custom
+  // patterns work — renderHook still errors on undeclared vars.
+  const renderVars: Record<string, string> = {
     tool: resolvedTool.name,
     stance: config.opinionStance,
-  });
+  };
+  if (picked.variables.includes("painPoint")) {
+    const derived = await derivePainPoint({
+      projectId: ctx.projectId,
+      language: ctx.language,
+      toolNames: [resolvedTool.name],
+      briefTopic,
+      ...(ctx.pipelineRunId !== undefined && { pipelineRunId: ctx.pipelineRunId }),
+    });
+    renderVars.painPoint = derived.painPoint;
+  }
+  if (picked.variables.includes("established") && config.competitorTool) {
+    renderVars.established = config.competitorTool;
+  }
+  if (picked.variables.includes("n")) {
+    // Opinion-piece anchor: 3 reasons is the canonical small-list anchor.
+    renderVars.n = "3";
+  }
+  const rendered = renderHook(picked.pattern, renderVars);
   const hookData = { hookId: picked.hookId, pattern: picked.pattern, rendered };
 
   // 4. Template selection.

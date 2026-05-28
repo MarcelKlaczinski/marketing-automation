@@ -41,6 +41,13 @@ export const COST_ESTIMATES_EUR: Record<string, Record<string, number>> = {
     // Spec 65.4 — Hook-Picker (Haiku 4.5 jsonMode, ~300 input + 100 output tokens).
     [COST_OPS.HOOK_PICK]: 0.005,
 
+    // Spec 65.14 — Per-brief {painPoint} derivation (Haiku 4.5 jsonMode,
+    // ~250 input tokens + ~80 output tokens for one painPoint phrase +
+    // reasoning). One call per brief that uses a contrarian / number-driven
+    // hook pattern with `{painPoint}`. Soft-fails to a generic painPoint
+    // string when the LLM throws / Zod-fails.
+    [COST_OPS.HOOK_PAIN_POINT_DERIVE]: 0.005,
+
     // Spec 65.3 — Persona-scoring (Haiku 4.5 jsonMode, all-personas-per-tool batch).
     // ~1500 input tokens (tool description + 10 persona definitions) + ~600
     // output tokens (10 scores × ~60 chars reasoning) per call. ~€0.01/call,

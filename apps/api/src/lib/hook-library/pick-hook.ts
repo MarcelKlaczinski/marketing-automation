@@ -20,7 +20,12 @@
  */
 import { anthropic } from "@marketing-auto/adapter-anthropic";
 import { COST_OPS } from "@marketing-auto/core/cost";
-import { type HookTemplate, listLruEligibleHooks, markHookUsed } from "@marketing-auto/db";
+import {
+  type HookDramaIntensity,
+  type HookTemplate,
+  listLruEligibleHooks,
+  markHookUsed,
+} from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
 
@@ -31,16 +36,54 @@ const HOOK_PICKER_SCHEMA = z.object({
   reasoning: z.string().min(1).max(500),
 });
 
+/**
+ * Spec 65.14 — derive the allowed drama-intensity set from a definition's
+ * `outputTargets`. Pure helper, exported for offline tests.
+ *
+ *   - article ONLY (no social) → `['subtle']` only — Spec 64.16 drama-ban
+ *     compliance for SEO output.
+ *   - social = true (regardless of article) → all three intensities.
+ *   - article=false + social=false (degenerate; shouldn't happen at runtime
+ *     because the DB default is `{article:false,social:true}`) → defaults
+ *     to all three so we never starve the picker.
+ */
+export function allowedDramaIntensitiesFor(outputTargets: {
+  article?: boolean;
+  social?: boolean;
+}): HookDramaIntensity[] {
+  if (outputTargets.social === true) return ["subtle", "moderate", "aggressive"];
+  if (outputTargets.article === true) return ["subtle"];
+  return ["subtle", "moderate", "aggressive"];
+}
+
 export interface PickHookInput {
   projectId: string;
   formatType: string;
   language: "de" | "en";
+  /**
+   * Spec 65.14 — caller MUST supply the definition's `outputTargets` so the
+   * picker can derive the drama-intensity allow-list. Article-only callers
+   * get `['subtle']` (Spec 64.16); social callers get all three.
+   */
+  outputTargets: { article?: boolean; social?: boolean };
   /** Optional structured context the LLM gets to weigh fit (tool names, professions, life-area, etc.). */
   contentContext?: {
     toolNames?: string[];
     professionPool?: string[];
     lifeArea?: string;
     narrativeIntent?: string;
+    /**
+     * Spec 65.14 — short topic-summary string derived per generator from
+     * format-config (e.g. `"career-disruption" arc featuring Claude for
+     * Texter`). Helps the LLM weigh topic-fit alongside tool-fit.
+     */
+    briefTopic?: string;
+    /**
+     * Spec 65.14 — incumbent / "established" competitor the contrarian-pattern
+     * hooks substitute as `{established}`. Optional — pre-filter drops hooks
+     * referencing `{established}` when this is undefined.
+     */
+    competitorTool?: string;
   };
   /** Propagated to the cost-tracker so the LLM call attaches to the right run. */
   pipelineRunId?: string;
@@ -70,22 +113,28 @@ export function buildHookPickerUserMessage(
     "Pick the single best narrative hook for a social-media carousel from the list below.",
     "",
     "## Content context",
+    `- Brief topic: ${ctx.briefTopic ?? "(not provided)"}`,
     `- Tools featured: ${ctx.toolNames?.join(", ") ?? "(none)"}`,
     `- Profession pool: ${ctx.professionPool?.join(", ") ?? "(n/a)"}`,
     `- Life area: ${ctx.lifeArea ?? "(n/a)"}`,
+    `- Competitor / incumbent ("{established}"): ${ctx.competitorTool ?? "(none)"}`,
     `- Narrative intent: ${ctx.narrativeIntent ?? "engagement-driven"}`,
     "",
     "## Eligible hooks",
   ];
   for (const h of candidates) {
     const last = h.lastUsedAt ? h.lastUsedAt.toISOString().slice(0, 10) : "never";
-    lines.push(`- id=${h.id} usage=${h.usageCount} last=${last} pattern="${h.pattern}"`);
+    lines.push(
+      `- id=${h.id} intensity=${h.dramaIntensity} usage=${h.usageCount} last=${last} pattern="${h.pattern}"`,
+    );
   }
   lines.push("");
   lines.push("## Selection rules");
-  lines.push("1. Pick by content fit first — match the tools/professions/life-area context.");
-  lines.push("2. Prefer hooks that have NOT been used recently (LRU preferential).");
-  lines.push("3. Avoid AI-generic phrasing — favour fresh, specific narratives.");
+  lines.push("1. Pick by topic-coherence first — the hook angle must fit the brief topic.");
+  lines.push("2. Then tool-fit — does the pattern work with these specific tools?");
+  lines.push("3. Then drama-pattern-match — strong patterns win for engagement-driven carousels.");
+  lines.push("4. Prefer hooks that have NOT been used recently (LRU preferential).");
+  lines.push("5. Avoid AI-generic phrasing — favour fresh, specific narratives.");
   lines.push("");
   lines.push(
     'Respond with JSON: {"pickedHookId": "<uuid from the list above>", "reasoning": "<one short sentence>"}',
@@ -96,16 +145,36 @@ export function buildHookPickerUserMessage(
 const SYSTEM_PROMPT = `You are a marketing copy editor picking the best narrative hook for a social-media carousel. You receive a context block and a list of eligible hook patterns (each with a UUID, usage count, last-used date, and the {variable}-placeholder pattern). Pick exactly one. Respond with JSON only.`;
 
 export async function pickHook(input: PickHookInput): Promise<PickedHook | null> {
-  const candidates = await listLruEligibleHooks({
+  const dramaIntensities = allowedDramaIntensitiesFor(input.outputTargets);
+
+  // Spec 65.14 — over-fetch (20) so the post-filter for `{established}`-bearing
+  // hooks (when the caller didn't supply a competitorTool) still leaves a
+  // workable LRU window. Final cap stays at 10 candidates.
+  const pool = await listLruEligibleHooks({
     projectId: input.projectId,
     formatType: input.formatType,
     language: input.language,
-    limit: 10,
+    limit: 20,
+    dramaIntensities,
   });
+
+  const competitorTool = input.contentContext?.competitorTool;
+  const candidates =
+    competitorTool !== undefined
+      ? pool.slice(0, 10)
+      : // Drop hooks that reference `{established}` when no competitor was
+        // supplied — renderHook would throw HookRenderError otherwise.
+        pool.filter((h) => !h.variables.includes("established")).slice(0, 10);
 
   if (candidates.length === 0) {
     log.warn(
-      { projectId: input.projectId, formatType: input.formatType, language: input.language },
+      {
+        projectId: input.projectId,
+        formatType: input.formatType,
+        language: input.language,
+        dramaIntensities,
+        poolBeforeEstablishedFilter: pool.length,
+      },
       "no eligible hooks — pickHook returning null",
     );
     return null;

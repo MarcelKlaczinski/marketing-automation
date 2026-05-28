@@ -95,6 +95,7 @@ describe("pickHook (Spec 65.4)", () => {
       projectId,
       formatType: "nonexistent-type",
       language: "de",
+      outputTargets: { article: false, social: true },
     });
     expect(r).toBeNull();
   });
@@ -112,6 +113,7 @@ describe("pickHook (Spec 65.4)", () => {
       projectId,
       formatType: "test-llm-happy",
       language: "de",
+      outputTargets: { article: false, social: true },
     });
 
     expect(r).not.toBeNull();
@@ -146,6 +148,7 @@ describe("pickHook (Spec 65.4)", () => {
       projectId,
       formatType: "test-llm-hallucination",
       language: "de",
+      outputTargets: { article: false, social: true },
     });
 
     expect(r?.hookId).toBe(expectedFirst);
@@ -172,6 +175,7 @@ describe("pickHook (Spec 65.4)", () => {
       projectId,
       formatType: "test-llm-throws",
       language: "de",
+      outputTargets: { article: false, social: true },
     });
 
     expect(r?.hookId).toBe(lru[0]!.id);
@@ -195,6 +199,7 @@ describe("pickHook (Spec 65.4)", () => {
       projectId,
       formatType: "test-llm-zod-fail",
       language: "de",
+      outputTargets: { article: false, social: true },
     });
 
     expect(r?.source).toBe("fallback");
@@ -209,6 +214,7 @@ describe("pickHook (Spec 65.4)", () => {
       pattern: "x-pattern",
       language: "de",
       variables: ["tool"],
+      dramaIntensity: "subtle",
       usageCount: 3,
       lastUsedAt: new Date("2026-01-15T00:00:00Z"),
       isActive: true,

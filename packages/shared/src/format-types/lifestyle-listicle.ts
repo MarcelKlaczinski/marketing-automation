@@ -28,6 +28,12 @@ export const lifestyleListicleConfigSchema = z.object({
       personaFilter: z.string().min(1).optional(),
     })
     .optional(),
+  /**
+   * Spec 65.14 — optional incumbent name for contrarian-pattern hooks
+   * (`{established}` substitution). When omitted the picker drops hooks
+   * referencing `{established}` and falls back to non-contrarian patterns.
+   */
+  competitorTool: z.string().min(1).optional(),
 });
 
 export type LifestyleListicleConfig = z.infer<typeof lifestyleListicleConfigSchema>;

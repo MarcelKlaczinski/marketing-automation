@@ -71,6 +71,9 @@ export const COST_OPS = {
   // === Spec 65.4: Hook-Library top-1 picker (Haiku 4.5 jsonMode) ===
   HOOK_PICK: "hook-pick",
 
+  // === Spec 65.14: Per-brief {painPoint} derivation (Haiku 4.5 jsonMode) ===
+  HOOK_PAIN_POINT_DERIVE: "hook-pain-point-derive",
+
   // === Spec 65.3: Persona-scoring (Haiku 4.5 jsonMode, all-personas-per-tool batch) ===
   PERSONA_SCORE: "persona-score",
   // === Spec 65.3: Tool-data refresh via Anthropic web-search + LLM-extract ===

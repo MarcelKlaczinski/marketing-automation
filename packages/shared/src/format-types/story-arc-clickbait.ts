@@ -28,6 +28,15 @@ export const storyArcClickbaitConfigSchema = z.object({
     .default("career-disruption"),
   /** `dramatic` = stronger clickbait language; `subtle` = understated, more SEO-safe. */
   toneIntensity: z.enum(["dramatic", "subtle"]).default("dramatic"),
+  /**
+   * Spec 65.14 — optional incumbent / competitor name used as the
+   * `{established}` substitution in contrarian-pattern hooks (e.g.
+   * "RIP {established}: {n} tools that end it"). Marcel sets this per
+   * definition in the Settings UI when a specific incumbent should anchor
+   * the contrarian framing; omitted → the picker skips hooks referencing
+   * `{established}` (drops to other patterns in the LRU pool).
+   */
+  competitorTool: z.string().min(1).optional(),
 });
 
 export type StoryArcClickbaitConfig = z.infer<typeof storyArcClickbaitConfigSchema>;
