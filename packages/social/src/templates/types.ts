@@ -32,6 +32,7 @@ export type TemplateKey =
   | "story-arc-clickbait"
   | "lifestyle-listicle"
   | "opinion-recommendation"
+  | "tool-tier-ranking"
   // Deprecated V1-cut variants — kept in union for audit trail + backward-
   // compat. See `DeprecatedTemplateKey` JSDoc below for full rationale.
   | "opinion-recommendation-dramatic"
@@ -134,7 +135,8 @@ export type RenderServerFn =
   | "renderHeadToHeadDeepDive"
   | "renderStoryArcClickbait"
   | "renderLifestyleListicle"
-  | "renderOpinionRecommendation";
+  | "renderOpinionRecommendation"
+  | "renderToolTierRanking";
 
 export type Theme = "dark" | "light";
 export type Locale = "de" | "en";

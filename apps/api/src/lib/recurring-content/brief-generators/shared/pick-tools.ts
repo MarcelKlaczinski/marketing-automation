@@ -30,6 +30,7 @@ import {
   not,
   sql,
   toolBrandAssets,
+  toolPersonaScores,
 } from "@marketing-auto/db";
 import { createLogger } from "@marketing-auto/shared";
 import { z } from "zod";
@@ -60,6 +61,15 @@ export interface PickToolsInput {
     persona?: string;
     /** When true, skip tool IDs that ran in the most recent run of this definition. */
     excludeRecentlyUsed?: boolean;
+    /**
+     * Spec 65.17 B5 — when true, pre-filter the LLM candidate pool to tools
+     * that have AT LEAST ONE `tool_persona_scores` row. Required by tier-mode
+     * (the `tool-tier-ranking` template derives Bad/Good/Great tiers from
+     * persona-scores, so a scoreless tool would have nothing to bucket).
+     * Matches the brand-asset pre-filter pattern (Spec 65.5-followup): never
+     * post-check what the SQL layer can structurally exclude.
+     */
+    requirePersonaScores?: boolean;
   };
   /** IDs from the definition's most recent run — fed in by the worker. */
   previousRunToolIds?: string[];
@@ -103,6 +113,7 @@ async function loadCandidatePool(input: {
   categorySlug?: string;
   excludeIds?: string[];
   limit: number;
+  requirePersonaScores?: boolean;
 }): Promise<Article[]> {
   const conditions = [
     eq(articles.projectId, input.projectId),
@@ -115,6 +126,13 @@ async function loadCandidatePool(input: {
     // performance is identical to INNER JOIN.
     sql`EXISTS (SELECT 1 FROM ${toolBrandAssets} tba WHERE tba.tool_id = ${articles.id} AND tba.logo_url IS NOT NULL)`,
   ];
+  if (input.requirePersonaScores) {
+    // Spec 65.17 B5 tier-mode pre-filter: tool must have at least one
+    // `tool_persona_scores` row so the aggregate-score computation has data.
+    conditions.push(
+      sql`EXISTS (SELECT 1 FROM ${toolPersonaScores} tps WHERE tps.tool_id = ${articles.id})`,
+    );
+  }
   if (input.categorySlug) {
     conditions.push(eq(articles.category, input.categorySlug));
   }
@@ -258,6 +276,7 @@ export async function pickToolsForBrief(input: PickToolsInput): Promise<PickTool
     categorySlug?: string;
     excludeIds?: string[];
     limit: number;
+    requirePersonaScores?: boolean;
   } = {
     projectId: input.projectId,
     locale: input.locale,
@@ -265,6 +284,7 @@ export async function pickToolsForBrief(input: PickToolsInput): Promise<PickTool
   };
   if (input.config.categorySlug) poolFilter.categorySlug = input.config.categorySlug;
   if (excludeIds.length > 0) poolFilter.excludeIds = excludeIds;
+  if (input.config.requirePersonaScores) poolFilter.requirePersonaScores = true;
   let pool = await loadCandidatePool(poolFilter);
 
   if (pool.length < topN) {

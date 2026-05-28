@@ -63,6 +63,19 @@
       />
       <span>{{ $t("recurringContent.wizard.config.topN.excludeRecentlyUsed") as string }}</span>
     </label>
+
+    <label class="checkbox-row">
+      <input
+        v-model="tierMode"
+        type="checkbox"
+        class="checkbox-input"
+        @change="emit"
+      />
+      <span>{{ $t("recurringContent.wizard.config.topN.tierModeLabel") as string }}</span>
+    </label>
+    <small v-if="tierMode" class="hint">
+      {{ $t("recurringContent.wizard.config.topN.tierModeHint") as string }}
+    </small>
   </div>
 </template>
 
@@ -76,6 +89,8 @@ interface TopNConfig {
   rankingSource?: "manual" | "auto-by-stars" | "llm-curated";
   manualToolIds?: string[];
   excludeRecentlyUsed?: boolean;
+  /** Spec 65.17 B7 — routes to `tool-tier-ranking` template when enabled. */
+  tierMode?: boolean;
 }
 
 export default defineComponent({
@@ -96,6 +111,7 @@ export default defineComponent({
       rankingSource: this.modelValue.rankingSource ?? "llm-curated",
       manualToolIds: this.modelValue.manualToolIds ?? ([] as string[]),
       excludeRecentlyUsed: this.modelValue.excludeRecentlyUsed ?? true,
+      tierMode: this.modelValue.tierMode ?? false,
     };
   },
 
@@ -115,6 +131,9 @@ export default defineComponent({
       if (this.rankingSource === "manual" && this.manualToolIds.length > 0) {
         payload.manualToolIds = this.manualToolIds;
       }
+      // Spec 65.17 B7 — only persist tierMode when enabled so back-compat
+      // briefs don't carry a redundant `tierMode: false` key.
+      if (this.tierMode) payload.tierMode = true;
       this.$emit("update:modelValue", payload);
     },
   },

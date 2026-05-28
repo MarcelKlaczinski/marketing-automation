@@ -33,6 +33,7 @@ const FAMILY_A_TEMPLATE_KEYS = [
   "pro-con-verdict",
   "head-to-head-vs",
   "head-to-head-deep-dive",
+  "tool-tier-ranking",
 ] as const satisfies readonly TemplateKey[];
 
 type FamilyATemplateKey = (typeof FAMILY_A_TEMPLATE_KEYS)[number];
@@ -101,6 +102,7 @@ export type RenderServerLike = {
   renderStoryArcClickbait: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   renderLifestyleListicle: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   renderOpinionRecommendation: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+  renderToolTierRanking: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
 };
 
 export async function dispatchByTemplateKey(
@@ -140,6 +142,8 @@ export async function dispatchByTemplateKey(
         return renderServer.renderHeadToHeadVs(fullInput);
       case "head-to-head-deep-dive":
         return renderServer.renderHeadToHeadDeepDive(fullInput);
+      case "tool-tier-ranking":
+        return renderServer.renderToolTierRanking(fullInput);
       default: {
         const _exhaustive: never = templateKey;
         throw new Error(`Unhandled Family-A templateKey: ${String(_exhaustive)}`);
@@ -218,6 +222,7 @@ async function renderSlidesViaRemotion(data: SocialRenderJobData): Promise<{ sli
     renderStoryArcClickbait: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderLifestyleListicle: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
     renderOpinionRecommendation: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
+    renderToolTierRanking: (input: Record<string, unknown>) => Promise<{ slides: Buffer[]; sequenceCount: number }>;
   };
 
   // ─── Build composition input from snapshot (family-specific) ────────────────

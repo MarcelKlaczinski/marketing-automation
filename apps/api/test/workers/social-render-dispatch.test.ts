@@ -86,6 +86,7 @@ function buildMockRenderServer(): {
     renderStoryArcClickbait: stub("renderStoryArcClickbait"),
     renderLifestyleListicle: stub("renderLifestyleListicle"),
     renderOpinionRecommendation: stub("renderOpinionRecommendation"),
+    renderToolTierRanking: stub("renderToolTierRanking"),
   };
   return { server, calls };
 }
@@ -102,6 +103,7 @@ const TEMPLATE_KEY_TO_RENDER_FN: Record<string, keyof RenderServerLike> = {
   "story-arc-clickbait": "renderStoryArcClickbait",
   "lifestyle-listicle": "renderLifestyleListicle",
   "opinion-recommendation": "renderOpinionRecommendation",
+  "tool-tier-ranking": "renderToolTierRanking",
 };
 
 describe("dispatchByTemplateKey routes to the matching render-server fn", () => {
