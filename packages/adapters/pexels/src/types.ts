@@ -32,7 +32,16 @@ export interface PexelsSearchInput {
 /**
  * Raw Pexels API photo shape. Mirrors
  * https://www.pexels.com/api/documentation/#photos-search.
- * `src.large` is ~2x the size of `src.medium` and both are JPEG.
+ *
+ * Size variants (verified live, full API response includes all):
+ *   - original  — full resolution (often 4000×6000+); too big for our use
+ *   - large2x   — ~1880px wide — perfect for 1080×1350 (4:5) carousel
+ *                  downscale without upscaling. Spec 65.16 V1.6-followup
+ *                  swapped from `large` → `large2x` after live-test
+ *                  showed `large` (~940px) was upscaled + lost sharpness.
+ *   - large     — ~940px wide — kept as fallback if large2x absent
+ *   - medium    — ~350px wide — used for thumbnailUrl (LLM-vision)
+ *   - portrait  — 800×1200 portrait crop
  */
 export const pexelsPhotoSchema = z.object({
   id: z.number(),
@@ -44,6 +53,7 @@ export const pexelsPhotoSchema = z.object({
   alt: z.string().optional().default(""),
   src: z.object({
     original: z.string().url(),
+    large2x: z.string().url().optional(),
     large: z.string().url(),
     medium: z.string().url(),
     portrait: z.string().url().optional(),

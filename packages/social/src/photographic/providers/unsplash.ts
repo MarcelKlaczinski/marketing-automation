@@ -30,7 +30,11 @@ export async function searchUnsplashAsProvider(
     for (const photo of r.value) {
       out.push({
         provider: "unsplash",
-        imageUrl: photo.urls.regular,
+        // Spec 65.16 V1.6-followup — prefer `urls.full` (Vollauflösung) over
+        // `urls.regular` (1080px wide, no upscale buffer). `convertImageToWebp`
+        // downscales to maxWidth=1620 retina-safely. Falls back to `regular`
+        // when `full` is absent (legacy Unsplash responses).
+        imageUrl: photo.urls.full ?? photo.urls.regular,
         thumbnailUrl: photo.urls.small,
         width: photo.width,
         height: photo.height,

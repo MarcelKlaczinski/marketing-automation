@@ -33,6 +33,22 @@ export interface ConvertImageToWebpInput {
    * keeps its own copy upstream.
    */
   discardOriginal?: boolean;
+  /**
+   * Spec 65.16 V1.6-followup — optional downscale ceiling for the WebP output.
+   * When set, sharp resizes the image to fit inside `maxWidth × ∞` (preserving
+   * aspect ratio) BEFORE the WebP encode. Honours sharp's `withoutEnlargement`
+   * so smaller inputs pass through unchanged. The forensic original is stored
+   * at full resolution regardless.
+   *
+   * Use case: producer hands us a 4000×6000 stock photo (Pexels `src.original`)
+   * but we render on a 1080×1350 canvas. Setting `maxWidth: 1620` (1.5× canvas
+   * for retina-safety) keeps R2 compact without sacrificing sharpness at
+   * render time.
+   *
+   * Omit for the legacy hero-image path — Gemini/Replicate already produce
+   * the right size and resize is a wasted CPU spend.
+   */
+  maxWidth?: number;
 }
 
 export interface ConvertImageToWebpResult {

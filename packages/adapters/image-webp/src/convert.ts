@@ -19,11 +19,13 @@ const DEFAULT_QUALITY = 85;
  * "await import sharp" rule). Lazy-load so the sharp native binding doesn't
  * load at adapter import-time — keeps test-only consumers cheap.
  */
-type SharpCallable = (input: Uint8Array | Buffer) => {
+interface SharpPipeline {
+  resize(opts: { width?: number; fit?: "inside"; withoutEnlargement?: boolean }): SharpPipeline;
   webp(options: { quality: number; effort?: number }): {
     toBuffer(): Promise<Buffer>;
   };
-};
+}
+type SharpCallable = (input: Uint8Array | Buffer) => SharpPipeline;
 
 async function loadSharp(): Promise<SharpCallable> {
   try {
@@ -43,12 +45,25 @@ async function loadSharp(): Promise<SharpCallable> {
   }
 }
 
-async function encodeWebp(bytes: Uint8Array, quality: number): Promise<Uint8Array> {
+async function encodeWebp(
+  bytes: Uint8Array,
+  quality: number,
+  maxWidth: number | undefined,
+): Promise<Uint8Array> {
   const sharpFn = await loadSharp();
   const buffer = bytes instanceof Buffer ? bytes : Buffer.from(bytes);
   // effort 4 = sharp default; higher values produce smaller files at the cost of CPU.
   // 4 is fine for hero images (~80KB → ~50KB at effort 6); the cost-benefit drops past 4.
-  const result = await sharpFn(buffer).webp({ quality, effort: 4 }).toBuffer();
+  //
+  // Spec 65.16 V1.6-followup — optional downscale BEFORE webp encode. `fit: "inside"`
+  // preserves aspect ratio (only the long edge is capped); `withoutEnlargement` makes
+  // smaller inputs pass through untouched. Without `maxWidth`, the pipeline preserves
+  // source dimensions (legacy hero-image path).
+  const pipeline = sharpFn(buffer);
+  const resized = maxWidth !== undefined
+    ? pipeline.resize({ width: maxWidth, fit: "inside", withoutEnlargement: true })
+    : pipeline;
+  const result = await resized.webp({ quality, effort: 4 }).toBuffer();
   return new Uint8Array(result.buffer, result.byteOffset, result.byteLength);
 }
 
@@ -112,7 +127,7 @@ export async function convertImageToWebp(
 
   // Convert path. Run sharp first — if encoding fails we don't want a half-stored
   // original orphaned in R2 with no canonical WebP referencing it.
-  const webpBytes = await encodeWebp(input.bytes, quality);
+  const webpBytes = await encodeWebp(input.bytes, quality, input.maxWidth);
 
   const webpKey = `${cleanPrefix}/${fileId}.webp`;
   const webpStored = await putObject({

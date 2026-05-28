@@ -149,6 +149,65 @@ describe("convertImageToWebp", () => {
     // The original was stored as PNG (correct, from sniff), not WebP (the lie).
     expect(result.originalKey).toMatch(/\.png$/);
   });
+
+  it("Spec 65.16 V1.6-followup — `maxWidth` downscales the WebP output", async () => {
+    // 3000x2000 PNG → maxWidth: 1620 → WebP should be 1620x1080 (aspect kept).
+    const big = await makePng(3000, 2000);
+    const result = await convertImageToWebp({
+      projectId: crypto.randomUUID(),
+      bytes: big,
+      contentType: "image/png",
+      storagePrefix: "test-tenant/articles/hero",
+      maxWidth: 1620,
+    });
+    expect(result.alreadyWebp).toBe(false);
+    expect(result.originalBytes).toBe(big.length); // forensic original kept at full res
+
+    // Verify the WebP dimensions by re-decoding via sharp.
+    const sharpMod = await import("sharp");
+    const sharpFn = (sharpMod as unknown as { default: typeof import("sharp") }).default;
+    // Read back via the public URL → local-fallback path resolves to apps/api/uploads.
+    const url = new URL(result.webpUrl);
+    const localPath = `apps/api${url.pathname}`;
+    const meta = await sharpFn(localPath).metadata();
+    expect(meta.width).toBe(1620);
+    expect(meta.height).toBe(1080); // 3000:2000 → 1620:1080 (aspect preserved)
+  });
+
+  it("Spec 65.16 V1.6-followup — `maxWidth` larger than input passes through unchanged", async () => {
+    // 800x600 PNG → maxWidth: 1620 → `withoutEnlargement: true` keeps 800x600.
+    const small = await makePng(800, 600);
+    const result = await convertImageToWebp({
+      projectId: crypto.randomUUID(),
+      bytes: small,
+      contentType: "image/png",
+      storagePrefix: "test-tenant/articles/hero",
+      maxWidth: 1620,
+    });
+    const sharpMod = await import("sharp");
+    const sharpFn = (sharpMod as unknown as { default: typeof import("sharp") }).default;
+    const url = new URL(result.webpUrl);
+    const meta = await sharpFn(`apps/api${url.pathname}`).metadata();
+    expect(meta.width).toBe(800);
+    expect(meta.height).toBe(600);
+  });
+
+  it("Spec 65.16 V1.6-followup — omitting `maxWidth` preserves source dimensions (back-compat)", async () => {
+    const png = await makePng(2000, 1500);
+    const result = await convertImageToWebp({
+      projectId: crypto.randomUUID(),
+      bytes: png,
+      contentType: "image/png",
+      storagePrefix: "test-tenant/articles/hero",
+      // no maxWidth — hero-image legacy path
+    });
+    const sharpMod = await import("sharp");
+    const sharpFn = (sharpMod as unknown as { default: typeof import("sharp") }).default;
+    const url = new URL(result.webpUrl);
+    const meta = await sharpFn(`apps/api${url.pathname}`).metadata();
+    expect(meta.width).toBe(2000);
+    expect(meta.height).toBe(1500);
+  });
 });
 
 describe("imageWebp.convertImageToWebp (object surface)", () => {

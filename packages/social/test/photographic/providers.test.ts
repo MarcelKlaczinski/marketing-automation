@@ -108,7 +108,10 @@ describe("searchPexelsAsProvider", () => {
     expect(results.length).toBe(2);
     expect(results[0]).toMatchObject({
       provider: "pexels",
-      imageUrl: "https://images.pexels.com/photos/10/large.jpg",
+      // Spec 65.16 V1.6-followup — Pexels mapper now picks `src.original`
+      // (full-res) so `convertImageToWebp` can downscale to 1620w retina-safely.
+      // `src.large` (433×650 portrait) was upscaling to 1080×1350 → matschig.
+      imageUrl: "https://images.pexels.com/photos/10/original.jpg",
       thumbnailUrl: "https://images.pexels.com/photos/10/medium.jpg",
       photographer: "P-10",
       providerId: "10",

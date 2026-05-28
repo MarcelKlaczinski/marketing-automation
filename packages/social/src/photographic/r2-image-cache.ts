@@ -89,6 +89,13 @@ export async function stageProviderImage(
       storagePrefix,
       // Quality default 85 — fine for photographic backgrounds at 40% opacity
       // (per spec §3.11 Option β + δ they're heavily overlaid anyway).
+      //
+      // Spec 65.16 V1.6-followup — downscale to 1620w (1.5× canvas for
+      // retina-safety). Providers now hand us full-res originals (Pexels
+      // `src.original` is 4000-6000px+) so without this resize R2 storage
+      // would balloon. Sharp's `withoutEnlargement: true` makes smaller
+      // inputs pass through unchanged (no upscale).
+      maxWidth: 1620,
     });
   } catch (err) {
     if (err instanceof ImageWebpError) {
