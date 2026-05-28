@@ -354,3 +354,32 @@ Plus a `preset.*` sub-object for future per-slide branching that needs the key e
 Per-slide migration is mechanical (~4 lines): import swap + `preset?: PresetKey | null` prop + `deriveTokensForRender(resolveBrandTokens(brandTokens), theme, preset ?? null)` instead of `deriveEmotionalDsTokens(...)` + `[brandTokens, theme, preset]` deps. Dispatcher composition files thread `preset` from `props` to each child via `...(preset !== undefined && { preset })` conditional spread.
 
 **Pattern reusable for any future "style preset" or "skin" system**: when introducing a parallel typography/color variant, alias into the EXISTING slots that consumers already read. Avoids per-consumer branching, preserves back-compat automatically. The `preset.*` sub-object is the escape hatch for variant-specific behaviour that genuinely needs to know the key.
+
+**Two font sources (Spec 65.16 V1.7 #4)** — catalog typography mixes `@remotion/google-fonts` + Fontshare CDN:
+
+| Font | Source | Loader | Notes |
+|---|---|---|---|
+| Inter Variable | `@remotion/google-fonts/Inter` | `loadInter("normal", {weights:[...]})` | body text + light-editorial body |
+| Fraunces | `@remotion/google-fonts/Fraunces` | `loadFraunces(...)` | light-editorial serif display |
+| JetBrains Mono | `@remotion/google-fonts/JetBrainsMono` | `loadJetBrainsMono(...)` | dark-neon-grid eyebrow mono |
+| Space Grotesk | `@remotion/google-fonts/SpaceGrotesk` | `loadSpaceGrotesk(...)` | available; not currently used (was the V1.6 blue-tech display before V1.7 #4 swap) |
+| **Clash Display** | **Fontshare CDN** | `loadFontshareFonts()` module-level | **dark-neon-grid display (V1.7 #4 swap)** |
+| **Cabinet Grotesk** | **Fontshare CDN** | `loadFontshareFonts()` module-level | **blue-tech-gradient display (V1.7 #4 swap)** |
+| **Satoshi** | **Fontshare CDN** | `loadFontshareFonts()` module-level | **blue-tech-gradient eyebrow (V1.7 #4 swap)** |
+
+**Fontshare loader** ([fonts.ts](src/presets/fonts.ts) `loadFontshareFonts()`):
+- Module-level — fires once when `fonts.ts` is first imported (composition entry-point pattern).
+- Injects a `<link>` tag pointing at Fontshare's CSS API URL (`https://api.fontshare.com/v2/css?f[]=...`).
+- `delayRender("Loading Fontshare display fonts")` → `continueRender(handle)` after `document.fonts.ready` resolves. Same pattern `@remotion/google-fonts` uses internally; Remotion waits before committing the first frame.
+- **Idempotent** — guarded by a unique link `id` (`spec-65-16-fontshare-link`) so duplicate imports across composition entry-points never duplicate the `<link>`.
+- **SSR/Bun-test safe** — `typeof document === "undefined"` short-circuits the loader so Bun tests don't crash on missing DOM.
+- **Graceful fallback** — `link.onerror` calls `continueRender(handle)` so a Fontshare CDN outage produces ugly fonts (CSS-stack fallback to Inter Variable), not a hung render.
+- Adds `"DOM"` to `packages/social/tsconfig.json` `lib` — the loader is the first direct `document.*` consumer in this package; slide components were getting away with implicit DOM via `@types/react`.
+
+**Adding a new Fontshare font for a future preset:**
+1. Append to the families list inside the `FONTSHARE_CSS_URL` builder in `fonts.ts` — `f[]=<font-slug>@<weights>`.
+2. Export a new `FONT_FAMILY_<NAME>` constant (literal CSS family name — Fontshare's `@font-face` rules register the family by the human-friendly name verbatim).
+3. Add to `FONT_FAMILY_MAP` so catalog `displayFontFamily` strings resolve correctly.
+4. Use in `PRESET_CATALOG[key].typography.*FontFamily` directly.
+
+**Adding a new font from a DIFFERENT CDN** (e.g. Adobe Fonts, Type Network): same shape — a `<link>` tag at module load + delayRender handle + `document.fonts.ready` await + onerror graceful fallback. The `loadFontshareFonts()` function is the canonical reference; copy it and swap the URL builder + family-name constants.

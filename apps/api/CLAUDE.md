@@ -108,6 +108,18 @@ Family B generators (`story-arc-clickbait`, `lifestyle-listicle`, `opinion-recom
 
 **12-point Content-Type registration** (Memory D7) — `recurring_content` registered across `CONTENT_TYPES`, `PLANNING_CONTENT_TYPES`, `PIPELINE_NAME_BY_CONTENT_TYPE` (default `article:social-image`; pipeline-router upgrades to `article:blog` when `outputTargets.article=true && social!==true`), `CONTENT_TYPE_TO_PIPELINE`, `matchBriefToContentType` (`source==='recurring'` → `'recurring_content'`), `pipelineInputFromBrief`, `distribute-slot-dates.ts` round-robin, `pipeline-router.ts` case, `PlannerItemCard.vue` `.ct-recurring_content` teal hue, `SettingsPlannerPage.vue` (`ContentType` union + `ALL_CONTENT_TYPES` + `perTypeInputs`), i18n DE+EN under `planner.contentType` + `settings.planner.contentTypes`.
 
+### Sample-Render endpoint (Spec 65.16 V1.7 #3)
+
+`POST /api/projects/:slug/recurring-content/definitions/:id/sample-image` lets Marcel preview a single NB2 image with the resolved preset + a fixed editorial scene before committing to a real cron-fire. Service helper at [`src/lib/recurring-content/sample-image.ts`](src/lib/recurring-content/sample-image.ts) `renderSampleImage(input)` builds the prompt via `buildNB2Prompt` with `slideRole: "cover"` + a fixed sample-scene text + empty `hookContext` (no subject anchoring — pure preset visual demo). R2 prefix `<projectSlug>/sample-renders/<definitionId>` keeps storage browsable.
+
+**Cost gate reuses the existing `dry_run` monthly budget bucket** — sample-renders are similar cost-shape (~€0.25/click), and adding a dedicated `sample_render` budget would force a migration + UI without a real value distinction. The €5/month default covers ~20 clicks; Marcel raises via the Settings UI Budget editor.
+
+**Adapter-not-from-route compliance**: the route calls `renderSampleImage()` (service file), which calls `generateImage()` from `@marketing-auto/adapter-nano-banana`. Canonical `src/lib/<domain>-service.ts` extraction pattern.
+
+**Preset resolution via the canonical 3-tier cascade** — `resolveImageStylePreset({projectDefault, definitionOverride, contentLevelChoice})` from `src/lib/recurring-content/resolve-image-style-preset.ts`. The route accepts optional `{presetOverride}` body field as the content-level layer.
+
+**Future "sample-render" surfaces** (other generative-image previews — e.g. cover-photo regen, hero-image preview): copy this shape — service file in `src/lib/<domain>/`, route in the matching `routes/projects/<resource>.ts`, reuse the `dry_run` budget unless the cost-shape diverges materially.
+
 ### Settings UI surface (Spec 65.11)
 
 Three sibling routes under `/api/projects/:slug` give Marcel full self-service:
