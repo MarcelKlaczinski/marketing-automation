@@ -51,7 +51,8 @@
     "cleanup-bucket-c-drift": "bun --env-file ../../.env src/scripts/cleanup-bucket-c-drift.ts",
     "reassign-uncategorized-clusters": "bun --env-file ../../.env src/scripts/reassign-uncategorized-clusters.ts",
     "audit-astro-frontmatter-usage": "bun --env-file ../../.env src/scripts/discovery/audit-astro-frontmatter-usage.ts",
-    "audit-content-pillars-sources": "bun --env-file ../../.env src/scripts/discovery/audit-content-pillars-sources.ts"
+    "audit-content-pillars-sources": "bun --env-file ../../.env src/scripts/discovery/audit-content-pillars-sources.ts",
+    "seed-toolwiki-logo": "bun --env-file ../../.env src/scripts/seed-toolwiki-logo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.94.0",
