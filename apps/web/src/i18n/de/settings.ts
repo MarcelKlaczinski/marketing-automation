@@ -837,48 +837,50 @@ export default {
         "Dieses Tool wird auch in {n} anderem Projekt verwendet. | Dieses Tool wird auch in {n} anderen Projekten verwendet.",
       loadingUsage: "Prüfe Cross-Projekt-Verwendung …",
     },
-    // Spec 65.V1.5b — Recurring-content defaults section (auto-approve + budgets)
-    recurringDefaults: {
-      title: "Recurring-Content Defaults",
-      description:
-        "Projekt-Default für Auto-Approve + monatliche Budget-Caps für Dry-Runs und Recurring-Content-Renders.",
-      autoApproveLabel: "Recurring-Briefs automatisch genehmigen",
-      autoApproveHelper:
-        "Wenn aktiviert, überspringen frisch generierte Recurring-Briefs plan_pending und landen direkt im Planner. Pro Definition überschreibbar im Wizard Step 3.",
-      imageStylePreset: {
-        label: "Bild-Stil Preset (Projekt-Default)",
-        options: {
-          "dark-neon-grid": {
-            label: "Dark Neon Grid",
-            description:
-              "Cinematic dunkel, Electric-Blau + Purple Neon. Tech-Magic — passt zu Story-Arc + Opinion.",
-          },
-          "light-editorial": {
-            label: "Light Editorial",
-            description:
-              "Warmes Creme + Serif-Typografie. Kinfolk-Magazine-Feel — passt zu Lifestyle + Educational.",
-          },
-          "blue-tech-gradient": {
-            label: "Blue Tech Gradient",
-            description:
-              "SaaS-Energie, blauer Verlauf, optimistic-tech. Passt zu Head-to-Head + Comparison.",
-          },
+  },
+  // Spec 65.V1.5b + 65.16 — Recurring-content defaults section (auto-approve +
+  // image-style preset + budgets). Top-level under `settings.*` per component
+  // i18n keys: `settings.recurringDefaults.*`.
+  recurringDefaults: {
+    title: "Recurring-Content Defaults",
+    description:
+      "Projekt-Default für Auto-Approve + monatliche Budget-Caps für Dry-Runs und Recurring-Content-Renders.",
+    autoApproveLabel: "Recurring-Briefs automatisch genehmigen",
+    autoApproveHelper:
+      "Wenn aktiviert, überspringen frisch generierte Recurring-Briefs plan_pending und landen direkt im Planner. Pro Definition überschreibbar im Wizard Step 3.",
+    imageStylePreset: {
+      label: "Bild-Stil Preset (Projekt-Default)",
+      options: {
+        "dark-neon-grid": {
+          label: "Dark Neon Grid",
+          description:
+            "Cinematic dunkel, Electric-Blau + Purple Neon. Tech-Magic — passt zu Story-Arc + Opinion.",
+        },
+        "light-editorial": {
+          label: "Light Editorial",
+          description:
+            "Warmes Creme + Serif-Typografie. Kinfolk-Magazine-Feel — passt zu Lifestyle + Educational.",
+        },
+        "blue-tech-gradient": {
+          label: "Blue Tech Gradient",
+          description:
+            "SaaS-Energie, blauer Verlauf, optimistic-tech. Passt zu Head-to-Head + Comparison.",
         },
       },
-      exhausted: "Budget aufgebraucht",
-      monthlyLimitLabel: "Monatslimit (€)",
-      saveSuccess: "Budget aktualisiert.",
-      saveError: "Speichern fehlgeschlagen.",
-      dryRun: {
-        title: "Dry-Run Budget",
-        hint:
-          "Wizard-Vorschauen kosten ~€0.25 pro Run (Haiku Curate + Sonnet Brief). Default: €5/Monat.",
-      },
-      total: {
-        title: "Recurring-Content Budget",
-        hint:
-          "Reale Cron-Fires + Auto-Renderings. Default: €15/Monat (~50-75 Renders).",
-      },
+    },
+    exhausted: "Budget aufgebraucht",
+    monthlyLimitLabel: "Monatslimit (€)",
+    saveSuccess: "Budget aktualisiert.",
+    saveError: "Speichern fehlgeschlagen.",
+    dryRun: {
+      title: "Dry-Run Budget",
+      hint:
+        "Wizard-Vorschauen kosten ~€0.25 pro Run (Haiku Curate + Sonnet Brief). Default: €5/Monat.",
+    },
+    total: {
+      title: "Recurring-Content Budget",
+      hint:
+        "Reale Cron-Fires + Auto-Renderings. Default: €15/Monat (~50-75 Renders).",
     },
   },
 };

@@ -437,6 +437,81 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
     },
   },
 
+  // ── story-arc-clickbait ───────────────────────────────────────────────
+  // 7-slide Family-B narrative carousel (Spec 65.8). Cover renders the
+  // pre-substituted hook; slides 1-5 render the 5 beats (setup/conflict/
+  // resolution/payoff/lesson) via the shared NarrativeSlide; slide 6 is
+  // the InlineEndSlide CTA.
+  //
+  // `images: []` is intentional — preview stays offline and renders the
+  // gradient-only fallback per Spec 65.8 §3.7 Option γ. In production,
+  // the photographic-pipeline populates `domain_extras.familyBImages[]`
+  // via Nano Banana 2 (Spec 65.16 routing for story-arc-clickbait) OR
+  // Pexels/Unsplash/Pixabay search BEFORE the render call — the preview
+  // endpoint itself NEVER invokes any image-generation provider.
+  //
+  // Hook + narrative obey the 65.8 variable-verbatim refinement: every
+  // beat-text mentions `{profession}` or `{lifeArea}` verbatim (case-
+  // insensitive word-boundary) for narrative cohesion.
+  "story-arc-clickbait": {
+    slideIndex: 0,
+    slideTotal: 7,
+    theme: "dark",
+    locale: "de",
+    hook: {
+      rendered: "Jeder Texter macht im Workflow denselben Fehler. So nicht mehr.",
+      variables: {
+        profession: "Texter",
+        lifeArea: "Workflow",
+      },
+    },
+    narrative: {
+      setup: {
+        beatName: "setup",
+        eyebrow: "Wie alles begann",
+        text:
+          "Drei Jahre lang habe ich als Texter denselben Workflow gefahren: morgens Brief lesen, mittags recherchieren, nachmittags schreiben, abends überarbeiten. Acht Stunden für 1.200 Wörter.",
+      },
+      conflict: {
+        beatName: "conflict",
+        eyebrow: "Der Bruch",
+        text:
+          "Dann verlor ich drei Kunden in einem Monat. Nicht wegen Qualität — wegen Tempo. Jüngere Texter lieferten in zwei Tagen, was bei mir vier brauchte. Mein Workflow war nicht kaputt. Er war zu langsam.",
+      },
+      resolution: {
+        beatName: "resolution",
+        eyebrow: "Die Wende",
+        text:
+          "Ich gab Claude Code eine Chance — widerwillig. Erst nur Recherche, dann Outlines, dann erste Drafts. Plötzlich schrieb ich nicht mehr von null. Mein Workflow als Texter hatte einen Co-Piloten.",
+      },
+      payoff: {
+        beatName: "payoff",
+        eyebrow: "Das Ergebnis",
+        text:
+          "Nach 30 Tagen: 1.200 Wörter in drei Stunden, nicht acht. Drei verlorene Kunden zurück, zwei neue dazu. Mein Workflow als Texter wurde nicht ersetzt — er ist erwachsen geworden.",
+      },
+      lesson: {
+        beatName: "lesson",
+        eyebrow: "Was bleibt",
+        text:
+          "KI nimmt dir nicht den Job. KI nimmt dir die langweiligen Stunden im Workflow. Als Texter darfst du jetzt das tun, wofür du eigentlich da bist: denken, formulieren, kürzen.",
+      },
+    },
+    primaryTool: {
+      slug: "claude",
+      name: "Claude Code",
+      iconInitials: "CC",
+      iconHue: 24,
+    },
+    end: {
+      headlineLead: "Mehr KI-Stories",
+      headlineEm: "ehrlich erzählt.",
+      articleUrl: "toolwiki.ai/claude-code",
+      ctaLine: "Vollständiger Test →",
+    },
+    images: [],
+  },
+
   // ── pro-con-verdict ───────────────────────────────────────────────────
   // Uses `generated.iconSlug` — preview-service auto-resolves it to
   // `generated.iconSvg` via the same chain. iconInitials/iconHue stay as
