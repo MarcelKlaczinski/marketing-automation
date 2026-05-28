@@ -48,6 +48,20 @@ export default {
           "Dry-Run kostet so viel wie ein echter Lauf — alle LLM-Calls werden ausgeführt, aber nichts gespeichert.",
         dryRunSuccess: "Vorschau erstellt.",
         dryRunFailed: "Vorschau fehlgeschlagen.",
+        sampleImage: "Sample-Bild rendern",
+      },
+      sampleImage: {
+        title: "Preset-Vorschau (Sample-Bild)",
+        description:
+          "Rendert EIN NB2-Bild mit dem gewählten Preset und einer festen Editorial-Szene. Verwendet das gleiche €5/Monat-Budget wie Dry-Run.",
+        presetLabel: "Preset für diesen Test",
+        presetInherit: "Cascade (Definition → Projekt-Standard)",
+        render: "Rendern",
+        costHint: "~€0.062 pro Klick (1k nano-banana-2). Cost-tracked im dry_run Budget.",
+        success: "Sample-Bild gerendert.",
+        failed: "Sample-Bild fehlgeschlagen.",
+        metaPreset: "Preset verwendet",
+        metaCost: "Kosten (geschätzt)",
       },
       runNowDialog: {
         title: "Jetzt-Lauf bestätigen",

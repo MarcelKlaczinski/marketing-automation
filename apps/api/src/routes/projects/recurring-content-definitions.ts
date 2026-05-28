@@ -39,6 +39,8 @@ import {
   checkBudgetAvailable,
   recordBudgetConsumption,
 } from "../../lib/recurring-content/budget-check.ts";
+import { renderSampleImage } from "../../lib/recurring-content/sample-image.ts";
+import { resolveImageStylePreset } from "../../lib/recurring-content/resolve-image-style-preset.ts";
 import {
   enqueueRecurringBriefGenerator,
   runDryRunForDefinition,
@@ -99,6 +101,20 @@ const patchDefinitionBodySchema = createDefinitionBodySchema.partial();
 
 const setActiveBodySchema = z.object({ isActive: z.boolean() });
 
+const sampleImageBodySchema = z.object({
+  /**
+   * Spec 65.16 V1.7 #3 — optional per-test preset override for the sample
+   * render. `null` / `undefined` means "use the resolved cascade"
+   * (definition override → project default). An explicit preset key
+   * short-circuits the cascade so Marcel can preview a preset he hasn't
+   * committed to yet.
+   */
+  presetOverride: z
+    .enum(["dark-neon-grid", "light-editorial", "blue-tech-gradient"])
+    .nullable()
+    .optional(),
+});
+
 const historyQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).default(0),
@@ -113,7 +129,12 @@ const listQuerySchema = z.object({
 
 async function loadProject(slug: string) {
   const [project] = await db
-    .select({ id: projects.id, slug: projects.slug })
+    .select({
+      id: projects.id,
+      slug: projects.slug,
+      // Spec 65.16 V1.7 #3 — project-default preset for sample-render cascade.
+      socialImageStylePreset: projects.socialImageStylePreset,
+    })
     .from(projects)
     .where(eq(projects.slug, slug))
     .limit(1);
@@ -428,6 +449,105 @@ recurringContentDefinitionsRoutes.post(
       );
       return c.json(
         { ok: false, error: err instanceof Error ? err.message : "Dry-run failed" },
+        500,
+      );
+    }
+  },
+);
+
+// ─── POST /:slug/recurring-content/definitions/:id/sample-image (Spec 65.16 V1.7 #3)
+//
+// Fires ONE NB2 image-gen with the resolved preset + a fixed editorial
+// scene so Marcel can preview each preset's signature visual language
+// without waiting for the next real cron-fire. Reuses the `dry_run`
+// monthly budget bucket (similar ~€0.25/click cost shape).
+
+recurringContentDefinitionsRoutes.post(
+  "/:slug/recurring-content/definitions/:id/sample-image",
+  zValidator("json", sampleImageBodySchema),
+  async (c) => {
+    const slug = c.req.param("slug");
+    const id = c.req.param("id");
+    const body = c.req.valid("json");
+    const project = await loadProject(slug);
+    if (!project) return c.json({ ok: false, error: "Project not found" }, 404);
+    const def = await loadOwnedDefinition(id, project.id);
+    if (!def) return c.json({ ok: false, error: "Definition not found" }, 404);
+
+    // Reuse the dry-run budget — sample-renders are similar cost-shape
+    // (~€0.25 per click), and a separate budget type would need a migration
+    // + UI. The €5/month default covers ~20 clicks; Marcel can raise via
+    // the Settings UI Budget editor.
+    const SAMPLE_IMAGE_EXPECTED_COST_CENTS = 25;
+    const budgetState = await checkBudgetAvailable({
+      projectId: project.id,
+      budgetType: "dry_run",
+      expectedCostCents: SAMPLE_IMAGE_EXPECTED_COST_CENTS,
+    });
+    if (!budgetState.allowed) {
+      log.warn(
+        {
+          projectSlug: slug,
+          definitionId: id,
+          consumed: budgetState.consumed,
+          limit: budgetState.limit,
+        },
+        "sample-image rejected: monthly budget exhausted",
+      );
+      return c.json(
+        {
+          ok: false,
+          error: "sample_image_budget_exceeded",
+          consumed: budgetState.consumed,
+          limit: budgetState.limit,
+          currentMonth: budgetState.currentMonth,
+          message: `Monthly sample-render budget of €${(budgetState.limit / 100).toFixed(2)} consumed (€${(budgetState.consumed / 100).toFixed(2)}). Wait until next month or raise the limit.`,
+        },
+        429,
+      );
+    }
+
+    // Resolve the preset via the canonical 3-tier cascade (content-level =
+    // body.presetOverride > definition.socialImageStylePresetOverride >
+    // project.socialImageStylePreset). The helper handles all null-fallback
+    // semantics.
+    const preset = resolveImageStylePreset({
+      projectDefault: project.socialImageStylePreset,
+      definitionOverride: def.socialImageStylePresetOverride,
+      contentLevelChoice: body.presetOverride ?? null,
+    });
+
+    log.info(
+      { projectSlug: slug, definitionId: id, preset },
+      "recurring-definition sample-image started",
+    );
+    try {
+      const result = await renderSampleImage({
+        projectId: project.id,
+        projectSlug: slug,
+        definitionId: id,
+        preset,
+      });
+      // Record consumption (same posture as dry-run — even if rendering
+      // partially fails inside the adapter, Gemini API calls were made and
+      // billed; the upper-bound is the safe accounting figure).
+      await recordBudgetConsumption({
+        projectId: project.id,
+        budgetType: "dry_run",
+        actualCostCents: SAMPLE_IMAGE_EXPECTED_COST_CENTS,
+      });
+      log.info(
+        { projectSlug: slug, definitionId: id, preset, r2Key: result.r2Key },
+        "recurring-definition sample-image finished",
+      );
+      return c.json({ ok: true, data: { result } });
+    } catch (err) {
+      log.error(
+        { projectSlug: slug, definitionId: id, preset, err: err instanceof Error ? err.message : String(err) },
+        "recurring-definition sample-image failed",
+      );
+      return c.json(
+        { ok: false, error: err instanceof Error ? err.message : "Sample-image failed" },
         500,
       );
     }

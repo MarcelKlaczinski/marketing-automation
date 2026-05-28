@@ -40,6 +40,12 @@
             @click="dryRun"
           />
           <q-btn
+            outline
+            :label="$t('recurringContent.definitions.detail.actions.sampleImage') as string"
+            :disable="busyAction !== null"
+            @click="sampleImagePickerOpen = true"
+          />
+          <q-btn
             color="primary"
             :label="$t('recurringContent.definitions.detail.actions.runNow') as string"
             :disable="busyAction !== null || !definition.isActive"
@@ -50,6 +56,62 @@
             icon="edit"
             @click="editorOpen = true"
           />
+        </div>
+      </section>
+
+      <!-- Spec 65.16 V1.7 #3 — Sample-Render picker. Inline expansion below the
+           action row when Marcel clicks "Sample render". Shows a preset
+           dropdown (inherit + 3 options) + cost hint + render button.
+           Cost ~€0.062/click (1k nano-banana-2), gated by the dry_run
+           monthly budget. -->
+      <section v-if="sampleImagePickerOpen" class="sample-image-picker">
+        <div class="picker-header">
+          <h3 class="picker-title">
+            {{ $t("recurringContent.definitions.detail.sampleImage.title") as string }}
+          </h3>
+          <q-btn flat dense icon="close" @click="closeSampleImagePicker" />
+        </div>
+        <p class="picker-description">
+          {{ $t("recurringContent.definitions.detail.sampleImage.description") as string }}
+        </p>
+        <div class="picker-controls">
+          <label class="picker-field">
+            <span class="picker-label">
+              {{ $t("recurringContent.definitions.detail.sampleImage.presetLabel") as string }}
+            </span>
+            <select v-model="sampleImagePreset" class="picker-select">
+              <option value="">
+                {{ $t("recurringContent.definitions.detail.sampleImage.presetInherit") as string }}
+              </option>
+              <option value="dark-neon-grid">Dark Neon Grid</option>
+              <option value="light-editorial">Light Editorial</option>
+              <option value="blue-tech-gradient">Blue Tech Gradient</option>
+            </select>
+          </label>
+          <q-btn
+            color="primary"
+            :label="$t('recurringContent.definitions.detail.sampleImage.render') as string"
+            :loading="busyAction === 'sampleImage'"
+            :disable="busyAction !== null"
+            @click="renderSample"
+          />
+        </div>
+        <small class="picker-hint">
+          {{ $t("recurringContent.definitions.detail.sampleImage.costHint") as string }}
+        </small>
+
+        <div v-if="sampleImageResult" class="sample-image-result">
+          <img
+            :src="sampleImageResult.publicUrl"
+            :alt="`Sample render — preset ${sampleImageResult.preset}`"
+            class="sample-image-preview"
+          />
+          <dl class="sample-image-meta">
+            <dt>{{ $t("recurringContent.definitions.detail.sampleImage.metaPreset") as string }}</dt>
+            <dd class="mono">{{ sampleImageResult.preset }}</dd>
+            <dt>{{ $t("recurringContent.definitions.detail.sampleImage.metaCost") as string }}</dt>
+            <dd>~€{{ sampleImageResult.costEur.toFixed(3) }}</dd>
+          </dl>
         </div>
       </section>
 
@@ -207,6 +269,16 @@ interface DryRunResult {
   detail?: string;
 }
 
+type PresetOverride = "" | "dark-neon-grid" | "light-editorial" | "blue-tech-gradient";
+
+interface SampleImageResult {
+  publicUrl: string;
+  r2Key: string;
+  preset: "dark-neon-grid" | "light-editorial" | "blue-tech-gradient";
+  costEur: number;
+  seed: number | null;
+}
+
 export default defineComponent({
   name: "SettingsRecurringDefinitionDetailPage",
   components: { RecurringDefinitionEditModal, UpcomingRunsCalendar },
@@ -219,9 +291,13 @@ export default defineComponent({
     loading: true,
     loadError: false,
     activeTab: "config" as "config" | "history" | "upcoming",
-    busyAction: null as null | "toggle" | "runNow" | "dryRun",
+    busyAction: null as null | "toggle" | "runNow" | "dryRun" | "sampleImage",
     dryRunResult: null as DryRunResult | null,
     editorOpen: false,
+    // Spec 65.16 V1.7 #3 — sample-image picker state
+    sampleImagePickerOpen: false,
+    sampleImagePreset: "" as PresetOverride,
+    sampleImageResult: null as SampleImageResult | null,
   }),
 
   computed: {
@@ -422,6 +498,44 @@ export default defineComponent({
       this.editorOpen = false;
       void this.loadAll();
     },
+
+    closeSampleImagePicker(): void {
+      this.sampleImagePickerOpen = false;
+      this.sampleImageResult = null;
+      this.sampleImagePreset = "";
+    },
+
+    async renderSample(): Promise<void> {
+      this.busyAction = "sampleImage";
+      this.sampleImageResult = null;
+      try {
+        const body =
+          this.sampleImagePreset === ""
+            ? {}
+            : { presetOverride: this.sampleImagePreset };
+        const data = await apiPost<{ result: SampleImageResult }>(
+          `/projects/${this.slug}/recurring-content/definitions/${this.definitionId}/sample-image`,
+          body,
+        );
+        this.sampleImageResult = data.result;
+        this.$q.notify({
+          type: "positive",
+          message: this.$t(
+            "recurringContent.definitions.detail.sampleImage.success",
+          ) as string,
+        });
+      } catch (err) {
+        this.$q.notify({
+          type: "negative",
+          message: this.$t(
+            "recurringContent.definitions.detail.sampleImage.failed",
+          ) as string,
+          caption: err instanceof Error ? err.message : "",
+        });
+      } finally {
+        this.busyAction = null;
+      }
+    },
   },
 });
 </script>
@@ -603,6 +717,94 @@ export default defineComponent({
   overflow-x: auto;
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+/* Spec 65.16 V1.7 #3 — sample-image picker */
+.sample-image-picker {
+  margin-top: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  border-radius: var(--radius-md, 10px);
+  background: var(--bg-glass-strong, rgba(255, 255, 255, 0.04));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.picker-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.picker-description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+}
+.picker-controls {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.picker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 240px;
+}
+.picker-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+}
+.picker-select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+  background: var(--bg-glass-strong, rgba(255, 255, 255, 0.04));
+  color: var(--text-primary, rgba(255, 255, 255, 0.92));
+  font-size: 13px;
+  cursor: pointer;
+}
+.picker-hint {
+  font-size: 11px;
+  color: var(--text-tertiary, rgba(255, 255, 255, 0.55));
+}
+.sample-image-result {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) 1fr;
+  gap: 16px;
+  align-items: start;
+  margin-top: 6px;
+}
+.sample-image-preview {
+  width: 100%;
+  border-radius: 8px;
+  display: block;
+}
+.sample-image-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  align-content: start;
+  font-size: 13px;
+}
+.sample-image-meta dt {
+  color: var(--text-secondary, rgba(255, 255, 255, 0.75));
+}
+.sample-image-meta dd {
+  margin: 0;
+  color: var(--text-primary, rgba(255, 255, 255, 0.92));
+}
+@media (max-width: 560px) {
+  .sample-image-result {
+    grid-template-columns: 1fr;
+  }
 }
 .state-banner {
   padding: 14px 16px;

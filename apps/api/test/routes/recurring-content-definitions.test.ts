@@ -389,6 +389,55 @@ describe("POST /api/projects/:slug/recurring-content/definitions/:id/run-now", (
   });
 });
 
+describe("POST /api/projects/:slug/recurring-content/definitions/:id/sample-image (Spec 65.16 V1.7 #3)", () => {
+  it("404s on missing project", async () => {
+    const res = await app.fetch(
+      authed(
+        `/api/projects/does-not-exist/recurring-content/definitions/00000000-0000-0000-0000-000000000000/sample-image`,
+        { method: "POST", body: JSON.stringify({}) },
+      ),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("404s on missing definition", async () => {
+    const res = await app.fetch(
+      authed(
+        `/api/projects/${slug}/recurring-content/definitions/00000000-0000-0000-0000-000000000000/sample-image`,
+        { method: "POST", body: JSON.stringify({}) },
+      ),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects invalid presetOverride enum (400)", async () => {
+    // Insert a definition first so the definition lookup passes.
+    const [def] = await db
+      .insert(recurringContentDefinitions)
+      .values({
+        projectId,
+        name: "Sample-image bad preset",
+        formatType: "top_n_comparison",
+        formatConfig: { topN: 5 },
+        frequency: "weekly",
+        nextRunAt: new Date(Date.now() + 60_000),
+      })
+      .returning({ id: recurringContentDefinitions.id });
+    const defId = def!.id;
+
+    const res = await app.fetch(
+      authed(
+        `/api/projects/${slug}/recurring-content/definitions/${defId}/sample-image`,
+        {
+          method: "POST",
+          body: JSON.stringify({ presetOverride: "not-a-preset" }),
+        },
+      ),
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
 describe("GET /api/projects/:slug/recurring-content/definitions/:id/history", () => {
   it("returns briefs filtered by recurring_metadata.definitionId", async () => {
     const [def] = await db
