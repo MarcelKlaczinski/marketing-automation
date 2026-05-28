@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { AbsoluteFill } from "remotion";
 import { deriveDsTokens } from "../../brand-tokens/derive";
 import { resolveBrandTokens } from "../../lib/brand-tokens";
+import { DsBrandStamp } from "../_shared/DsBrandStamp";
 import { DsGlow } from "../../ds-components/DsGlow";
 
 interface EndSlideProps {
@@ -9,9 +10,11 @@ interface EndSlideProps {
   theme: "dark" | "light";
   locale: "de" | "en";
   brandTokens?: unknown;
+  /** Spec 65.15 — bottom-right brand-stamp watermark. */
+  logoUrl?: string | null;
 }
 
-export const EndSlide: React.FC<EndSlideProps> = ({ content, theme, brandTokens }) => {
+export const EndSlide: React.FC<EndSlideProps> = ({ content, theme, brandTokens, logoUrl }) => {
   const tokens = useMemo(
     () => deriveDsTokens(resolveBrandTokens(brandTokens), theme),
     [brandTokens, theme],
@@ -115,6 +118,7 @@ export const EndSlide: React.FC<EndSlideProps> = ({ content, theme, brandTokens 
           }}
         />
       </div>
+      <DsBrandStamp logoUrl={logoUrl} />
     </AbsoluteFill>
   );
 };

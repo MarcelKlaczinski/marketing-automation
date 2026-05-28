@@ -38,6 +38,7 @@ export const HeadToHeadVs: React.FC<HeadToHeadVsInput> = (props) => {
         endCta={props.end.ctaLine}
         endUrl={props.end.articleUrl}
         {...(brandTokens !== undefined && { brandTokens })}
+        {...(props.logoUrl !== undefined && { logoUrl: props.logoUrl })}
       />
     );
   }
@@ -122,6 +123,7 @@ export const HeadToHeadVs: React.FC<HeadToHeadVsInput> = (props) => {
         slideTotal={slideTotal}
         brandTokens={brandTokens}
         endSlideData={props.endSlideData}
+        {...(props.logoUrl !== undefined && { logoUrl: props.logoUrl })}
       />
     );
   }

@@ -175,9 +175,20 @@ export default {
     noAsset: "Kein Asset hochgeladen",
     uploadError: "Upload fehlgeschlagen",
     slots: {
-      logo: {
-        title: "Logo",
-        description: "Primäres Brand-Logo (SVG oder PNG empfohlen, min. 200×60 px)",
+      main: {
+        title: "Logo (Basis)",
+        description:
+          "Primäres Brand-Logo. Wird auf Cover + End-Slides als Stempel rechts unten platziert. SVG oder PNG empfohlen, min. 200×60 px.",
+      },
+      "main-light": {
+        title: "Logo (helles Theme)",
+        description:
+          "Optionale Variante für Slides mit hellem Hintergrund (dunkles Logo). Wenn nicht gesetzt, fällt der Renderer auf das Basis-Logo zurück.",
+      },
+      "main-dark": {
+        title: "Logo (dunkles Theme)",
+        description:
+          "Optionale Variante für Slides mit dunklem Hintergrund (helles Logo). Wenn nicht gesetzt, fällt der Renderer auf das Basis-Logo zurück.",
       },
       tool_icon: {
         title: "Tool-Icon",

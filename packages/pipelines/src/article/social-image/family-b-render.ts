@@ -189,6 +189,12 @@ export interface BuildFamilyBRenderArgs {
    * the inline `<InlineEndSlide>` per template.
    */
   endSlideData?: { type: string; config: Record<string, unknown> } | null;
+  /**
+   * Spec 65.15 — Bottom-right brand-stamp watermark URL. Null/undefined →
+   * no stamp (graceful-null per `DsBrandStamp`). Stamped only on Cover + End
+   * slides, never on body slides.
+   */
+  logoUrl?: string | null;
 }
 
 export async function buildFamilyBRenderInput(
@@ -265,6 +271,7 @@ export async function buildFamilyBRenderInput(
     images: normalizeStagedImages(args.stagedImages, slideTotal),
     ...(args.brandTokens !== undefined && { brandTokens: args.brandTokens }),
     ...(args.endSlideData != null && { endSlideData: args.endSlideData }),
+    ...(args.logoUrl != null && { logoUrl: args.logoUrl }),
   };
 
   // Tool-mention field name differs per template — match each schema literally.

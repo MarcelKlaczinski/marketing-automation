@@ -23,6 +23,8 @@ interface CoverSlideProps {
   theme: "dark" | "light";
   slideIndex: number;
   slideTotal: number;
+  /** Spec 65.15 — bottom-right brand-stamp watermark. */
+  logoUrl?: string | null;
 }
 
 export const CoverSlide: React.FC<CoverSlideProps> = ({
@@ -32,6 +34,7 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
   theme,
   slideIndex,
   slideTotal,
+  logoUrl,
 }) => {
   const tokens = useMemo(
     () => deriveEmotionalDsTokens(resolveBrandTokens(brandTokens), theme),
@@ -39,7 +42,7 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
   );
 
   return (
-    <SlideComposition variant="cover" image={image} tokens={tokens}>
+    <SlideComposition variant="cover" image={image} tokens={tokens} logoUrl={logoUrl}>
       <div
         style={{
           display: "flex",

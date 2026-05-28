@@ -17,6 +17,7 @@ import type React from "react";
 import { HostSlide } from "../../../end-slide-components/HostSlide.tsx";
 import { endSlideDataSchema } from "../../../end-slide-components/types.ts";
 import { EndSlide } from "../../comparison-grid-3/slides/EndSlide.tsx";
+import { DsBrandStamp } from "../DsBrandStamp.tsx";
 import type { FamilyAEndContent } from "./types.ts";
 
 interface RenderEndSlideProps {
@@ -29,6 +30,8 @@ interface RenderEndSlideProps {
   brandTokens?: unknown;
   /** Optional Spec 65.9 end-slide data (loose; parsed here). */
   endSlideData?: unknown;
+  /** Spec 65.15 — bottom-right brand-stamp watermark on the end slide (bookend). */
+  logoUrl?: string | null;
 }
 
 export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
@@ -40,17 +43,21 @@ export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
   slideTotal,
   brandTokens,
   endSlideData,
+  logoUrl,
 }) => {
   if (endSlideData !== undefined) {
     const parsed = endSlideDataSchema.safeParse(endSlideData);
     if (parsed.success) {
       return (
-        <HostSlide
-          data={parsed.data}
-          theme={theme}
-          locale={locale}
-          brandTokens={brandTokens}
-        />
+        <>
+          <HostSlide
+            data={parsed.data}
+            theme={theme}
+            locale={locale}
+            brandTokens={brandTokens}
+          />
+          <DsBrandStamp logoUrl={logoUrl} />
+        </>
       );
     }
     // Fall through to legacy EndSlide — malformed jsonb shouldn't break
@@ -58,14 +65,17 @@ export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
   }
 
   return (
-    <EndSlide
-      content={end}
-      eyebrow={eyebrow}
-      theme={theme}
-      locale={locale}
-      slideIndex={slideIndex}
-      slideTotal={slideTotal}
-      {...(brandTokens !== undefined && { brandTokens })}
-    />
+    <>
+      <EndSlide
+        content={end}
+        eyebrow={eyebrow}
+        theme={theme}
+        locale={locale}
+        slideIndex={slideIndex}
+        slideTotal={slideTotal}
+        {...(brandTokens !== undefined && { brandTokens })}
+      />
+      <DsBrandStamp logoUrl={logoUrl} />
+    </>
   );
 };

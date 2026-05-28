@@ -172,6 +172,12 @@ export interface BuildFamilyAMultiSlideRenderArgs {
    * time (defense in depth).
    */
   brandTokens?: unknown;
+  /**
+   * Spec 65.15 — Bottom-right brand-stamp watermark URL. Null/undefined →
+   * no stamp (graceful-null per `DsBrandStamp`). Stamped on Cover (shared
+   * across all 4 multi-slide templates) + End slide (via `RenderEndSlide`).
+   */
+  logoUrl?: string | null;
 }
 
 export async function buildFamilyAMultiSlideRenderInput(
@@ -247,6 +253,13 @@ export async function buildFamilyAMultiSlideRenderInput(
     });
     compositionInput = result.compositionInput as unknown as Record<string, unknown>;
     slideTotal = result.slideTotal;
+  }
+
+  // Spec 65.15 — Bottom-right brand-stamp watermark. Stamped at the
+  // composition input layer so the per-template Cover + RenderEndSlide read it
+  // from `familyACommonInputSchema.logoUrl`. Null = no stamp (graceful-null).
+  if (args.logoUrl != null) {
+    compositionInput.logoUrl = args.logoUrl;
   }
 
   return {

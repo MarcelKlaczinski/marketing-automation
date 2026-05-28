@@ -103,6 +103,8 @@ export const comparisonGrid4InputSchema = z.object({
   }),
   brandTokens: z.record(z.unknown()).optional(),
   overrides: z.record(z.unknown()).optional(),
+  /** Spec 65.15 — Cover-stamp logo URL; null/undefined → no stamp. */
+  logoUrl: z.string().nullable().optional(),
 });
 
 // ─── generatedSchema (camelCase, for fixture tests + TemplateDefinition) ──────

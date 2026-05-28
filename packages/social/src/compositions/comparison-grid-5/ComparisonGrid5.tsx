@@ -31,6 +31,7 @@ export const ComparisonGrid5: React.FC<ComparisonGrid5Input> = (props) => {
         endCta={props.end.ctaLine}
         endUrl={props.end.articleUrl}
         {...(brandTokens !== undefined && { brandTokens })}
+        {...(props.logoUrl !== undefined && { logoUrl: props.logoUrl })}
       />
     );
   }
@@ -99,6 +100,7 @@ export const ComparisonGrid5: React.FC<ComparisonGrid5Input> = (props) => {
         slideTotal={slideTotal}
         brandTokens={brandTokens}
         endSlideData={props.endSlideData}
+        {...(props.logoUrl !== undefined && { logoUrl: props.logoUrl })}
       />
     );
   }

@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Check, CheckCircle2, X, XCircle, Users } from "lucide-react";
 import { deriveDsTokens } from "../../brand-tokens/derive";
 import { resolveBrandTokens } from "../../lib/brand-tokens";
+import { DsBrandStamp } from "../_shared/DsBrandStamp";
 import { DsGlow } from "../../ds-components/DsGlow";
 import { DsTop } from "../../ds-components/DsTop";
 import { DsFoot } from "../../ds-components/DsFoot";
@@ -15,6 +16,7 @@ export const ProConVerdictSlide: React.FC<ProConVerdictInput> = ({
   theme,
   locale = "de",
   overrides,
+  logoUrl,
 }) => {
   const tokens = useMemo(
     () => deriveDsTokens(resolveBrandTokens(brandTokens), theme),
@@ -287,6 +289,7 @@ export const ProConVerdictSlide: React.FC<ProConVerdictInput> = ({
           ctaLead={g.ctaLine2}
         />
       </div>
+      <DsBrandStamp logoUrl={logoUrl} />
     </div>
   );
 };

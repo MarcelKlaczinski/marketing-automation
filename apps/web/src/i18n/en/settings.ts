@@ -175,9 +175,20 @@ export default {
     noAsset: "No asset uploaded",
     uploadError: "Upload failed",
     slots: {
-      logo: {
-        title: "Logo",
-        description: "Primary brand logo (SVG or PNG recommended, min. 200×60 px)",
+      main: {
+        title: "Logo (base)",
+        description:
+          "Primary brand logo. Used as the bottom-right stamp on Cover + End slides. SVG or PNG recommended, min. 200×60 px.",
+      },
+      "main-light": {
+        title: "Logo (light theme)",
+        description:
+          "Optional variant for slides with light backgrounds (dark logo). When unset, the renderer falls back to the base logo.",
+      },
+      "main-dark": {
+        title: "Logo (dark theme)",
+        description:
+          "Optional variant for slides with dark backgrounds (light logo). When unset, the renderer falls back to the base logo.",
       },
       tool_icon: {
         title: "Tool icon",

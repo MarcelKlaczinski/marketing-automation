@@ -127,6 +127,12 @@ export const familyBCommonInputSchema = z.object({
    * `endSlideDataSchema.safeParse(...)` at render time.
    */
   endSlideData: z.record(z.unknown()).optional(),
+  /**
+   * Spec 65.15 — Resolved logo URL for the bottom-right brand-stamp watermark.
+   * Stamped on Cover + End slides only (bookends), never on body slides.
+   * Pipeline resolves per-theme via `resolveLogoUrl(projectId, theme)`.
+   */
+  logoUrl: z.string().nullable().optional(),
 });
 
 export type FamilyBCommonInput = z.infer<typeof familyBCommonInputSchema>;

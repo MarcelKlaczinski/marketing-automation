@@ -31,7 +31,7 @@ function findImageForSlide(images: ReadonlyArray<FamilyBImage>, slideIndex: numb
 }
 
 export const StoryArcClickbait: React.FC<StoryArcClickbaitInput> = (props) => {
-  const { slideIndex, slideTotal, hook, narrative, primaryTool, end, images, brandTokens, theme, locale, endSlideData } = props;
+  const { slideIndex, slideTotal, hook, narrative, primaryTool, end, images, brandTokens, theme, locale, endSlideData, logoUrl } = props;
   const image = findImageForSlide(images, slideIndex);
 
   // Slide 0 — Cover
@@ -44,6 +44,7 @@ export const StoryArcClickbait: React.FC<StoryArcClickbaitInput> = (props) => {
         theme={theme}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(logoUrl !== undefined && { logoUrl })}
       />
     );
   }
@@ -82,6 +83,7 @@ export const StoryArcClickbait: React.FC<StoryArcClickbaitInput> = (props) => {
       locale={locale}
       slideIndex={slideIndex}
       slideTotal={slideTotal}
+      {...(logoUrl !== undefined && { logoUrl })}
     />
   );
 };

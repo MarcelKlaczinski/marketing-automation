@@ -156,17 +156,32 @@ export async function upsertBrandAsset(
   return row;
 }
 
-export async function resolveLogo(projectId: string, theme: "dark" | "light" = "dark"): Promise<ResolvedIcon> {
-  const tokens = await getBrandTokens(projectId);
-  const logoKey = tokens.social?.logoAssetKey ?? "main";
-
+async function findLogoAsset(
+  projectId: string,
+  assetKey: string
+): Promise<ProjectBrandAsset | null> {
   const asset = await db.query.projectBrandAssets.findFirst({
     where: and(
       eq(projectBrandAssets.projectId, projectId),
       eq(projectBrandAssets.assetType, "logo"),
-      eq(projectBrandAssets.assetKey, logoKey)
+      eq(projectBrandAssets.assetKey, assetKey)
     ),
   });
+  return asset ?? null;
+}
+
+export async function resolveLogo(projectId: string, theme: "dark" | "light" = "dark"): Promise<ResolvedIcon> {
+  const tokens = await getBrandTokens(projectId);
+  const logoKey = tokens.social?.logoAssetKey ?? "main";
+  const oppositeTheme = theme === "dark" ? "light" : "dark";
+
+  // Spec 65.15: theme-variant lookup with single-variant fallback. Tries
+  // `<key>-<theme>` → base key → `<key>-<oppositeTheme>` so Marcel can upload
+  // just ONE logo variant and it works for both themes.
+  const asset =
+    (await findLogoAsset(projectId, `${logoKey}-${theme}`)) ??
+    (await findLogoAsset(projectId, logoKey)) ??
+    (await findLogoAsset(projectId, `${logoKey}-${oppositeTheme}`));
 
   if (asset) {
     if (asset.source === "wordmark" && asset.sourceRef) {
@@ -189,6 +204,49 @@ export async function resolveLogo(projectId: string, theme: "dark" | "light" = "
   const fallbackText = tokens.social?.websiteUrl ?? tokens.social?.instagramHandle ?? projectId;
   log.debug({ projectId, logoKey }, "no logo asset found — using websiteUrl fallback");
   return { type: "wordmark", text: fallbackText };
+}
+
+/**
+ * Spec 65.15 — Resolve a project's logo as a URL string ready for an `<Img>` src.
+ *
+ * Picks a theme-aware variant (`<logoAssetKey>-<theme>`) first, falls back to the
+ * base key. Returns `null` when no usable asset exists so the brand-stamp can
+ * gracefully render nothing (rather than a broken-image or a wordmark — wordmarks
+ * are not watermark-shaped).
+ *
+ * Supported source types:
+ *   - `r2`         → public R2 URL
+ *   - `inline-svg` → `data:image/svg+xml;base64,…` data URL
+ *
+ * Skipped (return null):
+ *   - `wordmark` / `lobe-icons` — neither is appropriate as a corner watermark
+ */
+export async function resolveLogoUrl(
+  projectId: string,
+  theme: "dark" | "light" = "dark"
+): Promise<string | null> {
+  const tokens = await getBrandTokens(projectId);
+  const logoKey = tokens.social?.logoAssetKey ?? "main";
+  const oppositeTheme = theme === "dark" ? "light" : "dark";
+
+  // Marcel-Decision Q2: single-variant fallback — if only one variant uploaded,
+  // use it for both themes. Chain: <key>-<theme> → <key> → <key>-<oppositeTheme>.
+  const asset =
+    (await findLogoAsset(projectId, `${logoKey}-${theme}`)) ??
+    (await findLogoAsset(projectId, logoKey)) ??
+    (await findLogoAsset(projectId, `${logoKey}-${oppositeTheme}`));
+
+  if (!asset) return null;
+
+  if (asset.source === "r2" && asset.sourceRef) {
+    return `https://pub.toolwiki.ai/${asset.sourceRef}`;
+  }
+  if (asset.source === "inline-svg" && asset.inlineSvg) {
+    const base64 = Buffer.from(asset.inlineSvg, "utf-8").toString("base64");
+    return `data:image/svg+xml;base64,${base64}`;
+  }
+
+  return null;
 }
 
 // Re-export for use in seed script

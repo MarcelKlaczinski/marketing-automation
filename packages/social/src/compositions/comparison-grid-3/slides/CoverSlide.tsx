@@ -5,6 +5,7 @@ import { resolveBrandTokens } from "../../../lib/brand-tokens";
 import { DsFoot } from "../../../ds-components/DsFoot";
 import { DsGlow } from "../../../ds-components/DsGlow";
 import { DsTop } from "../../../ds-components/DsTop";
+import { DsBrandStamp } from "../../_shared/DsBrandStamp";
 import { localeCopy } from "../../_shared/family-a/helpers";
 import type {
   FamilyACoverContent,
@@ -21,6 +22,8 @@ interface CoverSlideProps {
   slideTotal: number;
   endCta: string;
   endUrl: string;
+  /** Spec 65.15 — bottom-right brand-stamp watermark; null/undefined → no stamp. */
+  logoUrl?: string | null;
 }
 
 // ─── Inline subcomponents ────────────────────────────────────────────────────
@@ -183,6 +186,7 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
   slideTotal,
   endCta,
   endUrl,
+  logoUrl,
 }) => {
   const tokens = useMemo(
     () => deriveDsTokens(resolveBrandTokens(brandTokens), theme),
@@ -258,6 +262,7 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
 
         <DsFoot tokens={tokens} ctaBold={endCta} ctaLead={endUrl} logoHeight={44} />
       </div>
+      <DsBrandStamp logoUrl={logoUrl} />
     </AbsoluteFill>
   );
 };

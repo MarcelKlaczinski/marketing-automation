@@ -19,6 +19,7 @@ export function SingleToolSpotlight(props: SingleToolSpotlightInput) {
         slideIndex={props.slideIndex}
         slideTotal={props.slideTotal}
         {...(props.brandTokens !== undefined && { brandTokens: props.brandTokens })}
+        {...(props.logoUrl !== undefined && { logoUrl: props.logoUrl })}
       />
     );
   }
@@ -41,6 +42,7 @@ export function SingleToolSpotlight(props: SingleToolSpotlightInput) {
         theme={props.theme}
         locale={props.locale}
         {...(props.brandTokens !== undefined && { brandTokens: props.brandTokens })}
+        {...(props.logoUrl !== undefined && { logoUrl: props.logoUrl })}
       />
     );
   }

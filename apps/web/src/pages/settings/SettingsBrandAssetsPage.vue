@@ -40,8 +40,14 @@ interface AssetSlot {
   mimeTypes: string[];
 }
 
+// Spec 65.15 — `main` is the base logo (used for both themes if no variant uploaded);
+// `main-light` + `main-dark` are theme-specific overrides for the brand-stamp watermark.
+// `assetKey` here MUST match `brandTokens.social.logoAssetKey` (defaults to "main")
+// + the theme suffix the resolver appends (`<key>-<theme>`).
 const ASSET_SLOTS: AssetSlot[] = [
-  { type: "logo", key: "logo", mimeTypes: ["image/svg+xml", "image/png", "image/jpeg"] },
+  { type: "logo", key: "main", mimeTypes: ["image/svg+xml", "image/png", "image/jpeg"] },
+  { type: "logo", key: "main-light", mimeTypes: ["image/svg+xml", "image/png", "image/jpeg"] },
+  { type: "logo", key: "main-dark", mimeTypes: ["image/svg+xml", "image/png", "image/jpeg"] },
   { type: "tool_icon", key: "tool_icon", mimeTypes: ["image/svg+xml", "image/png"] },
 ];
 

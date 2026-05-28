@@ -201,6 +201,21 @@ src/compositions/list-carousel/
 5. Add the new `templateKey` to `TemplateKey` in `src/templates/types.ts` AND to `EXPECTED_SHIPPED_KEYS` in `test/templates/template-registry-coverage.test.ts`.
 6. Add the key to `FAMILY_A_TEMPLATE_KEYS` or `FAMILY_B_TEMPLATE_KEYS` + add a render-fn dispatch branch in `apps/api/src/workers/social-render.worker.ts` (Spec 65.7-followup + Memory D30).
 
+## DsBrandStamp watermark overlay (Spec 65.15)
+
+`src/compositions/_shared/DsBrandStamp.tsx` is the canonical pattern for any future slide-overlay component (campaign tags, QR codes, watermarks, "sponsored by" badges). Shape:
+
+- `position: absolute` at a corner (default bottom-right 48px), `zIndex: 100`, `pointerEvents: "none"` so it never intercepts events.
+- Graceful-null: returns `null` (not a broken-image) when the asset URL is missing. Required so projects without the asset configured don't break renders.
+- Prop type uses **explicit `| undefined`** under `exactOptionalPropertyTypes`: `logoUrl?: string | null | undefined`. Callers spread `...(value !== null && { logoUrl: value })` and TS rejects without the explicit modifier.
+- Consumed at **9 inject sites** (one per Cover + End surface across both families) — never at the worker or render-server layer. The worker's snapshot-spread carries the field through automatically because nothing filters fields out.
+
+**Family-B `SlideComposition` cover-only gate (Spec 65.15)** — the `cover` variant stamps; the `editorial` variant (used for HotTake / TopPick body slides in opinion-recommendation) shares the same composition impl but explicitly skips the stamp via `variant === "cover"` check before the Fragment-wrapped return. If you add a new variant that should ALSO get a stamp, add it to the gate check, not to the dispatcher.
+
+**Theme-variant asset fallback chain (Marcel-Decision Q2 — Spec 65.15)** — when an asset is keyed by `<base>-<theme>` (e.g. `main-light` / `main-dark`), the resolver MUST fall back through three tiers: `<base>-<theme>` → `<base>` → `<base>-<oppositeTheme>`. The third tier handles "Marcel uploaded only ONE variant" — that variant works for both themes. Two-tier chains (`<key>-<theme>` → `<key>` only) ship a real bug if the base key is absent. Pattern lives in `packages/pipelines/src/_lib/resolve-logo-url.ts` + `apps/api/src/lib/brand-asset-service.ts:resolveLogoUrl`.
+
+**`SettingsBrandAssetsPage.vue` slot keys MUST match `brandTokens.social.<X>AssetKey` schema defaults** — `brandTokens.social.logoAssetKey` defaults to `"main"`, so the UI slot for the logo uploads with `assetKey="main"` (NOT `assetKey="logo"`). Pre-Spec-65.15 the UI used `key: "logo"` and uploads never resolved at render time. When introducing a new brand-asset type with a new `XxxAssetKey` schema field, ensure the UI slot list, the schema default, and the resolver lookup all agree on the literal value.
+
 ## V1-cut template variants (Spec 65.cleanup)
 
 Templates that were planned in Spec 65.4/65.7 but V1-cut (ship as ONE template + config-knob instead of N variants) are kept in the `TemplateKey` union with a parallel `DeprecatedTemplateKey` union in `src/templates/types.ts`. Current V1-cut set (all Family-B `-dramatic` / `-minimal` variants):

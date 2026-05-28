@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Award } from "lucide-react";
 import { deriveDsTokens, type DsTokens } from "../../brand-tokens/derive";
 import { resolveBrandTokens } from "../../lib/brand-tokens";
+import { DsBrandStamp } from "../_shared/DsBrandStamp";
 import { DsGlow } from "../../ds-components/DsGlow";
 import { DsTop } from "../../ds-components/DsTop";
 import { DsFoot } from "../../ds-components/DsFoot";
@@ -16,6 +17,7 @@ export const ComparisonGrid4Slide: React.FC<ComparisonGrid4Input> = ({
   generated: g,
   brandTokens,
   theme = "dark",
+  logoUrl,
 }) => {
   const tokens = useMemo(
     () => deriveDsTokens(resolveBrandTokens(brandTokens), theme),
@@ -119,6 +121,7 @@ export const ComparisonGrid4Slide: React.FC<ComparisonGrid4Input> = ({
           ctaBold={g.ctaLine1}
         />
       </div>
+      <DsBrandStamp logoUrl={logoUrl} />
     </div>
   );
 };

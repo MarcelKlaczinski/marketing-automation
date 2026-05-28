@@ -18,6 +18,7 @@ import {
   isFamilyAMultiSlideTemplate,
 } from "./family-a-multi-slide-render.ts";
 import { isFamilyBTemplate } from "./stage-family-b-images.step.ts";
+import { resolveLogoUrl } from "../../_lib/resolve-logo-url.ts";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { BaseStep, type StepContext } from "../../engine/step.ts";
@@ -1167,6 +1168,12 @@ export class RenderSlidesStep extends BaseStep<
       }
     }
 
+    // Spec 65.15 — resolve brand-stamp logo URL ONCE per pipeline run.
+    // Theme is single per run (input.theme), so logoUrl is constant across all
+    // per-locale snapshots. Returns null when Marcel hasn't uploaded a logo →
+    // DsBrandStamp gracefully renders nothing on every Cover + End slide.
+    const stampLogoUrl = await resolveLogoUrl(input.projectId, input.theme);
+
     for (const loc of input.perLocaleOutputs) {
       const localePrefix = (loc.locale.split("-")[0] ?? "de").split("_")[0] ?? "de";
       const localeSibling = input.localeArticles?.[localePrefix];
@@ -1202,6 +1209,7 @@ export class RenderSlidesStep extends BaseStep<
           brandTokens: input.brandTokens as Record<string, unknown>,
           stagedImages: familyBImagesFromExtras,
           ...(endSlideData !== null && { endSlideData }),
+          ...(stampLogoUrl !== null && { logoUrl: stampLogoUrl }),
         });
 
         // Caption from generateContent — append attribution suffix per-locale.
@@ -1325,6 +1333,7 @@ export class RenderSlidesStep extends BaseStep<
           locale: familyALocale,
           theme: input.theme,
           brandTokens: input.brandTokens,
+          ...(stampLogoUrl !== null && { logoUrl: stampLogoUrl }),
         });
 
         // Append license-attribution suffix when present (defense in depth —
@@ -1405,11 +1414,13 @@ export class RenderSlidesStep extends BaseStep<
       if (isGrid4) {
         // Spec 65.10: comparison-grid-4 is a single-still template with no
         // end-slide of its own (1 slide only) — endSlideData does not apply.
+        // Spec 65.15: stamp the cover (the only slide) when a logo is set.
         const renderInput: Record<string, unknown> = {
           slideIndex: 0,
           locale: localePrefix === "en" ? "en" : "de",
           theme: input.theme,
           generated: input.comparisonGrid4Generated,
+          ...(stampLogoUrl !== null && { logoUrl: stampLogoUrl }),
         };
 
         const [post] = await db
@@ -1546,11 +1557,14 @@ export class RenderSlidesStep extends BaseStep<
         ...(isDeLocale && input.coverHookOutput !== undefined && { coverHookOutput: input.coverHookOutput as Record<string, unknown> }),
         ...(isDeLocale && input.endCloser !== undefined && { endCloser: input.endCloser as Record<string, unknown> }),
         ...(endSlideData !== null && { endSlideData }),
+        ...(stampLogoUrl !== null && { logoUrl: stampLogoUrl }),
         // Cast justified: `endSlideData` is a Spec 65.10 addition to the
         // renderInput shape that isn't yet in the `SocialPostRenderInput`
         // TypeScript type. The JSONB column accepts the extra key at runtime,
         // and `familyACommonInputSchema.endSlideData` is the downstream
         // narrowing surface. Widening the canonical type is a follow-up.
+        // (Spec 65.15: `logoUrl` IS in the type now — the cast remains only
+        // for `endSlideData`. Drop the cast once endSlideData is widened too.)
       } as SocialPostRenderInput;
 
       const [post] = await db

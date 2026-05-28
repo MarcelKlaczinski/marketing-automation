@@ -556,6 +556,13 @@ export type SocialPostRenderInput = {
   resolvedTools: Array<Record<string, unknown>>;
   coverHookOutput?: Record<string, unknown>;
   endCloser?: Record<string, unknown>;
+  /**
+   * Spec 65.15 — Bottom-right brand-stamp watermark URL (R2 public URL or
+   * `data:image/svg+xml;base64,…`). Null = no stamp (graceful-null per
+   * `DsBrandStamp`). Persisted in `social_posts.content.renderInput` so
+   * re-renders carry the same logo decision.
+   */
+  logoUrl?: string | null;
 };
 
 export type SocialPostContent =

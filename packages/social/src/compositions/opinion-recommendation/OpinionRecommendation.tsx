@@ -40,6 +40,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
     theme,
     locale,
     endSlideData,
+    logoUrl,
   } = props;
   const image = findImageForSlide(images, slideIndex);
 
@@ -54,6 +55,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
         locale={locale}
         slideIndex={slideIndex}
         slideTotal={slideTotal}
+        {...(logoUrl !== undefined && { logoUrl })}
       />
     );
   }
@@ -118,6 +120,7 @@ export const OpinionRecommendation: React.FC<OpinionRecommendationInput> = (prop
       locale={locale}
       slideIndex={slideIndex}
       slideTotal={slideTotal}
+      {...(logoUrl !== undefined && { logoUrl })}
     />
   );
 };

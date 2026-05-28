@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { AbsoluteFill } from "remotion";
 import { deriveDsTokens, type DsTokens } from "../../brand-tokens/derive";
 import { resolveBrandTokens } from "../../lib/brand-tokens";
+import { DsBrandStamp } from "../_shared/DsBrandStamp";
 import { DsGlow } from "../../ds-components/DsGlow";
 import { DsTop } from "../../ds-components/DsTop";
 import { DsFoot } from "../../ds-components/DsFoot";
@@ -14,6 +15,8 @@ interface CoverSlideProps {
   brandTokens?: unknown;
   slideIndex: number;
   slideTotal: number;
+  /** Spec 65.15 — bottom-right brand-stamp watermark. */
+  logoUrl?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,6 +338,7 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
   brandTokens,
   slideIndex,
   slideTotal,
+  logoUrl,
 }) => {
   const tokens = useMemo(
     () => deriveDsTokens(resolveBrandTokens(brandTokens), theme),
@@ -421,6 +425,7 @@ export const CoverSlide: React.FC<CoverSlideProps> = ({
           logoHeight={48}
         />
       </div>
+      <DsBrandStamp logoUrl={logoUrl} />
     </AbsoluteFill>
   );
 };

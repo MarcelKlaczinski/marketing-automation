@@ -82,6 +82,8 @@ export const proConVerdictInputSchema = z.object({
   generated: proConVerdictGeneratedSchema,
   brandTokens: z.record(z.unknown()).optional(),
   overrides: z.record(z.unknown()).optional(),
+  /** Spec 65.15 — Cover-stamp logo URL; null/undefined → no stamp. */
+  logoUrl: z.string().nullable().optional(),
 });
 
 export type ProConVerdictInput = z.infer<typeof proConVerdictInputSchema>;

@@ -76,6 +76,8 @@ export const singleToolSpotlightInputSchema = z.object({
   locale:      z.enum(["de", "en"]).default("de"),
   brandTokens: z.record(z.unknown()).optional(),
   overrides:   z.record(z.unknown()).optional(),
+  /** Spec 65.15 — Cover + End stamp logo URL; null/undefined → no stamp. */
+  logoUrl: z.string().nullable().optional(),
 });
 
 export type CoverProps = z.infer<typeof coverPropsSchema>;

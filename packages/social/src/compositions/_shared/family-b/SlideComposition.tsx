@@ -24,6 +24,7 @@
  */
 import type React from "react";
 import { AbsoluteFill } from "remotion";
+import { DsBrandStamp } from "../DsBrandStamp.tsx";
 import type { EmotionalDsTokens } from "./ds-tokens-emotional.ts";
 import type { FamilyBImage } from "./types.ts";
 
@@ -35,6 +36,13 @@ interface SlideCompositionProps {
   image: FamilyBImage | null;
   tokens: EmotionalDsTokens;
   children: React.ReactNode;
+  /**
+   * Spec 65.15 — When set AND `variant === "cover"`, overlays a bottom-right
+   * brand-stamp watermark. Editorial (HotTake / TopPick) + immersive +
+   * product-context body slides never get a stamp (bookend-only). Explicit
+   * `| undefined` per `exactOptionalPropertyTypes`.
+   */
+  logoUrl?: string | null | undefined;
 }
 
 const SAFE_TEXT_COLOR = (tokens: EmotionalDsTokens, isOnImage: boolean): string =>
@@ -220,11 +228,19 @@ export const SlideComposition: React.FC<SlideCompositionProps> = ({
   image,
   tokens,
   children,
+  logoUrl,
 }) => {
+  // Spec 65.15 — Cover-only stamp (bookend); editorial body slides skip.
+  const stamp = variant === "cover" ? <DsBrandStamp logoUrl={logoUrl} /> : null;
   switch (variant) {
     case "cover":
     case "editorial":
-      return <CoverComposition image={image} tokens={tokens}>{children}</CoverComposition>;
+      return (
+        <>
+          <CoverComposition image={image} tokens={tokens}>{children}</CoverComposition>
+          {stamp}
+        </>
+      );
     case "immersive":
       return <ImmersiveComposition image={image} tokens={tokens}>{children}</ImmersiveComposition>;
     case "product-context":

@@ -18,6 +18,7 @@
 import type React from "react";
 import { HostSlide } from "../../../end-slide-components/HostSlide.tsx";
 import { endSlideDataSchema } from "../../../end-slide-components/types.ts";
+import { DsBrandStamp } from "../DsBrandStamp.tsx";
 import type { FamilyBEndContent, FamilyBImage } from "./types.ts";
 
 interface RenderEndSlideProps {
@@ -41,6 +42,8 @@ interface RenderEndSlideProps {
   locale: "de" | "en";
   slideIndex: number;
   slideTotal: number;
+  /** Spec 65.15 — bottom-right brand-stamp watermark on the end slide (bookend). */
+  logoUrl?: string | null;
 }
 
 export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
@@ -53,28 +56,35 @@ export const RenderEndSlide: React.FC<RenderEndSlideProps> = ({
   locale,
   slideIndex,
   slideTotal,
+  logoUrl,
 }) => {
   if (endSlideData !== undefined) {
     const parsed = endSlideDataSchema.safeParse(endSlideData);
     if (parsed.success) {
       return (
-        <HostSlide
-          data={parsed.data}
-          theme={theme}
-          locale={locale}
-          brandTokens={brandTokens}
-        />
+        <>
+          <HostSlide
+            data={parsed.data}
+            theme={theme}
+            locale={locale}
+            brandTokens={brandTokens}
+          />
+          <DsBrandStamp logoUrl={logoUrl} />
+        </>
       );
     }
   }
   return (
-    <InlineEndSlide
-      end={inlineEnd}
-      image={inlineImage}
-      brandTokens={brandTokens}
-      theme={theme}
-      slideIndex={slideIndex}
-      slideTotal={slideTotal}
-    />
+    <>
+      <InlineEndSlide
+        end={inlineEnd}
+        image={inlineImage}
+        brandTokens={brandTokens}
+        theme={theme}
+        slideIndex={slideIndex}
+        slideTotal={slideTotal}
+      />
+      <DsBrandStamp logoUrl={logoUrl} />
+    </>
   );
 };
