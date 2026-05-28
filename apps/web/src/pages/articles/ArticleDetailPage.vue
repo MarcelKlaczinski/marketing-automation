@@ -262,20 +262,41 @@ export default defineComponent({
       }
     },
     onReRender(): void {
-      // Spec 65.10: confirmation dialog because re-rendering re-pays the
-      // ~€0.10 LLM cost (cover headline + verdict reasoning per template).
+      // Spec 65.10 + V1.7-followup — confirmation with radio for refreshImages.
+      // Re-render re-pays the ~€0.10 LLM cost (cover headline + narrative);
+      // refreshImages also re-stages provider/NB2 images (~€0.20 extra for
+      // a 4-slide Family-B). Default radio = cached images (cheaper).
       this.$q.dialog({
         title: this.$t("articles.reRender.dialogTitle") as string,
         message: this.$t("articles.reRender.dialogMessage") as string,
+        options: {
+          type: "radio",
+          model: "cached",
+          items: [
+            {
+              label: this.$t("articles.reRender.optionCached") as string,
+              value: "cached",
+            },
+            {
+              label: this.$t("articles.reRender.optionRefresh") as string,
+              value: "refresh",
+            },
+          ],
+        },
         cancel: { flat: true, color: "white" },
         ok: { label: this.$t("articles.reRender.dialogConfirm") as string, color: "primary" },
         dark: true,
-      }).onOk(async () => {
+      }).onOk(async (choice: "cached" | "refresh") => {
+        const refreshImages = choice === "refresh";
         try {
-          await apiPost(`/articles/${this.articleId}/re-render`);
+          await apiPost(`/articles/${this.articleId}/re-render`, { refreshImages });
           this.$q.notify({
             type: "positive",
-            message: this.$t("articles.reRender.success") as string,
+            message: this.$t(
+              refreshImages
+                ? "articles.reRender.successRefresh"
+                : "articles.reRender.success",
+            ) as string,
           });
           void this.queryClient.invalidateQueries({
             queryKey: ["article", this.articleId],

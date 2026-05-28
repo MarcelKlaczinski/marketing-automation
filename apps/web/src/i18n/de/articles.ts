@@ -102,9 +102,12 @@ export default {
     button: "Re-Render",
     dialogTitle: "Karussell erneut rendern?",
     dialogMessage:
-      "Re-Render kostet ca. €0,10 (Cover- und Verdict-LLM). Die bestehenden Slide-Bilder werden überschrieben.",
+      "Re-Render kostet ca. €0,10 (Cover- und Narrative-LLM). Die bestehenden Slide-Bilder werden überschrieben.",
+    optionCached: "Nur Text neu (Bilder aus Cache wiederverwenden) — ~€0,10",
+    optionRefresh: "Text + Bilder komplett neu (Pexels/NB2 neu laden) — ~€0,30",
     dialogConfirm: "Re-Render starten",
     success: "Re-Render gestartet — neue Slides erscheinen in ca. 30-60s.",
+    successRefresh: "Re-Render mit frischen Bildern gestartet — neue Slides in ca. 60-90s.",
     error: "Re-Render konnte nicht gestartet werden.",
   },
 

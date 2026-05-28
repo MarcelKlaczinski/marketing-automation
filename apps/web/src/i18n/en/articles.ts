@@ -404,9 +404,12 @@ export default {
     button: "Re-render",
     dialogTitle: "Re-render carousel?",
     dialogMessage:
-      "Re-rendering costs ~€0.10 (cover + verdict LLM). Existing slide images will be overwritten.",
+      "Re-rendering costs ~€0.10 (cover + narrative LLM). Existing slide images will be overwritten.",
+    optionCached: "Text only (reuse cached images) — ~€0.10",
+    optionRefresh: "Text + fresh images (re-stage from Pexels/NB2) — ~€0.30",
     dialogConfirm: "Start re-render",
     success: "Re-render started — new slides will appear in ~30-60s.",
+    successRefresh: "Re-render with fresh images started — new slides in ~60-90s.",
     error: "Could not start re-render.",
   },
 
