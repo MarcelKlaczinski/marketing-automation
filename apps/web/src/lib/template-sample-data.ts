@@ -90,21 +90,41 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
   },
 
   // ── comparison-grid-3 ─────────────────────────────────────────────────
+  // Multi-slide carousel (Spec 65.7) — cover/compareHeader/tools/verdict/end
+  // sections. Auto-fill picks slideIndex 0 (Cover) so the Spec 65.17 logo-
+  // hero refresh is the visible thing on preview.
   "comparison-grid-3": {
     slideIndex: 0,
-    locale: "de",
+    slideTotal: 7,
     theme: "dark",
-    generated: {
-      headline: "Die besten",
+    locale: "de",
+    cover: {
+      eyebrow: "Vergleich · 3 KI-Bildgeneratoren",
+      headlineLead: "Die 3 besten",
       headlineEm: "KI-Bildgeneratoren",
       subline:
-        "Midjourney, DALL·E oder Stable Diffusion? Drei Modelle, eine klare Empfehlung pro Use-Case.",
-      eyebrow: "Vergleich · 3 Top-Tools",
-      slideNum: "01 / 01",
-      ctaLine1: "Workflow-Empfehlungen →",
-      ctaLine2: "toolwiki.ai/bilder",
-      dateLabel: "Stand 05/2026 · toolwiki.ai/bilder",
-      tools: [
+        "Drei Tools im Direktvergleich — Pros, Cons, Pricing und der Sieger pro Use-Case.",
+      headerNum: "05/2026 · toolwiki.ai/bilder",
+    },
+    compareHeader: {
+      title: "KI-Bildgeneratoren: Was wir vergleichen.",
+      criteria: ["Ergebnis-Qualität", "Pricing & Limits", "Workflow-Fit"],
+      categoryBadge: "KI-Bildgeneratoren",
+    },
+    verdict: {
+      winnerToolSlug: "midjourney",
+      reasoning:
+        "Beste Wahl für KI-Bildgeneratoren: Midjourney v7 — die runde Mischung aus Ergebnis-Qualität und Pricing.",
+      eyebrow: "Fazit · Sieger",
+      ctaLine: "Vollständiger Vergleich →",
+    },
+    end: {
+      headlineLead: "Mehr Vergleiche",
+      headlineEm: "ehrlich getestet.",
+      articleUrl: "toolwiki.ai/bilder",
+      ctaLine: "Vollständiger Vergleich →",
+    },
+    tools: [
         {
           slug: "midjourney",
           name: "Midjourney v7",
@@ -157,8 +177,7 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
           iconInitials: "SD",
           iconHue: 270,
         },
-      ],
-    },
+    ],
   },
 
   // ── verdict-per-use-case ──────────────────────────────────────────────
@@ -235,6 +254,187 @@ export const TEMPLATE_SAMPLE_DATA: SampleDataByKey = {
     end: { ctaLine: "Vollständiger Test →", url: "toolwiki.ai/midjourney" },
     locale: "de",
     theme: "dark",
+  },
+
+  // ── head-to-head-vs ───────────────────────────────────────────────────
+  // 6-slide Family-A carousel (Spec 65.7). Cover (slideIndex 0) shows the
+  // Spec 65.17 VS-faceoff: 2 huge logos with italic "vs." glyph between.
+  "head-to-head-vs": {
+    slideIndex: 0,
+    slideTotal: 6,
+    theme: "dark",
+    locale: "de",
+    cover: {
+      eyebrow: "Head-to-Head · Direktvergleich",
+      headlineLead: "Cursor",
+      headlineEm: "vs. GitHub Copilot",
+      subline:
+        "Welches Tool gewinnt für deinen Workflow? Direktvergleich mit drei Kriterien und Sieger.",
+      headerNum: "05/2026 · toolwiki.ai/code-editors",
+    },
+    tools: [
+      {
+        slug: "cursor",
+        name: "Cursor",
+        score: 90,
+        scoreTier: "hi",
+        meta: "AI-First IDE · VS-Code-Fork",
+        pricePrefix: "Ab",
+        priceAmount: "20 $/Mo",
+        pros: ["Composer für Multi-File-Refactors", "Tab-Completion mit Codebase-Kontext"],
+        cons: ["Höhere Latenz inline", "Eigene IDE — Migration"],
+        isWinner: true,
+        iconInitials: "CR",
+        iconHue: 200,
+      },
+      {
+        slug: "github-copilot",
+        name: "GitHub Copilot",
+        score: 84,
+        scoreTier: "hi",
+        meta: "Inline-Autocomplete · VS-Code-Plugin",
+        pricePrefix: "Ab",
+        priceAmount: "10 $/Mo",
+        pros: ["Native VS-Code-Integration", "Copilot Chat im Editor"],
+        cons: ["Begrenzter Multi-File-Kontext", "Composer fehlt"],
+        isWinner: false,
+        iconInitials: "GC",
+        iconHue: 30,
+      },
+    ],
+    compare: {
+      criteria: [
+        { label: "Multi-File", toolAVerdict: "Composer ist State-of-the-Art", toolBVerdict: "Begrenzt auf offene Tabs", winner: "a" },
+        { label: "Inline-Speed", toolAVerdict: "Etwas träger", toolBVerdict: "Sub-Sekunden-Antworten", winner: "b" },
+        { label: "Pricing", toolAVerdict: "20 $/Mo Pro", toolBVerdict: "10 $/Mo Individual", winner: "b" },
+      ],
+    },
+    verdict: {
+      winnerToolSlug: "cursor",
+      reasoning:
+        "Cursor gewinnt für AI-First-Workflows — Composer macht Multi-File-Refactors zum Heimspiel.",
+      eyebrow: "Fazit · Sieger",
+      ctaLine: "Vollständiger Vergleich →",
+    },
+    end: {
+      headlineLead: "Mehr Vergleiche",
+      headlineEm: "ehrlich getestet.",
+      articleUrl: "toolwiki.ai/code-editors",
+      ctaLine: "Vollständiger Vergleich →",
+    },
+  },
+
+  // ── tool-tier-ranking ─────────────────────────────────────────────────
+  // Single-still composition (Spec 65.17). 3 stacked tier-lanes
+  // (spitze · stark · solide) with 1–2 tool logos per lane, color-coded
+  // gold/silver/bronze. Tool `slug` fields auto-resolve to real brand logos
+  // via simple-icons → iconify → lobe-icons. FamilyATool requires
+  // score/meta/pros/cons/etc. for Zod parse — tier-template only renders
+  // name + logo + tier-label but the schema demands the full shape.
+  "tool-tier-ranking": {
+    slideIndex: 0,
+    theme: "dark",
+    locale: "de",
+    generated: {
+      eyebrow: "Tier-Ranking · 5 KI-Bildgeneratoren",
+      headlineLead: "Solide,",
+      headlineEm: "Stark, Spitze.",
+      subline:
+        "5 Tools getestet, in 3 Klassen sortiert — datengetrieben aus Persona-Scores.",
+      headerNum: "05/2026 · toolwiki.ai/bilder",
+      ctaLine: "Vollständiges Ranking →",
+      articleUrl: "toolwiki.ai/bilder-ranking",
+      tiers: [
+        {
+          tier: "spitze",
+          label: "Spitze",
+          tools: [
+            {
+              slug: "midjourney",
+              name: "Midjourney",
+              score: 92,
+              scoreTier: "hi",
+              meta: "Premium-Ästhetik",
+              pricePrefix: "Ab",
+              priceAmount: "10 $/Mo",
+              pros: ["Hero-Visuals", "Konsistenz"],
+              cons: ["Schwer auszubrechen", "Text schwach"],
+              isWinner: true,
+              iconInitials: "MJ",
+              iconHue: 220,
+            },
+            {
+              slug: "openai",
+              name: "DALL·E 4",
+              score: 88,
+              scoreTier: "hi",
+              meta: "Prompt-Adhärenz",
+              pricePrefix: "Ab",
+              priceAmount: "20 $/Mo",
+              pros: ["Exakte Prompts", "Text lesbar"],
+              cons: ["Stil glatt", "Weniger Kontrolle"],
+              isWinner: false,
+              iconInitials: "DE",
+              iconHue: 160,
+            },
+          ],
+        },
+        {
+          tier: "stark",
+          label: "Stark",
+          tools: [
+            {
+              slug: "recraft",
+              name: "Flux 1.1 Pro",
+              score: 78,
+              scoreTier: "hi",
+              meta: "Foto-Realismus",
+              pricePrefix: "Ab",
+              priceAmount: "5 $/Mo",
+              pros: ["Photo-Look", "Schnell + günstig"],
+              cons: ["Style-Transfer schwach", "EN bevorzugt"],
+              isWinner: false,
+              iconInitials: "FL",
+              iconHue: 30,
+            },
+            {
+              slug: "ideogram",
+              name: "Ideogram 2.0",
+              score: 72,
+              scoreTier: "mid",
+              meta: "Typografie",
+              pricePrefix: "Ab",
+              priceAmount: "8 $/Mo",
+              pros: ["Bestes Text-im-Bild", "Schnelle Iteration"],
+              cons: ["Foto weniger natürlich", "Begrenzte Library"],
+              isWinner: false,
+              iconInitials: "ID",
+              iconHue: 290,
+            },
+          ],
+        },
+        {
+          tier: "solide",
+          label: "Solide",
+          tools: [
+            {
+              slug: "stability",
+              name: "Stable Diffusion",
+              score: 58,
+              scoreTier: "mid",
+              meta: "Maximale Kontrolle",
+              pricePrefix: "",
+              priceAmount: "Kostenlos",
+              pros: ["LoRAs für Konsistenz", "Kein Abo, lokal"],
+              cons: ["Steile Lernkurve", "Default wirkt blass"],
+              isWinner: false,
+              iconInitials: "SD",
+              iconHue: 270,
+            },
+          ],
+        },
+      ],
+    },
   },
 
   // ── pro-con-verdict ───────────────────────────────────────────────────
