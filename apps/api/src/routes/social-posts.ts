@@ -235,7 +235,7 @@ socialPostDetailRoutes.post("/:id/re-render", async (c) => {
 
   // 4. Fetch current brand tokens (live state — key principle: re-render uses CURRENT tokens)
   const [project] = await db
-    .select({ brandTokens: projects.brandTokens, slug: projects.slug })
+    .select({ brandTokens: projects.brandTokens, slug: projects.slug, domain: projects.domain })
     .from(projects)
     .where(eq(projects.id, post.projectId))
     .limit(1);
@@ -251,6 +251,36 @@ socialPostDetailRoutes.post("/:id/re-render", async (c) => {
   // social_posts.articleId is set at creation time (RenderSlidesStep INSERT); null is not
   // reachable on posts created after Spec 57.2, but guard defensively.
   if (!post.articleId) return c.json({ ok: false, error: "Post has no articleId" }, 400);
+
+  // V1.6.1 followup (2026-05-29) — Family-B (Spec 65.8) snapshots have shape
+  // `{kind: "family-b", templateKey, locale, theme, slideTotal, compositionInput}` —
+  // the spread `...renderInput` below does NOT include the legacy list-carousel
+  // fields (articleTitle/Slug/Url, projectSlug, variant, resolvedTools, cover*/end*)
+  // that the social-render worker's SocialRenderJobData Zod schema still requires.
+  // Fill them from DB (article + project) for Family-B; Family-A flat snapshots
+  // carry these fields inline and the spread covers them. Worker dispatches on
+  // `kind` discriminator so the legacy values are unused for Family-B renders —
+  // they just need to pass Zod validation.
+  const [articleRow] = await db
+    .select({ title: articles.title, slug: articles.slug })
+    .from(articles)
+    .where(eq(articles.id, post.articleId))
+    .limit(1);
+  const legacyDefaults = {
+    articleTitle: articleRow?.title ?? "",
+    articleSlug: articleRow?.slug ?? "",
+    projectSlug: project.slug,
+    articleUrl: articleRow?.slug
+      ? `https://${project.domain ?? `${project.slug}.example.com`}/${articleRow.slug}`
+      : "",
+    variant: "stunning" as const,
+    resolvedTools: [] as Array<{ slug: string; name: string }>,
+    coverEyebrow: "",
+    coverHeadlineLead: "",
+    coverHeadlineHighlight: "",
+    endHeadline: "",
+    endHeadlineHighlight: "",
+  };
 
   // 6. Reset render lifecycle (preserve caption/hashtags via jsonb_set on slides only)
   await db
@@ -269,6 +299,8 @@ socialPostDetailRoutes.post("/:id/re-render", async (c) => {
 
   // 7. Enqueue render with fresh brand tokens + overrides, stored composition inputs
   // Use timestamp-based jobId so BullMQ doesn't deduplicate against the prior completed job.
+  // Order: legacy defaults FIRST, then renderInput (Family-A flat snapshots overwrite
+  // defaults with their inline values; Family-B nested snapshots leave defaults intact).
   const renderJobId = await enqueueSocialRenderJob(
     {
       socialPostId: id,
@@ -276,6 +308,7 @@ socialPostDetailRoutes.post("/:id/re-render", async (c) => {
       articleId: post.articleId,
       brandTokens: (project.brandTokens ?? {}) as Record<string, unknown>, // Drizzle jsonb → BullMQ payload; structurally compatible
       overrides: resolvedOverrides as Record<string, unknown>, // mergeOverrides returns TemplateOverrides; plain object subset of Record
+      ...legacyDefaults,
       ...renderInput,
     },
     { jobId: `rerender-${id}-${Date.now()}` },

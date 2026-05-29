@@ -96,7 +96,7 @@ describe("createImageBatch", () => {
 
     const [url, init] = (fetchMock.mock.calls[0] ?? []) as [string, RequestInit];
     expect(url).toBe(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-image-preview:batchGenerateContent",
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:batchGenerateContent",
     );
     expect((init.headers as Record<string, string>)["x-goog-api-key"]).toBe("test-api-key");
 

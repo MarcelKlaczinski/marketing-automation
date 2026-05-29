@@ -1,6 +1,11 @@
 // Google Gemini Image API model slugs. Public name "Nano Banana" — internal slug below.
+// V1.6.1 followup (2026-05-29): Google renamed `gemini-3-flash-image-preview` → stable
+// `gemini-3.1-flash-image`. Live-test 2026-05-29 confirmed the old slug returns HTTP 404
+// on `v1beta` while `gemini-3.1-flash-image` returns 200 + image/jpeg. The
+// `nano-banana-pro` slug `gemini-3-pro-image-preview` is unchanged + still valid per
+// Google's model list. List models: `GET https://generativelanguage.googleapis.com/v1beta/models?key=<KEY>`.
 export const NANO_BANANA_MODELS = {
-  "nano-banana-2": "gemini-3-flash-image-preview",
+  "nano-banana-2": "gemini-3.1-flash-image",
   "nano-banana-pro": "gemini-3-pro-image-preview",
 } as const;
 

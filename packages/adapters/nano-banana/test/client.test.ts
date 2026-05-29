@@ -325,7 +325,7 @@ describe("type exports", () => {
     const mod = await import("../src/index.ts");
     expect(typeof mod.generateImage).toBe("function");
     expect(typeof mod.nanoBanana.generateImage).toBe("function");
-    expect(mod.NANO_BANANA_MODELS["nano-banana-2"]).toBe("gemini-3-flash-image-preview");
+    expect(mod.NANO_BANANA_MODELS["nano-banana-2"]).toBe("gemini-3.1-flash-image");
     expect(mod.NANO_BANANA_MODELS["nano-banana-pro"]).toBe("gemini-3-pro-image-preview");
   });
 });
