@@ -76,6 +76,31 @@ export interface PersistRecurringBriefInput {
    * generator routed to tier-mode; absent for normal grid carousels.
    */
   tierData?: Array<{ toolId: string; tier: "solide" | "stark" | "spitze" }>;
+  /**
+   * V1.6.1 — pre-resolved single-tool snapshot for Family-B templates
+   * (lifestyle-listicle: `featuredTool`, opinion-recommendation:
+   * `recommendedTool`). Frozen into `formatConfig` under the key matching the
+   * template's `buildInput()` read path so the template never needs a runtime
+   * DB lookup. Pre-V1.6.1 the template-side lazy resolver returned null in
+   * production and the literal fallback `"the tool"` propagated verbatim
+   * through the Sonnet narrative-prompt — see post-mortem 2026-05-28.
+   *
+   * `singleToolKey` distinguishes the two templates' field names. When unset,
+   * no field is added (back-compat with story-arc-clickbait + comparison
+   * grids which don't use this contract).
+   */
+  singleTool?: {
+    key: "featuredTool" | "recommendedTool";
+    payload: {
+      slug: string;
+      name: string;
+      iconSvg?: string;
+      iconInitials?: string;
+      iconHue?: number;
+      primaryColor?: string;
+      secondaryColor?: string;
+    };
+  };
 }
 
 export async function persistRecurringBrief(
@@ -104,6 +129,7 @@ export async function persistRecurringBrief(
     }),
     ...(input.hookData && { hookData: input.hookData }),
     ...(input.tierData && { tierData: input.tierData }),
+    ...(input.singleTool && { [input.singleTool.key]: input.singleTool.payload }),
     toolIds: input.toolIds,
   };
 

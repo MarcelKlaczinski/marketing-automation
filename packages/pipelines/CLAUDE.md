@@ -1144,6 +1144,8 @@ End-to-end wiring of Family-B carousels (`story-arc-clickbait` / `lifestyle-list
 
 **Canonical helper:** `buildFamilyBRenderInput(args, deps?)` in [packages/pipelines/src/article/social-image/family-b-render.ts](packages/pipelines/src/article/social-image/family-b-render.ts). Loads the template definition from the registry, calls `template.buildInput(article, discovery)` to derive the `*Context` shape, invokes `template.generateContent(article, ctx, locale, llmCaller)` to produce hookOutput + caption + hashtags + narrative (Spec 60.1 `_<key>Extra` extension pattern), reads cached photographic backgrounds from `domain_extras.familyBImages[]`, reads frozen end-slide data from `domain_extras.recurring.formatConfig.selectedEndSlide`, and assembles a per-template `compositionInput` snapshot matching each template's Zod input schema.
 
+**V1.6.1 defense-in-depth scrub** (Spec V1.6.1) — `extractNarrative` (in `family-b-render.ts`) runs `scrubTaggedBlocksFromNarrative` on the `_<key>Extra` narrative payload before passing it to the composition: regex-strips `<[A-Z][A-Z0-9_]*>[\s\S]*?</[A-Z][A-Z0-9_]*>/g` from each beat's `text` field. Empty-after-strip beats fall back to a single space so the Zod validator still parses. Primary stripper lives in `packages/social/src/compositions/_shared/family-b/helpers.ts` `splitNarrativeByBeats`; this scrub catches future prompt-template edits introducing new tagged-block conventions the helper-side parser doesn't yet recognise. See root CLAUDE.md DO-NOT for the full rule on greedy beat-splitter regexes.
+
 **Discriminated snapshot shape** persisted at `social_posts.content.renderInput`:
 
 ```ts

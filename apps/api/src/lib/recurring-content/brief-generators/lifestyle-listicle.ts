@@ -21,6 +21,7 @@ import {
 import { buildDryRunPreview } from "./shared/dry-run-preview.ts";
 import { pickToolsForBrief } from "./shared/pick-tools.ts";
 import { persistRecurringBrief } from "./shared/persist-brief.ts";
+import { resolveFeaturedTool } from "./shared/resolve-featured-tool.ts";
 import {
   NoEligibleEndSlidesError,
   selectEndSlideForRecurringBrief,
@@ -233,6 +234,11 @@ export async function generateLifestyleListicleBrief(
     endSlideType: selectedEndSlide.endSlideType,
   });
 
+  // V1.6.1 — resolve `featuredTool` payload at persist time so the template's
+  // `buildInput()` never needs a runtime DB lookup. Best-effort: null fall-
+  // through delegates to the template-side lazy resolver (defense in depth).
+  const featuredToolPayload = await resolveFeaturedTool(firstTool.id);
+
   const persisted = await persistRecurringBrief({
     projectId: ctx.projectId,
     definition: ctx.definition,
@@ -250,6 +256,11 @@ export async function generateLifestyleListicleBrief(
     ...(ctx.runGroupId && { runGroupId: ctx.runGroupId }),
     // Spec 65.V1.5b — worker-resolved auto-approve flag.
     autoApprove: ctx.autoApprove ?? false,
+    // V1.6.1 — pre-resolve featuredTool so the template-side fallback path
+    // (article.title) never fires for fresh briefs.
+    ...(featuredToolPayload && {
+      singleTool: { key: "featuredTool" as const, payload: featuredToolPayload },
+    }),
   });
 
   return {

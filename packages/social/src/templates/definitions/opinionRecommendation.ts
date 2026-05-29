@@ -28,6 +28,7 @@ import type {
   FamilyBToolMention,
 } from "../../compositions/_shared/family-b/types.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
+import { loadFamilyBToolFromArticleId } from "../lib/load-family-b-tool.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import type {
   ContentBounds,
@@ -193,6 +194,8 @@ export const opinionRecommendationTemplate: TemplateDefinition<OpinionRecommenda
         formatConfig?: {
           hookData?: { rendered?: string; variables?: Record<string, string> };
           recommendedTool?: FamilyBToolMention;
+          /** V1.6.1 — brief-generator stamps toolIds[]; we fall back to [0] for legacy briefs. */
+          toolIds?: string[];
         };
       };
     } | undefined)?.recurring;
@@ -202,10 +205,29 @@ export const opinionRecommendationTemplate: TemplateDefinition<OpinionRecommenda
       rendered: hookData?.rendered ?? article.title ?? article.slug,
       variables: hookData?.variables ?? {},
     };
-    const recommendedTool: FamilyBToolMention = recurring?.formatConfig?.recommendedTool ?? {
+
+    // V1.6.1 — same resolution chain as lifestyleListicle.buildInput.
+    // 1. Prefer brief-generator's stamped recommendedTool.
+    // 2. Legacy briefs: lazy DB-lookup via toolIds[0].
+    // 3. Final fallback: article.title/slug (was literal "the tool" pre-V1.6.1
+    //    which the LLM propagated verbatim into the narrative — see post-mortem
+    //    2026-05-28).
+    let recommendedTool: FamilyBToolMention = recurring?.formatConfig?.recommendedTool ?? {
       slug: "unknown",
-      name: "the tool",
+      name: article.title ?? article.slug,
     };
+    const firstToolId = recurring?.formatConfig?.toolIds?.[0];
+    if (!recurring?.formatConfig?.recommendedTool && firstToolId) {
+      const resolved = await loadFamilyBToolFromArticleId(firstToolId, article.projectId);
+      if (resolved) recommendedTool = resolved;
+    }
+    if (recommendedTool.slug === "unknown") {
+      // biome-ignore lint/suspicious/noConsole: pure helper, no logger in scope
+      console.warn(
+        `[opinion-recommendation] recommendedTool unresolved for article=${article.id} (project=${article.projectId}); fell back to article title. Re-run brief-generator to stamp recommendedTool.`,
+      );
+    }
+
     const articleUrl = `toolwiki.ai/${article.slug}`;
     return {
       hook,

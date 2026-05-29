@@ -32,6 +32,7 @@ import type {
   FamilyBToolMention,
 } from "../../compositions/_shared/family-b/types.ts";
 import { brandTokensSchema } from "../../compositions/list-carousel/types.ts";
+import { loadFamilyBToolFromArticleId } from "../lib/load-family-b-tool.ts";
 import { writeSlides } from "../lib/writeSlides.ts";
 import type {
   ContentBounds,
@@ -190,22 +191,32 @@ export const lifestyleListicleTemplate: TemplateDefinition<LifestyleListicleCont
       variables: hookData?.variables ?? {},
     };
 
-    // 1. Prefer brief-generator's explicit featuredTool when set.
+    // 1. Prefer brief-generator's explicit featuredTool when set (V1.6.1: brief-
+    //    generator now stamps this at persist-time so the chain below only
+    //    fires for legacy briefs).
     // 2. Fall back to formatConfig.toolIds[0] + DB-lookup (slug, name, iconSvg,
-    //    primaryColor, secondaryColor). The lifestyle-listicle brief-generator
-    //    currently doesn't set featuredTool (Spec 65.16 V1.6-followup bug),
-    //    so this lazy-resolve covers all existing + future Marcel-created
-    //    articles without re-generating briefs.
-    // 3. Final fallback: opaque "the tool" placeholder (renders InlineToolMention
-    //    with initials avatar, no brand colors).
+    //    primaryColor, secondaryColor). Covers legacy briefs without a stamped
+    //    featuredTool.
+    // 3. Final fallback (V1.6.1 — was literal `"the tool"` which the LLM
+    //    propagated verbatim into the narrative, see post-mortem 2026-05-28):
+    //    use the article title/slug. Slide still renders + Marcel-visible.
     let featuredTool: FamilyBToolMention = recurring?.formatConfig?.featuredTool ?? {
       slug: "unknown",
-      name: "the tool",
+      name: article.title ?? article.slug,
     };
     const firstToolId = recurring?.formatConfig?.toolIds?.[0];
     if (!recurring?.formatConfig?.featuredTool && firstToolId) {
       const resolved = await loadFamilyBToolFromArticleId(firstToolId, article.projectId);
       if (resolved) featuredTool = resolved;
+    }
+    // V1.6.1 — emit a warn-log when the fallback fired so Marcel sees broken
+    // briefs in production logs. The render still proceeds with the article-
+    // title fallback (not literal "the tool").
+    if (featuredTool.slug === "unknown") {
+      // biome-ignore lint/suspicious/noConsole: pure helper, no logger in scope
+      console.warn(
+        `[lifestyle-listicle] featuredTool unresolved for article=${article.id} (project=${article.projectId}); fell back to article title. Re-run brief-generator to stamp featuredTool.`,
+      );
     }
 
     const articleUrl = `toolwiki.ai/${article.slug}`;
@@ -379,101 +390,6 @@ function fallbackCaption(
   return `Three honest moments where ${ctx.featuredTool.name} quietly changed my everyday life.\n\n${article.title ?? article.slug}`;
 }
 
-/**
- * Spec 65.16 V1.6-followup — lazy-load a single tool's render-shape from DB.
- *
- * The lifestyle-listicle brief-generator currently doesn't stamp a
- * `featuredTool` object into `formatConfig` (only `toolIds[]`). This helper
- * fills the gap at render time so existing articles get a proper logo +
- * brand colors without re-generating their briefs.
- *
- * Lazy `await import("@marketing-auto/db")` to keep this template module
- * cold-path-cheap when consumers only need eligibility/buildInput-shape.
- */
-async function loadFamilyBToolFromArticleId(
-  toolArticleId: string,
-  _projectId: string,
-): Promise<FamilyBToolMention | null> {
-  try {
-    const { db, articles, toolBrandAssets, eq } = await import("@marketing-auto/db");
-    // tool_brand_assets is TOOL-SCOPED, not project-scoped (PK = tool_id).
-    // Same Claude logo serves every project; no project_id column.
-    const [row] = await db
-      .select({
-        slug: articles.slug,
-        title: articles.title,
-        domainExtras: articles.domainExtras,
-        logoUrl: toolBrandAssets.logoUrl,
-        primaryColor: toolBrandAssets.primaryColor,
-        secondaryColor: toolBrandAssets.secondaryColor,
-      })
-      .from(articles)
-      .leftJoin(toolBrandAssets, eq(toolBrandAssets.toolId, articles.id))
-      .where(eq(articles.id, toolArticleId))
-      .limit(1);
-    if (!row) return null;
-
-    // domain_extras may carry inline icon data (Spec 52a fast path).
-    const extras = row.domainExtras as
-      | { iconSvg?: string; iconInitials?: string; iconHue?: number }
-      | null
-      | undefined;
-
-    const tool: FamilyBToolMention = {
-      slug: row.slug,
-      name: row.title ?? row.slug,
-    };
-    // 1. Inline SVG in domainExtras = fast-path (Spec 52a).
-    // 2. tool_brand_assets.logo_url = R2 URL. ToolIconImage needs inline
-    //    SVG strings (no <img> rendering), so we fetch the SVG bytes here.
-    //    Best-effort: failure falls through to initials-avatar.
-    if (extras?.iconSvg) {
-      tool.iconSvg = extras.iconSvg;
-    } else if (row.logoUrl) {
-      const fetched = await fetchSvgString(row.logoUrl);
-      if (fetched) tool.iconSvg = fetched;
-    }
-    if (extras?.iconInitials) tool.iconInitials = extras.iconInitials;
-    if (extras?.iconHue !== undefined) tool.iconHue = extras.iconHue;
-    if (row.primaryColor) tool.primaryColor = row.primaryColor;
-    if (row.secondaryColor) tool.secondaryColor = row.secondaryColor;
-    return tool;
-  } catch {
-    // DB unavailable or schema drift — fall through to the placeholder
-    // featuredTool in buildInput. Render still works (initials avatar).
-    return null;
-  }
-}
-
-/**
- * Spec 65.16 V1.6-followup — fetch SVG bytes from a logo URL (tool_brand_assets.logo_url)
- * and return the string for inline render via ToolIconImage. Per-process cache so
- * a 3-item carousel doesn't re-fetch the same logo 3 times.
- *
- * Returns null on non-2xx, non-SVG content, or fetch failure. Caller falls
- * through to initials-avatar.
- */
-const _svgCache = new Map<string, string | null>();
-
-async function fetchSvgString(url: string): Promise<string | null> {
-  const cached = _svgCache.get(url);
-  if (cached !== undefined) return cached;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) {
-      _svgCache.set(url, null);
-      return null;
-    }
-    const text = await res.text();
-    // Defensive: only accept actual SVG markup, never HTML pages (R2 misroute).
-    if (!text.trimStart().startsWith("<svg")) {
-      _svgCache.set(url, null);
-      return null;
-    }
-    _svgCache.set(url, text);
-    return text;
-  } catch {
-    _svgCache.set(url, null);
-    return null;
-  }
-}
+// V1.6.1 — `loadFamilyBToolFromArticleId` + `fetchSvgString` extracted to
+// `../lib/load-family-b-tool.ts` so `opinionRecommendation.ts` can reuse the
+// same resolver chain. Imported at the top of this file.

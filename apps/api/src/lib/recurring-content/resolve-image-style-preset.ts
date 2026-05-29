@@ -19,16 +19,24 @@
  * ─── Provider routing (2-tier, content-level wins) ──────────────────────
  *
  *   1. content-level explicit choice (when Marcel toggled provider per-content)
- *   2. content-type default routing:
+ *   2. content-type default routing (V1.6.1 — all Family-B → NB2):
  *        story_arc_clickbait     → nano-banana-2 (signature drama)
  *        opinion_recommendation  → nano-banana-2 (signature provocation)
- *        lifestyle_listicle      → photographic   (authentic-lifestyle fits real-photos)
+ *        lifestyle_listicle      → nano-banana-2 (signature lifestyle — V1.6.1 pivot)
  *        head-to-head-*          → nano-banana-2 (signature tech)
  *        (unknown)               → nano-banana-2 (V1 default per Marcel-decision Q1)
  *
- * Per Marcel-Decision §3.4: the photographic pipeline stays running for
- * lifestyle-listicle by default; Marcel can flip per-content if a specific
- * lifestyle topic wants NB2.
+ * V1.6.1 (Marcel-Decision §A1, post-mortem 2026-05-28): pivot from
+ * `photographic` to `nano-banana-2` for lifestyle-listicle. Live-test
+ * 2026-05-27 showed systemic off-topic stock-photo selection from the
+ * photographic pipeline (random pexels-BTS, generic laptops). Photographic
+ * remains as opt-in fallback via the content-level `imageProvider` override
+ * on `domain_extras.recurring.formatConfig.imageProvider`. undraw integration
+ * is a V1.7 follow-up.
+ *
+ * Mirrors `CONTENT_TYPE_PROVIDER_DEFAULT` in
+ * `packages/pipelines/src/article/social-image/stage-family-b-images.step.ts` —
+ * keep these in sync when changing a default or adding a Family-B template.
  */
 import {
   DEFAULT_PRESET_KEY,
@@ -83,15 +91,18 @@ export function isImageProvider(value: unknown): value is ImageProvider {
 }
 
 /**
- * Content-type → provider default. Lifestyle stays photographic per
- * Marcel-Decision §3.4 (authentic-lifestyle fits real-photos). Everything
- * else (story-arc / opinion / head-to-head and unknown format-types) routes
- * through NB2 for signature visual quality.
+ * Content-type → provider default. ALL Family-B types route through NB2
+ * since V1.6.1 (Marcel-Decision §A1 post-mortem 2026-05-28). See file-
+ * header JSDoc for the pivot rationale.
+ *
+ * Photographic stays available as an opt-in fallback via the content-level
+ * `imageProvider` override on
+ * `domain_extras.recurring.formatConfig.imageProvider`.
  */
 const CONTENT_TYPE_PROVIDER_DEFAULT: Record<string, ImageProvider> = {
   "story-arc-clickbait": "nano-banana-2",
   "opinion-recommendation": "nano-banana-2",
-  "lifestyle-listicle": "photographic",
+  "lifestyle-listicle": "nano-banana-2",
   "head-to-head-vs": "nano-banana-2",
   "head-to-head-deep-dive": "nano-banana-2",
 };

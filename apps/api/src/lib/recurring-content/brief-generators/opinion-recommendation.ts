@@ -20,6 +20,7 @@ import {
 } from "./shared/check-brand-assets.ts";
 import { buildDryRunPreview } from "./shared/dry-run-preview.ts";
 import { persistRecurringBrief } from "./shared/persist-brief.ts";
+import { resolveFeaturedTool } from "./shared/resolve-featured-tool.ts";
 import {
   NoEligibleEndSlidesError,
   selectEndSlideForRecurringBrief,
@@ -199,6 +200,11 @@ export async function generateOpinionRecommendationBrief(
     endSlideType: selectedEndSlide.endSlideType,
   });
 
+  // V1.6.1 — resolve `recommendedTool` payload at persist time so the template
+  // never needs a runtime DB lookup. Best-effort: null fall-through delegates
+  // to the template-side lazy resolver.
+  const recommendedToolPayload = await resolveFeaturedTool(tool.id);
+
   const persisted = await persistRecurringBrief({
     projectId: ctx.projectId,
     definition: ctx.definition,
@@ -216,6 +222,11 @@ export async function generateOpinionRecommendationBrief(
     ...(ctx.runGroupId && { runGroupId: ctx.runGroupId }),
     // Spec 65.V1.5b — worker-resolved auto-approve flag.
     autoApprove: ctx.autoApprove ?? false,
+    // V1.6.1 — pre-resolve recommendedTool so the template-side fallback path
+    // (article.title) never fires for fresh briefs.
+    ...(recommendedToolPayload && {
+      singleTool: { key: "recommendedTool" as const, payload: recommendedToolPayload },
+    }),
   });
 
   return {

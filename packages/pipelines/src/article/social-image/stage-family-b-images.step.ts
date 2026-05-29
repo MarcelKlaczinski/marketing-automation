@@ -160,16 +160,26 @@ const DEFAULT_DEPS: StageFamilyBImagesDeps = {
 type ImageProvider = "nano-banana-2" | "photographic";
 
 /**
- * Content-type default routing. Lifestyle stays photographic per Marcel-
- * Decision §3.4 (authentic-lifestyle fits real-photos). Everything else
- * routes through NB2 for signature visual quality. Mirrors the table in
+ * Content-type default routing. ALL Family-B types route through NB2 since
+ * V1.6.1 (Marcel-Decision §A1 post-mortem 2026-05-28). Photographic stays as
+ * an opt-in fallback via the content-level `imageProvider` override on
+ * `domain_extras.recurring.formatConfig.imageProvider` for tenants who
+ * specifically want the photographic aesthetic per definition.
+ *
+ * Pre-V1.6.1: lifestyle-listicle defaulted to `photographic` per Spec 65.16
+ * §3.4 ("authentic-lifestyle fits real-photos"). Live-test 2026-05-27 showed
+ * systemic off-topic stock-photo selection (random pexels-BTS / generic
+ * laptops with zero narrative relevance), so Marcel pivoted to NB2-everywhere
+ * for V1 launch. undraw integration is a V1.7 follow-up.
+ *
+ * Mirrors the table in
  * `apps/api/src/lib/recurring-content/resolve-image-style-preset.ts` —
  * keep these in sync when adding a Family-B template.
  */
 const CONTENT_TYPE_PROVIDER_DEFAULT: Record<string, ImageProvider> = {
   "story-arc-clickbait": "nano-banana-2",
   "opinion-recommendation": "nano-banana-2",
-  "lifestyle-listicle": "photographic",
+  "lifestyle-listicle": "nano-banana-2",
 };
 
 function isImageProvider(value: unknown): value is ImageProvider {
